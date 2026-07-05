@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>개인 관리 프로그램</title>
+    <link rel="stylesheet" href="styles.css?v=40" />
+  </head>
+  <body>
+    <div id="loginScreen" class="login-screen">
+      <section class="login-panel">
+        <div>
+          <p class="eyebrow">Personal Management Hub</p>
+          <h1 id="loginTitle">개인 관리 프로그램</h1>
+          <p class="muted">일정, 공지, 과목, 시험, 성적, 포트폴리오를 개인 중심으로 관리합니다.</p>
+        </div>
+        <form id="loginForm" class="login-form">
+          <label>이메일<input id="email" type="email" placeholder="email@example.com" required /></label>
+          <label>비밀번호<input id="password" type="password" placeholder="비밀번호" required /></label>
+          <button type="submit">로그인</button>
+          <div class="demo-accounts">
+            <p class="muted invite-only-note">계정은 관리자 초대 또는 초대코드로 등록합니다.</p>
+          </div>
+          <p id="loginError" class="error"></p>
+        </form>
+      </section>
+    </div>
+
+    <div id="app" class="app hidden">
+      <aside class="sidebar">
+        <div class="brand">
+          <span id="brandMark" class="brand-mark">PM</span>
+          <div>
+            <strong id="brandName">개인 관리 프로그램</strong>
+            <small>통합 대시보드</small>
+          </div>
+        </div>
+        <nav id="nav"></nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <button id="menuToggle" class="icon-button" aria-label="메뉴 열기">☰</button>
+          <div>
+            <p id="roleLabel" class="eyebrow">로그인 필요</p>
+            <h2 id="pageTitle">메인 대시보드</h2>
+          </div>
+          <div class="top-actions">
+            <input id="globalSearch" type="search" placeholder="전체 검색" />
+            <button id="logoutBtn" class="ghost">로그아웃</button>
+          </div>
+        </header>
+        <section id="content" class="content"></section>
+      </main>
+    </div>
+
+    <dialog id="editorDialog">
+      <form id="editorForm" class="dialog-form">
+        <div class="dialog-head">
+          <h3 id="dialogTitle">항목 편집</h3>
+          <button type="button" id="closeEditor" class="icon-button" aria-label="닫기">×</button>
+        </div>
+        <div id="editorFields" class="form-grid"></div>
+        <p id="editorError" class="error"></p>
+        <menu>
+          <button type="button" id="cancelEditor" class="ghost">취소</button>
+          <button type="submit">저장</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="passwordDialog">
+      <form id="passwordForm" class="dialog-form narrow">
+        <h3>비밀번호 재확인</h3>
+        <p class="muted">수정 또는 삭제하려면 현재 계정 비밀번호를 입력하세요.</p>
+        <input id="confirmPasswordInput" type="password" placeholder="현재 비밀번호" />
+        <p id="passwordError" class="error"></p>
+        <menu>
+          <button type="button" id="cancelPassword" class="ghost">취소</button>
+          <button type="submit">확인</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="messageDialog">
+      <form method="dialog" class="dialog-form narrow">
+        <h3 id="messageTitle">알림</h3>
+        <p id="messageBody" class="muted"></p>
+        <menu><button value="ok">확인</button></menu>
+      </form>
+    </dialog>
+
+    <script src="/pm-env.js?v=1"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script src="shared/types.js?v=1"></script>
+    <script src="shared/roles.js?v=2"></script>
+    <script src="shared/permissions.js?v=4"></script>
+    <script src="shared/navigation.js?v=1"></script>
+    <script src="services/dataService.js?v=2"></script>
+    <script src="services/firebaseRuntime.js?v=5"></script>
+    <script src="services/authService.js?v=12"></script>
+    <script src="services/invitationService.js?v=6"></script>
+    <script src="services/systemAdminService.js?v=9"></script>
+    <script src="services/workspaceDataService.js?v=5"></script>
+    <script src="services/workspaceService.js?v=2"></script>
+    <script src="services/accountService.js?v=1"></script>
+    <script src="services/sessionService.js?v=1"></script>
+    <script src="services/deviceService.js?v=1"></script>
+    <script src="services/notificationService.js?v=1"></script>
+    <script src="services/repositories.js?v=1"></script>
+    <script src="services/schoolIntegrationService.js?v=5"></script>
+    <script src="app.js?v=91"></script>
+  </body>
+</html>

@@ -1,0 +1,376 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isSystemOwner() {
+      return signedIn()
+        && (
+          exists(/databases/$(database)/documents/systemOwners/$(request.auth.uid))
+          || (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "system_owner"
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status != "disabled"
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true
+          )
+        );
+    }
+
+    function isWorkspaceMember(workspaceId) {
+      return signedIn()
+        && (
+          (
+            exists(/databases/$(database)/documents/workspace_members/$(workspaceId + "_" + request.auth.uid))
+            && get(/databases/$(database)/documents/workspace_members/$(workspaceId + "_" + request.auth.uid)).data.status in ["active", "accepted"]
+          )
+          || (
+            exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid))
+            && get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.status in ["active", "accepted"]
+          )
+        );
+    }
+
+    function workspaceRole(workspaceId) {
+      return isWorkspaceMember(workspaceId)
+        ? (
+          exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid))
+            ? get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.role
+            : get(/databases/$(database)/documents/workspace_members/$(workspaceId + "_" + request.auth.uid)).data.role
+        )
+        : null;
+    }
+
+    function isWorkspaceManager(workspaceId) {
+      return isWorkspaceMember(workspaceId)
+        && workspaceRole(workspaceId) in ["super_manager", "manager"];
+    }
+
+    function selfUserUpdateAllowed(uid) {
+      return isSelf(uid)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "uid",
+          "email",
+          "displayName",
+          "emailVerified",
+          "globalRole",
+          "role",
+          "currentRole",
+          "status",
+          "workspaceId",
+          "currentWorkspaceId",
+          "pendingWorkspaceId",
+          "pendingInviteCodeId",
+          "lastLoginAt",
+          "updatedAt",
+          "disabled"
+        ])
+        && request.resource.data.role != "system_owner"
+        && (
+          !("role" in resource.data)
+          || request.resource.data.role == resource.data.role
+          || request.resource.data.role == "pending"
+        )
+        && request.resource.data.status in ["pending", "waiting_approval", "active", resource.data.status];
+    }
+
+    match /users/{uid} {
+      allow create: if isSelf(uid)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role in ["pending", "normal", "viewer"]
+        && request.resource.data.role != "system_owner";
+      allow read: if isSelf(uid)
+        || isSystemOwner()
+        || (
+          resource.data.currentWorkspaceId is string
+          && isWorkspaceManager(resource.data.currentWorkspaceId)
+        )
+        || (
+          resource.data.workspaceId is string
+          && isWorkspaceManager(resource.data.workspaceId)
+        );
+      allow update: if isSystemOwner()
+        || selfUserUpdateAllowed(uid)
+        || (
+          resource.data.currentWorkspaceId is string
+          && isWorkspaceManager(resource.data.currentWorkspaceId)
+        )
+        || (
+          resource.data.workspaceId is string
+          && isWorkspaceManager(resource.data.workspaceId)
+        );
+      allow delete: if isSystemOwner()
+        || (
+          resource.data.currentWorkspaceId is string
+          && isWorkspaceManager(resource.data.currentWorkspaceId)
+        )
+        || (
+          resource.data.workspaceId is string
+          && isWorkspaceManager(resource.data.workspaceId)
+        );
+    }
+
+    match /workspaces/{workspaceId} {
+      allow create: if isSystemOwner()
+        || (
+          signedIn()
+          && request.resource.data.workspaceId == workspaceId
+          && request.resource.data.ownerUid == request.auth.uid
+        );
+      allow read: if isSystemOwner() || isWorkspaceMember(workspaceId);
+      allow update, delete: if isSystemOwner() || isWorkspaceManager(workspaceId);
+
+      match /members/{uid} {
+        allow create, update: if isSystemOwner()
+          || (
+            signedIn()
+            && request.resource.data.uid == uid
+            && request.resource.data.workspaceId == workspaceId
+            && (
+              request.auth.uid == uid
+              || isWorkspaceManager(workspaceId)
+            )
+          );
+        allow read: if isSystemOwner() || isWorkspaceMember(workspaceId);
+        allow delete: if isSystemOwner() || isWorkspaceManager(workspaceId);
+      }
+
+      match /inviteCodes/{inviteCodeId} {
+        allow get: if signedIn()
+          && resource.data.status in ["active", "used", "accepted"];
+        allow list: if isSystemOwner() || isWorkspaceManager(workspaceId);
+        allow create, update, delete: if signedIn()
+          && (
+            isSystemOwner()
+            || isWorkspaceManager(workspaceId)
+          );
+
+        match /usedUsers/{uid} {
+          allow create, update: if signedIn()
+            && request.auth.uid == uid
+            && request.resource.data.uid == uid;
+          allow read: if isSystemOwner() || isWorkspaceManager(workspaceId) || request.auth.uid == uid;
+          allow delete: if isSystemOwner() || isWorkspaceManager(workspaceId);
+        }
+      }
+
+      match /notices/{noticeId} {
+        allow read: if isSystemOwner() || isWorkspaceMember(workspaceId);
+        allow create: if request.resource.data.workspaceId == workspaceId
+          && (
+            isSystemOwner()
+            || (
+            isWorkspaceMember(workspaceId)
+            && (
+              !("authorUid" in request.resource.data)
+              || request.resource.data.authorUid == request.auth.uid
+            )
+            && workspaceRole(workspaceId) in ["super_manager", "manager", "teacher", "normal"]
+            )
+          );
+        allow update, delete: if isSystemOwner()
+          || isWorkspaceManager(workspaceId)
+          || (
+            isWorkspaceMember(workspaceId)
+            && resource.data.authorUid == request.auth.uid
+          );
+      }
+
+      match /{collectionId}/{docId} {
+        allow read: if isSystemOwner() || isWorkspaceMember(workspaceId);
+        allow create, update, delete: if isSystemOwner()
+          || (
+            isWorkspaceMember(workspaceId)
+            && collectionId in [
+              "settings",
+              "schedules",
+              "subjects",
+              "teachers",
+              "materials",
+              "assignments",
+              "portfolios",
+              "penalties",
+              "exams",
+              "people",
+              "friendAwards",
+              "requests",
+              "timetable",
+              "timetableSets",
+              "periodTimes",
+              "meals",
+              "attendance",
+              "examSchedules",
+              "records",
+              "lessons",
+              "projects",
+              "budget",
+              "systemReports",
+              "academic",
+              "academicSchedules",
+              "homeLetters",
+              "schoolNotices",
+              "mealApplications",
+              "afterschoolPrograms",
+              "afterschoolAttendance",
+              "afterschoolSchedules",
+              "specialLecturePrograms",
+              "specialLectureAttendance",
+              "specialLectureSchedules",
+              "clubs",
+              "clubPrograms",
+              "clubAttendance",
+              "clubSchedules"
+            ]
+          );
+      }
+    }
+
+    match /workspace_members/{memberId} {
+      allow create: if signedIn()
+        && request.resource.data.workspaceId is string
+        && (
+          isSystemOwner()
+          || (
+            request.resource.data.uid == request.auth.uid
+            && memberId == request.resource.data.workspaceId + "_" + request.auth.uid
+          )
+          || isWorkspaceManager(request.resource.data.workspaceId)
+        );
+      allow read: if signedIn()
+        && (
+          isSystemOwner()
+          || resource.data.uid == request.auth.uid
+          || isWorkspaceManager(resource.data.workspaceId)
+        );
+      allow update, delete: if signedIn()
+        && resource.data.workspaceId is string
+        && (isSystemOwner() || isWorkspaceManager(resource.data.workspaceId));
+    }
+
+    match /user_devices/{deviceId} {
+      allow create, update: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.workspaceId is string
+        && isWorkspaceMember(request.resource.data.workspaceId);
+      allow read, delete: if signedIn()
+        && (
+          isSystemOwner()
+          || resource.data.uid == request.auth.uid
+          || isWorkspaceManager(resource.data.workspaceId)
+        );
+    }
+
+    match /notifications/{notificationId} {
+      allow create, update: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.workspaceId is string
+        && isWorkspaceMember(request.resource.data.workspaceId);
+      allow read, delete: if signedIn()
+        && (
+          isSystemOwner()
+          || resource.data.uid == request.auth.uid
+          || isWorkspaceManager(resource.data.workspaceId)
+        );
+    }
+
+    match /invitations/{invitationId} {
+      allow read: if signedIn()
+        && resource.data.workspaceId is string
+        && (isSystemOwner() || isWorkspaceManager(resource.data.workspaceId));
+      allow create, update, delete: if signedIn()
+        && request.resource.data.workspaceId is string
+        && (isSystemOwner() || isWorkspaceManager(request.resource.data.workspaceId));
+    }
+
+    match /invites/{inviteCode} {
+      allow get: if signedIn()
+        && resource.data.status == "active";
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.workspaceId is string
+        && (isSystemOwner() || isWorkspaceManager(request.resource.data.workspaceId))
+        && request.resource.data.inviterUid == request.auth.uid
+        && request.resource.data.status == "active";
+      allow update, delete: if signedIn()
+        && resource.data.workspaceId is string
+        && (isSystemOwner() || isWorkspaceManager(resource.data.workspaceId));
+
+      match /usedUsers/{uid} {
+        allow create, update: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.uid == uid;
+        allow read: if signedIn() && (isSystemOwner() || request.auth.uid == uid);
+        allow delete: if false;
+      }
+    }
+
+    match /users/{inviteOwnerUid}/invitedUsers/{joinedUserUid} {
+      allow create, update: if signedIn()
+        && request.auth.uid == joinedUserUid
+        && request.resource.data.uid == joinedUserUid;
+      allow read, delete: if signedIn()
+        && (isSystemOwner() || request.auth.uid == inviteOwnerUid);
+    }
+
+    match /workspaceJoinRequests/{requestId} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == "pending"
+        && request.resource.data.workspaceId is string;
+      allow read: if isSystemOwner() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow update, delete: if isSystemOwner();
+    }
+
+    match /adminApplications/{applicationId} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == "pending";
+      allow read: if isSystemOwner() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow update, delete: if isSystemOwner();
+    }
+
+    match /systemNotices/{noticeId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isSystemOwner();
+    }
+
+    match /systemIntegrations/{integrationId} {
+      allow read, create, update, delete: if isSystemOwner();
+    }
+
+    match /systemIntegrationLogs/{logId} {
+      allow read, create: if isSystemOwner();
+      allow update, delete: if false;
+    }
+
+    match /adminLogs/{logId} {
+      allow read, create: if isSystemOwner();
+      allow update, delete: if false;
+    }
+
+    match /systemOwners/{uid} {
+      allow read: if isSystemOwner() || isSelf(uid);
+      allow create, update, delete: if isSystemOwner();
+    }
+
+    match /{path=**}/members/{uid} {
+      allow read: if isSystemOwner()
+        || (
+          signedIn()
+          && resource.data.workspaceId is string
+          && isWorkspaceMember(resource.data.workspaceId)
+        );
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
