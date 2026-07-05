@@ -13,11 +13,7 @@ const defaults = {
   quickButtons: ["schedules", "notices", "penalties", "assignments", "exams", "portfolios"]
 };
 
-let accounts = [
-  { id: 1, name: "관리자", email: "admin@example.com", password: "admin1234", role: "admin", pin: "1234" },
-  { id: 2, name: "일반 사용자", email: "user@example.com", password: "user1234", role: "user", pin: "1234" },
-  { id: 3, name: "프린트 계정", email: "print@example.com", password: "print1234", role: "print", pin: "1234" }
-];
+let accounts = [];
 
 const initialStore = {
   settings: {
@@ -2841,11 +2837,7 @@ function resetSystemV12() {
   localStorage.removeItem("pm-store-v3");
   localStorage.removeItem("pm-accounts-v5");
   store = structuredClone(initialStore);
-  accounts = [
-    { id: 1, name: "관리자", email: "admin@example.com", password: "admin1234", role: "admin", pin: "1234" },
-    { id: 2, name: "일반 사용자", email: "user@example.com", password: "user1234", role: "user", pin: "1234" },
-    { id: 3, name: "프린트 계정", email: "print@example.com", password: "print1234", role: "print", pin: "1234" }
-  ];
+  accounts = [];
   ensureAppV12();
   saveAccountsV5();
   applySettings();
@@ -3125,7 +3117,7 @@ function renderSystemV12() {
   );
   const resetBtn = button("모든 내용 삭제 및 초기화", "danger");
   resetBtn.addEventListener("click", resetSystemV12);
-  reset.append(grid, resetBtn, systemWarningV12("초기화는 일정, 공지, 시험, 수업, 자료, 프로젝트, 계정 등 모든 저장 내용을 삭제하고 기본 계정으로 되돌립니다. 되돌릴 수 없으니 백업 후 실행하세요. 현재 비밀번호, PIN, 고유 패스워드, 확인 문구까지 모두 맞아야 실행됩니다."));
+  reset.append(grid, resetBtn, systemWarningV12("초기화는 일정, 공지, 시험, 수업, 자료, 프로젝트, 계정 등 모든 저장 내용을 삭제하고 빈 로컬 상태로 되돌립니다. 되돌릴 수 없으니 백업 후 실행하세요. 현재 비밀번호, PIN, 고유 패스워드, 확인 문구까지 모두 맞아야 실행됩니다."));
 
   const reports = panel("오류 제보 목록");
   reports.append(tableGenericV12("systemReports", store.systemReports || []));
@@ -3176,11 +3168,7 @@ function resetSystemV12() {
   localStorage.removeItem("pm-store-v3");
   localStorage.removeItem("pm-accounts-v5");
   store = structuredClone(initialStore);
-  accounts = [
-    { id: 1, name: "관리자", email: "admin@example.com", password: "admin1234", role: "admin", pin: "1234" },
-    { id: 2, name: "일반 사용자", email: "user@example.com", password: "user1234", role: "user", pin: "1234" },
-    { id: 3, name: "프린트 계정", email: "print@example.com", password: "print1234", role: "print", pin: "1234" }
-  ];
+  accounts = [];
   ensureAppV12();
   saveAccountsV5();
   applySettings();
@@ -3499,11 +3487,7 @@ function resetSystemV11() {
   localStorage.removeItem("pm-store-v3");
   localStorage.removeItem("pm-accounts-v5");
   store = structuredClone(initialStore);
-  accounts = [
-    { id: 1, name: "관리자", email: "admin@example.com", password: "admin1234", role: "admin", pin: "1234" },
-    { id: 2, name: "일반 사용자", email: "user@example.com", password: "user1234", role: "user", pin: "1234" },
-    { id: 3, name: "프린트 계정", email: "print@example.com", password: "print1234", role: "print", pin: "1234" }
-  ];
+  accounts = [];
   extendAppV11();
   saveAccountsV5();
   applySettings();
@@ -5421,11 +5405,7 @@ function resetSystemV12() {
   localStorage.removeItem("pm-store-v3");
   localStorage.removeItem("pm-accounts-v5");
   store = structuredClone(initialStore);
-  accounts = [
-    { id: 1, name: "관리자", email: "admin@example.com", password: "admin1234", role: "admin", pin: "1234" },
-    { id: 2, name: "일반 사용자", email: "user@example.com", password: "user1234", role: "user", pin: "1234" },
-    { id: 3, name: "프린트 계정", email: "print@example.com", password: "print1234", role: "print", pin: "1234" }
-  ];
+  accounts = [];
   ensureAppV12();
   saveAccountsV5();
   applySettings();
@@ -5497,10 +5477,6 @@ function makeEmptyLocalStoreV14() {
   };
 }
 
-function defaultAdminAccountV14() {
-  return { id: 1, name: "관리자", email: "admin@example.com", password: "admin1234", role: "admin", pin: "1234", permissions: {} };
-}
-
 function renderSystemV12() {
   content.replaceChildren();
   const backup = panel("백업 및 복구");
@@ -5527,7 +5503,7 @@ function renderSystemV12() {
   );
   const resetBtn = button("현재 기기 로컬 데이터 완전 초기화", "danger");
   resetBtn.addEventListener("click", resetSystemV12);
-  reset.append(grid, resetBtn, systemWarningV12("실행하면 이 기기의 로컬 저장소에서 일정, 공지, 출결, 선생님, 과목, 시험, 자료, 시간표, 프로젝트 등 모든 자료가 빈 상태가 됩니다. 일반 계정과 프린트 계정도 삭제되고 기본 관리자 계정(admin@example.com / admin1234)만 남습니다. 실행 후 자동 로그아웃됩니다. 서버 DB나 공용 데이터는 삭제하지 않습니다."));
+  reset.append(grid, resetBtn, systemWarningV12("실행하면 이 기기의 로컬 저장소에서 일정, 공지, 출결, 선생님, 과목, 시험, 자료, 시간표, 프로젝트 등 모든 자료가 빈 상태가 됩니다. 저장된 로컬 계정도 삭제되며 기본 관리자 계정은 다시 만들지 않습니다. 실행 후 자동 로그아웃됩니다. 서버 DB나 공용 데이터는 삭제하지 않습니다."));
 
   const reports = panel("오류 제보 목록");
   reports.append(tableGenericV12("systemReports", store.systemReports || []));
@@ -5541,7 +5517,7 @@ function resetSystemV12() {
   if (document.getElementById("resetConfirm").value !== "로컬데이터삭제") return showMessage("초기화 차단", "확인 문구에 로컬데이터삭제를 정확히 입력해야 합니다.");
 
   store = makeEmptyLocalStoreV14();
-  accounts = [defaultAdminAccountV14()];
+  accounts = [];
   saveStore();
   saveAccountsV5();
   sessionStorage.removeItem("pm-current-user");
@@ -5551,7 +5527,7 @@ function resetSystemV12() {
   loginScreen.classList.remove("hidden");
   loginForm.reset();
   applySettings();
-  showMessage("로컬 초기화 완료", "현재 기기의 로컬 데이터가 빈 상태로 초기화되었습니다. 기본 관리자 계정만 남았고 일반/프린트 계정은 삭제되었습니다. 서버 DB나 공용 데이터는 삭제하지 않았습니다.");
+  showMessage("로컬 초기화 완료", "현재 기기의 로컬 데이터가 빈 상태로 초기화되었습니다. 기본 관리자 계정은 다시 만들지 않았고 서버 DB나 공용 데이터는 삭제하지 않았습니다.");
 }
 
 // Final V15: empty-safe timetable and site-management guides.
@@ -8486,11 +8462,19 @@ function legacyDemoSuperEmailV77() {
   return ["super", "example.com"].join("@");
 }
 
-function ensureDefaultSuperAccountV38(state) {
+const LEGACY_DEMO_EMAILS_V31 = new Set([
+  ["admin", "example.com"].join("@"),
+  ["user", "example.com"].join("@"),
+  ["print", "example.com"].join("@"),
+  legacyDemoSuperEmailV77()
+]);
+
+function removeLegacyDemoAccountsV31(state) {
+  if (!state || typeof state !== "object") return state;
   state.users = Array.isArray(state.users) ? state.users : [];
   const removedUserIds = new Set();
   state.users = state.users.filter((user) => {
-    const shouldRemove = String(user.email || "").toLowerCase() === legacyDemoSuperEmailV77();
+    const shouldRemove = LEGACY_DEMO_EMAILS_V31.has(String(user.email || "").toLowerCase());
     if (shouldRemove) {
       if (user.id) removedUserIds.add(user.id);
       if (user.uid) removedUserIds.add(user.uid);
@@ -8502,6 +8486,10 @@ function ensureDefaultSuperAccountV38(state) {
     state.auth.sessionStartedAt = null;
   }
   return state;
+}
+
+function ensureDefaultSuperAccountV38(state) {
+  return removeLegacyDemoAccountsV31(state);
 }
 
 function loadAuthStateV31() {
@@ -8540,24 +8528,7 @@ function normalizeLegacyRoleV31(role) {
 }
 
 function syncLegacyAccountsV31() {
-  const existing = new Set(authStateV31.users.map((user) => user.email));
-  (accounts || []).forEach((account) => {
-    if (existing.has(account.email)) return;
-    authStateV31.users.push({
-      id: `u-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      name: account.name || account.email,
-      email: account.email,
-      password: account.password || "1234",
-      role: normalizeLegacyRoleV31(account.role),
-      active: true,
-      emailVerified: true,
-      status: "active",
-      createdAt: new Date().toISOString(),
-      lastLoginAt: "",
-      menuOverrides: null,
-      extraPermissions: {}
-    });
-  });
+  removeLegacyDemoAccountsV31(authStateV31);
   saveAuthStateV31();
 }
 
@@ -9329,7 +9300,10 @@ function verifyLocalEmailV33() {
 
 async function onLoginV33(event) {
   event.preventDefault();
+  if (typeof beginBrowserAuthAttemptV80 === "function") beginBrowserAuthAttemptV80();
   event.stopImmediatePropagation();
+  const loginFailureFallbackTimerV85 = scheduleLoginFailureFallbackV85();
+  loginError.textContent = "로그인 확인 중입니다...";
   ensureAppV31();
   const targetEmail = email.value.trim().toLowerCase();
   let user = authStateV31.users.find((item) => item.email.toLowerCase() === targetEmail);
@@ -9339,11 +9313,8 @@ async function onLoginV33(event) {
       user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || targetEmail, user?.role || "normal");
       authStateV31 = window.PMAuthService.loadAuthState();
     } catch (error) {
-      const canUseLocalFallback = user && await window.PMAuthService.verifyLocalPassword(user, password.value);
-      if (!canUseLocalFallback) {
-        loginError.textContent = firebaseErrorMessageV35(error, "Firebase 로그인에 실패했습니다.");
-        return;
-      }
+      loginError.textContent = firebaseErrorMessageV35(error, "Firebase 로그인에 실패했습니다.");
+      return;
     }
   } else {
     if (!await window.PMAuthService.verifyLocalPassword(user, password.value)) {
@@ -9363,6 +9334,7 @@ async function onLoginV33(event) {
   authStateV31.auth.currentUserId = user.id;
   authStateV31.auth.sessionStartedAt = new Date().toISOString();
   saveAuthStateV31();
+  clearLoginFailureFallbackV85(loginFailureFallbackTimerV85);
   currentUser = authUserToLegacyV31(user);
   currentUser.password = password.value;
   const workspaceId = activateWorkspaceForUserV36(currentUser);
@@ -10250,6 +10222,21 @@ function firebaseErrorMessageV35(error, fallback) {
   return message || fallback;
 }
 
+function scheduleLoginFailureFallbackV85() {
+  return setTimeout(() => {
+    const stillOnLogin = loginScreen && !loginScreen.classList.contains("hidden");
+    if (!stillOnLogin || !loginError) return;
+    const currentMessage = loginError.textContent.trim();
+    if (!currentMessage || currentMessage === "로그인 확인 중입니다...") {
+      loginError.textContent = "이메일 또는 비밀번호가 올바르지 않습니다.";
+    }
+  }, 5000);
+}
+
+function clearLoginFailureFallbackV85(timer) {
+  if (timer) clearTimeout(timer);
+}
+
 function completeLoginV34(user) {
   user.lastLoginAt = new Date().toISOString();
   authStateV31.auth.currentUserId = user.id;
@@ -10816,7 +10803,10 @@ function completeLoginV34(user) {
 
 async function onLoginV33(event) {
   event.preventDefault();
+  if (typeof beginBrowserAuthAttemptV80 === "function") beginBrowserAuthAttemptV80();
   event.stopImmediatePropagation();
+  const loginFailureFallbackTimerV85 = scheduleLoginFailureFallbackV85();
+  loginError.textContent = "로그인 확인 중입니다...";
   ensureSystemOwnerPatchV54();
   beginAdminStandaloneAuthV62();
   const targetEmail = email.value.trim().toLowerCase();
@@ -10827,12 +10817,9 @@ async function onLoginV33(event) {
       user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || targetEmail, user?.role || "pending");
       authStateV31 = window.PMAuthService.loadAuthState();
     } catch (error) {
-      const canUseLocalFallback = user && await window.PMAuthService.verifyLocalPassword(user, password.value);
-      if (!canUseLocalFallback) {
-        finishAdminStandaloneAuthV62(false);
-        loginError.textContent = firebaseErrorMessageV35(error, "Firebase 로그인에 실패했습니다.");
-        return;
-      }
+      finishAdminStandaloneAuthV62(false);
+      loginError.textContent = firebaseErrorMessageV35(error, "Firebase 로그인에 실패했습니다.");
+      return;
     }
   } else if (!await window.PMAuthService.verifyLocalPassword(user, password.value)) {
     finishAdminStandaloneAuthV62(false);
@@ -10854,6 +10841,7 @@ async function onLoginV33(event) {
     loginError.textContent = "이메일 인증 후 로그인할 수 있습니다.";
     return;
   }
+  clearLoginFailureFallbackV85(loginFailureFallbackTimerV85);
   completeLoginV34(user);
 }
 

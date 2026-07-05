@@ -7,8 +7,8 @@ const configuredRoot = process.env.PM_STATIC_PREVIEW_ROOT
   ? path.resolve(workspaceRoot, process.env.PM_STATIC_PREVIEW_ROOT)
   : path.join(workspaceRoot, "dist-admin");
 const root = fs.existsSync(configuredRoot) ? configuredRoot : workspaceRoot;
-const port = Number(process.env.PM_STATIC_PREVIEW_PORT || 5180);
-const host = "127.0.0.1";
+const port = Number(process.env.PM_STATIC_PREVIEW_PORT || process.env.PORT || 5180);
+const host = process.env.PM_STATIC_PREVIEW_HOST || process.env.HOST || "127.0.0.1";
 const types = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",

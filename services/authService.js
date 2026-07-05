@@ -58,8 +58,7 @@
   async function verifyLocalPassword(user, password) {
     if (!user) return false;
     if (user.credentialHash) return user.credentialHash === await hashPassword(password);
-    // Transitional support for old local demo accounts only.
-    return !!user.password && user.password === password;
+    return false;
   }
 
   async function createLocalEmailUser(state, { email, password, displayName, role, workspaceId, status }) {

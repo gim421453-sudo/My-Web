@@ -35,5 +35,5 @@ Thumbs.db
 .vscode/
 .idea/
 
-output\pdf\
-tmp\pdfs\
+output/pdf/
+tmp/
