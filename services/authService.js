@@ -304,6 +304,7 @@
 
     const memberId = `${workspaceId}_${uid}`;
     const memberRef = firestore.doc(runtime.db, "workspace_members", memberId);
+    const standardMemberRef = firestore.doc(runtime.db, "workspaceMembers", memberId);
     const nestedMemberRef = firestore.doc(runtime.db, "workspaces", workspaceId, "members", uid);
     const memberSnap = await runFirestoreStep("get workspace member document", `workspaces/${workspaceId}/members/${uid}`, () => firestore.getDoc(nestedMemberRef));
     const rootMemberSnap = await runFirestoreStep("get legacy workspace member document", `workspace_members/${memberId}`, () => firestore.getDoc(memberRef));
@@ -340,6 +341,20 @@
     }
 
     batch.set(memberRef, {
+      id: memberId,
+      workspaceId,
+      workspace_id: workspaceId,
+      rootMemberExists: true,
+      nestedMemberExists: true,
+      uid,
+      email: user.email || userData.email || "",
+      displayName: userData.displayName || displayName || user.displayName || user.email || "",
+      role: workspaceRole,
+      status: "active",
+      joinedAt: rootMemberSnap.exists() ? rootMemberSnap.data().joinedAt || now : now,
+      invitedBy: null
+    }, { merge: true });
+    batch.set(standardMemberRef, {
       id: memberId,
       workspaceId,
       workspace_id: workspaceId,

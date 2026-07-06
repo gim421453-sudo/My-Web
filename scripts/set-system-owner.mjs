@@ -122,6 +122,7 @@ const memberPayload = {
 };
 
 await db.collection("workspace_members").doc(memberId).set(memberPayload, { merge: true });
+await db.collection("workspaceMembers").doc(memberId).set(memberPayload, { merge: true });
 await db.collection("workspaces").doc(workspaceId).collection("members").doc(user.uid).set(memberPayload, { merge: true });
 
 await db.collection("systemOwners").doc(user.uid).set({
@@ -132,6 +133,14 @@ await db.collection("systemOwners").doc(user.uid).set({
   workspaceId,
   workspaceName,
   createdAt: now,
+  updatedAt: now
+}, { merge: true });
+
+await db.collection("systemConfig").doc("bootstrap").set({
+  ownerCreated: true,
+  ownerUid: user.uid,
+  ownerEmail: user.email || "",
+  autoOwnerCreationLocked: true,
   updatedAt: now
 }, { merge: true });
 

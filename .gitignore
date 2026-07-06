@@ -16,6 +16,8 @@ build/
 pm-env.js
 firebase-config.local.js
 pm-firebase-config.local.js
+firebase-init.local.json
+admin-init-key*
 my-management-app-8a933-firebase-adminsdk-fbsvc-4a3447a87a.json
 pm-firebase-config.js
 
@@ -37,3 +39,8 @@ Thumbs.db
 
 output/pdf/
 tmp/
+backups/
+*.backup
+*.bak
+*.local.log
+*.tmp

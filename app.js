@@ -17960,3 +17960,487 @@ renderPage = function renderPageV91(key) {
 
 store.settings ??= {};
 store.settings.appVersion = APP_PATCH_VERSION_V91;
+
+// Final V92: Firestore-backed administrator inquiry/chat system and runtime error logging.
+const APP_PATCH_VERSION_V92 = "v92.0 - 2026-07-07";
+let chatThreadsV92 = [];
+let chatMessagesV92 = [];
+let chatSelectedThreadIdV92 = "";
+let chatThreadsUnsubscribeV92 = null;
+let chatMessagesUnsubscribeV92 = null;
+let chatRenderTimerV92 = null;
+let chatLastErrorV92 = "";
+
+function isChatManagerV92(user = currentUser) {
+  return window.PMChatService?.canManage?.(user) || ["system_owner", "super_manager", "manager"].includes(effectiveMenuRoleV59(user));
+}
+
+function chatRoleV92(user = currentUser) {
+  return window.PMChatService?.roleOf?.(user) || effectiveMenuRoleV59(user) || user?.role || "normal";
+}
+
+function chatWorkspaceIdV92(user = currentUser) {
+  return window.PMChatService?.workspaceIdOf?.(user) || userWorkspaceIdV54(user);
+}
+
+function chatCanUseV92(user = currentUser) {
+  return !!window.PMChatService?.canUseChat?.(user);
+}
+
+function chatStatusLabelV92(status) {
+  return { new: "새 문의", in_progress: "처리 중", completed: "완료" }[status || "new"] || status || "새 문의";
+}
+
+function chatTypeLabelV92(type) {
+  return type === "admin" ? "관리자 간 대화" : "사용자 문의/지원 티켓";
+}
+
+function chatTimeV92(value) {
+  const millis = typeof value?.toMillis === "function" ? value.toMillis() : value?.seconds ? value.seconds * 1000 : Date.parse(value || "");
+  return Number.isFinite(millis) ? new Date(millis).toLocaleString() : "";
+}
+
+function latestRuntimeLogV92() {
+  return window.PMChatService?.latestErrorLog?.() || null;
+}
+
+function scheduleChatRenderV92() {
+  clearTimeout(chatRenderTimerV92);
+  chatRenderTimerV92 = setTimeout(() => {
+    if (currentPage === "chat") renderChatConsoleV92();
+  }, 40);
+}
+
+function resetChatSubscriptionsV92() {
+  chatThreadsUnsubscribeV92?.();
+  chatMessagesUnsubscribeV92?.();
+  chatThreadsUnsubscribeV92 = null;
+  chatMessagesUnsubscribeV92 = null;
+}
+
+function ensureChatThreadSubscriptionV92() {
+  if (!currentUser || chatThreadsUnsubscribeV92 || !window.PMChatService) return;
+  chatThreadsUnsubscribeV92 = window.PMChatService.subscribeThreads(currentUser, (rows) => {
+    chatThreadsV92 = rows || [];
+    if (!chatSelectedThreadIdV92 && chatThreadsV92.length) chatSelectedThreadIdV92 = chatThreadsV92[0].id || chatThreadsV92[0].threadId;
+    if (chatSelectedThreadIdV92) ensureChatMessageSubscriptionV92(chatSelectedThreadIdV92);
+    chatLastErrorV92 = "";
+    scheduleChatRenderV92();
+  }, (error) => {
+    chatLastErrorV92 = "정상적으로 연결되지 않았습니다";
+    window.PMChatService?.saveErrorLog?.(error, { source: "chat:thread-ui" }, currentUser);
+    scheduleChatRenderV92();
+  });
+}
+
+function ensureChatMessageSubscriptionV92(threadId) {
+  if (!threadId || chatMessagesUnsubscribeV92?.threadId === threadId || !window.PMChatService) return;
+  chatMessagesUnsubscribeV92?.();
+  const unsubscribe = window.PMChatService.subscribeMessages(threadId, currentUser, (rows) => {
+    chatMessagesV92 = rows || [];
+    chatLastErrorV92 = "";
+    scheduleChatRenderV92();
+    window.PMChatService?.markRead?.(threadId, currentUser).catch((error) => {
+      window.PMChatService?.saveErrorLog?.(error, { source: "chat:markRead", threadId }, currentUser);
+    });
+  }, (error) => {
+    chatLastErrorV92 = "정상적으로 연결되지 않았습니다";
+    window.PMChatService?.saveErrorLog?.(error, { source: "chat:message-ui", threadId }, currentUser);
+    scheduleChatRenderV92();
+  });
+  unsubscribe.threadId = threadId;
+  chatMessagesUnsubscribeV92 = unsubscribe;
+}
+
+function chatThreadUnreadV92(thread) {
+  const uid = window.PMChatService?.uidOf?.(currentUser) || currentUser?.uid || currentUser?.id || "";
+  const readAt = thread?.readBy?.[uid];
+  const lastAuthor = thread?.lastMessageAuthorUid || "";
+  if (lastAuthor && lastAuthor === uid) return false;
+  if (!readAt && thread?.lastMessageText) return true;
+  const readMs = typeof readAt?.toMillis === "function" ? readAt.toMillis() : readAt?.seconds ? readAt.seconds * 1000 : Date.parse(readAt || "");
+  const lastMs = typeof thread?.lastMessageAt?.toMillis === "function" ? thread.lastMessageAt.toMillis() : thread?.lastMessageAt?.seconds ? thread.lastMessageAt.seconds * 1000 : Date.parse(thread?.lastMessageAt || thread?.updatedAt || "");
+  return Number.isFinite(lastMs) && (!Number.isFinite(readMs) || lastMs > readMs);
+}
+
+function chatThreadButtonV92(thread) {
+  const id = thread.id || thread.threadId;
+  const btn = button("", `chat-thread-item-v92 ${id === chatSelectedThreadIdV92 ? "active" : ""}`);
+  btn.dataset.threadId = id;
+  btn.innerHTML = `
+    <span><b>${escapeHtml(thread.title || chatTypeLabelV92(thread.type))}</b><small>${escapeHtml(chatTypeLabelV92(thread.type))}</small></span>
+    <span class="chat-status-v92 ${escapeHtml(thread.status || "new")}">${escapeHtml(chatStatusLabelV92(thread.status))}</span>
+    <small>${escapeHtml(thread.lastMessageText || "아직 메시지가 없습니다.")}</small>
+    <em>${chatThreadUnreadV92(thread) ? "안읽음" : "읽음"}</em>
+  `;
+  btn.addEventListener("click", () => {
+    chatSelectedThreadIdV92 = id;
+    chatMessagesV92 = [];
+    window.history.pushState({}, "", `/chat/thread/${encodeURIComponent(id)}?source=${encodeURIComponent(chatSourceV92())}`);
+    ensureChatMessageSubscriptionV92(id);
+    renderChatConsoleV92();
+  });
+  return btn;
+}
+
+function chatMessageNodeV92(message) {
+  const mine = (message.authorUid || "") === (window.PMChatService?.uidOf?.(currentUser) || currentUser?.uid || currentUser?.id || "");
+  const item = el("article", `chat-message-v92 ${mine ? "mine" : ""}`, "");
+  const meta = [
+    message.authorRole || "",
+    message.authorUid || "",
+    chatTimeV92(message.createdAt),
+    message.logId ? `logId: ${message.logId}` : ""
+  ].filter(Boolean).join(" · ");
+  item.innerHTML = `<p>${escapeHtml(message.text || "")}</p><small>${escapeHtml(meta)}</small>`;
+  return item;
+}
+
+async function createChatThreadFromFormV92(type, title, text, attachLatestLog) {
+  try {
+    const latestLog = attachLatestLog ? latestRuntimeLogV92() : null;
+    const context = typeof chatContextV92 === "function" ? chatContextV92() : {};
+    const threadId = await window.PMChatService.createThread(currentUser, {
+      type,
+      title: title || (type === "admin" ? "관리자 간 대화" : "관리자에게 문의"),
+      initialMessage: text || (latestLog ? `오류 로그를 첨부합니다: ${latestLog.message}` : "문의합니다."),
+      logId: latestLog?.logId || context.relatedLogId || null,
+      source: context.source || "main",
+      context,
+      attachments: latestLog?.logId ? [{ type: "log", logId: latestLog.logId }] : []
+    });
+    chatSelectedThreadIdV92 = threadId;
+    window.history.pushState({}, "", `/chat/thread/${encodeURIComponent(threadId)}?source=${encodeURIComponent(context.source || "main")}`);
+    showMessage("문의 등록", "채팅이 등록되었습니다.");
+    renderChatConsoleV92();
+  } catch (error) {
+    chatLastErrorV92 = "정상적으로 연결되지 않았습니다";
+    await window.PMChatService?.saveErrorLog?.(error, { source: "chat:createThread" }, currentUser);
+    showMessage("정상적으로 연결되지 않았습니다", error?.message || String(error));
+    renderChatConsoleV92();
+  }
+}
+
+async function sendChatMessageV92(threadId, text, attachLatestLog) {
+  try {
+    const latestLog = attachLatestLog ? latestRuntimeLogV92() : null;
+    const context = typeof chatContextV92 === "function" ? chatContextV92() : {};
+    await window.PMChatService.sendMessage(threadId, currentUser, text, {
+      logId: latestLog?.logId || context.relatedLogId || null,
+      source: context.source || "main",
+      attachments: latestLog?.logId ? [{ type: "log", logId: latestLog.logId }] : []
+    });
+    const replyInput = document.getElementById("chatReplyInputV92");
+    if (replyInput) replyInput.value = "";
+  } catch (error) {
+    chatLastErrorV92 = "정상적으로 연결되지 않았습니다";
+    await window.PMChatService?.saveErrorLog?.(error, { source: "chat:sendMessage", threadId }, currentUser);
+    showMessage("정상적으로 연결되지 않았습니다", error?.message || String(error));
+    renderChatConsoleV92();
+  }
+}
+
+function renderChatComposerV92() {
+  const box = el("section", "panel chat-compose-v92", "");
+  const isManager = isChatManagerV92();
+  box.innerHTML = `
+    <div class="panel-head"><div><h3>${isManager ? "새 대화 만들기" : "관리자에게 문의"}</h3><p class="muted">${escapeHtml(chatWorkspaceIdV92())} · ${escapeHtml(chatRoleV92())}</p></div></div>
+    <div class="form-grid">
+      <label>유형<select id="chatTypeInputV92">${isManager ? `<option value="admin">관리자 간 대화</option>` : ""}<option value="support">사용자 문의/지원 티켓</option></select></label>
+      <label>제목<input id="chatTitleInputV92" placeholder="문의 제목" /></label>
+      <label class="wide">내용<textarea id="chatBodyInputV92" rows="3" placeholder="문의 내용을 입력하세요."></textarea></label>
+      <label class="checkbox-row-v92"><input id="chatAttachLogInputV92" type="checkbox" /> 최근 오류 로그 첨부</label>
+    </div>
+    <div class="toolbar"><button id="chatCreateBtnV92" type="button">등록</button></div>
+  `;
+  box.querySelector("#chatCreateBtnV92").addEventListener("click", () => {
+    createChatThreadFromFormV92(
+      box.querySelector("#chatTypeInputV92").value,
+      box.querySelector("#chatTitleInputV92").value.trim(),
+      box.querySelector("#chatBodyInputV92").value.trim(),
+      box.querySelector("#chatAttachLogInputV92").checked
+    );
+  });
+  return box;
+}
+
+function renderChatConsoleV92() {
+  if (!content) return;
+  if (!window.PMChatService) {
+    content.replaceChildren(el("div", "restricted", "채팅 서비스가 로드되지 않았습니다."));
+    return;
+  }
+  if (!chatCanUseV92()) {
+    content.replaceChildren(el("div", "restricted", "문의/채팅 권한 또는 workspace 연결이 필요합니다."));
+    return;
+  }
+  ensureChatThreadSubscriptionV92();
+  const routeThreadId = typeof chatRouteThreadIdV92 === "function" ? chatRouteThreadIdV92() : "";
+  if (routeThreadId && chatSelectedThreadIdV92 !== routeThreadId) {
+    chatSelectedThreadIdV92 = routeThreadId;
+    chatMessagesV92 = [];
+  }
+  const selected = chatThreadsV92.find((thread) => (thread.id || thread.threadId) === chatSelectedThreadIdV92) || chatThreadsV92[0] || null;
+  if (selected) {
+    chatSelectedThreadIdV92 = selected.id || selected.threadId;
+    ensureChatMessageSubscriptionV92(chatSelectedThreadIdV92);
+  }
+  const shell = el("div", "chat-shell-v92", "");
+  const list = el("section", "panel chat-list-v92", "");
+  list.innerHTML = `<div class="panel-head"><div><h3>문의/채팅 목록</h3><p class="muted">새 문의, 처리 중, 완료 상태와 읽음 여부를 확인합니다.</p></div></div>`;
+  const listBody = el("div", "chat-thread-list-v92", "");
+  if (chatThreadsV92.length) chatThreadsV92.forEach((thread) => listBody.append(chatThreadButtonV92(thread)));
+  else listBody.append(el("p", "muted", "아직 표시할 대화가 없습니다."));
+  list.append(listBody);
+
+  const detail = el("section", "panel chat-detail-v92", "");
+  if (selected) {
+    const threadId = selected.id || selected.threadId;
+    detail.innerHTML = `
+      <div class="panel-head">
+        <div><h3>${escapeHtml(selected.title || chatTypeLabelV92(selected.type))}</h3><p class="muted">${escapeHtml(chatTypeLabelV92(selected.type))} · ${escapeHtml(chatStatusLabelV92(selected.status))} · ${escapeHtml(selected.workspaceId || "")}</p></div>
+      </div>
+      ${chatLastErrorV92 ? `<p class="error">${escapeHtml(chatLastErrorV92)}</p>` : ""}
+    `;
+    if (isChatManagerV92()) {
+      const status = el("div", "toolbar chat-status-toolbar-v92", "");
+      ["new", "processing", "answered", "closed", "hold"].forEach((value) => {
+        const btn = button(chatStatusLabelV92(value), selected.status === value ? "" : "ghost");
+        btn.addEventListener("click", async () => {
+          try { await window.PMChatService.updateStatus(threadId, currentUser, value); }
+          catch (error) { showMessage("상태 변경 실패", error?.message || String(error)); }
+        });
+        status.append(btn);
+      });
+      detail.append(status);
+    }
+    const messages = el("div", "chat-messages-v92", "");
+    if (chatMessagesV92.length) chatMessagesV92.forEach((message) => messages.append(chatMessageNodeV92(message)));
+    else messages.append(el("p", "muted", "메시지를 불러오는 중이거나 아직 메시지가 없습니다."));
+    const reply = el("div", "chat-reply-v92", "");
+    reply.innerHTML = `
+      <textarea id="chatReplyInputV92" rows="3" placeholder="답변 또는 추가 문의를 입력하세요."></textarea>
+      <label class="checkbox-row-v92"><input id="chatReplyAttachLogV92" type="checkbox" /> 최근 오류 로그 첨부</label>
+      <button id="chatReplyBtnV92" type="button">전송</button>
+    `;
+    reply.querySelector("#chatReplyBtnV92").addEventListener("click", () => {
+      sendChatMessageV92(threadId, reply.querySelector("#chatReplyInputV92").value, reply.querySelector("#chatReplyAttachLogV92").checked);
+    });
+    detail.append(messages, reply);
+  } else {
+    detail.append(el("div", "empty-state", "왼쪽에서 대화를 선택하거나 새 문의를 등록하세요."));
+  }
+  shell.append(list, detail);
+  content.replaceChildren(renderChatComposerV92(), shell);
+}
+
+function syncSupportButtonV92() {
+  if (!topActions || !currentUser) return;
+  let btn = document.getElementById("supportContactBtnV92");
+  const shouldShow = chatCanUseV92(currentUser) && !isChatManagerV92(currentUser);
+  if (!shouldShow) {
+    btn?.remove();
+    return;
+  }
+  if (!btn) {
+    btn = button("관리자에게 문의", "ghost");
+    btn.id = "supportContactBtnV92";
+    btn.addEventListener("click", () => navigateChatV92("/chat/new?source=main"));
+    topActions.insertBefore(btn, logoutBtn || topActions.firstChild);
+  }
+}
+
+const ensureSystemOwnerPatchBeforeV92 = ensureSystemOwnerPatchV54;
+ensureSystemOwnerPatchV54 = function ensureSystemOwnerPatchV92() {
+  ensureSystemOwnerPatchBeforeV92();
+  pageMeta.chat = ["💬", "문의/채팅 관리"];
+  authStateV31.permissions.chat = {
+    view: ["system_owner", "super_manager", "manager", "normal", "viewer", "print_account", "teacher"],
+    create: ["system_owner", "super_manager", "manager", "normal", "viewer", "print_account", "teacher"],
+    edit: ["system_owner", "super_manager", "manager", "normal", "viewer", "print_account", "teacher"],
+    del: ["system_owner"]
+  };
+};
+
+const defaultRoleMenusBeforeV92 = defaultRoleMenusV31;
+defaultRoleMenusV31 = function defaultRoleMenusV92() {
+  const menus = defaultRoleMenusBeforeV92();
+  ["system_owner", "super_manager", "manager", "normal", "viewer", "print_account", "teacher"].forEach((role) => {
+    menus[role] = [...new Set([...(menus[role] || []), "chat"])];
+  });
+  return menus;
+};
+
+const navGroupsBeforeV92 = navGroupsV28;
+navGroupsV28 = function navGroupsV92() {
+  const groups = navGroupsBeforeV92();
+  const available = new Set(navKeys());
+  if (!available.has("chat")) return groups;
+  const adminGroup = groups.find((group) => group.id === "admin");
+  if (adminGroup && isChatManagerV92()) {
+    adminGroup.keys = [...new Set(["chat", ...adminGroup.keys])];
+    return groups;
+  }
+  return [{ id: "support", label: "문의", keys: ["chat"] }, ...groups];
+};
+
+const renderPageBeforeV92 = renderPage;
+renderPage = function renderPageV92(key) {
+  ensureSystemOwnerPatchV54();
+  if (key === "chat") {
+    currentPage = "chat";
+    if (content) content.dataset.page = "chat";
+    document.body.dataset.pmPage = "chat";
+    if (nav && !nav.children.length) buildNav();
+    updateGreeting();
+    syncSupportButtonV92();
+    document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.page === "chat"));
+    document.querySelector(".sidebar")?.classList.remove("open");
+    pageTitle.textContent = pageLabel("chat");
+    renderChatConsoleV92();
+    appendVersionInfoV16();
+    return;
+  }
+  const result = renderPageBeforeV92(key);
+  syncSupportButtonV92();
+  return result;
+};
+
+const completeLoginBeforeV92 = completeLoginV34;
+completeLoginV34 = function completeLoginV92(user) {
+  resetChatSubscriptionsV92();
+  chatThreadsV92 = [];
+  chatMessagesV92 = [];
+  chatSelectedThreadIdV92 = "";
+  const result = completeLoginBeforeV92(user);
+  setTimeout(() => {
+    syncSupportButtonV92();
+    if (window.location.pathname.startsWith("/chat")) renderPage("chat");
+  }, 0);
+  return result;
+};
+
+const logoutBeforeV92 = logout;
+logout = function logoutV92() {
+  resetChatSubscriptionsV92();
+  return logoutBeforeV92();
+};
+
+chatStatusLabelV92 = function chatStatusLabelV92Common(status) {
+  return { new: "새 문의", processing: "처리 중", answered: "답변 완료", closed: "종료", hold: "보류" }[status || "new"] || status || "새 문의";
+};
+
+function chatSourceV92() {
+  return new URLSearchParams(window.location.search).get("source") || "main";
+}
+
+function chatRouteThreadIdV92() {
+  const match = window.location.pathname.match(/\/chat\/thread\/([^/]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+function chatRouteModeV92() {
+  if (window.location.pathname === "/chat/new") return "new";
+  if (chatRouteThreadIdV92()) return "thread";
+  return "list";
+}
+
+function chatContextV92() {
+  const latestLog = latestRuntimeLogV92();
+  return {
+    source: chatSourceV92(),
+    currentPage: currentPage || "",
+    route: window.location.pathname + window.location.search,
+    role: chatRoleV92(),
+    workspaceId: chatWorkspaceIdV92(),
+    relatedLogId: latestLog?.logId || "",
+    uid: window.PMChatService?.uidOf?.(currentUser) || currentUser?.uid || currentUser?.id || ""
+  };
+}
+
+function navigateChatV92(path = "/chat?source=main") {
+  window.history.pushState({}, "", path);
+  renderPage("chat");
+}
+
+function installRuntimeLoggingV92() {
+  if (window.__pmRuntimeLoggingV92) return;
+  window.__pmRuntimeLoggingV92 = true;
+  window.addEventListener("popstate", () => {
+    if (window.location.pathname.startsWith("/chat") && currentUser) renderPage("chat");
+  });
+  window.addEventListener("pageshow", () => {
+    if (window.location.pathname.startsWith("/chat") && currentUser) renderPage("chat");
+  });
+  window.addEventListener("error", (event) => {
+    window.PMChatService?.saveErrorLog?.(event.error || event.message, {
+      source: "window:error",
+      filename: event.filename || "",
+      lineno: event.lineno || 0,
+      colno: event.colno || 0
+    }, currentUser);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    window.PMChatService?.saveErrorLog?.(event.reason || "Unhandled promise rejection", { source: "window:unhandledrejection" }, currentUser);
+  });
+  if (window.PMFirebaseRuntime?.init && !window.PMFirebaseRuntime.__chatWrappedV92) {
+    const initBefore = window.PMFirebaseRuntime.init;
+    window.PMFirebaseRuntime.init = async function initWithChatLogV92(...args) {
+      try {
+        const runtime = await initBefore.apply(this, args);
+        if (!runtime) throw new Error("정상적으로 연결되지 않았습니다");
+        return runtime;
+      } catch (error) {
+        window.PMChatService?.saveErrorLog?.(error, { source: "firebase:init" }, currentUser);
+        if (typeof showMessage === "function") showMessage("정상적으로 연결되지 않았습니다", "Firebase 연결을 확인해주세요.");
+        throw error;
+      }
+    };
+    window.PMFirebaseRuntime.__chatWrappedV92 = true;
+  }
+}
+
+installRuntimeLoggingV92();
+ensureSystemOwnerPatchV54();
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V92;
+
+// Final V93: production Firebase auth/session enforcement.
+const APP_PATCH_VERSION_V93 = "v93.0 - 2026-07-07";
+
+if (typeof canUseBrowserAuthSessionV80 === "function") {
+  canUseBrowserAuthSessionV80 = function canUseBrowserAuthSessionV93() {
+    return true;
+  };
+}
+
+if (typeof restoreFirebaseSessionV34 === "function") {
+  restoreFirebaseSessionV34 = async function restoreFirebaseSessionV93() {
+    if (!window.PMFirebaseRuntime?.hasConfig?.()) return;
+    try {
+      const runtime = await window.PMFirebaseRuntime.init();
+      if (!runtime) return;
+      runtime.sdk.auth.onAuthStateChanged(runtime.auth, async (firebaseUser) => {
+        if (!firebaseUser) {
+          if (currentUser?.provider === "firebase") logout();
+          return;
+        }
+        if (currentUser) return;
+        const membership = await window.PMAuthService.firebaseEnsureUserStructure(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
+        firebaseUser.pmWorkspaceId = membership.workspaceId;
+        firebaseUser.pmRole = membership.role;
+        firebaseUser.pmStatus = membership.status;
+        firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+        await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
+        const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
+        authStateV31 = window.PMAuthService.loadAuthState();
+        completeLoginV34(user);
+      });
+    } catch (error) {
+      console.warn("Firebase session restore failed", error);
+    }
+  };
+}
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V93;

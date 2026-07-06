@@ -15,6 +15,7 @@
     "firebase:reset-test-data": "node scripts/reset-firebase-test-data.mjs",
     "firebase:delete-non-owner-accounts": "node scripts/delete-non-owner-accounts.mjs",
     "firebase:set-system-owner": "node scripts/set-system-owner.mjs",
+    "firebase:init-schema": "node scripts/initialize-firebase-schema.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

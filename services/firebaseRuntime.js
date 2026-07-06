@@ -139,7 +139,7 @@
     const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(config);
     const authInstance = firebase.auth(app);
     try {
-      await authInstance.setPersistence(firebase.auth.Auth.Persistence.NONE);
+      await authInstance.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     } catch (error) {
       console.warn("[PM Firebase] in-memory persistence setup failed", error?.code || "", error?.message || String(error));
     }
