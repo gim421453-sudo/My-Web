@@ -12117,7 +12117,7 @@ function authCurrentUserV31() {
 }
 
 function syncSystemOwnerReturnButtonV58() {
-  const topActions = document.querySelector(".top-actions");
+  const topActions = document.getElementById("topActions") || document.querySelector(".top-actions");
   if (!topActions) return;
   let btn = document.getElementById("systemOwnerReturnBtnV58");
   const shouldShow = currentUser?.role === "system_owner" && userWorkspaceIdV54(currentUser) && currentPage !== "systemOwner";
@@ -12129,7 +12129,8 @@ function syncSystemOwnerReturnButtonV58() {
     btn = button("시스템 관리자", "ghost");
     btn.id = "systemOwnerReturnBtnV58";
     btn.addEventListener("click", () => renderPage("systemOwner"));
-    topActions.insertBefore(btn, logoutBtn || topActions.firstChild);
+    const logout = document.getElementById("logoutBtn");
+    topActions.insertBefore(btn, logout && logout.parentElement === topActions ? logout : topActions.firstChild);
   }
 }
 
@@ -18235,8 +18236,12 @@ function renderChatConsoleV92() {
 }
 
 function syncSupportButtonV92() {
-  if (!topActions || !currentUser) return;
+  const topActions = document.getElementById("topActions") || document.querySelector(".top-actions");
   let btn = document.getElementById("supportContactBtnV92");
+  if (!topActions || !currentUser) {
+    btn?.remove();
+    return;
+  }
   const shouldShow = chatCanUseV92(currentUser) && !isChatManagerV92(currentUser);
   if (!shouldShow) {
     btn?.remove();
@@ -18246,7 +18251,8 @@ function syncSupportButtonV92() {
     btn = button("관리자에게 문의", "ghost");
     btn.id = "supportContactBtnV92";
     btn.addEventListener("click", () => navigateChatV92("/chat/new?source=main"));
-    topActions.insertBefore(btn, logoutBtn || topActions.firstChild);
+    const logout = document.getElementById("logoutBtn");
+    topActions.insertBefore(btn, logout && logout.parentElement === topActions ? logout : topActions.firstChild);
   }
 }
 
@@ -18444,3 +18450,66 @@ if (typeof restoreFirebaseSessionV34 === "function") {
 
 store.settings ??= {};
 store.settings.appVersion = APP_PATCH_VERSION_V93;
+
+// Final V94: guard topbar action buttons during login/logout transitions.
+const APP_PATCH_VERSION_V94 = "v94.0 - 2026-07-07";
+
+function topActionsElementV94() {
+  return document.getElementById("topActions") || document.querySelector(".top-actions");
+}
+
+function logoutButtonElementV94() {
+  return document.getElementById("logoutBtn");
+}
+
+function insertTopActionButtonV94(buttonNode) {
+  const actions = topActionsElementV94();
+  if (!actions || !buttonNode) return false;
+  const logout = logoutButtonElementV94();
+  const before = logout && logout.parentElement === actions ? logout : actions.firstChild;
+  actions.insertBefore(buttonNode, before || null);
+  return true;
+}
+
+if (typeof syncSystemOwnerReturnButtonV58 === "function") {
+  syncSystemOwnerReturnButtonV58 = function syncSystemOwnerReturnButtonV94() {
+    const actions = topActionsElementV94();
+    let btn = document.getElementById("systemOwnerReturnBtnV58");
+    const shouldShow = !!actions && !!currentUser && currentUser.role === "system_owner" && userWorkspaceIdV54(currentUser) && currentPage !== "systemOwner";
+    if (!shouldShow) {
+      btn?.remove();
+      return;
+    }
+    if (!btn) {
+      btn = button("시스템 관리자", "ghost");
+      btn.id = "systemOwnerReturnBtnV58";
+      btn.addEventListener("click", () => renderPage("systemOwner"));
+      insertTopActionButtonV94(btn);
+    } else if (btn.parentElement !== actions) {
+      insertTopActionButtonV94(btn);
+    }
+  };
+}
+
+if (typeof syncSupportButtonV92 === "function") {
+  syncSupportButtonV92 = function syncSupportButtonV94() {
+    const actions = topActionsElementV94();
+    let btn = document.getElementById("supportContactBtnV92");
+    const shouldShow = !!actions && !!currentUser && chatCanUseV92(currentUser) && !isChatManagerV92(currentUser);
+    if (!shouldShow) {
+      btn?.remove();
+      return;
+    }
+    if (!btn) {
+      btn = button("관리자에게 문의", "ghost");
+      btn.id = "supportContactBtnV92";
+      btn.addEventListener("click", () => navigateChatV92("/chat/new?source=main"));
+      insertTopActionButtonV94(btn);
+    } else if (btn.parentElement !== actions) {
+      insertTopActionButtonV94(btn);
+    }
+  };
+}
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V94;
