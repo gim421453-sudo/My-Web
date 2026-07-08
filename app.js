@@ -32,8 +32,8 @@ const initialStore = {
     { id: 2, title: "영어 단어 시험", date: "2026-06-20", start_time: "09:00", end_time: "09:30", type: "시험", importance: "높음", status: "예정", memo: "Unit 4-5" }
   ],
   notices: [
-    { id: 1, title: "수학 수행평가 안내", source: "학원", subject: "수학", importance: "높음", notice_date: "2026-06-14", content: "함수 활용 보고서 제출", visibility: "일반 공개" },
-    { id: 2, title: "시스템 공지사항", source: "시스템", subject: "공통", importance: "보통", notice_date: today, content: "관리자 페이지에서 수정 가능", visibility: "일반 공개" }
+    { id: 1, title: "수학 수행평가 안내", source: "학원", subject: "수학", importance: "높음", notice_date: "2026-06-14", content: "함수 활용 보고서 제출", visibility: "public" },
+    { id: 2, title: "시스템 공지사항", source: "시스템", subject: "공통", importance: "보통", notice_date: today, content: "관리자 페이지에서 수정 가능", visibility: "public" }
   ],
   subjects: [
     { id: 1, name: "국어", teacher: "김국어", textbook: "교과서", publisher: "미래엔", location: "2층 3반", scope: "문학, 독서", memo: "" },
@@ -46,15 +46,15 @@ const initialStore = {
     { id: 3, name: "이영어", subject: "영어", type: "학교", phone: "", email: "", exam_style: "어휘와 본문 암기", memo: "" }
   ],
   materials: [
-    { id: 1, title: "수학 1단원 개념 정리 PDF", subject: "수학", type: "PDF", link: "https://drive.google.com", tags: "개념", visibility: "일반 공개" },
-    { id: 2, title: "영어 본문 해석 자료", subject: "영어", type: "PDF", link: "https://drive.google.com", tags: "해석", visibility: "일반 공개" }
+    { id: 1, title: "수학 1단원 개념 정리 PDF", subject: "수학", type: "PDF", link: "https://drive.google.com", tags: "개념", visibility: "public" },
+    { id: 2, title: "영어 본문 해석 자료", subject: "영어", type: "PDF", link: "https://drive.google.com", tags: "해석", visibility: "public" }
   ],
   assignments: [
     { id: 1, title: "과학 실험 보고서", subject: "과학", teacher: "최과학", date: "2026-06-21", place: "학교", importance: "높음", checked: "미확인", file_link: "" }
   ],
   portfolios: [
-    { id: 1, title: "방송부 장비 관리 프로젝트", category: "방송/영상", date: "2026-05-20", description: "장비 대여 기록과 점검표 제작", skills: "운영, 문서화", file_link: "https://drive.google.com", image_link: "", video_link: "", result_link: "", reflection: "관리 프로세스를 개선했다.", visibility: "일반 공개" },
-    { id: 2, title: "3D 프린터 배기 시스템 설계", category: "3D프린팅", date: "2026-04-18", description: "환기 구조 설계", skills: "3D 모델링, 기계공학", file_link: "https://drive.google.com", image_link: "", video_link: "", result_link: "", reflection: "안전성과 유지보수를 고려했다.", visibility: "일반 공개" }
+    { id: 1, title: "방송부 장비 관리 프로젝트", category: "방송/영상", date: "2026-05-20", description: "장비 대여 기록과 점검표 제작", skills: "운영, 문서화", file_link: "https://drive.google.com", image_link: "", video_link: "", result_link: "", reflection: "관리 프로세스를 개선했다.", visibility: "public" },
+    { id: 2, title: "3D 프린터 배기 시스템 설계", category: "3D프린팅", date: "2026-04-18", description: "환기 구조 설계", skills: "3D 모델링, 기계공학", file_link: "https://drive.google.com", image_link: "", video_link: "", result_link: "", reflection: "안전성과 유지보수를 고려했다.", visibility: "public" }
   ],
   penalties: [
     { id: 1, date: "2026-06-09", title: "준비물 미지참", points: "1", reason: "과학 준비물", status: "확인 완료" }
@@ -217,6 +217,8 @@ function startWorkspaceDataSyncV45(workspaceId) {
     workspaceId,
     uid: currentUser?.uid || currentUser?.id || "",
     role: currentUser?.role || "",
+    status: currentUser?.status || "",
+    pendingWorkspaceId: currentUser?.pendingWorkspaceId || "",
     store,
     onRemoteChange() {
       if (!store || store.workspace_id !== workspaceId) return;
@@ -610,12 +612,12 @@ function rowActions(key, row) {
 function fieldsFor(key) {
   const common = {
     schedules: [["title", "제목", "text", true], ["date", "날짜", "date"], ["start_time", "시작", "time"], ["end_time", "종료", "time"], ["type", "유형", "select", defaults.scheduleTypes], ["importance", "중요도", "select", ["낮음", "보통", "높음", "매우 높음"]], ["status", "상태", "select", ["예정", "진행 중", "완료", "취소"]], ["memo", "메모", "textarea"]],
-    notices: [["title", "제목", "text", true], ["source", "출처", "select", ["카카오톡", "학교", "학원", "선생님", "시스템", "기타"]], ["subject", "과목", "select", ["공통", ...subjectsList()]], ["importance", "중요도", "select", ["낮음", "보통", "높음", "매우 높음"]], ["notice_date", "날짜", "date"], ["content", "내용", "textarea"], ["visibility", "공개", "select", ["일반 공개", "관리자 전용"]]],
+    notices: [["title", "제목", "text", true], ["source", "출처", "select", ["카카오톡", "학교", "학원", "선생님", "시스템", "기타"]], ["subject", "과목", "select", ["공통", ...subjectsList()]], ["importance", "중요도", "select", ["낮음", "보통", "높음", "매우 높음"]], ["notice_date", "날짜", "date"], ["content", "내용", "textarea"], ["visibility", "공개 범위", "select", ["private", "public"]]],
     subjects: [["name", "과목명", "select", subjectsList()], ["teacher", "선생님", "select", teachersList()], ["textbook", "교과서", "select", textbooksList()], ["publisher", "출판사", "select", publishersList()], ["location", "장소", "text"], ["scope", "범위", "textarea"], ["memo", "메모", "textarea"]],
     teachers: [["name", "이름", "text", true], ["subject", "과목", "select", subjectsList()], ["type", "학교/학원", "select", ["학교", "학원", "기타"]], ["exam_style", "시험 출제유형", "textarea"], ["phone", "연락처", "text"], ["email", "이메일", "email"], ["memo", "메모", "textarea"]],
-    materials: [["title", "자료명", "text", true], ["subject", "과목", "select", subjectsList()], ["type", "자료유형", "select", ["PDF", "이미지", "문서", "PPT", "영상", "링크"]], ["link", "링크", "url"], ["tags", "태그", "text"], ["visibility", "공개", "select", ["일반 공개", "관리자 전용", "비공개"]]],
+    materials: [["title", "자료명", "text", true], ["subject", "과목", "select", subjectsList()], ["type", "자료유형", "select", ["PDF", "이미지", "문서", "PPT", "영상", "링크"]], ["link", "링크", "url"], ["tags", "태그", "text"], ["visibility", "공개 범위", "select", ["private", "public"]]],
     assignments: [["title", "과제명", "text", true], ["subject", "과목", "select", subjectsList()], ["teacher", "선생님", "select", teachersList()], ["date", "마감일", "date"], ["place", "구분", "select", ["학교", "학원", "기타"]], ["importance", "중요도", "select", ["낮음", "보통", "높음", "매우 높음"]], ["checked", "확인", "select", ["미확인", "확인"]], ["file_link", "파일 링크", "url"]],
-    portfolios: [["title", "제목", "text", true], ["category", "카테고리", "select", ["학교 활동", "프로젝트", "발표", "수행평가", "코딩", "기계공학", "컴퓨터공학", "방송/영상", "3D프린팅", "기타"]], ["date", "날짜", "date"], ["description", "설명", "textarea"], ["skills", "사용 기술/역량", "text"], ["file_link", "관련 파일 링크", "url"], ["image_link", "이미지 링크", "url"], ["video_link", "영상 링크", "url"], ["result_link", "결과물 링크", "url"], ["reflection", "느낀 점", "textarea"], ["visibility", "공개", "select", ["일반 공개", "관리자 전용", "비공개"]]],
+    portfolios: [["title", "제목", "text", true], ["category", "카테고리", "select", ["학교 활동", "프로젝트", "발표", "수행평가", "코딩", "기계공학", "컴퓨터공학", "방송/영상", "3D프린팅", "기타"]], ["date", "날짜", "date"], ["description", "설명", "textarea"], ["skills", "사용 기술/역량", "text"], ["file_link", "관련 파일 링크", "url"], ["image_link", "이미지 링크", "url"], ["video_link", "영상 링크", "url"], ["result_link", "결과물 링크", "url"], ["reflection", "느낀 점", "textarea"], ["visibility", "공개 범위", "select", ["private", "public"]]],
     penalties: [["date", "날짜", "date"], ["title", "벌점 항목", "text", true], ["points", "벌점 점수", "select", ["1", "2", "3", "4", "5", "10"]], ["reason", "사유", "text"], ["status", "상태", "select", ["등록됨", "확인 완료", "이의제기", "해결됨"]]],
     people: [["name", "이름", "text", true], ["birthday", "생일", "date"], ["phone", "연락처", "text"], ["email", "이메일", "email"], ["address", "주소", "text"], ["organization", "학교/반/소속", "text"], ["relationship", "관계", "select", ["친구", "선생님", "가족", "기타"]], ["memo", "메모", "textarea"], ["private_memo", "비공개 메모", "textarea"]],
     friendAwards: [["person", "친구/인물", "select", peopleNames()], ["date", "날짜", "date"], ["type", "유형", "select", ["상점", "벌점", "칭찬", "주의", "기타"]], ["points", "점수", "select", ["1", "2", "3", "4", "5", "10"]], ["reason", "사유", "textarea"], ["memo", "관리자 메모", "textarea"]],
@@ -1534,7 +1536,7 @@ function renderPenaltiesV4() {
 
 function fieldsForV4(key) {
   const map = {
-    notices: [["title", "제목", "text", true], ["source", "출처", "select", ["시스템", "학교", "학원", "선생님", "기타"]], ["subject", "과목", "select", ["", "공통", ...subjectsList()]], ["importance", "중요도", "select", ["낮음", "보통", "높음", "매우 높음"]], ["notice_date", "날짜", "date"], ["content", "내용", "textarea"], ["memo", "메모", "textarea"], ["visibility", "공개", "select", ["일반 공개", "관리자 전용"]]],
+    notices: [["title", "제목", "text", true], ["source", "출처", "select", ["시스템", "학교", "학원", "선생님", "기타"]], ["subject", "과목", "select", ["", "공통", ...subjectsList()]], ["importance", "중요도", "select", ["낮음", "보통", "높음", "매우 높음"]], ["notice_date", "날짜", "date"], ["content", "내용", "textarea"], ["memo", "메모", "textarea"], ["visibility", "공개 범위", "select", ["private", "public"]]],
     meals: [["date", "날짜", "date", true], ["meal", "구분", "select", ["아침", "점심", "저녁", "간식"]], ["menu", "메뉴", "textarea", true], ["calories", "열량", "text"], ["memo", "메모", "textarea"]],
     budget: [["date", "날짜", "date"], ["type", "입출금", "select", ["수입", "지출"]], ["category", "분류", "select", ["교재", "교통", "식비", "회비", "행사", "기타"]], ["amount", "금액", "number", true], ["title", "내용", "text", true], ["method", "수단", "select", ["현금", "카드", "계좌", "기타"]], ["memo", "메모", "textarea"]],
     clubs: [["name", "동아리명", "text", true], ["role", "역할", "text"], ["teacher", "담당 선생님", "select", teachersList()], ["location", "장소", "text"], ["schedule", "시간표", "text"], ["memo", "활동 내용/메모", "textarea"]],
@@ -2201,7 +2203,7 @@ function columnsForV5(key) {
 
 function fieldsForV5(key) {
   const map = {
-    notices: [["title", "제목", "text", true], ["source", "출처", "select", ["학교", "학원", "선생님", "시스템", "기타"]], ["subject", "과목", "select", ["", "공통", ...subjectsList()]], ["importance", "중요도", "select", ["낮음", "보통", "높음", "매우 높음"]], ["notice_date", "공지일", "date"], ["deadline_required", "마감일 여부", "select", ["불필요", "필요"]], ["deadline_date", "마감일", "date"], ["content", "내용", "textarea"], ["memo", "메모", "textarea"], ["visibility", "공개", "select", ["일반 공개", "관리자 전용"]]],
+    notices: [["title", "제목", "text", true], ["source", "출처", "select", ["학교", "학원", "선생님", "시스템", "기타"]], ["subject", "과목", "select", ["", "공통", ...subjectsList()]], ["importance", "중요도", "select", ["낮음", "보통", "높음", "매우 높음"]], ["notice_date", "공지일", "date"], ["deadline_required", "마감일 여부", "select", ["불필요", "필요"]], ["deadline_date", "마감일", "date"], ["content", "내용", "textarea"], ["memo", "메모", "textarea"], ["visibility", "공개 범위", "select", ["private", "public"]]],
     meals: [["date", "날짜", "date", true], ["meal", "구분", "select", ["아침", "점심", "저녁", "간식"]], ["menu", "메뉴", "textarea", true], ["calories", "열량", "text"], ["memo", "메모", "textarea"]],
     penalties: [["date", "날짜", "date"], ["title", "벌점 항목", "text", true], ["points", "벌점 점수", "select", ["1", "2", "3", "4", "5", "10"]], ["reason", "사유", "textarea"], ["status", "상태", "select", ["등록됨", "확인 완료", "이의제기", "해결됨"]]]
   };
@@ -3793,7 +3795,7 @@ function columnsForV6(key) {
 function fieldsForV6(key) {
   const map = {
     attendance: [["date", "날짜", "date"], ["type", "구분", "select", ["등교", "하교", "지각", "조퇴", "결석"]], ["time", "시간", "time"], ["status", "상태", "select", ["정상", "확인 필요", "처리 완료"]], ["memo", "메모", "textarea"]],
-    notices: [["title", "제목", "text", true], ["source", "출처", "select", ["학교", "학원", "선생님", "시스템", "기타"]], ["subject", "과목", "select", ["", "공통", ...subjectsList()]], ["importance", "중요도", "select", ["낮음", "보통", "높음", "매우 높음"]], ["notice_date", "공지일", "date"], ["deadline_required", "마감일 여부", "select", ["불필요", "필요"]], ["deadline_date", "마감일", "date"], ["content", "내용", "textarea"], ["memo", "메모", "textarea"], ["visibility", "공개", "select", ["일반 공개", "관리자 전용"]]]
+    notices: [["title", "제목", "text", true], ["source", "출처", "select", ["학교", "학원", "선생님", "시스템", "기타"]], ["subject", "과목", "select", ["", "공통", ...subjectsList()]], ["importance", "중요도", "select", ["낮음", "보통", "높음", "매우 높음"]], ["notice_date", "공지일", "date"], ["deadline_required", "마감일 여부", "select", ["불필요", "필요"]], ["deadline_date", "마감일", "date"], ["content", "내용", "textarea"], ["memo", "메모", "textarea"], ["visibility", "공개 범위", "select", ["private", "public"]]]
   };
   return map[key] || fieldsForV5(key);
 }
@@ -4541,6 +4543,9 @@ function saveEditor(event) {
   delete payload._confirm_password;
   const origin = editing.origin;
   const rows = store[editing.key] || (store[editing.key] = []);
+  const previousRow = editing.id ? rows.find((row) => row.id === editing.id) : null;
+  if (!confirmVisibilityChangeV96(previousRow?.visibility, payload.visibility)) return;
+  normalizeVisibilityPayloadV96(editing.key, payload);
   let savedRow = null;
   if (editing.id) {
     const index = rows.findIndex((row) => row.id === editing.id);
@@ -10057,7 +10062,24 @@ function inviteCodeRegisterV37() {
     try {
       const authUser = authStateV31.users.find((user) => user.id === currentUser.id || user.uid === currentUser.uid) || currentUser;
       if ((authUser.workspace_id || authUser.workspaceId || currentUser.workspace_id) && !confirm("현재 연결된 workspace가 있습니다. 초대코드를 등록하면 해당 workspace로 전환됩니다. 계속할까요?")) return;
-      const { member } = await window.PMInvitationService.acceptInviteCode({ authState: authStateV31, user: authUser, code: code.value });
+      const result = await window.PMInvitationService.acceptInviteCode({ authState: authStateV31, user: authUser, code: code.value });
+      const { member } = result;
+      if (result?.pending || member?.status === "pending") {
+        currentUser.status = "waiting_approval";
+        currentUser.role = member.role || "normal";
+        currentUser.currentRole = currentUser.role;
+        currentUser.workspaceRole = currentUser.role;
+        currentUser.workspace_id = "";
+        currentUser.workspaceId = "";
+        currentUser.currentWorkspaceId = "";
+        currentUser.pendingWorkspaceId = member.pendingWorkspaceId || member.workspaceId || "";
+        currentUser.pendingInviteCodeId = member.inviteCodeId || member.inviteCode || code.value.trim().toUpperCase();
+        Object.assign(authUser, currentUser);
+        saveAuthStateV31();
+        showMessage("승인 대기", "초대코드가 확인되었습니다. 관리자 승인 후 해당 workspace에 연결됩니다.");
+        renderApprovalGateV54(currentUser);
+        return;
+      }
       currentUser.workspace_id = member.workspaceId;
       currentUser.role = member.role;
       authUser.workspace_id = member.workspaceId;
@@ -10290,6 +10312,9 @@ async function restoreFirebaseSessionV34() {
       const membership = await window.PMAuthService.firebaseEnsureUserStructure(firebaseUser, firebaseUser.displayName || firebaseUser.email, "normal");
       firebaseUser.pmWorkspaceId = membership.workspaceId;
       firebaseUser.pmRole = membership.role;
+      firebaseUser.pmStatus = membership.status;
+      firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+      firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
       await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
       const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "normal");
       authStateV31 = window.PMAuthService.loadAuthState();
@@ -10466,6 +10491,7 @@ function authUserToLegacyV31(user) {
     workspaceRole: user.workspaceRole || user.pmWorkspaceRole || (user.role === "system_owner" ? "super_manager" : user.role || "pending"),
     status: user.status || (workspaceId ? "active" : "pending"),
     pendingWorkspaceId: user.pendingWorkspaceId || "",
+    pendingInviteCodeId: user.pendingInviteCodeId || "",
     pin: user.pin || "1234",
     active: user.active !== false && user.disabled !== true,
     disabled: user.disabled === true,
@@ -10492,7 +10518,8 @@ function isApprovalGateUserV54(user = currentUser) {
   if (!user) return true;
   if (user.role === "system_owner" || user.currentRole === "system_owner" || user.globalRole === "system_owner") return false;
   const status = userStatusV54(user);
-  return status === "pending" || status === "waiting_approval" || status === "rejected" || status === "disabled" || !userWorkspaceIdV54(user) || user.role === "pending";
+  const gateWorkspaceId = userWorkspaceIdV54(user);
+  return status === "pending" || status === "waiting_approval" || status === "rejected" || status === "disabled" || !gateWorkspaceId || user.role === "pending";
 }
 
 function authCanManageUsersV31() {
@@ -10558,7 +10585,8 @@ function updateGreeting() {
 function syncFirebaseUserToLocalAuthV33(firebaseUser, displayName, fallbackRole) {
   const workspaceId = firebaseUser.pmWorkspaceId || firebaseUser.workspaceId || firebaseUser.currentWorkspaceId || "";
   const status = firebaseUser.pmStatus || (workspaceId ? "active" : "pending");
-  const role = firebaseUser.pmRole || fallbackRole || (workspaceId ? "normal" : "pending");
+  const rawRole = firebaseUser.pmRole || fallbackRole || "normal";
+  const role = rawRole === "pending" ? "normal" : rawRole;
   const globalRole = role === "system_owner" || firebaseUser.pmGlobalRole === "system_owner" ? "system_owner" : "user";
   const workspaceRole = firebaseUser.pmWorkspaceRole || (role === "system_owner" ? "super_manager" : role);
   authStateV31.workspace_members = authStateV31.workspace_members || [];
@@ -10595,6 +10623,7 @@ function syncFirebaseUserToLocalAuthV33(firebaseUser, displayName, fallbackRole)
   user.workspaceId = workspaceId;
   user.currentWorkspaceId = workspaceId;
   user.pendingWorkspaceId = firebaseUser.pmPendingWorkspaceId || user.pendingWorkspaceId || "";
+  user.pendingInviteCodeId = firebaseUser.pmPendingInviteCodeId || user.pendingInviteCodeId || "";
   user.role = role || user.role || "pending";
   user.currentRole = user.role;
   user.workspaceRole = workspaceRole;
@@ -10678,9 +10707,12 @@ function renderApprovalGateV54(user = currentUser) {
   window.PMWorkspaceDataService?.stop?.();
   content.replaceChildren();
   const status = userStatusV54(user);
+  const gateWorkspaceId = userWorkspaceIdV54(user);
   const box = panel(status === "rejected" ? "가입 신청 거절" : status === "disabled" ? "계정 비활성화" : status === "waiting_approval" ? "관리자 승인 대기" : "초대코드 입력");
   box.classList.add("approval-gate-panel");
-  if (status === "waiting_approval") {
+  if (status === "active" && !gateWorkspaceId) {
+    box.append(el("p", "muted", "워크스페이스 연결이 필요합니다. 관리자 승인 화면에서 이 계정을 workspace에 연결해야 보호된 데이터를 불러올 수 있습니다."));
+  } else if (status === "waiting_approval") {
     box.append(el("p", "muted", "초대코드가 확인되었습니다. 관리자 승인 대기 중입니다. 승인 후 서비스를 이용할 수 있습니다."));
   } else if (status === "rejected") {
     box.append(el("p", "muted", "가입 신청이 거절되었습니다. 관리자에게 문의해주세요."));
@@ -10698,6 +10730,7 @@ function renderApprovalGateV54(user = currentUser) {
         const result = await window.PMSystemAdminService.submitJoinRequest({ user, code: code.value });
         user.status = "waiting_approval";
         user.pendingWorkspaceId = result.workspaceId;
+        user.pendingInviteCodeId = result.inviteCodeId || code.value.trim().toUpperCase();
         const local = authStateV31.users.find((item) => item.uid === user.uid || item.id === user.id);
         if (local) Object.assign(local, user);
         saveAuthStateV31();
@@ -10910,6 +10943,8 @@ async function registerWithInviteCodeV38() {
         firebaseUser.pmWorkspaceId = membership.workspaceId;
         firebaseUser.pmRole = membership.role;
         firebaseUser.pmStatus = membership.status;
+        firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+        firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
       }
       firebaseUser.displayName = firebaseUser.displayName || nameValue || emailValue;
       user = syncFirebaseUserToLocalAuthV33(firebaseUser, nameValue || emailValue, "pending");
@@ -10951,6 +10986,7 @@ async function restoreFirebaseSessionV34() {
       firebaseUser.pmRole = membership.role;
       firebaseUser.pmStatus = membership.status;
       firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+      firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
       await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
       const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
       authStateV31 = window.PMAuthService.loadAuthState();
@@ -10993,6 +11029,7 @@ async function startCurrentUserRealtimeV50() {
     currentUser.workspaceRole = data.workspaceRole || currentUser.workspaceRole || (keepSystemOwner ? "super_manager" : currentUser.role);
     currentUser.status = data.status || (currentUser.workspace_id ? "active" : "pending");
     currentUser.pendingWorkspaceId = data.pendingWorkspaceId || "";
+    currentUser.pendingInviteCodeId = data.pendingInviteCodeId || data.inviteCodeId || data.inviteCode || "";
     currentUser.disabled = data.disabled === true || currentUser.status === "disabled";
     currentUser.active = !currentUser.disabled;
     currentUser.emailVerified = data.emailVerified !== false;
@@ -11007,6 +11044,7 @@ async function startCurrentUserRealtimeV50() {
       workspaceRole: currentUser.workspaceRole,
       status: currentUser.status,
       pendingWorkspaceId: currentUser.pendingWorkspaceId,
+      pendingInviteCodeId: currentUser.pendingInviteCodeId,
       disabled: currentUser.disabled,
       active: currentUser.active
     });
@@ -11328,11 +11366,26 @@ function renderJoinRequestsAdminV54() {
     const role = document.createElement("select");
     ["normal", "teacher", "manager", "viewer", "print_account", "super_manager"].forEach((key) => role.append(option(key, roleName(key))));
     role.value = request.requestedRole || "normal";
+    const workspaceSelect = document.createElement("select");
+    workspaceSelect.append(option("", "workspace 선택"));
+    (systemOwnerStateV54.workspaces || []).forEach((workspace) => {
+      const id = workspace.id || workspace.workspaceId;
+      if (id) workspaceSelect.append(option(id, workspaceNameV60(workspace) || id));
+    });
+    const requestedWorkspaceId = request.workspaceId || request.pendingWorkspaceId || "";
+    if (requestedWorkspaceId && ![...workspaceSelect.options].some((item) => item.value === requestedWorkspaceId)) {
+      workspaceSelect.append(option(requestedWorkspaceId, requestedWorkspaceId));
+    }
+    workspaceSelect.value = requestedWorkspaceId;
     const view = button("뷰어", "ghost small");
     view.addEventListener("click", () => showMessage("가입 신청서", JSON.stringify(request, null, 2)));
     const approve = button("승인", "small");
     approve.addEventListener("click", async () => {
-      await window.PMSystemAdminService.approveJoinRequest(request, role.value);
+      if (!workspaceSelect.value) {
+        showMessage("workspace 선택 필요", "승인할 workspace를 먼저 선택하세요.");
+        return;
+      }
+      await window.PMSystemAdminService.approveJoinRequest(request, { role: role.value, workspaceId: workspaceSelect.value });
       showMessage("승인 완료", `${request.email || request.uid} 계정을 승인했습니다.`);
     });
     const reject = button("거절", "ghost small danger");
@@ -11341,13 +11394,13 @@ function renderJoinRequestsAdminV54() {
       showMessage("거절 완료", `${request.email || request.uid} 신청을 거절했습니다.`);
     });
     const actions = el("div", "row-actions");
-    actions.append(role, view, approve, reject);
+    actions.append(workspaceSelect, role, view, approve, reject);
     const tr = document.createElement("tr");
     tr.append(
       el("td", "", request.displayName || "-"),
       el("td", "", request.email || "-"),
       el("td", "", request.uid || "-"),
-      el("td", "", request.workspaceId || "-"),
+      el("td", "", requestedWorkspaceId || "-"),
       el("td", "", request.inviteCode || request.inviteCodeId || "-"),
       el("td", "", formatSystemTimeV54(request.createdAt)),
       el("td", "", request.status || "pending"),
@@ -11839,13 +11892,18 @@ function renderPermissionRepairAdminV60() {
     repair.disabled = !workspaceId;
     repair.addEventListener("click", async () => {
       try {
+        repair.disabled = true;
         const result = await window.PMSystemAdminService.repairUserPermission({ ...user, workspaceId });
         applyPermissionRepairResultV61(user, result);
         await refreshPermissionRepairMembersV62();
-        showMessage("복구 완료", `${user.email || uid} 권한 문서를 동기화했습니다. root=${result.rootMemberExists ? "확인" : "미확인"}, nested=${result.nestedMemberExists ? "확인" : "미확인"}`);
-        renderSystemOwnerConsoleV54();
+        showMessage("복구 완료", "회원 권한이 복구되었습니다.");
+        const nextBox = renderPermissionRepairAdminV60();
+        box.replaceWith(nextBox);
       } catch (error) {
-        showMessage("복구 실패", error.message || String(error));
+        showMessage("복구 실패", "회원 권한 복구에 실패했습니다.");
+        console.error("[permission repair failed]", error);
+      } finally {
+        repair.disabled = false;
       }
     });
     const tr = document.createElement("tr");
@@ -12029,15 +12087,32 @@ function renderAllUsersAdminV54() {
     save.disabled = protectedUser;
     save.addEventListener("click", async () => {
       try {
-        await window.PMSystemAdminService.updateUserAdminFields({
+        if (!workspaceSelect.value) {
+          showMessage("저장 실패", "권한을 저장할 workspace를 선택하세요.");
+          return;
+        }
+        if (!roleSelect.value || roleSelect.value === "pending") {
+          showMessage("저장 실패", "pending이 아닌 실제 권한을 선택하세요.");
+          return;
+        }
+        save.disabled = true;
+        const result = await window.PMSystemAdminService.updateUserAdminFields({
           user,
-          status: statusSelect.value,
+          status: "active",
           role: roleSelect.value,
           workspaceId: workspaceSelect.value
         });
-        showMessage("저장 완료", "회원 status/role/workspace 연결을 저장했습니다.");
+        if (!result?.verified) throw new Error("권한 저장 검증에 실패했습니다.");
+        applyPermissionRepairResultV61(user, result);
+        await refreshPermissionRepairMembersV62();
+        statusSelect.value = result.status || "active";
+        roleSelect.value = result.role || roleSelect.value;
+        workspaceSelect.value = result.workspaceId || workspaceSelect.value;
+        showMessage("저장 완료", "회원 권한이 저장되고 users/members 문서 검증까지 완료되었습니다.");
       } catch (error) {
         showMessage("저장 실패", error.message || String(error));
+      } finally {
+        save.disabled = protectedUser;
       }
     });
     const repair = button("복구", "ghost small");
@@ -13063,12 +13138,15 @@ async function saveProfileWithPasswordV78() {
     if (error) error.textContent = passwordApprovalMessageV78();
     return;
   }
+  const nextProfileVisibility = normalizeVisibilityValueV96(document.getElementById("profileVisibilityV96")?.value || store.profile?.visibility);
+  if (!confirmVisibilityChangeV96(store.profile?.visibility, nextProfileVisibility)) return;
   store.profile = {
     name: document.getElementById("profileName")?.value || "",
     phone: document.getElementById("profilePhone")?.value || "",
     email: document.getElementById("profileEmail")?.value || currentUser.email || "",
     school: document.getElementById("profileSchool")?.value || "",
-    memo: document.getElementById("profileMemo")?.value || ""
+    memo: document.getElementById("profileMemo")?.value || "",
+    visibility: nextProfileVisibility
   };
   currentUser.name = store.profile.name || currentUser.name;
   saveStore();
@@ -15012,6 +15090,7 @@ restoreFirebaseSessionV34 = async function restoreFirebaseSessionV80() {
       firebaseUser.pmRole = membership.role;
       firebaseUser.pmStatus = membership.status;
       firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+      firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
       await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
       const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
       authStateV31 = window.PMAuthService.loadAuthState();
@@ -15806,20 +15885,62 @@ function renderAllUsersAdminV54() {
     save.disabled = protectedUser;
     save.addEventListener("click", async () => {
       try {
-        await window.PMSystemAdminService.updateUserAdminFields({ user, status: statusSelect.value, role: roleSelect.value, workspaceId: workspaceSelect.value });
-        showMessage("저장 완료", "회원 상태/권한/workspace를 users와 members에 함께 저장했습니다.");
+        if (!workspaceSelect.value) {
+          showMessage("저장 실패", "권한을 저장할 workspace를 선택하세요.");
+          return;
+        }
+        if (!roleSelect.value || roleSelect.value === "pending") {
+          showMessage("저장 실패", "pending이 아닌 실제 권한을 선택하세요.");
+          return;
+        }
+        save.disabled = true;
+        const result = await window.PMSystemAdminService.updateUserAdminFields({ user, status: "active", role: roleSelect.value, workspaceId: workspaceSelect.value });
+        if (!result?.verified) throw new Error("권한 저장 검증에 실패했습니다.");
+        applyPermissionRepairResultV61(user, result);
+        await refreshPermissionRepairMembersV62();
+        statusSelect.value = result.status || "active";
+        roleSelect.value = result.role || roleSelect.value;
+        workspaceSelect.value = result.workspaceId || workspaceSelect.value;
+        showMessage("저장 완료", "회원 권한이 저장되고 users/members 문서 검증까지 완료되었습니다.");
+        const currentTab = sessionStorage.getItem("systemOwnerTabV54") || "users";
+        if (currentTab === "users") box.replaceWith(renderAllUsersAdminV54());
       } catch (error) {
         showMessage("저장 실패", error.message || String(error));
+      } finally {
+        save.disabled = protectedUser;
       }
     });
     const repair = button("점검/복구", "ghost small");
-    repair.disabled = !userWorkspace;
+    repair.disabled = protectedUser;
     repair.addEventListener("click", async () => {
       try {
-        await window.PMSystemAdminService.repairUserPermission({ ...user, role: roleSelect.value, currentRole: roleSelect.value, workspaceRole: roleSelect.value, status: statusSelect.value, workspaceId: workspaceSelect.value });
-        showMessage("복구 완료", "users 기준 권한으로 멤버 문서를 동기화했습니다.");
+        if (!workspaceSelect.value) {
+          showMessage("복구 실패", "회원 권한 복구에 실패했습니다.");
+          return;
+        }
+        repair.disabled = true;
+        const result = await window.PMSystemAdminService.repairUserPermission({
+          ...user,
+          role: roleSelect.value || "normal",
+          currentRole: roleSelect.value || "normal",
+          workspaceRole: roleSelect.value || "normal",
+          status: statusSelect.value || "active",
+          workspaceId: workspaceSelect.value,
+          currentWorkspaceId: workspaceSelect.value,
+          workspace_id: workspaceSelect.value
+        });
+        applyPermissionRepairResultV61(user, result);
+        await refreshPermissionRepairMembersV62();
+        showMessage("복구 완료", "회원 권한이 복구되었습니다.");
+        const currentTab = sessionStorage.getItem("systemOwnerTabV54") || "users";
+        if (currentTab === "users") {
+          box.replaceWith(renderAllUsersAdminV54());
+        }
       } catch (error) {
-        showMessage("복구 실패", error.message || String(error));
+        showMessage("복구 실패", "회원 권한 복구에 실패했습니다.");
+        console.error("[member permission repair failed]", error);
+      } finally {
+        repair.disabled = protectedUser;
       }
     });
     const disable = button("비활성화", "ghost small");
@@ -17367,7 +17488,7 @@ fieldsForV7 = function fieldsForV88(key) {
       ["deadline_date", "마감일", "date"],
       ["content", "내용", "textarea"],
       ["memo", "메모", "textarea"],
-      ["visibility", "공개", "select", ["일반 공개", "관리자 전용"]]
+      ["visibility", "공개 범위", "select", ["private", "public"]]
     ];
   }
   if (key === "people") return fieldsForV7BeforeV88(key).filter(([name]) => name !== "teacher");
@@ -18437,6 +18558,7 @@ if (typeof restoreFirebaseSessionV34 === "function") {
         firebaseUser.pmRole = membership.role;
         firebaseUser.pmStatus = membership.status;
         firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+        firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
         await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
         const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
         authStateV31 = window.PMAuthService.loadAuthState();
@@ -18513,3 +18635,1041 @@ if (typeof syncSupportButtonV92 === "function") {
 
 store.settings ??= {};
 store.settings.appVersion = APP_PATCH_VERSION_V94;
+
+// Final V95: privacy-first student data, teacher comments, personal academics,
+// master data updates, OMR print forms, and advanced print options.
+const APP_PATCH_VERSION_V95 = "v95.0 - 2026-07-09";
+
+const PRIVACY_KEYS_V95 = new Set([
+  "personal",
+  "people",
+  "friendAwards",
+  "penalties",
+  "exams",
+  "attendance",
+  "assignments",
+  "lessons",
+  "records",
+  "portfolios",
+  "academicSchedules"
+]);
+const ADMIN_STUDENT_FILTER_KEYS_V95 = new Set([
+  "personal",
+  "people",
+  "friendAwards",
+  "penalties",
+  "exams",
+  "attendance",
+  "assignments",
+  "lessons",
+  "records",
+  "portfolios",
+  "academic",
+  "academicSchedules"
+]);
+const PRIVILEGED_ROLES_V95 = new Set(["system_owner", "super_manager", "manager"]);
+
+function currentUidV95(user = currentUser) {
+  return user?.uid || user?.id || user?.email || "";
+}
+
+function currentWorkspaceIdV95() {
+  return userWorkspaceIdV54?.(currentUser) || store.workspace_id || store.workspaceId || "";
+}
+
+function isPrivilegedRoleV95(user = currentUser) {
+  return PRIVILEGED_ROLES_V95.has(user?.role);
+}
+
+function isTeacherRoleV95(user = currentUser) {
+  return user?.role === "teacher";
+}
+
+function ownerUidV95(row = {}) {
+  return row.studentUid || row.targetStudentId || row.ownerUid || row.uid || row.userUid || row.createdBy || row.createdByUid || "";
+}
+
+function isPublicApprovedV95(row = {}) {
+  return row.visibility === "public" && (row.consentPublic === true || row.consentPublic === "true" || row.publicApproved === true);
+}
+
+function normalizeBooleanFlagV95(row = {}, field) {
+  if (row[field] === "true") row[field] = true;
+  else if (row[field] === "false") row[field] = false;
+}
+
+function canReadRowV95(key, row = {}, user = currentUser) {
+  if (!PRIVACY_KEYS_V95.has(key)) return true;
+  if (isPrivilegedRoleV95(user)) return true;
+  const uid = currentUidV95(user);
+  const owner = ownerUidV95(row);
+  if (uid && owner && uid === owner) return true;
+  if (isTeacherRoleV95(user) && isPublicApprovedV95(row)) return true;
+  return false;
+}
+
+function selectedAdminStudentUidV95() {
+  return sessionStorage.getItem("adminStudentUidV95") || "";
+}
+
+function rowMatchesSelectedStudentV95(row = {}) {
+  const selected = selectedAdminStudentUidV95();
+  if (!selected || !isPrivilegedRoleV95()) return true;
+  const owner = ownerUidV95(row);
+  return owner === selected || row.studentName === selected || row.name === selected || row.student === selected;
+}
+
+function filterRowsForPrivacyV95(key, rows = []) {
+  return (rows || []).filter((row) => canReadRowV95(key, row)).filter(rowMatchesSelectedStudentV95);
+}
+
+function memberOptionsV95() {
+  const members = authStateV31?.workspace_members || [];
+  const workspaceId = currentWorkspaceIdV95();
+  const rows = members
+    .filter((member) => !workspaceId || member.workspaceId === workspaceId)
+    .map((member) => ({
+      uid: member.uid || member.id || member.email,
+      label: member.displayName || member.name || member.email || member.uid
+    }))
+    .filter((member) => member.uid && member.label);
+  if (currentUser?.uid && !rows.some((row) => row.uid === currentUser.uid)) {
+    rows.unshift({ uid: currentUser.uid, label: currentUser.displayName || currentUser.name || currentUser.email || "나" });
+  }
+  return rows;
+}
+
+function adminStudentSelectorV95(key) {
+  if (!isPrivilegedRoleV95() || !ADMIN_STUDENT_FILTER_KEYS_V95.has(key)) return null;
+  const bar = el("section", "panel student-filter-v95");
+  const select = document.createElement("select");
+  select.append(option("", "전체 학생"));
+  memberOptionsV95().forEach((member) => select.append(option(member.uid, member.label)));
+  select.value = selectedAdminStudentUidV95();
+  select.addEventListener("change", () => {
+    sessionStorage.setItem("adminStudentUidV95", select.value);
+    renderPage(key);
+  });
+  bar.append(
+    el("strong", "", "관리자 학생별 조회 모드"),
+    makeField("조회 대상", "adminStudentSelectV95", select),
+    el("p", "muted", "학생을 선택하면 민감정보 탭은 해당 학생 데이터만 표시합니다. 조회 시 접근 로그가 저장됩니다.")
+  );
+  return bar;
+}
+
+function defaultMasterDataV95() {
+  return {
+    subjects: ["국어", "수학", "영어", "과학", "사회", "정보"],
+    subjectCodes: ["KOR", "MAT", "ENG", "SCI", "SOC", "INF"],
+    grades: ["중1", "중2", "중3", "고1", "고2", "고3"],
+    semesters: ["1학기", "2학기"],
+    classTypes: ["학교수업", "방과후", "특강", "동아리", "개인수업"],
+    examTypes: ["지필평가", "수행평가", "모의고사", "쪽지시험", "기타"],
+    evaluationMethods: ["점수형", "등급형", "서술형", "포트폴리오", "관찰평가"],
+    achievementLevels: ["A", "B", "C", "D", "E"],
+    attendanceTypes: ["출석", "지각", "조퇴", "결석", "인정결석"],
+    behaviorTypes: ["상점", "벌점", "칭찬", "주의", "기타"],
+    academicCategories: ["시험", "수행평가", "행사", "방학", "개인일정", "기타"],
+    omrQuestionCounts: ["30", "50", "100"],
+    omrChoiceCounts: ["4", "5"]
+  };
+}
+
+function ensureV95State() {
+  store.settings ??= {};
+  store.settings.masterData ??= defaultMasterDataV95();
+  Object.entries(defaultMasterDataV95()).forEach(([key, value]) => {
+    if (!Array.isArray(store.settings.masterData[key])) store.settings.masterData[key] = value;
+  });
+  store.settings.masterDataVersion ??= "v1";
+  store.settings.printOptions ??= {
+    includeGrades: true,
+    includeTeacherComment: false,
+    includePenalties: false,
+    includeAttendance: false,
+    includeAssignments: true,
+    includeLessons: true,
+    includeSensitive: false,
+    includeLogo: true,
+    showDate: true,
+    title: `${store.settings.siteName || "개인 관리"} 보고서`
+  };
+  store.settings.omr ??= { questionCount: 50, choiceCount: 5, examTitle: "", subjectId: "", studentName: "", grade: "", classNumber: "", studentNumber: "" };
+  store.studentAccessLogs ??= [];
+  store.masterDataVersions ??= [];
+  store.workspaceUpdates ??= [];
+  store.omrForms ??= [];
+  store.academicSchedules ??= [];
+  store.lessons ??= [];
+}
+
+function normalizePrivacyRowV95(key, row) {
+  if (!row || typeof row !== "object" || !PRIVACY_KEYS_V95.has(key)) return row;
+  const uid = currentUidV95();
+  normalizeBooleanFlagV95(row, "consentPublic");
+  normalizeBooleanFlagV95(row, "publicApproved");
+  normalizeBooleanFlagV95(row, "includeTeacherCommentInPrint");
+  row.visibility = normalizeVisibilityValueV96(row.visibility);
+  row.consentPublic ??= false;
+  row.ownerUid ??= uid;
+  row.studentUid ??= row.targetStudentId || row.ownerUid || uid;
+  row.workspaceId ??= currentWorkspaceIdV95();
+  if (key === "academicSchedules") {
+    row.category ??= "개인일정";
+    row.targetWorkspaceId ??= currentWorkspaceIdV95();
+  }
+  if (key === "exams") {
+    row.includeTeacherCommentInPrint ??= false;
+    row.teacherComment ??= "";
+  }
+  if (key === "lessons") {
+    row.lessonDate ??= row.lessonDate || row.lesson_date || today;
+  }
+  return row;
+}
+
+function normalizePrivacyStoreV95() {
+  ensureV95State();
+  PRIVACY_KEYS_V95.forEach((key) => {
+    const targetKey = key === "academic" ? "academicSchedules" : key;
+    if (Array.isArray(store[targetKey])) store[targetKey].forEach((row) => normalizePrivacyRowV95(targetKey, row));
+  });
+}
+
+const saveStoreBeforeV95 = saveStore;
+saveStore = function saveStoreV95(options) {
+  normalizePrivacyStoreV95();
+  return saveStoreBeforeV95(options);
+};
+
+function maybeAddPrivacyFieldsV95(key, fields) {
+  if (!PRIVACY_KEYS_V95.has(key) && key !== "academicSchedules") return fields;
+  const next = fields.map((field) => field[0] === "visibility"
+    ? ["visibility", "공개 범위", "select", ["private", "public"]]
+    : field);
+  const names = new Set(next.map(([name]) => name));
+  if (!names.has("visibility")) next.push(["visibility", "공개 범위", "select", ["private", "public"]]);
+  if (!names.has("consentPublic")) next.push(["consentPublic", "선생님 공개 동의", "select", ["false", "true"]]);
+  if (isPrivilegedRoleV95() && !names.has("targetStudentId")) {
+    next.push(["targetStudentId", "대상 학생 UID", "select", ["", ...memberOptionsV95().map((member) => member.uid)]]);
+  }
+  return next;
+}
+
+const fieldsForV7BeforeV95 = typeof fieldsForV7 === "function" ? fieldsForV7 : null;
+if (fieldsForV7BeforeV95) {
+  fieldsForV7 = function fieldsForV95(key) {
+    if (key === "academicSchedules") return academicFieldsV95();
+    const fields = fieldsForV7BeforeV95(key);
+    if (key === "exams") {
+      const existing = new Set(fields.map(([name]) => name));
+      const next = [...fields];
+      if (!existing.has("teacherComment")) next.push(["teacherComment", "선생님 코멘트", "textarea"]);
+      if (!existing.has("includeTeacherCommentInPrint")) next.push(["includeTeacherCommentInPrint", "프린트 포함", "select", ["false", "true"]]);
+      return maybeAddPrivacyFieldsV95(key, next);
+    }
+    return maybeAddPrivacyFieldsV95(key, fields);
+  };
+}
+
+const fieldsForV10BeforeV95 = typeof fieldsForV10 === "function" ? fieldsForV10 : null;
+if (fieldsForV10BeforeV95) {
+  fieldsForV10 = function fieldsForV95V10(key) {
+    if (key === "academicSchedules") return academicFieldsV95();
+    if (key === "lessons") {
+      return maybeAddPrivacyFieldsV95("lessons", [
+        ["lessonDate", "수업일", "date"],
+        ["subject", "과목", "select", subjectsList()],
+        ["unit", "단원", "text"],
+        ["pageRange", "페이지/범위", "text"],
+        ["progressContent", "학습 내용", "textarea"],
+        ["homework", "연동 과제/과제", "textarea"],
+        ["nextPlan", "다음 수업 계획", "textarea"],
+        ["teacherMemo", "선생님 메모", "textarea"],
+        ["day", "요일", "select", ["일", "월", "화", "수", "목", "금", "토"]],
+        ["period", "교시", "text"],
+        ["time", "수업시간", "text"],
+        ["teacher", "선생님", "select", teachersList()],
+        ["late", "출결 상태", "select", ["정상", "지각", "조퇴", "결석", "확인 필요"]],
+        ["status", "작성 상태", "select", ["자동생성", "작성중", "완료"]]
+      ]);
+    }
+    return maybeAddPrivacyFieldsV95(key, fieldsForV10BeforeV95(key));
+  };
+}
+
+const columnsForV7BeforeV95 = typeof columnsForV7 === "function" ? columnsForV7 : null;
+if (columnsForV7BeforeV95) {
+  columnsForV7 = function columnsForV95(key) {
+    const base = columnsForV7BeforeV95(key);
+    if (key === "exams") return [...new Set([...base, "teacherComment", "visibility"])];
+    if (PRIVACY_KEYS_V95.has(key)) return [...new Set([...base, "visibility"])];
+    return base;
+  };
+}
+
+const columnsForV10BeforeV95 = typeof columnsForV10 === "function" ? columnsForV10 : null;
+if (columnsForV10BeforeV95) {
+  columnsForV10 = function columnsForV95V10(key) {
+    if (key === "academicSchedules") return ["startDate", "endDate", "title", "category", "memo", "visibility", "targetStudentId"];
+    if (key === "lessons") return ["lessonDate", "subject", "unit", "pageRange", "progressContent", "homework", "nextPlan", "teacherMemo", "visibility", "status"];
+    return columnsForV10BeforeV95(key);
+  };
+}
+
+const filteredRowsV7BeforeV95 = typeof filteredRowsV7 === "function" ? filteredRowsV7 : null;
+if (filteredRowsV7BeforeV95) {
+  filteredRowsV7 = function filteredRowsV95(key) {
+    return filterRowsForPrivacyV95(key, filteredRowsV7BeforeV95(key));
+  };
+}
+
+const filteredRowsV10BeforeV95 = typeof filteredRowsV10 === "function" ? filteredRowsV10 : null;
+if (filteredRowsV10BeforeV95) {
+  filteredRowsV10 = function filteredRowsV95V10(key) {
+    return filterRowsForPrivacyV95(key, filteredRowsV10BeforeV95(key));
+  };
+}
+
+function academicFieldsV95() {
+  return maybeAddPrivacyFieldsV95("academicSchedules", [
+    ["title", "일정명", "text"],
+    ["startDate", "시작일", "date"],
+    ["endDate", "종료일", "date"],
+    ["category", "분류", "select", store.settings.masterData?.academicCategories || defaultMasterDataV95().academicCategories],
+    ["memo", "메모", "textarea"],
+    ["targetStudentId", "대상 학생 UID", "select", ["", ...memberOptionsV95().map((member) => member.uid)]]
+  ]);
+}
+
+function renderAcademicPersonalV95() {
+  ensureV95State();
+  content.replaceChildren();
+  const section = panel("개인용 학사일정");
+  const head = section.querySelector(".panel-head");
+  const actions = el("div", "row-actions");
+  const add = button("학사일정 추가");
+  add.addEventListener("click", () => openEditorV10("academicSchedules"));
+  const viewMode = document.createElement("select");
+  ["list", "calendar"].forEach((value) => viewMode.append(option(value, value === "list" ? "리스트" : "달력")));
+  viewMode.value = sessionStorage.getItem("academicViewModeV95") || "list";
+  viewMode.addEventListener("change", () => {
+    sessionStorage.setItem("academicViewModeV95", viewMode.value);
+    renderAcademicPersonalV95();
+  });
+  const month = document.createElement("input");
+  month.type = "month";
+  month.value = sessionStorage.getItem("academicMonthV95") || today.slice(0, 7);
+  month.addEventListener("change", () => {
+    sessionStorage.setItem("academicMonthV95", month.value);
+    renderAcademicPersonalV95();
+  });
+  actions.append(makeField("보기", "academicViewModeV95", viewMode), makeField("월 선택", "academicMonthV95", month), add);
+  head.append(actions);
+  const rows = filterRowsForPrivacyV95("academicSchedules", store.academicSchedules || [])
+    .filter((row) => String(row.startDate || row.date || "").startsWith(month.value));
+  section.append(
+    el("p", "muted privacy-note-v95", "NEIS 자동 연동 대신 개인용 학사일정을 기본으로 사용합니다. 일정은 기본적으로 비공개로 저장됩니다."),
+    viewMode.value === "calendar" ? academicCalendarV95(rows, month.value) : tableV10("academicSchedules", rows)
+  );
+  content.append(section);
+}
+
+function academicCalendarV95(rows, monthValue) {
+  const wrap = el("div", "academic-calendar-v95");
+  const [year, month] = monthValue.split("-").map(Number);
+  const first = new Date(year, month - 1, 1);
+  const days = new Date(year, month, 0).getDate();
+  ["일", "월", "화", "수", "목", "금", "토"].forEach((day) => wrap.append(el("strong", "cal-head-v95", day)));
+  for (let i = 0; i < first.getDay(); i += 1) wrap.append(el("div", "cal-cell-v95 muted", ""));
+  for (let day = 1; day <= days; day += 1) {
+    const date = `${monthValue}-${String(day).padStart(2, "0")}`;
+    const cell = el("button", "cal-cell-v95");
+    cell.append(el("b", "", String(day)));
+    rows.filter((row) => (row.startDate || row.date) === date).forEach((row) => cell.append(el("span", "", row.title || row.category || "일정")));
+    cell.addEventListener("click", () => {
+      const list = rows.filter((row) => (row.startDate || row.date) === date);
+      showMessage(date, list.length ? list.map((row) => `${row.title || "일정"}\n${row.memo || ""}`).join("\n\n") : "등록된 일정이 없습니다.");
+    });
+    wrap.append(cell);
+  }
+  return wrap;
+}
+
+function renderMasterDataV95() {
+  ensureV95State();
+  content.replaceChildren();
+  const section = panel("교과목/기준정보 관리");
+  const grid = el("div", "form-grid masterdata-grid-v95");
+  const defaults = defaultMasterDataV95();
+  Object.keys(defaults).forEach((key) => {
+    const area = document.createElement("textarea");
+    area.value = (store.settings.masterData[key] || defaults[key]).join("\n");
+    area.dataset.masterKey = key;
+    grid.append(makeField(labelFor(key), `masterData-${key}`, area));
+  });
+  const title = document.createElement("input");
+  title.value = `기준정보 ${new Date().toLocaleString("ko-KR")}`;
+  const desc = document.createElement("textarea");
+  desc.placeholder = "변경 내용";
+  const save = button("새 버전 저장/배포");
+  save.addEventListener("click", () => {
+    const version = `md-${Date.now()}`;
+    grid.querySelectorAll("[data-master-key]").forEach((area) => {
+      store.settings.masterData[area.dataset.masterKey] = area.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    });
+    store.settings.masterDataVersion = version;
+    const row = { id: version, version, title: title.value, description: desc.value, changedBy: currentUidV95(), changedAt: new Date().toISOString(), data: JSON.stringify(store.settings.masterData) };
+    store.masterDataVersions.unshift(row);
+    store.workspaceUpdates.unshift({ id: `update-${Date.now()}`, updateId: version, version, title: title.value, description: desc.value, changedBy: currentUidV95(), changedAt: row.changedAt, status: "대기중", targetWorkspaces: [currentWorkspaceIdV95()], appliedAt: "" });
+    saveStore();
+    showMessage("기준정보 저장", "새 기준정보 버전과 워크스페이스 업데이트 알림을 생성했습니다.");
+    renderMasterDataV95();
+  });
+  section.append(
+    el("p", "muted", "system_owner 또는 super_manager가 중앙 기준정보를 수정합니다. 저장하면 버전 이력과 워크스페이스 업데이트 알림이 함께 생성됩니다."),
+    makeField("버전 제목", "masterDataTitleV95", title),
+    makeField("변경 설명", "masterDataDescV95", desc),
+    grid,
+    save,
+    el("h3", "subsection-title-v66", "최근 버전"),
+    simpleRowsTableV16(["version", "title", "changedAt", "changedBy", "description"], store.masterDataVersions || [])
+  );
+  content.append(section);
+}
+
+function renderWorkspaceUpdatesV95() {
+  ensureV95State();
+  content.replaceChildren();
+  const section = panel("업데이트 내역");
+  const apply = button("대기 업데이트 적용 표시");
+  apply.addEventListener("click", () => {
+    (store.workspaceUpdates || []).forEach((row) => {
+      if (row.status === "대기중") {
+        row.status = "적용됨";
+        row.appliedAt = new Date().toISOString();
+      }
+    });
+    saveStore();
+    renderWorkspaceUpdatesV95();
+  });
+  section.querySelector(".panel-head")?.append(apply);
+  section.append(simpleRowsTableV16(["version", "title", "description", "changedAt", "status", "appliedAt"], store.workspaceUpdates || []));
+  content.append(section);
+}
+
+function prepareCustomPageV95(key) {
+  currentPage = key;
+  content.dataset.page = key;
+  document.body.dataset.pmPage = key;
+  updateGreeting();
+  ensureFloatingButtons?.();
+  document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.page === key));
+  document.querySelector(".sidebar")?.classList.remove("open");
+  pageTitle.textContent = pageLabel(key);
+}
+
+function renderOmrFormsV95() {
+  ensureV95State();
+  content.replaceChildren();
+  const section = panel("학교형 OMR 양식");
+  const cfg = store.settings.omr;
+  const q = document.createElement("select");
+  (store.settings.masterData.omrQuestionCounts || ["30", "50", "100"]).forEach((value) => q.append(option(value, `${value}문항`)));
+  q.value = String(cfg.questionCount || 50);
+  const c = document.createElement("select");
+  (store.settings.masterData.omrChoiceCounts || ["4", "5"]).forEach((value) => c.append(option(value, `${value}지선다`)));
+  c.value = String(cfg.choiceCount || 5);
+  const title = document.createElement("input");
+  title.value = cfg.examTitle || "";
+  const subject = document.createElement("select");
+  subject.append(option("", "과목 선택"));
+  subjectsList().forEach((name) => subject.append(option(name, name)));
+  subject.value = cfg.subjectId || "";
+  const studentName = document.createElement("input");
+  studentName.value = cfg.studentName || "";
+  const grade = document.createElement("input");
+  grade.value = cfg.grade || "";
+  const classNumber = document.createElement("input");
+  classNumber.value = cfg.classNumber || "";
+  const studentNumber = document.createElement("input");
+  studentNumber.value = cfg.studentNumber || "";
+  const save = button("OMR 설정 저장");
+  save.addEventListener("click", () => {
+    Object.assign(cfg, { questionCount: Number(q.value), choiceCount: Number(c.value), examTitle: title.value, subjectId: subject.value, studentName: studentName.value, grade: grade.value, classNumber: classNumber.value, studentNumber: studentNumber.value });
+    store.omrForms.unshift({ id: Date.now(), ...cfg, createdBy: currentUidV95(), createdAt: new Date().toISOString() });
+    saveStore();
+    renderOmrFormsV95();
+  });
+  const print = button("브라우저 프린트/PDF");
+  print.addEventListener("click", () => {
+    Object.assign(cfg, { questionCount: Number(q.value), choiceCount: Number(c.value), examTitle: title.value, subjectId: subject.value, studentName: studentName.value, grade: grade.value, classNumber: classNumber.value, studentNumber: studentNumber.value });
+    openHtmlDocumentV95(`OMR_${today}.html`, omrHtmlV95(cfg), true);
+  });
+  const form = el("div", "form-grid");
+  form.append(makeField("문항 수", "omrQuestionCountV95", q), makeField("선택지 수", "omrChoiceCountV95", c), makeField("시험명", "omrExamTitleV95", title), makeField("과목", "omrSubjectV95", subject), makeField("이름", "omrStudentNameV95", studentName), makeField("학년", "omrGradeV95", grade), makeField("반", "omrClassV95", classNumber), makeField("번호", "omrNumberV95", studentNumber));
+  section.append(form, el("div", "row-actions", ""), save, print, el("div", "omr-preview-v95", ""));
+  section.querySelector(".omr-preview-v95").innerHTML = omrSheetMarkupV95({ ...cfg, questionCount: Number(q.value), choiceCount: Number(c.value) });
+  content.append(section);
+}
+
+function omrSheetMarkupV95(cfg) {
+  const count = Number(cfg.questionCount || 50);
+  const choices = Number(cfg.choiceCount || 5);
+  const rows = Array.from({ length: count }, (_, i) => {
+    const no = i + 1;
+    return `<tr><th>${no}</th>${Array.from({ length: choices }, (_, j) => `<td><span class="omr-bubble-v95">${j + 1}</span></td>`).join("")}</tr>`;
+  }).join("");
+  return `<section class="omr-sheet-v95"><h1>${escapeHtml(cfg.examTitle || "OMR 답안지")}</h1><div class="omr-info-v95"><span>이름 ${escapeHtml(cfg.studentName || "")}</span><span>학년 ${escapeHtml(cfg.grade || "")}</span><span>반 ${escapeHtml(cfg.classNumber || "")}</span><span>번호 ${escapeHtml(cfg.studentNumber || "")}</span><span>과목 ${escapeHtml(cfg.subjectId || "")}</span><span>날짜 ${today}</span></div><table><thead><tr><th>번호</th>${Array.from({ length: choices }, (_, j) => `<th>${j + 1}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></section>`;
+}
+
+function omrHtmlV95(cfg) {
+  return `<!doctype html><meta charset="utf-8"><title>OMR 답안지</title><style>${omrCssV95()}</style>${omrSheetMarkupV95(cfg)}<script>window.print()</script>`;
+}
+
+function omrCssV95() {
+  return "body{font-family:Arial,'Malgun Gothic',sans-serif;margin:0;padding:18mm;color:#111}.omr-sheet-v95{max-width:190mm;margin:0 auto}.omr-sheet-v95 h1{text-align:center;margin:0 0 10mm}.omr-info-v95{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8mm}.omr-info-v95 span{border:1px solid #111;padding:7px}table{width:100%;border-collapse:collapse;page-break-inside:auto}th,td{border:1px solid #333;text-align:center;padding:3px;height:20px}.omr-bubble-v95{display:inline-flex;align-items:center;justify-content:center;border:1px solid #111;border-radius:50%;width:16px;height:16px;font-size:10px}@media print{button,.topbar,.sidebar{display:none!important}body{padding:10mm}}";
+}
+
+function openHtmlDocumentV95(filename, html, printNow = false) {
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, "_blank");
+  if (!win) {
+    exportCsv(filename, html);
+    return;
+  }
+  if (!printNow) setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+downloadOmrCard = function downloadOmrCardV95() {
+  ensureV95State();
+  openHtmlDocumentV95(`OMR_${today}.html`, omrHtmlV95(store.settings.omr), true);
+};
+
+function printOptionsPanelV95() {
+  ensureV95State();
+  const opts = store.settings.printOptions;
+  const panelNode = panel("프린트 포함 항목");
+  const grid = el("div", "check-grid print-options-v95");
+  [
+    ["includeGrades", "성적 포함"],
+    ["includeTeacherComment", "선생님 코멘트 포함"],
+    ["includePenalties", "상벌점 포함"],
+    ["includeAttendance", "출결 포함"],
+    ["includeAssignments", "과제 포함"],
+    ["includeLessons", "수업진도 포함"],
+    ["includeSensitive", "개인정보 포함"],
+    ["includeLogo", "로고 표시"],
+    ["showDate", "날짜 표시"]
+  ].forEach(([key, label]) => {
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = !!opts[key];
+    input.addEventListener("change", () => {
+      opts[key] = input.checked;
+      saveStore();
+    });
+    const labelNode = el("label", "");
+    labelNode.append(input, document.createTextNode(` ${label}`));
+    grid.append(labelNode);
+  });
+  const title = document.createElement("input");
+  title.value = opts.title || `${store.settings.siteName || "개인 관리"} 보고서`;
+  title.addEventListener("input", () => { opts.title = title.value; });
+  panelNode.append(makeField("출력 제목", "printTitleV95", title), grid, el("p", "muted", "민감정보는 기본 제외입니다. 필요한 경우 직접 체크한 항목만 보고서에 포함됩니다."));
+  return panelNode;
+}
+
+const renderPrintBeforeV95 = typeof renderPrintV7 === "function" ? renderPrintV7 : renderPrint;
+function renderPrintV95() {
+  content.replaceChildren();
+  ensureV95State();
+  const section = panel("프린트/보고서");
+  const format = document.createElement("select");
+  ["보고서", "성적표", "PDF/프린트", "표 다운로드"].forEach((value) => format.append(option(value, value)));
+  const build = button("미리보기/출력");
+  const preview = el("section", "panel print-area premium-report");
+  build.addEventListener("click", () => {
+    const opts = store.settings.printOptions;
+    const sections = [];
+    if (opts.includeGrades) sections.push(printRowsSectionV95("exams", filterRowsForPrivacyV95("exams", store.exams || [])));
+    if (opts.includeAssignments) sections.push(printRowsSectionV95("assignments", filterRowsForPrivacyV95("assignments", store.assignments || [])));
+    if (opts.includeLessons) sections.push(printRowsSectionV95("lessons", filterRowsForPrivacyV95("lessons", store.lessons || [])));
+    if (opts.includeAttendance) sections.push(printRowsSectionV95("attendance", filterRowsForPrivacyV95("attendance", store.attendance || [])));
+    if (opts.includePenalties) sections.push(printRowsSectionV95("penalties", filterRowsForPrivacyV95("penalties", store.penalties || [])));
+    const html = `<div class="report-cover">${opts.includeLogo ? `<div class="report-logo">${escapeHtml(store.settings.logoText || "PM")}</div>` : ""}<h1>${escapeHtml(opts.title || "보고서")}</h1>${opts.showDate ? `<p>${today}</p>` : ""}</div>${sections.join("")}`;
+    if (format.value === "표 다운로드") return exportCsv(`선택_보고서_${today}.html`, `<!doctype html><meta charset="utf-8"><style>${reportCssV8()}</style>${html}`);
+    preview.innerHTML = html;
+    if (format.value === "PDF/프린트") window.print();
+  });
+  section.append(makeField("형식", "printFormatV95", format), printOptionsPanelV95(), build, preview);
+  content.append(section);
+}
+
+function printRowsSectionV95(key, rows) {
+  const opts = store.settings.printOptions || {};
+  const cols = (key === "exams" ? ["date", "title", "subject", "score", "raw_score", "average", "teacherComment"] : columnsForV7(key) || []).filter((col) => {
+    if (col === "teacherComment") return opts.includeTeacherComment;
+    if (["phone", "address", "birth", "parent", "memo", "reason"].includes(col)) return opts.includeSensitive;
+    return true;
+  });
+  const filtered = rows.filter((row) => opts.includeSensitive || !PRIVACY_KEYS_V95.has(key) || canReadRowV95(key, row));
+  return `<section class="report-card"><h2>${escapeHtml(pageLabel(key))}</h2><table>${filtered.map((row) => `<tbody>${cols.map((col) => `<tr><th>${escapeHtml(labelFor(col))}</th><td>${escapeHtml(row[col] || "")}</td></tr>`).join("")}</tbody>`).join("")}</table></section>`;
+}
+
+function visibleExamsV95() {
+  const year = sessionStorage.getItem("examYearV95") || "";
+  const subject = sessionStorage.getItem("examSubjectV95") || "";
+  const teacher = sessionStorage.getItem("examTeacherV95") || "";
+  const title = (sessionStorage.getItem("examTitleV95") || "").toLowerCase();
+  return filterRowsForPrivacyV95("exams", store.exams || []).filter((row) => {
+    if (year && String(row.year || "") !== year) return false;
+    if (subject && row.subject !== subject) return false;
+    if (teacher && row.teacher !== teacher) return false;
+    if (title && !String(row.title || "").toLowerCase().includes(title)) return false;
+    return true;
+  });
+}
+
+function renderExamsV95() {
+  ensureV95State();
+  content.replaceChildren();
+  const filters = panel("시험/성적 조회");
+  const row = el("div", "exam-filter");
+  const year = document.createElement("select");
+  year.append(option("", "전체"));
+  ["2024", "2025", "2026", "2027"].forEach((value) => year.append(option(value, value)));
+  year.value = sessionStorage.getItem("examYearV95") || "";
+  const subject = document.createElement("select");
+  subject.append(option("", "과목 전체"));
+  subjectsList().forEach((name) => subject.append(option(name, name)));
+  subject.value = sessionStorage.getItem("examSubjectV95") || "";
+  const teacher = document.createElement("select");
+  teacher.append(option("", "선생님 전체"));
+  teachersList().forEach((name) => teacher.append(option(name, name)));
+  teacher.value = sessionStorage.getItem("examTeacherV95") || "";
+  const title = document.createElement("input");
+  title.placeholder = "시험명";
+  title.value = sessionStorage.getItem("examTitleV95") || "";
+  const search = button("검색");
+  search.addEventListener("click", () => {
+    sessionStorage.setItem("examYearV95", year.value);
+    sessionStorage.setItem("examSubjectV95", subject.value);
+    sessionStorage.setItem("examTeacherV95", teacher.value);
+    sessionStorage.setItem("examTitleV95", title.value);
+    renderExamsV95();
+  });
+  const add = button("시험 추가");
+  add.disabled = !can("create", "exams");
+  add.addEventListener("click", () => {
+    const row = normalizePrivacyRowV95("exams", { id: Date.now(), year: String(new Date().getFullYear()), date: today, title: "새 시험", subject: subjectsList()[0] || "", teacher: "", scope: "", base_score: 100, raw_score: 0, score: 0, average: 0, high_score: 0, teacherComment: "", includeTeacherCommentInPrint: false });
+    store.exams.unshift(row);
+    sessionStorage.setItem("selectedExamV95", String(row.id));
+    saveStore();
+    renderExamsV95();
+  });
+  const omr = button("OMR 양식", "ghost");
+  omr.addEventListener("click", () => renderPage("omrForms"));
+  row.append(makeField("시험년도", "examYearV95", year), makeField("과목", "examSubjectV95", subject), makeField("선생님", "examTeacherV95", teacher), makeField("시험명", "examTitleV95", title), search, add, omr);
+  filters.append(row);
+  const layout = el("div", "exam-layout exam-layout-v95");
+  const left = panel("시험 목록");
+  left.append(examGroupedListV95());
+  const center = panel("시험 정보/성적 입력");
+  center.append(examDetailV95(selectedExamV95()));
+  const right = panel("성적 분석");
+  right.append(examAnalysisV5());
+  layout.append(left, center, right);
+  content.append(filters, layout);
+}
+
+function examGroupedListV95() {
+  const wrap = el("div", "exam-groups");
+  const groups = {};
+  visibleExamsV95().forEach((row) => { groups[row.date || "날짜 없음"] ??= []; groups[row.date || "날짜 없음"].push(row); });
+  Object.entries(groups).forEach(([date, rows]) => {
+    const details = document.createElement("details");
+    details.open = true;
+    details.append(el("summary", "", `${date} (${rows.length})`));
+    rows.forEach((row) => {
+      const btn = button(`${row.subject || ""} · ${row.title || ""} · ${row.year || ""}`, "ghost");
+      btn.addEventListener("click", () => { sessionStorage.setItem("selectedExamV95", String(row.id)); logStudentViewV95("exams", row, "exam-select"); renderExamsV95(); });
+      details.append(btn);
+    });
+    wrap.append(details);
+  });
+  return wrap.children.length ? wrap : el("div", "empty", "조회된 시험이 없습니다.");
+}
+
+function selectedExamV95() {
+  const id = sessionStorage.getItem("selectedExamV95") || "";
+  return visibleExamsV95().find((row) => String(row.id) === id) || visibleExamsV95()[0] || {};
+}
+
+function examDetailV95(row = {}) {
+  const form = el("div", "exam-form exam-form-v95");
+  if (!row.id) return el("div", "empty", "시험을 선택하거나 새 시험을 추가하세요.");
+  const editable = can("edit", "exams") || row.ownerUid === currentUidV95();
+  const fields = [
+    ["year", "시험년도", "select", ["2024", "2025", "2026", "2027"]],
+    ["title", "시험명", "text"],
+    ["date", "시험일자", "date"],
+    ["subject", "과목", "select", subjectsList()],
+    ["teacher", "선생님", "select", ["", ...teachersList()]],
+    ["scope", "시험범위", "textarea"],
+    ["base_score", "기본점수", "number"],
+    ["raw_score", "원점수", "number"],
+    ["score", "점수", "number"],
+    ["rank", "석차", "number"],
+    ["student_count", "응시인원", "number"],
+    ["percentile", "백분위", "number"],
+    ["average", "평균", "number"],
+    ["high_score", "최고점", "number"],
+    ["teacherComment", "선생님 코멘트", "textarea"],
+    ["includeTeacherCommentInPrint", "프린트 포함", "select", ["false", "true"]],
+    ["visibility", "공개 범위", "select", ["private", "public"]],
+    ["consentPublic", "선생님 공개 동의", "select", ["false", "true"]]
+  ];
+  fields.forEach(([name, label, type, options]) => {
+    const field = inputNodeV4(name, label, type, options || false, row[name] ?? "");
+    const node = field.querySelector("[name]");
+    if (node) node.disabled = !editable;
+    form.append(field);
+  });
+  const answerPdf = document.createElement("input");
+  answerPdf.type = "file";
+  answerPdf.accept = ".pdf";
+  answerPdf.disabled = !editable;
+  const minePdf = document.createElement("input");
+  minePdf.type = "file";
+  minePdf.accept = ".pdf,image/*";
+  minePdf.disabled = !editable;
+  form.append(makeField("정답 PDF", "examAnswerPdfV95", answerPdf), makeField("내답/OMR PDF 또는 이미지", "examMinePdfV95", minePdf));
+  if (editable) {
+    const save = button("성적/코멘트 저장");
+    save.addEventListener("click", () => {
+      const previousVisibility = row.visibility;
+      fields.forEach(([name]) => {
+        const node = form.querySelector(`[name="${name}"]`);
+        row[name] = node?.value ?? row[name];
+      });
+      if (!confirmVisibilityChangeV96(previousVisibility, row.visibility)) {
+        row.visibility = previousVisibility;
+        return;
+      }
+      row.raw_score = row.raw_score || row.score;
+      row.answerPdf = answerPdf.files[0]?.name || row.answerPdf || "";
+      row.omrImage = minePdf.files[0]?.name || row.omrImage || "";
+      row.teacherCommentUpdatedAt = new Date().toISOString();
+      row.teacherCommentUpdatedBy = currentUidV95();
+      normalizePrivacyRowV95("exams", row);
+      saveStore();
+      showMessage("저장 완료", "성적과 선생님 코멘트를 저장했습니다.");
+      renderExamsV95();
+    });
+    form.append(save);
+  } else {
+    form.append(el("p", "muted", "수정 권한이 없습니다. 공개된 항목만 조회할 수 있습니다."));
+  }
+  return form;
+}
+
+function logStudentViewV95(tabName, row = {}, reason = "view") {
+  if (!currentUser || !row || !isPrivilegedRoleV95(currentUser) && !isTeacherRoleV95(currentUser)) return;
+  const target = ownerUidV95(row);
+  if (!target || target === currentUidV95()) return;
+  store.studentAccessLogs ??= [];
+  store.studentAccessLogs.unshift({
+    id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    viewerUid: currentUidV95(),
+    targetStudentUid: target,
+    tabName,
+    documentId: row.id || "",
+    viewedAt: new Date().toISOString(),
+    reason,
+    viewMode: selectedAdminStudentUidV95() ? "student-filter" : "direct"
+  });
+  saveStore({ skipRemote: false });
+}
+
+const showViewerBeforeV95 = typeof showViewerV5 === "function" ? showViewerV5 : null;
+if (showViewerBeforeV95) {
+  showViewerV5 = function showViewerV95(title, row) {
+    logStudentViewV95(currentPage || title, row, "viewer");
+    return showViewerBeforeV95(title, row);
+  };
+}
+
+const defaultRoleMenusBeforeV95 = defaultRoleMenusV31;
+defaultRoleMenusV31 = function defaultRoleMenusV95() {
+  const menus = defaultRoleMenusBeforeV95();
+  ["system_owner", "super_manager"].forEach((role) => {
+    menus[role] = [...new Set([...(menus[role] || []), "masterData", "workspaceUpdates", "omrForms"])];
+  });
+  ["manager", "teacher", "normal", "viewer", "print_account"].forEach((role) => {
+    menus[role] = [...new Set([...(menus[role] || []), "workspaceUpdates", "omrForms"])];
+  });
+  return menus;
+};
+
+const navGroupsBeforeV95 = navGroupsV28;
+navGroupsV28 = function navGroupsV95() {
+  const groups = navGroupsBeforeV95();
+  const adminGroup = groups.find((group) => group.id === "admin");
+  if (adminGroup) adminGroup.keys = [...new Set(["masterData", "workspaceUpdates", ...adminGroup.keys])];
+  const printGroup = groups.find((group) => group.id === "print");
+  if (printGroup) printGroup.keys = [...new Set(["omrForms", ...printGroup.keys])];
+  return groups.map((group) => ({ ...group, keys: group.keys.filter((key) => navKeys().includes(key)) })).filter((group) => group.keys.length);
+};
+
+function installPermissionsV95() {
+  authStateV31.permissions.masterData = { view: ["system_owner", "super_manager"], create: ["system_owner", "super_manager"], edit: ["system_owner", "super_manager"], del: ["system_owner"] };
+  authStateV31.permissions.workspaceUpdates = { view: ["system_owner", "super_manager", "manager", "teacher", "normal", "viewer", "print_account"], create: ["system_owner", "super_manager"], edit: ["system_owner", "super_manager"], del: ["system_owner"] };
+  authStateV31.permissions.omrForms = { view: ["system_owner", "super_manager", "manager", "teacher", "normal", "viewer", "print_account"], create: ["system_owner", "super_manager", "manager", "teacher", "normal"], edit: ["system_owner", "super_manager", "manager", "teacher", "normal"], del: ["system_owner", "super_manager", "manager"] };
+  authStateV31.permissions.academicSchedules = { view: ["system_owner", "super_manager", "manager", "teacher", "normal", "viewer"], create: ["system_owner", "super_manager", "manager", "teacher", "normal"], edit: ["system_owner", "super_manager", "manager", "teacher", "normal"], del: ["system_owner", "super_manager", "manager"] };
+  authStateV31.permissions.studentAccessLogs = { view: ["system_owner", "super_manager", "manager"], create: ["system_owner", "super_manager", "manager", "teacher"], edit: [], del: ["system_owner"] };
+}
+
+const labelForBeforeV95 = labelFor;
+labelFor = function labelForV95(field) {
+  const map = {
+    teacherComment: "선생님 코멘트",
+    teacherCommentUpdatedAt: "코멘트 수정일",
+    teacherCommentUpdatedBy: "코멘트 작성자",
+    includeTeacherCommentInPrint: "코멘트 프린트 포함",
+    visibility: "공개 범위",
+    consentPublic: "공개 동의",
+    targetStudentId: "대상 학생",
+    startDate: "시작일",
+    endDate: "종료일",
+    lessonDate: "수업일",
+    unit: "단원",
+    pageRange: "페이지",
+    progressContent: "수업진도",
+    nextPlan: "다음 계획",
+    teacherMemo: "선생님 메모",
+    subjects: "교과목 목록",
+    subjectCodes: "과목 코드",
+    grades: "학년",
+    semesters: "학기",
+    classTypes: "수업 분류",
+    examTypes: "시험 종류",
+    evaluationMethods: "평가 방식",
+    achievementLevels: "성취도 기준",
+    attendanceTypes: "출결 유형",
+    behaviorTypes: "상벌점 유형",
+    academicCategories: "학사일정 카테고리",
+    omrQuestionCounts: "OMR 문항 수",
+    omrChoiceCounts: "OMR 선택지 수"
+  };
+  return map[field] || labelForBeforeV95(field);
+};
+
+function prependStudentFilterAndPrivacyNoticeV95(key) {
+  const selector = adminStudentSelectorV95(key);
+  if (selector) content.prepend(selector);
+  if (PRIVACY_KEYS_V95.has(key) || key === "academic") {
+    const note = el("div", "privacy-banner-v95", "이 탭의 개인정보성 데이터는 기본적으로 비공개입니다. 공개 전환 시 같은 워크스페이스의 권한 있는 선생님/관리자에게만 공개됩니다.");
+    content.prepend(note);
+  }
+}
+
+const renderPageBeforeV95 = renderPage;
+renderPage = function renderPageV95(key) {
+  ensureV95State();
+  installPermissionsV95();
+  pageMeta.masterData = ["기", "기준정보"];
+  pageMeta.workspaceUpdates = ["업", "업데이트"];
+  pageMeta.omrForms = ["O", "OMR 양식"];
+  if (key === "academic") {
+    prepareCustomPageV95("academic");
+    renderAcademicPersonalV95();
+    prependStudentFilterAndPrivacyNoticeV95("academic");
+    return;
+  }
+  if (key === "masterData") {
+    prepareCustomPageV95("masterData");
+    return renderMasterDataV95();
+  }
+  if (key === "workspaceUpdates") {
+    prepareCustomPageV95("workspaceUpdates");
+    return renderWorkspaceUpdatesV95();
+  }
+  if (key === "omrForms") {
+    prepareCustomPageV95("omrForms");
+    return renderOmrFormsV95();
+  }
+  if (key === "print") {
+    prepareCustomPageV95("print");
+    return renderPrintV95();
+  }
+  if (key === "exams") {
+    prepareCustomPageV95("exams");
+    renderExamsV95();
+    prependStudentFilterAndPrivacyNoticeV95("exams");
+    return;
+  }
+  const result = renderPageBeforeV95(key);
+  prependStudentFilterAndPrivacyNoticeV95(key);
+  return result;
+};
+
+ensureV95State();
+installPermissionsV95();
+normalizePrivacyStoreV95();
+pageMeta.masterData = ["기", "기준정보"];
+pageMeta.workspaceUpdates = ["업", "업데이트"];
+pageMeta.omrForms = ["O", "OMR 양식"];
+store.settings.appVersion = APP_PATCH_VERSION_V95;
+
+// Final V96: Korean privacy labels and stable system-owner permission repair.
+const APP_PATCH_VERSION_V96 = "v96.0 - 2026-07-09";
+
+function normalizeVisibilityValueV96(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "private";
+  if (["public", "공개", "일반 공개", "전체 공개"].includes(raw)) return "public";
+  if (["private", "비공개", "나만 보기", "관리자 전용", "비밀"].includes(raw)) return "private";
+  return raw === "public" ? "public" : "private";
+}
+
+function visibilityLabelV96(value) {
+  return normalizeVisibilityValueV96(value) === "public" ? "공개" : "비공개";
+}
+
+function confirmVisibilityChangeV96(beforeValue, afterValue) {
+  const before = normalizeVisibilityValueV96(beforeValue);
+  const after = normalizeVisibilityValueV96(afterValue);
+  if (before === after) return true;
+  if (after === "public") {
+    return confirm("이 항목을 공개로 변경하면 권한이 있는 관리자/선생님이 볼 수 있습니다. 변경할까요?");
+  }
+  showMessage("비공개 전환", "이 항목은 본인과 허용된 관리자만 볼 수 있습니다.");
+  return true;
+}
+
+function normalizeVisibilityPayloadV96(key, payload = {}) {
+  if (!payload || typeof payload !== "object") return payload;
+  if ((PRIVACY_KEYS_V95.has(key) || key === "academicSchedules" || key === "print") && "visibility" in payload) {
+    payload.visibility = normalizeVisibilityValueV96(payload.visibility);
+  }
+  return payload;
+}
+
+function displayCellValueV96(col, value) {
+  if (col === "visibility") return visibilityLabelV96(value);
+  if (col === "consentPublic") return value === true || value === "true" ? "동의" : "미동의";
+  if (col === "includeTeacherCommentInPrint") return value === true || value === "true" ? "포함" : "제외";
+  return value ?? "";
+}
+
+const inputNodeV4BeforeV96 = inputNodeV4;
+inputNodeV4 = function inputNodeV4V96(name, label, type, requiredOrOptions, value) {
+  const nextOptions = name === "visibility" && type === "select" ? ["private", "public"] : requiredOrOptions;
+  const nextValue = name === "visibility" ? normalizeVisibilityValueV96(value) : value;
+  const field = inputNodeV4BeforeV96(name, label, type, nextOptions, nextValue);
+  const select = field.querySelector?.('select[name="visibility"]');
+  if (select) {
+    select.replaceChildren(option("private", "비공개"), option("public", "공개"));
+    select.value = normalizeVisibilityValueV96(nextValue);
+  }
+  return field;
+};
+
+const inputHtmlBeforeV96 = inputHtml;
+inputHtml = function inputHtmlV96(name, label, type, requiredOrOptions, value = "") {
+  if (name === "visibility" && type === "select") {
+    const selected = normalizeVisibilityValueV96(value);
+    return `<label>${label}<select name="visibility"><option value="private" ${selected === "private" ? "selected" : ""}>비공개</option><option value="public" ${selected === "public" ? "selected" : ""}>공개</option></select></label>`;
+  }
+  return inputHtmlBeforeV96(name, label, type, requiredOrOptions, value);
+};
+
+const tableV10BeforeV96 = tableV10;
+tableV10 = function tableV10V96(key, rows) {
+  if (!rows.length) return el("div", "empty", "항목이 없습니다.");
+  const cols = columnsForV10(key);
+  const wrap = el("div", "table-wrap");
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const head = document.createElement("tr");
+  cols.forEach((col) => head.append(el("th", "", labelFor(col))));
+  head.append(el("th", "", "관리"));
+  thead.append(head);
+  const tbody = document.createElement("tbody");
+  rows.forEach((row) => {
+    const tr = document.createElement("tr");
+    cols.forEach((col) => tr.append(el("td", "", displayCellValueV96(col, row[col]))));
+    const td = el("td", "row-actions");
+    const view = button("보기", "ghost");
+    view.addEventListener("click", () => showViewerV5(pageLabel(key), row));
+    const edit = button("수정", "ghost");
+    edit.addEventListener("click", () => openEditorV10(key, row.id));
+    td.append(view, edit);
+    if (can("del", key)) {
+      const del = button("삭제", "danger");
+      del.addEventListener("click", () => requirePassword(() => deleteRow(key, row.id)));
+      td.append(del);
+    }
+    tr.append(td);
+    tbody.append(tr);
+  });
+  table.append(thead, tbody);
+  wrap.append(table);
+  return wrap;
+};
+
+const printRowsSectionBeforeV96 = printRowsSectionV95;
+printRowsSectionV95 = function printRowsSectionV96(key, rows) {
+  const opts = store.settings.printOptions || {};
+  const cols = (key === "exams" ? ["date", "title", "subject", "score", "raw_score", "average", "teacherComment", "visibility"] : columnsForV7(key) || []).filter((col) => {
+    if (col === "teacherComment") return opts.includeTeacherComment;
+    if (["phone", "address", "birth", "parent", "memo", "reason"].includes(col)) return opts.includeSensitive;
+    return true;
+  });
+  const filtered = rows.filter((row) => opts.includeSensitive || !PRIVACY_KEYS_V95.has(key) || canReadRowV95(key, row));
+  return `<section class="report-card"><h2>${escapeHtml(pageLabel(key))}</h2><table>${filtered.map((row) => `<tbody>${cols.map((col) => `<tr><th>${escapeHtml(labelFor(col))}</th><td>${escapeHtml(displayCellValueV96(col, row[col]))}</td></tr>`).join("")}</tbody>`).join("")}</table></section>`;
+};
+
+const renderPersonalV8BeforeV96 = renderPersonalV8;
+renderPersonalV8 = function renderPersonalV96() {
+  store.profile ??= {};
+  store.profile.visibility = normalizeVisibilityValueV96(store.profile.visibility);
+  renderPersonalV8BeforeV96();
+  if (document.getElementById("profileVisibilityV96")) return;
+  const memoField = document.getElementById("profileMemo")?.closest("label");
+  const select = document.createElement("select");
+  select.id = "profileVisibilityV96";
+  select.append(option("private", "비공개"), option("public", "공개"));
+  select.value = store.profile.visibility || "private";
+  memoField?.after(makeField("공개 범위", "profileVisibilityV96Field", select));
+};
+
+const printOptionsPanelBeforeV96 = printOptionsPanelV95;
+printOptionsPanelV95 = function printOptionsPanelV96() {
+  store.settings.printOptions ??= {};
+  store.settings.printOptions.visibility = normalizeVisibilityValueV96(store.settings.printOptions.visibility);
+  const panelNode = printOptionsPanelBeforeV96();
+  if (!panelNode.querySelector("#printVisibilityV96")) {
+    const select = document.createElement("select");
+    select.id = "printVisibilityV96";
+    select.append(option("private", "비공개"), option("public", "공개"));
+    select.value = store.settings.printOptions.visibility || "private";
+    select.addEventListener("change", () => {
+      if (!confirmVisibilityChangeV96(store.settings.printOptions.visibility, select.value)) {
+        select.value = store.settings.printOptions.visibility || "private";
+        return;
+      }
+      store.settings.printOptions.visibility = normalizeVisibilityValueV96(select.value);
+      saveStore();
+    });
+    panelNode.append(makeField("프린트 설정 공개 범위", "printVisibilityV96", select));
+  }
+  return panelNode;
+};
+
+store.settings.printOptions ??= {};
+store.settings.printOptions.visibility = normalizeVisibilityValueV96(store.settings.printOptions.visibility);
+store.settings.appVersion = APP_PATCH_VERSION_V96;

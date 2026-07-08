@@ -3239,3 +3239,126 @@ dialog {
     max-width: 100%;
   }
 }
+
+.privacy-banner-v95 {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-weight: 700;
+}
+
+.student-filter-v95 {
+  margin-bottom: 14px;
+}
+
+.masterdata-grid-v95 textarea {
+  min-height: 120px;
+}
+
+.academic-calendar-v95 {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.cal-head-v95,
+.cal-cell-v95 {
+  min-height: 62px;
+  border: 1px solid #d8e3f2;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+  text-align: left;
+}
+
+.cal-head-v95 {
+  min-height: auto;
+  text-align: center;
+  background: #f3f7fc;
+}
+
+.cal-cell-v95 span {
+  display: block;
+  margin-top: 4px;
+  color: #2563eb;
+  font-size: 12px;
+}
+
+.exam-layout-v95 {
+  grid-template-columns: minmax(220px, .9fr) minmax(360px, 1.35fr) minmax(260px, .9fr);
+}
+
+.exam-form-v95 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.exam-form-v95 label:has(textarea),
+.exam-form-v95 label.wide {
+  grid-column: 1 / -1;
+}
+
+.omr-preview-v95 {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid #d8e3f2;
+  border-radius: 8px;
+  background: white;
+  padding: 18px;
+  margin-top: 16px;
+}
+
+.omr-sheet-v95 h1 {
+  text-align: center;
+}
+
+.omr-info-v95 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.omr-info-v95 span {
+  border: 1px solid #111827;
+  padding: 6px;
+}
+
+.omr-sheet-v95 table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.omr-sheet-v95 th,
+.omr-sheet-v95 td {
+  border: 1px solid #334155;
+  padding: 4px;
+  text-align: center;
+}
+
+.omr-bubble-v95 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #111827;
+  border-radius: 50%;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .exam-layout-v95,
+  .exam-form-v95 {
+    grid-template-columns: 1fr;
+  }
+
+  .academic-calendar-v95 {
+    min-width: 680px;
+  }
+}

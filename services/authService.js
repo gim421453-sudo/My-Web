@@ -139,7 +139,8 @@
     const { firestore } = runtime.sdk;
     const uid = user.uid;
     const status = options.status || "pending";
-    const role = options.role || "pending";
+    const requestedRole = options.role || "normal";
+    const role = requestedRole === "pending" ? "normal" : requestedRole;
     await runFirestoreStep("create base invited user document", `users/${uid}`, () => firestore.setDoc(firestore.doc(runtime.db, "users", uid), {
       uid,
       email: user.email || "",
@@ -149,10 +150,11 @@
       role,
       currentRole: role,
       status,
-      workspaceId: null,
-      currentWorkspaceId: null,
-      pendingWorkspaceId: null,
-      pendingInviteCodeId: null,
+      workspaceId: options.workspaceId || null,
+      currentWorkspaceId: options.workspaceId || null,
+      workspace_id: options.workspaceId || null,
+      pendingWorkspaceId: options.pendingWorkspaceId || null,
+      pendingInviteCodeId: options.pendingInviteCodeId || null,
       createdAt: firestore.serverTimestamp(),
       lastLoginAt: firestore.serverTimestamp(),
       updatedAt: firestore.serverTimestamp(),
@@ -269,15 +271,16 @@
       console.info("[PM system owner lookup skipped]", error?.code || "", error?.message || String(error));
     }
     if (!userSnap.exists()) {
-      await firebaseCreateBaseUserDocument(user, displayName, { role: defaultRole || "pending", status: "pending" });
-      return { workspaceId: "", role: defaultRole || "pending", status: "pending", pendingWorkspaceId: "" };
+      await firebaseCreateBaseUserDocument(user, displayName, { role: "normal", status: "pending" });
+      return { workspaceId: "", role: "normal", status: "pending", pendingWorkspaceId: "", pendingInviteCodeId: "" };
     }
 
     const discoveredMembership = await findActiveWorkspaceMembership(runtime, uid);
     const workspaceId = userData.workspaceId || userData.currentWorkspaceId || discoveredMembership?.workspaceId || "";
     const status = userData.disabled === true ? "disabled" : (userData.status || (workspaceId ? "active" : "pending"));
     if (!workspaceId || ["pending", "waiting_approval", "rejected", "disabled"].includes(status)) {
-      const pendingRole = isSystemOwnerDoc ? "system_owner" : userData.role || "pending";
+      const savedRole = userData.role || userData.currentRole || "normal";
+      const pendingRole = isSystemOwnerDoc ? "system_owner" : savedRole === "pending" ? "normal" : savedRole;
       await runFirestoreStep("update pending user login timestamp", `users/${uid}`, () => firestore.setDoc(userRef, {
         uid,
         email: user.email || userData.email || "",
@@ -289,6 +292,10 @@
         status,
         workspaceId: workspaceId || null,
         currentWorkspaceId: workspaceId || null,
+        workspace_id: workspaceId || null,
+        pendingWorkspaceId: userData.pendingWorkspaceId || null,
+        pendingInviteCodeId: userData.pendingInviteCodeId || userData.inviteCodeId || userData.inviteCode || null,
+        createdAt: userData.createdAt || now,
         lastLoginAt: now,
         updatedAt: now,
         disabled: status === "disabled" || userData.disabled === true
@@ -298,7 +305,8 @@
         role: pendingRole,
         status,
         workspaceRole: discoveredMembership?.role || userData.workspaceRole || "",
-        pendingWorkspaceId: userData.pendingWorkspaceId || ""
+        pendingWorkspaceId: userData.pendingWorkspaceId || "",
+        pendingInviteCodeId: userData.pendingInviteCodeId || userData.inviteCodeId || userData.inviteCode || ""
       };
     }
 
@@ -307,7 +315,19 @@
     const standardMemberRef = firestore.doc(runtime.db, "workspaceMembers", memberId);
     const nestedMemberRef = firestore.doc(runtime.db, "workspaces", workspaceId, "members", uid);
     const memberSnap = await runFirestoreStep("get workspace member document", `workspaces/${workspaceId}/members/${uid}`, () => firestore.getDoc(nestedMemberRef));
-    const rootMemberSnap = await runFirestoreStep("get legacy workspace member document", `workspace_members/${memberId}`, () => firestore.getDoc(memberRef));
+    let rootMemberSnap;
+    try {
+      rootMemberSnap = await runFirestoreStep("get legacy workspace member document", `workspace_members/${memberId}`, () => firestore.getDoc(memberRef));
+    } catch (error) {
+      console.info("[PM root membership lookup skipped]", {
+        path: `workspace_members/${memberId}`,
+        uid,
+        workspaceId,
+        code: error?.code || "",
+        message: error?.message || String(error)
+      });
+      rootMemberSnap = { exists: () => false, data: () => ({}) };
+    }
     const workspaceRole = memberSnap.exists()
       ? memberSnap.data().role || "normal"
       : rootMemberSnap.exists()
@@ -315,6 +335,7 @@
         : userData.currentRole || userData.role || "normal";
     const isGlobalSystemOwner = isSystemOwnerDoc || userData.role === "system_owner" || userData.currentRole === "system_owner";
     const role = isGlobalSystemOwner ? "system_owner" : workspaceRole;
+    const canRepairRootMembership = isGlobalSystemOwner || ["super_manager", "manager"].includes(workspaceRole);
     const batch = firestore.writeBatch(runtime.db);
 
     batch.set(userRef, {
@@ -333,41 +354,51 @@
       lastLoginAt: now,
       updatedAt: now,
       status: status || "active",
-      disabled: userData.disabled === true
+      disabled: userData.disabled === true,
+      pendingWorkspaceId: null,
+      pendingInviteCodeId: null
     }, { merge: true });
 
     if (!memberSnap.exists() && !rootMemberSnap.exists()) {
       console.warn("[PM role repair]", { uid, workspaceId, role, message: "active user member document was missing; repairing with users.role" });
     }
 
-    batch.set(memberRef, {
-      id: memberId,
-      workspaceId,
-      workspace_id: workspaceId,
-      rootMemberExists: true,
-      nestedMemberExists: true,
-      uid,
-      email: user.email || userData.email || "",
-      displayName: userData.displayName || displayName || user.displayName || user.email || "",
-      role: workspaceRole,
-      status: "active",
-      joinedAt: rootMemberSnap.exists() ? rootMemberSnap.data().joinedAt || now : now,
-      invitedBy: null
-    }, { merge: true });
-    batch.set(standardMemberRef, {
-      id: memberId,
-      workspaceId,
-      workspace_id: workspaceId,
-      rootMemberExists: true,
-      nestedMemberExists: true,
-      uid,
-      email: user.email || userData.email || "",
-      displayName: userData.displayName || displayName || user.displayName || user.email || "",
-      role: workspaceRole,
-      status: "active",
-      joinedAt: rootMemberSnap.exists() ? rootMemberSnap.data().joinedAt || now : now,
-      invitedBy: null
-    }, { merge: true });
+    if (canRepairRootMembership) {
+      batch.set(memberRef, {
+        id: memberId,
+        workspaceId,
+        workspace_id: workspaceId,
+        rootMemberExists: true,
+        nestedMemberExists: true,
+        uid,
+        email: user.email || userData.email || "",
+        displayName: userData.displayName || displayName || user.displayName || user.email || "",
+        role: workspaceRole,
+        status: "active",
+        joinedAt: rootMemberSnap.exists() ? rootMemberSnap.data().joinedAt || now : now,
+        invitedBy: null
+      }, { merge: true });
+      batch.set(standardMemberRef, {
+        id: memberId,
+        workspaceId,
+        workspace_id: workspaceId,
+        rootMemberExists: true,
+        nestedMemberExists: true,
+        uid,
+        email: user.email || userData.email || "",
+        displayName: userData.displayName || displayName || user.displayName || user.email || "",
+        role: workspaceRole,
+        status: "active",
+        joinedAt: rootMemberSnap.exists() ? rootMemberSnap.data().joinedAt || now : now,
+        invitedBy: null
+      }, { merge: true });
+    } else {
+      console.info("[PM member bootstrap] root membership repair skipped for non-admin login", {
+        uid,
+        workspaceId,
+        workspaceRole
+      });
+    }
     batch.set(nestedMemberRef, {
       id: memberId,
       workspaceId,
@@ -384,8 +415,8 @@
       invitedBy: memberSnap.exists() ? memberSnap.data().invitedBy || null : null
     }, { merge: true });
 
-    await runFirestoreStep("commit user workspace bootstrap", `users/${uid}, workspaces/${workspaceId}/members/${uid}, workspace_members/${memberId}`, () => batch.commit());
-    return { workspaceId, role, workspaceRole, status: status || "active", pendingWorkspaceId: "" };
+    await runFirestoreStep("commit user workspace bootstrap", `users/${uid}, workspaces/${workspaceId}/members/${uid}${canRepairRootMembership ? `, workspace_members/${memberId}` : ""}`, () => batch.commit());
+    return { workspaceId, role, workspaceRole, status: status || "active", pendingWorkspaceId: "", pendingInviteCodeId: "" };
   }
 
   async function firebaseRegisterDevice(user) {

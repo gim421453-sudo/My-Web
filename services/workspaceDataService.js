@@ -21,6 +21,10 @@
     "examSchedules",
     "records",
     "lessons",
+    "studentAccessLogs",
+    "masterDataVersions",
+    "workspaceUpdates",
+    "omrForms",
     "projects",
     "budget",
     "systemReports",
@@ -54,7 +58,66 @@
   let runtimePromise = null;
   let pendingLocalRowsByKey = {};
   let pendingDeletedIdsByKey = {};
+  let currentContext = {};
   const PENDING_TTL_MS = 15000;
+  const SENSITIVE_COLLECTION_KEYS = new Set([
+    "people",
+    "friendAwards",
+    "penalties",
+    "exams",
+    "attendance",
+    "assignments",
+    "lessons",
+    "records",
+    "portfolios",
+    "academicSchedules",
+    "studentAccessLogs"
+  ]);
+  const PRIVILEGED_ROLES = new Set(["system_owner", "super_manager", "manager"]);
+
+  function contextUid(context = {}) {
+    return context.uid || window.firebase?.auth?.().currentUser?.uid || "";
+  }
+
+  function rowOwnerUid(row = {}) {
+    return row.studentUid || row.targetStudentId || row.ownerUid || row.uid || row.userUid || row.createdBy || row.createdByUid || "";
+  }
+
+  function isPublicApprovedRow(row = {}) {
+    return row.visibility === "public" && (row.consentPublic === true || row.consentPublic === "true" || row.publicApproved === true);
+  }
+
+  function isPrivilegedContext(context = {}) {
+    return PRIVILEGED_ROLES.has(context.role || "");
+  }
+
+  function isTeacherContext(context = {}) {
+    return (context.role || "") === "teacher";
+  }
+
+  function canReadWorkspaceRow(key, row = {}, context = {}) {
+    if (!SENSITIVE_COLLECTION_KEYS.has(key)) return true;
+    const role = context.role || "";
+    const uid = contextUid(context);
+    if (PRIVILEGED_ROLES.has(role)) return true;
+    if (uid && rowOwnerUid(row) === uid) return true;
+    if (role === "teacher" && isPublicApprovedRow(row)) return true;
+    return false;
+  }
+
+  function applyWorkspacePrivacyFilter(key, rows, context = {}) {
+    if (!SENSITIVE_COLLECTION_KEYS.has(key)) return rows;
+    return rows.filter((row) => canReadWorkspaceRow(key, row, context));
+  }
+
+  function canWriteWorkspaceRow(key, row = {}, context = {}) {
+    if (!SENSITIVE_COLLECTION_KEYS.has(key)) return true;
+    if (isPrivilegedContext(context)) return true;
+    const uid = contextUid(context);
+    if (!uid) return false;
+    if (rowOwnerUid(row) === uid) return true;
+    return isTeacherContext(context) && ["attendance", "assignments", "lessons", "exams", "records"].includes(key);
+  }
 
   function hasFirebase() {
     return !!window.PMFirebaseRuntime?.hasConfig?.();
@@ -96,6 +159,35 @@
     return db.collection("workspaces").doc(workspaceId).collection(key);
   }
 
+  function collectionQueryForContext(db, workspaceId, key, context = {}) {
+    const ref = collectionRef(db, workspaceId, key);
+    if (!SENSITIVE_COLLECTION_KEYS.has(key) || isPrivilegedContext(context)) return ref;
+    const uid = contextUid(context);
+    if (!uid) return null;
+    if (isTeacherContext(context)) {
+      return ref.where("visibility", "==", "public").where("consentPublic", "==", true);
+    }
+    return ref.where("studentUid", "==", uid);
+  }
+
+  function logFirestorePermissionError(phase, payload = {}, error) {
+    const code = error?.code || "";
+    const data = {
+      phase,
+      path: payload.path || "",
+      collection: payload.collection || "",
+      workspaceId: payload.workspaceId || currentWorkspaceId || "",
+      role: payload.role || currentContext.role || "",
+      status: payload.status || currentContext.status || "",
+      pendingWorkspaceId: payload.pendingWorkspaceId || currentContext.pendingWorkspaceId || "",
+      uid: payload.uid || contextUid(currentContext),
+      code,
+      message: error?.message || String(error)
+    };
+    if (code === "permission-denied") console.error("[Firestore Permission Error]", data);
+    else console.error("[Firestore Error]", data);
+  }
+
   function settingsRef(db, workspaceId) {
     return db.collection("workspaces").doc(workspaceId).collection(SETTINGS_DOC_COLLECTION).doc(SETTINGS_DOC_ID);
   }
@@ -111,6 +203,7 @@
     unsubscribers = [];
     currentWorkspaceId = "";
     currentStore = null;
+    currentContext = {};
     remoteIdsByKey = {};
     pendingLocalRowsByKey = {};
     pendingDeletedIdsByKey = {};
@@ -126,17 +219,20 @@
     stop();
     currentWorkspaceId = workspaceId;
     currentStore = options.store;
+    currentContext = {
+      uid: options.uid || "",
+      role: options.role || "",
+      status: options.status || "",
+      pendingWorkspaceId: options.pendingWorkspaceId || ""
+    };
     runtime()
       .then((rt) => {
         if (!rt || workspaceId !== currentWorkspaceId) return;
         subscribeSettings(rt, workspaceId, options.store, options.onRemoteChange);
-        COLLECTION_KEYS.forEach((key) => subscribeCollection(rt, workspaceId, key, options.store, options.onRemoteChange, {
-          uid: options.uid || "",
-          role: options.role || ""
-        }));
+        COLLECTION_KEYS.forEach((key) => subscribeCollection(rt, workspaceId, key, options.store, options.onRemoteChange, currentContext));
         console.info(`[PM workspace sync] realtime listeners started workspaceId=${workspaceId} collections=${COLLECTION_KEYS.length}`);
       })
-      .catch((error) => console.error(`[PM workspace sync] start failed workspaceId=${workspaceId} code=${error?.code || ""} message=${error?.message || String(error)}`));
+      .catch((error) => logFirestorePermissionError("start", { path: `workspaces/${workspaceId}`, workspaceId, uid: currentContext.uid, role: currentContext.role }, error));
   }
 
   function subscribeSettings(rt, workspaceId, store, onRemoteChange) {
@@ -153,7 +249,13 @@
       applyingRemote = false;
       onRemoteChange?.({ key: "settings", type: "doc" });
     }, (error) => {
-      console.error(`[PM workspace sync] settings listener failed workspaceId=${workspaceId} code=${error?.code || ""} message=${error?.message || String(error)}`);
+      logFirestorePermissionError("listen", {
+        path: `workspaces/${workspaceId}/settings/${SETTINGS_DOC_ID}`,
+        collection: "settings",
+        workspaceId,
+        uid: currentContext.uid,
+        role: currentContext.role
+      }, error);
     });
     unsubscribers.push(unsubscribe);
   }
@@ -167,14 +269,22 @@
         role: context.role || ""
       });
     }
-    const unsubscribe = collectionRef(rt.db, workspaceId, key).onSnapshot((snapshot) => {
+    const query = collectionQueryForContext(rt.db, workspaceId, key, context);
+    if (!query) {
+      remoteIdsByKey[key] = new Set();
+      if (Array.isArray(store[key])) store[key] = [];
+      onRemoteChange?.({ key, rows: [] });
+      console.info(`[PM workspace sync] skipped sensitive listener workspaceId=${workspaceId} collection=${key} role=${context.role || ""}`);
+      return;
+    }
+    const unsubscribe = query.onSnapshot((snapshot) => {
       if (workspaceId !== currentWorkspaceId) return;
       const localRows = Array.isArray(store[key]) ? store[key] : [];
       if (!initialized) {
         initialized = true;
         if (snapshot.empty && localRows.length) {
           remoteIdsByKey[key] = new Set();
-          scheduleSave(workspaceId, store);
+          if (!SENSITIVE_COLLECTION_KEYS.has(key) || isPrivilegedContext(context)) scheduleSave(workspaceId, store);
           return;
         }
       }
@@ -186,6 +296,7 @@
       let rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
       rows = mergePendingLocalRows(key, rows);
       rows = filterPendingDeletes(key, rows);
+      rows = applyWorkspacePrivacyFilter(key, rows, context);
       remoteIdsByKey[key] = new Set(snapshot.docs.map((doc) => String(doc.id)));
       store[key] = rows;
       applyingRemote = false;
@@ -212,7 +323,13 @@
           message: error?.message || String(error)
         });
       }
-      console.error(`[PM workspace sync] collection listener failed workspaceId=${workspaceId} collection=${key} code=${error?.code || ""} message=${error?.message || String(error)}`);
+      logFirestorePermissionError("listen", {
+        path: `workspaces/${workspaceId}/${key}`,
+        collection: key,
+        workspaceId,
+        uid: context.uid || "",
+        role: context.role || ""
+      }, error);
     });
     unsubscribers.push(unsubscribe);
   }
@@ -304,7 +421,8 @@
       operationCount += 1;
 
       for (const key of COLLECTION_KEYS) {
-        const rows = Array.isArray(store[key]) ? store[key] : [];
+        const rows = (Array.isArray(store[key]) ? store[key] : [])
+          .filter((row) => canWriteWorkspaceRow(key, row, currentContext));
         const seen = new Set();
         for (const row of rows) {
           if (!row || typeof row !== "object") continue;
@@ -320,10 +438,12 @@
           await commitIfFull();
         }
         const explicitDeletes = pendingDeletedIdsByKey[key] || {};
-        for (const id of Object.keys(explicitDeletes)) {
-          batch.delete(collectionRef(rt.db, workspaceId, key).doc(String(id)));
-          operationCount += 1;
-          await commitIfFull();
+        if (isPrivilegedContext(currentContext)) {
+          for (const id of Object.keys(explicitDeletes)) {
+            batch.delete(collectionRef(rt.db, workspaceId, key).doc(String(id)));
+            operationCount += 1;
+            await commitIfFull();
+          }
         }
         remoteIdsByKey[key] = seen;
       }
@@ -331,7 +451,12 @@
       await commitBatch(rt, batch, operationCount);
       console.info(`[PM workspace sync] saved workspaceId=${workspaceId} collections=${COLLECTION_KEYS.length}`);
     } catch (error) {
-      console.error(`[PM workspace sync] save failed workspaceId=${workspaceId} code=${error?.code || ""} message=${error?.message || String(error)}`);
+      logFirestorePermissionError("save", {
+        path: `workspaces/${workspaceId}`,
+        workspaceId,
+        uid: currentContext.uid,
+        role: currentContext.role
+      }, error);
     } finally {
       saveInFlight = false;
       if (pendingSave) {

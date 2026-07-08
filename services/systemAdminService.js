@@ -166,6 +166,7 @@
     const email = user?.email || runtime.auth.currentUser?.email || "";
     const displayName = user?.displayName || user?.name || email || uid;
     const requestId = safeId(`${workspaceId}_${uid}_${normalized}`);
+    const userRole = user?.role && user.role !== "pending" ? user.role : "normal";
     const batch = runtime.db.batch();
 
     batch.set(runtime.db.collection("workspaceJoinRequests").doc(requestId), {
@@ -176,9 +177,11 @@
       inviteCode: normalized,
       inviteCodeId: normalized,
       workspaceId,
+      pendingWorkspaceId: workspaceId,
+      pendingInviteCodeId: normalized,
       invitedBy: inviteOwnerUid,
       inviterEmail: invite.inviterEmail || "",
-      requestedRole: "normal",
+      requestedRole: invite.role || "normal",
       status: "pending",
       createdAt: now,
       updatedAt: now
@@ -187,7 +190,8 @@
       uid,
       email,
       displayName,
-      role: "pending",
+      role: userRole,
+      currentRole: userRole,
       status: "waiting_approval",
       workspaceId: null,
       currentWorkspaceId: null,
@@ -223,8 +227,13 @@
       uid,
       email: fields.email || user?.email || runtime.auth.currentUser?.email || "",
       displayName: fields.displayName || user?.displayName || user?.name || "",
-      role: "pending",
+      role: "normal",
+      currentRole: "normal",
       status: "waiting_approval",
+      workspaceId: null,
+      currentWorkspaceId: null,
+      pendingWorkspaceId: null,
+      pendingInviteCodeId: null,
       updatedAt: now
     }, { merge: true });
     return { applicationId };
@@ -411,8 +420,10 @@
     const runtime = await runtimeRequired();
     const now = serverTimestamp(runtime);
     const uid = request.uid;
-    const workspaceId = request.workspaceId;
-    const role = selectedRole || request.requestedRole || "normal";
+    const options = typeof selectedRole === "object" && selectedRole !== null ? selectedRole : { role: selectedRole };
+    const workspaceId = options.workspaceId || request.workspaceId || request.pendingWorkspaceId || "";
+    if (!workspaceId) throw new Error("승인할 workspace를 선택하세요.");
+    const role = options.role || request.requestedRole || "normal";
     const memberId = `${workspaceId}_${uid}`;
     const ownerUid = runtime.auth.currentUser?.uid || "";
     const payload = {
@@ -531,6 +542,14 @@
       workspaceId,
       currentWorkspaceId: workspaceId,
       workspace_id: workspaceId,
+      invitedBy: request.invitedBy || null,
+      invitedByEmail: request.inviterEmail || request.invitedByEmail || "",
+      inviteCode: request.inviteCode || request.inviteCodeId || "",
+      inviteCodeId: request.inviteCodeId || request.inviteCode || "",
+      joinedAt: now,
+      joinedWorkspaceAt: now,
+      pendingWorkspaceId: null,
+      pendingInviteCodeId: null,
       approvedBy: ownerUid,
       approvedAt: now,
       updatedAt: now
@@ -828,6 +847,23 @@
     return user?.workspaceId || user?.currentWorkspaceId || user?.workspace_id || "";
   }
 
+  function normalizeAdminRole(value) {
+    const raw = String(value || "").trim();
+    const mapped = {
+      "최고관리자": "super_manager",
+      "슈퍼매니저": "super_manager",
+      "관리자": "manager",
+      "선생님": "teacher",
+      "일반": "normal",
+      "일반사용자": "normal",
+      "보기전용": "viewer",
+      "읽기전용": "viewer",
+      "프린트": "print_account",
+      "프린트전용": "print_account"
+    };
+    return mapped[raw] || raw;
+  }
+
   function assertMutableUser(runtime, user) {
     const uid = targetUserId(user);
     if (!uid) throw new Error("Target user uid is missing.");
@@ -843,14 +879,15 @@
     const uid = assertMutableUser(runtime, user);
     const beforeWorkspaceId = targetWorkspaceId(user);
     const workspaceId = String(options.workspaceId || beforeWorkspaceId || "").trim();
-    const role = String(options.role || user.role || user.currentRole || "normal").trim();
-    const status = String(options.status || user.status || "active").trim();
+    const role = normalizeAdminRole(options.role || user.role || user.currentRole || "normal");
+    const status = "active";
+    if (!role || ["pending", "null", "undefined"].includes(role)) throw new Error("저장할 실제 권한을 선택하세요. pending은 로그인 권한으로 저장할 수 없습니다.");
     if (role === "system_owner") throw new Error("system_owner 역할은 이 화면에서 부여할 수 없습니다.");
-    const memberId = workspaceId ? `${workspaceId}_${uid}` : "";
+    if (!workspaceId) throw new Error("권한을 저장할 workspace를 선택하세요.");
+    const memberId = `${workspaceId}_${uid}`;
     const previousMemberId = beforeWorkspaceId ? `${beforeWorkspaceId}_${uid}` : "";
     const email = user.email || "";
     const displayName = user.displayName || user.name || email || uid;
-    const memberStatus = status === "disabled" ? "disabled" : status === "active" ? "active" : status;
     const batch = runtime.db.batch();
 
     batch.set(runtime.db.collection("users").doc(uid), {
@@ -868,8 +905,11 @@
       workspace_id: workspaceId || null,
       pendingWorkspaceId: null,
       pendingInviteCodeId: null,
+      rejectedReason: null,
       updatedAt: now,
-      updatedBy: runtime.auth.currentUser?.uid || ""
+      updatedBy: runtime.auth.currentUser?.uid || "",
+      roleChangedAt: now,
+      roleChangedBy: runtime.auth.currentUser?.uid || ""
     }, { merge: true });
 
     if (beforeWorkspaceId && workspaceId && beforeWorkspaceId !== workspaceId) {
@@ -883,30 +923,86 @@
       batch.set(runtime.db.collection("workspaces").doc(beforeWorkspaceId).collection("members").doc(uid), movedPayload, { merge: true });
     }
 
-    if (workspaceId) {
-      const memberPayload = {
-        id: memberId,
-        uid,
-        email,
-        displayName,
-        role,
-        status: memberStatus,
-        disabled: status === "disabled",
-        workspaceId,
-        workspace_id: workspaceId,
-        rootMemberExists: true,
-        nestedMemberExists: true,
-        joinedAt: user.joinedAt || now,
-        updatedAt: now,
-        updatedBy: runtime.auth.currentUser?.uid || ""
-      };
-      batch.set(runtime.db.collection("workspace_members").doc(memberId), memberPayload, { merge: true });
-      batch.set(runtime.db.collection("workspaces").doc(workspaceId).collection("members").doc(uid), memberPayload, { merge: true });
-    }
+    const memberPayload = {
+      id: memberId,
+      uid,
+      email,
+      displayName,
+      role,
+      status,
+      disabled: false,
+      workspaceId,
+      workspace_id: workspaceId,
+      rootMemberExists: true,
+      nestedMemberExists: true,
+      joinedAt: user.joinedAt || now,
+      updatedAt: now,
+      updatedBy: runtime.auth.currentUser?.uid || "",
+      roleChangedAt: now,
+      roleChangedBy: runtime.auth.currentUser?.uid || ""
+    };
+    batch.set(runtime.db.collection("workspace_members").doc(memberId), memberPayload, { merge: true });
+    batch.set(runtime.db.collection("workspaces").doc(workspaceId).collection("members").doc(uid), memberPayload, { merge: true });
 
     await batch.commit();
-    await logAdminAction(runtime, { action: "update_user_admin_fields", targetUid: uid, workspaceId, after: { role, status, beforeWorkspaceId } });
-    return { uid, workspaceId, role, status };
+
+    const [savedUserSnap, savedRootSnap, savedNestedSnap] = await Promise.all([
+      runtime.db.collection("users").doc(uid).get(),
+      runtime.db.collection("workspace_members").doc(memberId).get(),
+      runtime.db.collection("workspaces").doc(workspaceId).collection("members").doc(uid).get()
+    ]);
+    const savedUser = savedUserSnap.exists ? savedUserSnap.data() || {} : {};
+    const savedRoot = savedRootSnap.exists ? savedRootSnap.data() || {} : {};
+    const savedNested = savedNestedSnap.exists ? savedNestedSnap.data() || {} : {};
+    const verification = {
+      uid,
+      expectedRole: role,
+      expectedStatus: status,
+      expectedWorkspaceId: workspaceId,
+      userExists: savedUserSnap.exists,
+      userRole: savedUser.role,
+      userStatus: savedUser.status,
+      userWorkspaceId: savedUser.workspaceId || savedUser.currentWorkspaceId || savedUser.workspace_id || null,
+      rootExists: savedRootSnap.exists,
+      rootRole: savedRoot.role,
+      rootStatus: savedRoot.status,
+      rootWorkspaceId: savedRoot.workspaceId || savedRoot.workspace_id || null,
+      nestedExists: savedNestedSnap.exists,
+      nestedRole: savedNested.role,
+      nestedStatus: savedNested.status,
+      nestedWorkspaceId: savedNested.workspaceId || savedNested.workspace_id || null
+    };
+    const verified = verification.userExists
+      && verification.userRole === role
+      && verification.userStatus === status
+      && verification.userWorkspaceId === workspaceId
+      && verification.rootExists
+      && verification.rootRole === role
+      && verification.rootStatus === status
+      && verification.rootWorkspaceId === workspaceId
+      && verification.nestedExists
+      && verification.nestedRole === role
+      && verification.nestedStatus === status
+      && verification.nestedWorkspaceId === workspaceId;
+
+    if (!verified) {
+      console.error("[SystemAdmin Permission Verify Failed]", verification);
+      throw new Error("권한 저장 후 검증에 실패했습니다. users와 workspace member 문서가 서로 맞지 않습니다.");
+    }
+
+    await logAdminAction(runtime, { action: "update_user_admin_fields", targetUid: uid, workspaceId, after: { role, status, beforeWorkspaceId, verified: true } });
+    return {
+      uid,
+      workspaceId,
+      role,
+      status,
+      email,
+      displayName,
+      rootMemberExists: true,
+      nestedMemberExists: true,
+      verified: true,
+      verification
+    };
   }
 
   async function repairUserPermission(user = {}) {
@@ -915,8 +1011,9 @@
     const uid = targetUserId(user);
     if (!uid) throw new Error("Target user uid is missing.");
     const userSnap = await runtime.db.collection("users").doc(uid).get();
-    const userData = userSnap.exists ? { ...user, id: userSnap.id, ...(userSnap.data() || {}) } : user;
-    const workspaceId = targetWorkspaceId(user) || targetWorkspaceId(userData);
+    const existingUserData = userSnap.exists ? { id: userSnap.id, ...(userSnap.data() || {}) } : {};
+    const userData = { ...existingUserData, ...user };
+    const workspaceId = String(targetWorkspaceId(user) || targetWorkspaceId(userData) || "").trim();
     if (!workspaceId) throw new Error("연결할 workspaceId가 없습니다.");
     const memberId = `${workspaceId}_${uid}`;
     const rootSnap = await runtime.db.collection("workspace_members").doc(memberId).get();
@@ -924,14 +1021,18 @@
     const rootMember = rootSnap.exists ? rootSnap.data() || {} : {};
     const nestedMember = nestedSnap.exists ? nestedSnap.data() || {} : {};
     const isOwner = userData.role === "system_owner" || userData.currentRole === "system_owner";
-    const workspaceRole = isOwner
+    const selectedRole = String(user.role || user.currentRole || user.workspaceRole || "").trim();
+    let workspaceRole = isOwner
       ? "super_manager"
-      : userData.workspaceRole || userData.currentRole || userData.role || nestedMember.role || rootMember.role || "normal";
-    const status = userData.status === "disabled" || rootMember.status === "disabled" || nestedMember.status === "disabled"
+      : selectedRole || userData.workspaceRole || userData.currentRole || userData.role || nestedMember.role || rootMember.role || "normal";
+    if (!workspaceRole || workspaceRole === "pending" || workspaceRole === "null" || workspaceRole === "undefined") workspaceRole = "normal";
+    const selectedStatus = String(user.status || userData.status || "").trim();
+    const status = selectedStatus === "disabled" || rootMember.status === "disabled" || nestedMember.status === "disabled"
       ? "disabled"
       : "active";
     const email = userData.email || rootMember.email || nestedMember.email || "";
     const displayName = userData.displayName || userData.name || rootMember.displayName || nestedMember.displayName || email || uid;
+    const restoredBy = runtime.auth.currentUser?.uid || "";
     const memberPayload = {
       id: memberId,
       uid,
@@ -947,7 +1048,9 @@
       joinedAt: nestedMember.joinedAt || rootMember.joinedAt || userData.joinedAt || now,
       updatedAt: now,
       repairedAt: now,
-      repairedBy: runtime.auth.currentUser?.uid || ""
+      repairedBy: restoredBy,
+      restoredAt: now,
+      restoredBy
     };
     if (isOwner) memberPayload.ownerGlobalRole = "system_owner";
     const batch = runtime.db.batch();
@@ -960,11 +1063,18 @@
       workspaceRole,
       status,
       disabled: status === "disabled",
+      active: status !== "disabled",
       workspaceId,
       currentWorkspaceId: workspaceId,
       workspace_id: workspaceId,
+      pendingWorkspaceId: null,
+      pendingInviteCodeId: null,
+      rejectedReason: null,
       updatedAt: now,
-      repairedAt: now
+      repairedAt: now,
+      repairedBy: restoredBy,
+      restoredAt: now,
+      restoredBy
     }, { merge: true });
     batch.set(runtime.db.collection("workspace_members").doc(memberId), memberPayload, { merge: true });
     batch.set(runtime.db.collection("workspaces").doc(workspaceId).collection("members").doc(uid), memberPayload, { merge: true });

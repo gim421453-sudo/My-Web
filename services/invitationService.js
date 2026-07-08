@@ -161,133 +161,109 @@
     const currentRole = user.role || user.currentRole || existingUser.role || existingUser.currentRole || "";
     const role = roleAfterInvite(currentRole, invite.role || "normal");
     const workspaceId = invite.workspaceId;
-    const memberId = `${workspaceId}_${uid}`;
-    const workspaceMemberRef = firestore.doc(runtime.db, "workspaces", workspaceId, "members", uid);
-    const workspaceMemberSnap = await firestore.getDoc(workspaceMemberRef);
-    if (existingWorkspaceId === workspaceId && workspaceMemberSnap.exists()) {
+    const existingStatus = existingUser.status || user.status || "";
+    if (existingWorkspaceId === workspaceId && existingStatus === "active") {
       throw new Error("이미 이 workspace에 연결된 계정입니다.");
     }
     const now = firestore.serverTimestamp();
-    const usedCount = Number(invite.usedCount || 0) + 1;
-    const multiUse = invite.maxUses === null || Number(invite.maxUses || 1) > 1 || invite.reusable === true;
-    const nextStatus = multiUse ? "active" : "used";
     const ownerUid = inviteOwnerUid(invite);
     const email = user.email || existingUser.email || "";
     const displayName = existingUser.displayName || user.displayName || user.name || email || "";
+    const requestId = `${workspaceId}_${uid}_${normalized}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const userRole = currentRole && currentRole !== "pending" ? currentRole : "normal";
     const userPayload = {
       uid,
       email,
       displayName,
-      workspaceId,
-      workspace_id: workspaceId,
-      currentWorkspaceId: workspaceId,
-      role,
-      currentRole: role,
-      invitedBy: ownerUid,
-      invitedByEmail: invite.inviterEmail || "",
-      inviteCode: normalized,
-      inviteCodeId: normalized,
-      joinedAt: now,
-      joinedWorkspaceAt: now,
-      createdAt: existingUser.createdAt || now,
+      workspaceId: null,
+      currentWorkspaceId: null,
+      role: userRole,
+      currentRole: userRole,
+      status: "waiting_approval",
+      pendingWorkspaceId: workspaceId,
+      pendingInviteCodeId: normalized,
       updatedAt: now,
       disabled: false
     };
-    const memberPayload = {
-      id: memberId,
+    const requestPayload = {
+      id: requestId,
+      uid,
+      email,
+      displayName,
       workspaceId,
-      uid,
-      email,
-      displayName,
-      role,
-      status: "active",
-      joinedAt: now,
-      invitedBy: ownerUid || null,
-      invitedByEmail: invite.inviterEmail || "",
-      invitationId: normalized,
-      inviteCode: normalized,
+      pendingWorkspaceId: workspaceId,
       inviteCodeId: normalized,
-      lastAccessAt: now
-    };
-    const usedPayload = {
-      uid,
-      email,
-      displayName,
-      usedAt: now
+      pendingInviteCodeId: normalized,
+      inviteCode: normalized,
+      invitedBy: ownerUid,
+      invitedByEmail: invite.inviterEmail || "",
+      requestedRole: role,
+      role,
+      requestType: "invite_code",
+      status: "pending",
+      createdAt: now,
+      updatedAt: now
     };
     const batch = firestore.writeBatch(runtime.db);
 
     batch.set(userRef, userPayload, { merge: true });
-    batch.set(firestore.doc(runtime.db, "workspace_members", memberId), memberPayload, { merge: true });
-    batch.set(workspaceMemberRef, memberPayload, { merge: true });
-
-    batch.set(firestore.doc(runtime.db, "invites", normalized), {
-      usedCount,
-      usedBy: uid,
-      usedByEmail: email,
-      usedByName: displayName,
-      usedAt: now,
-      status: nextStatus
-    }, { merge: true });
-    batch.set(firestore.doc(runtime.db, "invites", normalized, "usedUsers", uid), usedPayload, { merge: true });
-    batch.set(firestore.doc(runtime.db, "workspaces", workspaceId, "inviteCodes", normalized), {
-      ...invite,
-      code: normalized,
-      inviteCodeId: normalized,
-      workspaceId,
-      usedCount,
-      usedBy: uid,
-      usedByEmail: email,
-      usedByName: displayName,
-      usedAt: now,
-      status: nextStatus,
-      updatedAt: now
-    }, { merge: true });
-    batch.set(firestore.doc(runtime.db, "workspaces", workspaceId, "inviteCodes", normalized, "usedUsers", uid), usedPayload, { merge: true });
+    batch.set(firestore.doc(runtime.db, "workspaceJoinRequests", requestId), requestPayload, { merge: true });
     if (ownerUid) {
       batch.set(firestore.doc(runtime.db, "users", ownerUid, "invitedUsers", uid), {
         uid,
         email,
         displayName,
         workspaceId,
+        pendingWorkspaceId: workspaceId,
         inviteCodeId: normalized,
-        joinedAt: now,
-        role
+        requestedAt: now,
+        role,
+        status: "pending"
       }, { merge: true });
     }
 
-    console.info("[PM Firestore]", { step: "accept invite code", path: `invites/${normalized}, users/${uid}, workspaces/${workspaceId}/members/${uid}` });
+    console.info("[PM Firestore]", { step: "submit invite join request", path: `invites/${normalized}, users/${uid}, workspaceJoinRequests/${requestId}` });
     try {
       await batch.commit();
-      console.info("[PM invite link success]", {
+      console.info("[PM invite request success]", {
         inviteCodeId: normalized,
         workspaceId,
         inviteOwnerUid: ownerUid,
         joinedUserUid: uid,
         joinedUserEmail: email,
         usersDocumentSaved: true,
-        workspaceMembersSaved: true,
-        inviteCodeUsedSaved: true,
+        workspaceJoinRequestSaved: true,
         inviterLinkSaved: !!ownerUid
       });
     } catch (error) {
-      console.error("[PM invite link failure]", {
+      console.error("[PM invite request failure]", {
         inviteCodeId: normalized,
         workspaceId,
         inviteOwnerUid: ownerUid,
         joinedUserUid: uid,
         joinedUserEmail: email,
         usersDocumentSaved: false,
-        workspaceMembersSaved: false,
-        inviteCodeUsedSaved: false,
+        workspaceJoinRequestSaved: false,
         code: error?.code || "",
         message: error?.message || String(error)
       });
       throw new Error("초대코드 등록 중 일부 데이터 연결에 실패했습니다. 관리자에게 문의해주세요.");
     }
     return {
-      invite: { ...invite, usedCount, status: nextStatus },
-      member: { ...memberPayload, inviteCode: normalized }
+      invite: { ...invite, lastRequestedBy: uid },
+      member: {
+        workspaceId,
+        uid,
+        role,
+        status: "pending",
+        pendingWorkspaceId: workspaceId,
+        inviteCode: normalized,
+        inviteCodeId: normalized
+      },
+      pending: true,
+      workspaceId,
+      inviteCodeId: normalized,
+      requestId
     };
   }
 
@@ -312,6 +288,22 @@
 
     authState.workspace_members = authState.workspace_members || [];
     const uid = user.uid || user.id;
+    if (remoteResult?.pending) {
+      user.status = "waiting_approval";
+      user.role = remoteResult.member.role || "normal";
+      user.currentRole = user.role;
+      user.workspaceRole = user.role;
+      user.workspace_id = "";
+      user.workspaceId = "";
+      user.currentWorkspaceId = "";
+      user.pendingWorkspaceId = remoteResult.workspaceId || invite.workspaceId || "";
+      user.pendingInviteCodeId = normalized;
+      user.invitedBy = invite.inviterUid || invite.createdBy || "";
+      user.invitedByEmail = invite.inviterEmail || "";
+      user.inviteCode = normalized;
+      user.inviteCodeId = normalized;
+      return { invite, member: remoteResult.member, pending: true };
+    }
     if ((user.workspace_id || user.workspaceId) === invite.workspaceId) throw new Error("이미 이 workspace에 연결된 계정입니다.");
     const localRole = roleAfterInvite(user.role, invite.role || "normal");
     const memberId = `${invite.workspaceId}_${uid}`;

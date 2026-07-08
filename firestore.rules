@@ -60,6 +60,123 @@ service cloud.firestore {
         && workspaceRole(workspaceId) in ["super_manager", "manager"];
     }
 
+    function isPrivilegedWorkspaceRole(workspaceId) {
+      return isWorkspaceManager(workspaceId) || workspaceRole(workspaceId) == "system_owner";
+    }
+
+    function isSensitiveWorkspaceCollection(collectionId) {
+      return collectionId in [
+        "people",
+        "friendAwards",
+        "penalties",
+        "exams",
+        "attendance",
+        "assignments",
+        "lessons",
+        "records",
+        "portfolios",
+        "academicSchedules",
+        "studentAccessLogs"
+      ];
+    }
+
+    function isOwnerData(data) {
+      return signedIn()
+        && (
+          ("studentUid" in data && data.studentUid == request.auth.uid)
+          || ("targetStudentId" in data && data.targetStudentId == request.auth.uid)
+          || ("ownerUid" in data && data.ownerUid == request.auth.uid)
+          || ("uid" in data && data.uid == request.auth.uid)
+          || ("userUid" in data && data.userUid == request.auth.uid)
+          || ("createdBy" in data && data.createdBy == request.auth.uid)
+          || ("createdByUid" in data && data.createdByUid == request.auth.uid)
+        );
+    }
+
+    function hasPublicConsent(data) {
+      return ("visibility" in data)
+        && data.visibility == "public"
+        && (
+          ("consentPublic" in data && data.consentPublic == true)
+          || ("consentPublic" in data && data.consentPublic == "true")
+          || ("publicApproved" in data && data.publicApproved == true)
+        );
+    }
+
+    function teacherCanReadData(workspaceId, data) {
+      return workspaceRole(workspaceId) == "teacher"
+        && hasPublicConsent(data);
+    }
+
+    function canReadWorkspaceData(workspaceId, collectionId, data) {
+      return isSystemOwner()
+        || (
+          isWorkspaceMember(workspaceId)
+          && (
+            !isSensitiveWorkspaceCollection(collectionId)
+            || isWorkspaceManager(workspaceId)
+            || isOwnerData(data)
+            || teacherCanReadData(workspaceId, data)
+          )
+        );
+    }
+
+    function canWriteWorkspaceData(workspaceId, collectionId, data) {
+      return isSystemOwner()
+        || (
+          isWorkspaceMember(workspaceId)
+          && (
+            isWorkspaceManager(workspaceId)
+            || (
+              collectionId == "studentAccessLogs"
+              && ("viewerUid" in data)
+              && data.viewerUid == request.auth.uid
+            )
+            || (
+              !isSensitiveWorkspaceCollection(collectionId)
+              && collectionId in [
+                "settings",
+                "schedules",
+                "subjects",
+                "teachers",
+                "materials",
+                "requests",
+                "timetable",
+                "timetableSets",
+                "periodTimes",
+                "meals",
+                "examSchedules",
+                "projects",
+                "budget",
+                "systemReports",
+                "academic",
+                "academicSchedules",
+                "homeLetters",
+                "schoolNotices",
+                "mealApplications",
+                "afterschoolPrograms",
+                "afterschoolAttendance",
+                "afterschoolSchedules",
+                "specialLecturePrograms",
+                "specialLectureAttendance",
+                "specialLectureSchedules",
+                "clubs",
+                "clubPrograms",
+                "clubAttendance",
+                "clubSchedules",
+                "workspaceUpdates",
+                "omrForms"
+              ]
+            )
+            || isOwnerData(data)
+            || (
+              workspaceRole(workspaceId) == "teacher"
+              && collectionId in ["attendance", "assignments", "lessons", "exams", "records"]
+            )
+          )
+        );
+    }
+
     function selfUserUpdateAllowed(uid) {
       return isSelf(uid)
         && request.resource.data.uid == request.auth.uid
@@ -74,6 +191,7 @@ service cloud.firestore {
           "status",
           "workspaceId",
           "currentWorkspaceId",
+          "workspace_id",
           "pendingWorkspaceId",
           "pendingInviteCodeId",
           "lastLoginAt",
@@ -86,7 +204,22 @@ service cloud.firestore {
           || request.resource.data.role == resource.data.role
           || request.resource.data.role == "pending"
         )
-        && request.resource.data.status in ["pending", "waiting_approval", "active", resource.data.status];
+        && (
+          !("workspaceId" in request.resource.data)
+          || request.resource.data.workspaceId == null
+          || request.resource.data.workspaceId == resource.data.workspaceId
+        )
+        && (
+          !("currentWorkspaceId" in request.resource.data)
+          || request.resource.data.currentWorkspaceId == null
+          || request.resource.data.currentWorkspaceId == resource.data.currentWorkspaceId
+        )
+        && (
+          !("workspace_id" in request.resource.data)
+          || request.resource.data.workspace_id == null
+          || request.resource.data.workspace_id == resource.data.workspace_id
+        )
+        && request.resource.data.status in ["pending", "waiting_approval", resource.data.status];
     }
 
     match /users/{uid} {
@@ -192,51 +325,9 @@ service cloud.firestore {
       }
 
       match /{collectionId}/{docId} {
-        allow read: if isSystemOwner() || isWorkspaceMember(workspaceId);
-        allow create, update, delete: if isSystemOwner()
-          || (
-            isWorkspaceMember(workspaceId)
-            && collectionId in [
-              "settings",
-              "schedules",
-              "subjects",
-              "teachers",
-              "materials",
-              "assignments",
-              "portfolios",
-              "penalties",
-              "exams",
-              "people",
-              "friendAwards",
-              "requests",
-              "timetable",
-              "timetableSets",
-              "periodTimes",
-              "meals",
-              "attendance",
-              "examSchedules",
-              "records",
-              "lessons",
-              "projects",
-              "budget",
-              "systemReports",
-              "academic",
-              "academicSchedules",
-              "homeLetters",
-              "schoolNotices",
-              "mealApplications",
-              "afterschoolPrograms",
-              "afterschoolAttendance",
-              "afterschoolSchedules",
-              "specialLecturePrograms",
-              "specialLectureAttendance",
-              "specialLectureSchedules",
-              "clubs",
-              "clubPrograms",
-              "clubAttendance",
-              "clubSchedules"
-            ]
-          );
+        allow read: if canReadWorkspaceData(workspaceId, collectionId, resource.data);
+        allow create, update: if canWriteWorkspaceData(workspaceId, collectionId, request.resource.data);
+        allow delete: if isSystemOwner() || isWorkspaceManager(workspaceId);
       }
     }
 
@@ -369,6 +460,16 @@ service cloud.firestore {
     match /systemConfig/{docId} {
       allow read: if docId == "bootstrap";
       allow create, update, delete: if isSystemOwner();
+    }
+
+    match /systemConfigs/{docId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isSystemOwner();
+
+      match /versions/{versionId} {
+        allow read: if signedIn();
+        allow create, update, delete: if isSystemOwner();
+      }
     }
 
     match /systemNotices/{noticeId} {
