@@ -1,12 +1,21 @@
 import type {
   AppNextAccountState,
 } from "./appNextUtils";
+import type {
+  AppSession,
+} from "../auth/authTypes";
+import {
+  canAccessMenu,
+  resolvePermissionRole,
+} from "../services/permissionService";
 
 export type AppNextRoute =
   | "dashboard"
   | "devices"
   | "notifications"
   | "notices"
+  | "admin-preview"
+  | "access-denied"
   | "login"
   | "pending"
   | "rejected"
@@ -34,6 +43,8 @@ const APP_NEXT_ROUTES = new Set<AppNextRoute>([
   "devices",
   "notifications",
   "notices",
+  "admin-preview",
+  "access-denied",
   "login",
   "pending",
   "rejected",
@@ -43,7 +54,10 @@ const APP_NEXT_ROUTES = new Set<AppNextRoute>([
 
 const PROTECTED_ROUTES = new Set<AppNextRoute>([
   "notices",
+  "admin-preview",
 ]);
+
+const APP_NEXT_ADMIN_MENU_KEY = "admin";
 
 export function appNextRouteHash(route: AppNextRoute): string {
   return `#/${route}`;
@@ -169,5 +183,35 @@ export function resolveAppNextRoute({
     currentRoute: knownRoute,
     fallbackReason: "none",
     isProtectedRoute: PROTECTED_ROUTES.has(knownRoute),
+  };
+}
+
+export function canShowAppNextAdminPreview(
+  session: AppSession | null | undefined,
+): boolean {
+  if (!session || session.status !== "active") return false;
+  const permissionRole = resolvePermissionRole(
+    session.globalRole,
+    session.currentWorkspaceRole,
+  );
+  return canAccessMenu(permissionRole, APP_NEXT_ADMIN_MENU_KEY);
+}
+
+export function appNextAdminPreviewPolicySnapshot(
+  session: AppSession | null | undefined,
+) {
+  const permissionRole = session
+    ? resolvePermissionRole(session.globalRole, session.currentWorkspaceRole)
+    : null;
+
+  return {
+    route: "admin-preview",
+    capability: APP_NEXT_ADMIN_MENU_KEY,
+    accessAllowed: canShowAppNextAdminPreview(session),
+    globalRoleCategory: session?.globalRole ?? "none",
+    workspaceRoleCategory: session?.currentWorkspaceRole ?? "none",
+    isSystemOwner: Boolean(session?.isSystemOwner),
+    hasWorkspace: Boolean(session?.currentWorkspaceId),
+    permissionRoleCategory: permissionRole ?? "none",
   };
 }

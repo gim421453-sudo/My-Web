@@ -51,6 +51,9 @@ export interface ProtectedRouteDecisionInput {
 
 export interface ProtectedRouteBridgeSnapshot {
   mode: ProtectedRouteBridgeMode;
+  currentRoute?: string;
+  requestedRoute?: string;
+  requiredPolicy?: string;
   phase: AuthPhase | "legacy";
   loading: boolean;
   isAuthenticated: boolean;
@@ -65,7 +68,154 @@ export interface ProtectedRouteBridgeSnapshot {
   expectedDestination: GuardExpectedDestination;
   redirectAttempted: boolean;
   automaticSignOutOccurred: false;
+  authListenerCount?: number;
+  firestoreReadCount?: number;
+  firestoreWriteAttemptCount?: number;
 }
+
+export interface ProtectedRouteDiagnosticsSnapshot {
+  providerMode: ProtectedRouteBridgeMode | "unknown";
+  currentRoute: string;
+  requestedRoute: string;
+  requiredPolicy: string;
+  decision: string;
+  accessAllowed: boolean;
+  redirectCount: number;
+  allowCount: number;
+  denyCount: number;
+  protectedChildRenderCount: number;
+  protectedChildBlockedCount: number;
+  lastDenyReason: string;
+  globalRoleCategory: string;
+  workspaceRoleCategory: string;
+  hasWorkspace: boolean;
+  isSystemOwner: boolean;
+  menuVisible: boolean;
+  directUrlBlockedCount: number;
+  policyMismatchDetected: boolean;
+  authListenerCount: number;
+  firestoreReadCount: number;
+  firestoreWriteAttemptCount: number;
+  restoreConflictDetected: boolean;
+}
+
+let latestProtectedRouteSnapshot: ProtectedRouteBridgeSnapshot | null = null;
+let protectedRouteRedirectCount = 0;
+let protectedRouteAllowCount = 0;
+let protectedRouteDenyCount = 0;
+let protectedChildRenderCount = 0;
+let protectedChildBlockedCount = 0;
+let directUrlBlockedCount = 0;
+let lastRedirectKey: string | null = null;
+let lastAllowKey: string | null = null;
+let lastDenyKey: string | null = null;
+
+function protectedRouteSnapshotKey(snapshot: ProtectedRouteBridgeSnapshot): string {
+  return JSON.stringify({
+    mode: snapshot.mode,
+    currentRoute: snapshot.currentRoute,
+    requestedRoute: snapshot.requestedRoute,
+    policy: snapshot.requiredPolicy,
+    phase: snapshot.phase,
+    status: snapshot.status,
+    reason: snapshot.decision.reason,
+    allow: snapshot.decision.allow,
+    childrenRendered: snapshot.childrenRendered,
+  });
+}
+
+function safeRoleCategory(role: string | null | undefined): string {
+  if (role === "system_owner") return "system_owner";
+  if (role === "super_manager") return "super_manager";
+  if (role === "manager") return "manager";
+  if (role === "teacher") return "teacher";
+  if (role === "normal") return "normal";
+  if (role === "viewer") return "viewer";
+  if (role === "print_account") return "print_account";
+  if (!role) return "none";
+  return "unknown";
+}
+
+export function recordProtectedRouteBridgeSnapshot(
+  snapshot: ProtectedRouteBridgeSnapshot,
+): void {
+  latestProtectedRouteSnapshot = snapshot;
+  const key = protectedRouteSnapshotKey(snapshot);
+
+  if (snapshot.redirectAttempted && key !== lastRedirectKey) {
+    protectedRouteRedirectCount += 1;
+    lastRedirectKey = key;
+  }
+
+  if (snapshot.decision.allow && key !== lastAllowKey) {
+    protectedRouteAllowCount += 1;
+    lastAllowKey = key;
+  }
+
+  if (!snapshot.loading && !snapshot.decision.allow && key !== lastDenyKey) {
+    protectedRouteDenyCount += 1;
+    lastDenyKey = key;
+    if (snapshot.currentRoute === "admin-preview") {
+      directUrlBlockedCount += 1;
+    }
+  }
+
+  if (snapshot.childrenRendered) {
+    protectedChildRenderCount = protectedRouteAllowCount;
+  } else if (!snapshot.loading) {
+    protectedChildBlockedCount = protectedRouteDenyCount;
+  }
+}
+
+export function getProtectedRouteDiagnosticsSnapshot(): ProtectedRouteDiagnosticsSnapshot {
+  const snapshot = latestProtectedRouteSnapshot;
+  const permissionRole = snapshot?.decision.permissionRole ?? null;
+  const menuVisible = snapshot?.requiredPolicy === "admin"
+    ? snapshot.decision.allow
+    : Boolean(snapshot?.decision.allow);
+
+  return {
+    providerMode: snapshot?.mode ?? "unknown",
+    currentRoute: snapshot?.currentRoute ?? "unknown",
+    requestedRoute: snapshot?.requestedRoute ?? "unknown",
+    requiredPolicy: snapshot?.requiredPolicy ?? "none",
+    decision: snapshot?.decision.reason ?? "none",
+    accessAllowed: Boolean(snapshot?.decision.allow),
+    redirectCount: protectedRouteRedirectCount,
+    allowCount: protectedRouteAllowCount,
+    denyCount: protectedRouteDenyCount,
+    protectedChildRenderCount,
+    protectedChildBlockedCount,
+    lastDenyReason: snapshot && !snapshot.decision.allow
+      ? snapshot.decision.reason
+      : "none",
+    globalRoleCategory: safeRoleCategory(snapshot?.globalRole),
+    workspaceRoleCategory: safeRoleCategory(snapshot?.currentWorkspaceRole),
+    hasWorkspace: Boolean(snapshot?.hasCurrentWorkspaceId),
+    isSystemOwner: Boolean(snapshot?.isSystemOwner),
+    menuVisible,
+    directUrlBlockedCount,
+    policyMismatchDetected: menuVisible !== Boolean(snapshot?.decision.allow && permissionRole),
+    authListenerCount: snapshot?.authListenerCount ?? 0,
+    firestoreReadCount: snapshot?.firestoreReadCount ?? 0,
+    firestoreWriteAttemptCount: snapshot?.firestoreWriteAttemptCount ?? 0,
+    restoreConflictDetected: false,
+  };
+}
+
+function installProtectedRouteDiagnostics(): void {
+  if (typeof window === "undefined") return;
+
+  (window as typeof window & {
+    PMProtectedRouteDiagnostics?: {
+      snapshot(): ProtectedRouteDiagnosticsSnapshot;
+    };
+  }).PMProtectedRouteDiagnostics = {
+    snapshot: getProtectedRouteDiagnosticsSnapshot,
+  };
+}
+
+installProtectedRouteDiagnostics();
 
 function expectedDestinationForStatus(
   reason: ProtectedRouteDecision["reason"],
@@ -96,13 +246,27 @@ export function resolveNewAuthProtectedRouteFlag({
   search = "",
   envValue,
   isDev = false,
-}: ResolveLegacyAuthGuardPreviewFlagInput = {}): boolean {
-  return resolveDevAuthFeatureFlag({
+  defaultEnabled = false,
+}: ResolveLegacyAuthGuardPreviewFlagInput & {
+  defaultEnabled?: boolean;
+} = {}): boolean {
+  const resolved = resolveDevAuthFeatureFlag({
     search,
     envValue,
     isDev,
     queryKey: "newAuthProtectedRoute",
   });
+
+  if (resolved) return true;
+  const normalizedEnv = String(envValue ?? "").trim().toLowerCase();
+  if (["0", "false", "no", "off"].includes(normalizedEnv)) return false;
+
+  if (isDev) {
+    const normalizedSearch = String(search || "").toLowerCase();
+    if (normalizedSearch.includes("newauthprotectedroute=off")) return false;
+  }
+
+  return defaultEnabled;
 }
 
 export function protectedRouteModeForFlag(

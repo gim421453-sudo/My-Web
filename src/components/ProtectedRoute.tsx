@@ -11,6 +11,7 @@ import {
 } from "../auth/legacy/guards/requireAuthBridgeUtils";
 import {
   protectedRouteModeForFlag,
+  recordProtectedRouteBridgeSnapshot,
   resolveNewAuthProtectedRouteFlag,
   type ProtectedRouteBridgeSnapshot,
 } from "../auth/legacy/guards/protectedRouteBridgeUtils";
@@ -29,6 +30,11 @@ interface ProtectedRouteProps {
   children: ReactNode;
   previewMode?: boolean;
   onSnapshot?: (snapshot: ProtectedRouteBridgeSnapshot) => void;
+  useExistingAuthProvider?: boolean;
+  defaultNewAuth?: boolean;
+  currentRoute?: string;
+  requestedRoute?: string;
+  requiredPolicy?: string;
 }
 
 function LegacyProtectedRouteBranch({
@@ -36,6 +42,9 @@ function LegacyProtectedRouteBranch({
   children,
   previewMode = false,
   onSnapshot,
+  currentRoute,
+  requestedRoute,
+  requiredPolicy,
 }: ProtectedRouteProps) {
   const {
     session,
@@ -43,8 +52,11 @@ function LegacyProtectedRouteBranch({
   } = useAuth();
 
   useEffect(() => {
-    onSnapshot?.({
+    const snapshot: ProtectedRouteBridgeSnapshot = {
       mode: "legacy",
+      currentRoute,
+      requestedRoute,
+      requiredPolicy: requiredPolicy ?? menuKey ?? "none",
       phase: "legacy",
       loading,
       isAuthenticated: Boolean(session),
@@ -86,11 +98,20 @@ function LegacyProtectedRouteBranch({
       expectedDestination: !loading && !session ? "/login" : null,
       redirectAttempted: false,
       automaticSignOutOccurred: false,
-    });
+      authListenerCount: 0,
+      firestoreReadCount: 0,
+      firestoreWriteAttemptCount: 0,
+    };
+    recordProtectedRouteBridgeSnapshot(snapshot);
+    onSnapshot?.(snapshot);
   }, [
+    currentRoute,
     loading,
+    menuKey,
     onSnapshot,
     previewMode,
+    requestedRoute,
+    requiredPolicy,
     session,
   ]);
 
@@ -149,11 +170,17 @@ export function ProtectedRoute({
   children,
   previewMode,
   onSnapshot,
+  useExistingAuthProvider = false,
+  defaultNewAuth = false,
+  currentRoute,
+  requestedRoute,
+  requiredPolicy,
 }: ProtectedRouteProps) {
   const mode = protectedRouteModeForFlag(resolveNewAuthProtectedRouteFlag({
     search: currentSearchFromDocument(),
     envValue: import.meta.env.VITE_ENABLE_NEW_AUTH_PROTECTED_ROUTE,
     isDev: import.meta.env.DEV,
+    defaultEnabled: defaultNewAuth,
   }));
 
   if (mode === "new") {
@@ -162,9 +189,21 @@ export function ProtectedRoute({
         menuKey={menuKey}
         previewMode={previewMode}
         onSnapshot={onSnapshot}
+        wrapProviders={!useExistingAuthProvider}
+        currentRoute={currentRoute}
+        requestedRoute={requestedRoute}
+        requiredPolicy={requiredPolicy}
       >
         {children}
       </NewAuthProtectedRouteBridge>
+    );
+  }
+
+  if (useExistingAuthProvider) {
+    return (
+      <div>
+        ProtectedRoute rollback mode is disabled in this app-next entry.
+      </div>
     );
   }
 
@@ -173,6 +212,9 @@ export function ProtectedRoute({
       menuKey={menuKey}
       previewMode={previewMode}
       onSnapshot={onSnapshot}
+      currentRoute={currentRoute}
+      requestedRoute={requestedRoute}
+      requiredPolicy={requiredPolicy}
     >
       {children}
     </LegacyProtectedRouteBranch>

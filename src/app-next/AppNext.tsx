@@ -44,18 +44,29 @@ import {
 import {
   AppNextWorkspaceNotices,
 } from "./AppNextWorkspaceNotices";
+import {
+  AppNextAdminAccessPreview,
+} from "./AppNextAdminAccessPreview";
 import RequireAuth from "../components/guards/RequireAuth";
+import {
+  ProtectedRoute,
+} from "../components/ProtectedRoute";
 import {
   currentSearchFromDocument,
   resolveNewAuthRequireAuthFlag,
   type RequireAuthBridgeSnapshot,
 } from "../auth/legacy/guards/requireAuthBridgeUtils";
 import {
+  resolveNewAuthProtectedRouteFlag,
+  type ProtectedRouteBridgeSnapshot,
+} from "../auth/legacy/guards/protectedRouteBridgeUtils";
+import {
   getAppNextRouteDiagnostics,
   recordAppNextRouteDiagnostics,
 } from "./appNextDiagnostics";
 import {
   appNextRouteHash,
+  canShowAppNextAdminPreview,
   resolveAppNextRoute,
   type AppNextRoute,
 } from "./appNextRouteUtils";
@@ -286,7 +297,9 @@ type AppNextTab =
   | "account"
   | "devices"
   | "notifications"
-  | "workspace-notices";
+  | "workspace-notices"
+  | "admin-preview"
+  | "access-denied";
 
 function AppNextRouteOnlyPanel({
   title,
@@ -322,6 +335,7 @@ export function AppNext({
   const [hashRoute, setHashRoute] = useState(() => (
     typeof window === "undefined" ? "#/dashboard" : window.location.hash
   ));
+  const [routeDiagnosticsView, setRouteDiagnosticsView] = useState(() => getAppNextRouteDiagnostics());
 
   const emailVerified = session?.emailVerified ?? firebaseUser?.emailVerified;
   const state = appNextAccountState({
@@ -350,6 +364,10 @@ export function AppNext({
         ? "notifications"
         : routeDecision.currentRoute === "notices"
           ? "workspace-notices"
+          : routeDecision.currentRoute === "admin-preview"
+            ? "admin-preview"
+            : routeDecision.currentRoute === "access-denied"
+              ? "access-denied"
           : "account";
   const showMainNavigation = ![
     "login",
@@ -363,6 +381,13 @@ export function AppNext({
     envValue: import.meta.env.VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH,
     isDev: import.meta.env.DEV,
   });
+  const protectedRouteEnabled = resolveNewAuthProtectedRouteFlag({
+    search: currentSearchFromDocument(),
+    envValue: import.meta.env.VITE_ENABLE_NEW_AUTH_PROTECTED_ROUTE,
+    isDev: import.meta.env.DEV,
+    defaultEnabled: true,
+  });
+  const adminPreviewMenuVisible = canShowAppNextAdminPreview(session);
 
   const warningCount = useMemo(
     () => session?.warnings.length ?? 0,
@@ -417,12 +442,19 @@ export function AppNext({
       currentRoute: routeDecision.currentRoute,
       fallbackReason: routeDecision.fallbackReason,
       routeRenderDelta: 1,
-      requireAuthConsumerMounted: routeDecision.currentRoute === "notices" && requireAuthEnabled,
+      requireAuthConsumerMounted: (
+        (routeDecision.currentRoute === "notices" && requireAuthEnabled) ||
+        (routeDecision.currentRoute === "admin-preview" && protectedRouteEnabled)
+      ),
       lastBlockedReason: routeDecision.currentRoute === "notices" && !requireAuthEnabled
         ? "require-auth-flag-off"
-        : "none",
+        : routeDecision.currentRoute === "admin-preview" && !protectedRouteEnabled
+          ? "protected-route-flag-off"
+          : "none",
     });
+    setRouteDiagnosticsView(getAppNextRouteDiagnostics());
   }, [
+    protectedRouteEnabled,
     requireAuthEnabled,
     routeDecision.currentRoute,
     routeDecision.fallbackReason,
@@ -451,6 +483,22 @@ export function AppNext({
     routeDecision.currentRoute,
     routeDecision.requestedRoute,
   ]);
+
+  const handleProtectedRouteSnapshot = useCallback((snapshot: ProtectedRouteBridgeSnapshot) => {
+    recordAppNextRouteDiagnostics({
+      requestedRoute: routeDecision.requestedRoute,
+      currentRoute: routeDecision.currentRoute,
+      protectedRouteRenderDelta: 1,
+      lastBlockedReason: snapshot.childrenRendered ? "none" : snapshot.decision.reason,
+    });
+  }, [
+    routeDecision.currentRoute,
+    routeDecision.requestedRoute,
+  ]);
+
+  const handleRefreshRouteDiagnostics = useCallback(() => {
+    setRouteDiagnosticsView(getAppNextRouteDiagnostics());
+  }, []);
 
   const handleSendVerification = useCallback(async () => {
     if (sendBusy || !firebaseUser) return;
@@ -537,6 +585,15 @@ export function AppNext({
           >
             워크스페이스 공지
           </button>
+          {adminPreviewMenuVisible ? (
+            <button
+              type="button"
+              className={activeTab === "admin-preview" ? "active" : "secondary"}
+              onClick={() => handleRoute("admin-preview")}
+            >
+              Admin Preview
+            </button>
+          ) : null}
         </nav>
       ) : null}
 
@@ -600,6 +657,37 @@ export function AppNext({
         <AppNextLoginDevices />
       ) : activeTab === "notifications" ? (
         <AppNextNotifications />
+      ) : activeTab === "admin-preview" ? (
+        protectedRouteEnabled ? (
+          <RequireAuth
+            previewMode
+            useExistingAuthProvider
+            onSnapshot={handleRequireAuthSnapshot}
+          >
+            <ProtectedRoute
+              menuKey="admin"
+              previewMode
+              useExistingAuthProvider
+              defaultNewAuth
+              currentRoute={routeDecision.currentRoute}
+              requestedRoute={routeDecision.requestedRoute}
+              requiredPolicy="admin"
+              onSnapshot={handleProtectedRouteSnapshot}
+            >
+              <AppNextAdminAccessPreview />
+            </ProtectedRoute>
+          </RequireAuth>
+        ) : (
+          <AppNextRouteOnlyPanel
+            title="ProtectedRoute rollback mode"
+            body="The app-next admin preview route is disabled by VITE_ENABLE_NEW_AUTH_PROTECTED_ROUTE or ?newAuthProtectedRoute=off."
+          />
+        )
+      ) : activeTab === "access-denied" ? (
+        <AppNextRouteOnlyPanel
+          title="Access denied"
+          body="You do not have permission to view this app-next route. Your login session is kept."
+        />
       ) : requireAuthEnabled ? (
         <RequireAuth
           previewMode
@@ -619,12 +707,19 @@ export function AppNext({
         <section className="app-next-panel app-next-diagnostics">
           <h2>App Next Route Diagnostics</h2>
           <dl>
-            <ValueRow label="currentRoute" value={getAppNextRouteDiagnostics().currentRoute} />
-            <ValueRow label="requestedRoute" value={getAppNextRouteDiagnostics().requestedRoute} />
-            <ValueRow label="fallbackReason" value={getAppNextRouteDiagnostics().fallbackReason} />
-            <ValueRow label="requireAuthConsumerMounted" value={booleanLabel(getAppNextRouteDiagnostics().requireAuthConsumerMounted)} />
-            <ValueRow label="protectedRouteRenderCount" value={String(getAppNextRouteDiagnostics().protectedRouteRenderCount)} />
+            <ValueRow label="currentRoute" value={routeDiagnosticsView.currentRoute} />
+            <ValueRow label="requestedRoute" value={routeDiagnosticsView.requestedRoute} />
+            <ValueRow label="fallbackReason" value={routeDiagnosticsView.fallbackReason} />
+            <ValueRow label="requireAuthConsumerMounted" value={booleanLabel(routeDiagnosticsView.requireAuthConsumerMounted)} />
+            <ValueRow label="protectedRouteRenderCount" value={String(routeDiagnosticsView.protectedRouteRenderCount)} />
           </dl>
+          <button
+            type="button"
+            className="secondary"
+            onClick={handleRefreshRouteDiagnostics}
+          >
+            진단 새로고침
+          </button>
         </section>
       ) : null}
 

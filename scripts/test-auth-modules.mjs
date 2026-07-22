@@ -6057,6 +6057,36 @@ const tests = [
     assert.match(mainSource, /BrowserRouter/);
     assert.equal(source.includes("createBrowserRouter"), false);
   }],
+  ["app-next production route tree has actual ProtectedRoute admin-preview consumer", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    assert.match(source, /<ProtectedRoute/);
+    assert.match(source, /menuKey="admin"/);
+    assert.match(source, /defaultNewAuth/);
+    assert.match(source, /useExistingAuthProvider/);
+    assert.match(source, /AppNextAdminAccessPreview/);
+    assert.match(source, /handleProtectedRouteSnapshot/);
+  }],
+  ["app-next admin-preview mounts RequireAuth before ProtectedRoute", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    assert.match(source, /activeTab === "admin-preview"[\s\S]*<RequireAuth[\s\S]*<ProtectedRoute/);
+    assert.match(source, /routeDecision\.currentRoute === "admin-preview" && protectedRouteEnabled/);
+    assert.match(source, /onSnapshot=\{handleRequireAuthSnapshot\}[\s\S]*onSnapshot=\{handleProtectedRouteSnapshot\}/);
+  }],
+  ["app-next route diagnostics UI avoids auto-subscribe render loops", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
+    assert.equal(diagnosticsSource.includes("subscribeAppNextDiagnostics"), false);
+    assert.equal(diagnosticsSource.includes("notifyAppNextDiagnosticsSubscribers"), false);
+    assert.equal(appSource.includes("subscribeAppNextDiagnostics"), false);
+    assert.match(appSource, /routeDiagnosticsView/);
+    assert.match(appSource, /handleRefreshRouteDiagnostics/);
+    assert.equal(appSource.includes("getAppNextRouteDiagnostics().currentRoute"), false);
+  }],
+  ["app-next html declares existing svg favicon to prevent favicon ico 404", () => {
+    const source = readFileSync(path.resolve(projectRoot, "app-next.html"), "utf8");
+    assert.match(source, /rel="icon"/);
+    assert.match(source, /href="\/favicon\.svg"/);
+  }],
   ["app-next route resolver handles auth states without redirect loops", () => {
     const activeNotices = appNextRouteUtils.resolveAppNextRoute({
       hash: "#/notices",
@@ -6086,6 +6116,118 @@ const tests = [
       hash: "#/missing",
       state: "active",
     }).fallbackReason, "unknown-route");
+    assert.equal(appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/admin-preview",
+      state: "active",
+    }).currentRoute, "admin-preview");
+    assert.equal(appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/access-denied",
+      state: "active",
+    }).currentRoute, "access-denied");
+  }],
+  ["app-next admin preview menu policy matches ProtectedRoute route policy", () => {
+    assert.equal(appNextRouteUtils.canShowAppNextAdminPreview(makeSession({
+      globalRole: "system_owner",
+      currentWorkspaceId: null,
+      currentWorkspaceRole: null,
+      isSystemOwner: true,
+    })), true);
+    assert.equal(appNextRouteUtils.canShowAppNextAdminPreview(makeSession({
+      currentWorkspaceId: "workspace-1",
+      currentWorkspaceRole: "super_manager",
+    })), true);
+    assert.equal(appNextRouteUtils.canShowAppNextAdminPreview(makeSession({
+      currentWorkspaceId: "workspace-1",
+      currentWorkspaceRole: "manager",
+    })), true);
+    for (const role of ["teacher", "normal", "viewer", "print_account"]) {
+      assert.equal(appNextRouteUtils.canShowAppNextAdminPreview(makeSession({
+        currentWorkspaceId: "workspace-1",
+        currentWorkspaceRole: role,
+      })), false);
+    }
+    assert.equal(appNextRouteUtils.canShowAppNextAdminPreview(makeSession({
+      currentWorkspaceId: null,
+      currentWorkspaceRole: null,
+    })), false);
+  }],
+  ["ProtectedRoute admin policy allows only canonical admin roles", () => {
+    const allowedFixtures = [
+      { globalRole: "system_owner", currentWorkspaceId: null, currentWorkspaceRole: null, isSystemOwner: true },
+      { globalRole: "user", currentWorkspaceId: "workspace-1", currentWorkspaceRole: "super_manager", isSystemOwner: false },
+      { globalRole: "user", currentWorkspaceId: "workspace-1", currentWorkspaceRole: "manager", isSystemOwner: false },
+    ];
+    for (const fixture of allowedFixtures) {
+      const decision = protectedRouteBridgeUtils.decideProtectedRouteAccess({
+        phase: "authenticated",
+        loading: false,
+        isAuthenticated: true,
+        status: "active",
+        error: null,
+        menuKey: "admin",
+        ...fixture,
+      });
+      assert.equal(decision.allow, true);
+    }
+
+    for (const role of ["teacher", "normal", "viewer", "print_account", null]) {
+      const decision = protectedRouteBridgeUtils.decideProtectedRouteAccess({
+        phase: "authenticated",
+        loading: false,
+        isAuthenticated: true,
+        status: "active",
+        globalRole: "user",
+        currentWorkspaceId: role ? "workspace-1" : null,
+        currentWorkspaceRole: role,
+        isSystemOwner: false,
+        error: null,
+        menuKey: "admin",
+      });
+      assert.equal(decision.allow, false);
+    }
+  }],
+  ["app-next ProtectedRoute flag defaults new only for app-next opt-in", () => {
+    assert.equal(protectedRouteBridgeUtils.resolveNewAuthProtectedRouteFlag({
+      search: "",
+      envValue: undefined,
+      isDev: true,
+    }), false);
+    assert.equal(protectedRouteBridgeUtils.resolveNewAuthProtectedRouteFlag({
+      search: "",
+      envValue: undefined,
+      isDev: true,
+      defaultEnabled: true,
+    }), true);
+    assert.equal(protectedRouteBridgeUtils.resolveNewAuthProtectedRouteFlag({
+      search: "?newAuthProtectedRoute=off",
+      envValue: undefined,
+      isDev: true,
+      defaultEnabled: true,
+    }), false);
+    assert.equal(protectedRouteBridgeUtils.resolveNewAuthProtectedRouteFlag({
+      search: "?newAuthProtectedRoute=off",
+      envValue: undefined,
+      isDev: false,
+      defaultEnabled: true,
+    }), true);
+  }],
+  ["app-next admin preview is read-only and imports no Firebase APIs", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextAdminAccessPreview.tsx"), "utf8");
+    for (const forbidden of ["getDoc", "getDocs", "onSnapshot", "addDoc", "setDoc", "updateDoc", "deleteDoc", "signOut"]) {
+      assert.equal(source.includes(forbidden), false);
+    }
+    assert.match(source, /Firestore read/);
+    assert.match(source, /Firestore write/);
+  }],
+  ["ProtectedRoute diagnostics API is available and privacy-safe", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/auth/legacy/guards/protectedRouteBridgeUtils.ts"), "utf8");
+    assert.match(source, /PMProtectedRouteDiagnostics/);
+    assert.match(source, /firestoreReadCount/);
+    assert.match(source, /firestoreWriteAttemptCount/);
+    assert.match(source, /policyMismatchDetected/);
+    assert.match(source, /safeRoleCategory/);
+    assert.equal(source.includes("email"), false);
+    assert.equal(source.includes("token"), false);
   }],
   ["RequireAuth can consume an existing app-next AuthProvider without duplicate providers", () => {
     const requireAuthSource = readFileSync(path.resolve(projectRoot, "src/components/guards/RequireAuth.tsx"), "utf8");

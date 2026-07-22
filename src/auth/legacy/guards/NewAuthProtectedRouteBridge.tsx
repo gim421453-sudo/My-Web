@@ -9,6 +9,7 @@ import {
 
 import {
   AuthProvider,
+  getAuthProviderDiagnosticsSnapshot,
 } from "../../AuthProvider";
 import {
   LegacyAuthAdapterProvider,
@@ -18,6 +19,7 @@ import {
   decideProtectedRouteAccess,
   protectedRouteDecisionLabel,
   protectedRouteMessage,
+  recordProtectedRouteBridgeSnapshot,
   redirectDestinationForProtectedRouteDecision,
   type ProtectedRouteBridgeSnapshot,
 } from "./protectedRouteBridgeUtils";
@@ -27,6 +29,10 @@ interface NewAuthProtectedRouteBridgeProps {
   children: ReactNode;
   previewMode?: boolean;
   onSnapshot?: (snapshot: ProtectedRouteBridgeSnapshot) => void;
+  wrapProviders?: boolean;
+  currentRoute?: string;
+  requestedRoute?: string;
+  requiredPolicy?: string;
 }
 
 function NewAuthProtectedRouteInner({
@@ -34,6 +40,9 @@ function NewAuthProtectedRouteInner({
   children,
   previewMode = false,
   onSnapshot,
+  currentRoute,
+  requestedRoute,
+  requiredPolicy,
 }: NewAuthProtectedRouteBridgeProps) {
   const location = useLocation();
   const legacy = useLegacyAuthAdapter();
@@ -56,8 +65,12 @@ function NewAuthProtectedRouteInner({
   const childrenRendered = decision.allow;
 
   useEffect(() => {
-    onSnapshot?.({
+    const authProviderDiagnostics = getAuthProviderDiagnosticsSnapshot();
+    const snapshot: ProtectedRouteBridgeSnapshot = {
       mode: "new",
+      currentRoute,
+      requestedRoute,
+      requiredPolicy: requiredPolicy ?? menuKey ?? "none",
       phase: legacy.phase,
       loading: legacy.loading,
       isAuthenticated: legacy.isAuthenticated,
@@ -72,9 +85,15 @@ function NewAuthProtectedRouteInner({
       expectedDestination: decision.expectedDestination,
       redirectAttempted: Boolean(destination && !previewMode),
       automaticSignOutOccurred: false,
-    });
+      authListenerCount: authProviderDiagnostics.authStateListenerCount,
+      firestoreReadCount: 0,
+      firestoreWriteAttemptCount: 0,
+    };
+    recordProtectedRouteBridgeSnapshot(snapshot);
+    onSnapshot?.(snapshot);
   }, [
     childrenRendered,
+    currentRoute,
     decision,
     destination,
     legacy.currentRole,
@@ -86,8 +105,11 @@ function NewAuthProtectedRouteInner({
     legacy.session?.warningCodes,
     legacy.status,
     legacy.workspaceId,
+    menuKey,
     onSnapshot,
     previewMode,
+    requestedRoute,
+    requiredPolicy,
   ]);
 
   if (decision.state === "loading") {
@@ -124,7 +146,26 @@ export function NewAuthProtectedRouteBridge({
   children,
   previewMode,
   onSnapshot,
+  wrapProviders = true,
+  currentRoute,
+  requestedRoute,
+  requiredPolicy,
 }: NewAuthProtectedRouteBridgeProps) {
+  if (!wrapProviders) {
+    return (
+      <NewAuthProtectedRouteInner
+        menuKey={menuKey}
+        previewMode={previewMode}
+        onSnapshot={onSnapshot}
+        currentRoute={currentRoute}
+        requestedRoute={requestedRoute}
+        requiredPolicy={requiredPolicy}
+      >
+        {children}
+      </NewAuthProtectedRouteInner>
+    );
+  }
+
   return (
     <AuthProvider>
       <LegacyAuthAdapterProvider>
@@ -132,6 +173,9 @@ export function NewAuthProtectedRouteBridge({
           menuKey={menuKey}
           previewMode={previewMode}
           onSnapshot={onSnapshot}
+          currentRoute={currentRoute}
+          requestedRoute={requestedRoute}
+          requiredPolicy={requiredPolicy}
         >
           {children}
         </NewAuthProtectedRouteInner>
