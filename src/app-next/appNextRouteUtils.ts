@@ -40,6 +40,40 @@ export interface ResolvedAppNextRoute {
   isProtectedRoute: boolean;
 }
 
+export interface AppNextAuthRouteMatrixInput {
+  requestedRoute: string;
+  currentRoute: AppNextRoute;
+  state: AppNextAccountState;
+  session: AppSession | null | undefined;
+  requireAuthEnabled: boolean;
+  protectedRouteEnabled: boolean;
+  requireWorkspaceRoleEnabled: boolean;
+}
+
+export interface AppNextAuthRouteMatrixSnapshot {
+  currentRoute: string;
+  requestedRoute: string;
+  accountStatus: string;
+  globalRoleCategory: string;
+  workspaceRoleCategory: string;
+  hasWorkspace: boolean;
+  requireAuthDecision: string;
+  protectedRouteDecision: string;
+  requireWorkspaceRoleDecision: string;
+  finalDecision: string;
+  renderedScreen: string;
+  menuVisible: boolean;
+  directUrlAllowed: boolean;
+  protectedChildRenderAllowed: boolean;
+  policyMismatchDetected: boolean;
+  requiresAuth: boolean;
+  requiresProtectedRoute: boolean;
+  requiresWorkspaceRole: boolean;
+  workspaceRequired: boolean;
+  allowSystemOwner: boolean;
+  requiredWorkspaceRoles: readonly string[];
+}
+
 const APP_NEXT_ROUTES = new Set<AppNextRoute>([
   "dashboard",
   "devices",
@@ -68,6 +102,19 @@ const APP_NEXT_WORKSPACE_PREVIEW_ROLES = new Set([
   "manager",
   "teacher",
 ]);
+
+function roleCategory(role: string | null | undefined): string {
+  if (role === "system_owner") return "system_owner";
+  if (role === "user") return "user";
+  if (role === "super_manager") return "super_manager";
+  if (role === "manager") return "manager";
+  if (role === "teacher") return "teacher";
+  if (role === "normal") return "normal";
+  if (role === "viewer") return "viewer";
+  if (role === "print_account") return "print_account";
+  if (!role) return "none";
+  return "unknown";
+}
 
 export function appNextRouteHash(route: AppNextRoute): string {
   return `#/${route}`;
@@ -251,7 +298,9 @@ export function appNextWorkspacePreviewPolicySnapshot(
       ? "SYSTEM_OWNER_EXPLICIT_ALLOW"
       : accessAllowed
         ? "ALLOWED_WORKSPACE_ROLE"
-        : session?.currentWorkspaceRole
+        : roleCategory(session?.currentWorkspaceRole) === "unknown"
+          ? "UNKNOWN_WORKSPACE_ROLE"
+          : session?.currentWorkspaceRole
           ? "WORKSPACE_ROLE_NOT_ALLOWED"
           : "NO_WORKSPACE_ROLE";
 
@@ -265,5 +314,134 @@ export function appNextWorkspacePreviewPolicySnapshot(
     allowSystemOwner: true,
     requiredWorkspaceRoles: Array.from(APP_NEXT_WORKSPACE_PREVIEW_ROLES),
     decision,
+  };
+}
+
+function requireAuthDecisionForState(state: AppNextAccountState): string {
+  if (state === "loading") return "LOADING";
+  if (state === "signed_out") return "SIGNED_OUT";
+  if (state === "pending") return "ACCOUNT_PENDING";
+  if (state === "rejected") return "ACCOUNT_REJECTED";
+  if (state === "disabled") return "ACCOUNT_DISABLED";
+  if (state === "error" || state === "quota_exceeded") return "SESSION_ERROR";
+  return "AUTHENTICATED_ACTIVE";
+}
+
+function routeUsesRequireAuth(route: AppNextRoute): boolean {
+  return ![
+    "login",
+    "pending",
+    "rejected",
+    "disabled",
+    "error",
+  ].includes(route);
+}
+
+function routeUsesProtectedRoute(route: AppNextRoute): boolean {
+  return route === "admin-preview" || route === "workspace-preview";
+}
+
+function routeUsesRequireWorkspaceRole(route: AppNextRoute): boolean {
+  return route === "workspace-preview";
+}
+
+export function appNextAuthRouteMatrixSnapshot({
+  requestedRoute,
+  currentRoute,
+  state,
+  session,
+  requireAuthEnabled,
+  protectedRouteEnabled,
+  requireWorkspaceRoleEnabled,
+}: AppNextAuthRouteMatrixInput): AppNextAuthRouteMatrixSnapshot {
+  const accountDecision = requireAuthDecisionForState(state);
+  const active = state === "active";
+  const requiresAuth = routeUsesRequireAuth(currentRoute);
+  const requiresProtectedRoute = routeUsesProtectedRoute(currentRoute);
+  const requiresWorkspaceRole = routeUsesRequireWorkspaceRole(currentRoute);
+  const adminMenuVisible = canShowAppNextAdminPreview(session);
+  const workspaceMenuVisible = canShowAppNextWorkspacePreview(session);
+  const workspacePolicy = appNextWorkspacePreviewPolicySnapshot(session);
+
+  const protectedRouteDecision = currentRoute === "admin-preview"
+    ? !protectedRouteEnabled
+      ? "PROTECTED_ROUTE_FLAG_OFF"
+      : adminMenuVisible
+        ? "ALLOWED_PROTECTED_ROUTE"
+        : "PROTECTED_ROUTE_DENIED"
+    : currentRoute === "workspace-preview"
+      ? !protectedRouteEnabled
+        ? "PROTECTED_ROUTE_FLAG_OFF"
+        : "ALLOWED_PROTECTED_ROUTE"
+      : "NOT_APPLICABLE";
+
+  const requireWorkspaceRoleDecision = currentRoute === "workspace-preview"
+    ? !requireWorkspaceRoleEnabled
+      ? "REQUIRE_WORKSPACE_ROLE_FLAG_OFF"
+      : workspacePolicy.decision
+    : "NOT_APPLICABLE";
+
+  const menuVisible = currentRoute === "admin-preview"
+    ? adminMenuVisible
+    : currentRoute === "workspace-preview"
+      ? workspaceMenuVisible
+      : ["dashboard", "devices", "notifications", "notices"].includes(currentRoute) && active;
+
+  let finalDecision = "ALLOW_ROUTE";
+  if (state === "loading") {
+    finalDecision = "SHOW_LOADING";
+  } else if (state === "signed_out") {
+    finalDecision = currentRoute === "login" ? "SHOW_LOGIN" : "BLOCKED_SIGNED_OUT";
+  } else if (["pending", "rejected", "disabled", "error", "quota_exceeded"].includes(state)) {
+    finalDecision = "SHOW_ACCOUNT_STATUS";
+  } else if (requiresAuth && !requireAuthEnabled) {
+    finalDecision = "REQUIRE_AUTH_FLAG_OFF";
+  } else if (currentRoute === "admin-preview") {
+    finalDecision = adminMenuVisible && protectedRouteEnabled
+      ? "ALLOW_ROUTE"
+      : protectedRouteDecision;
+  } else if (currentRoute === "workspace-preview") {
+    finalDecision = !protectedRouteEnabled
+      ? "PROTECTED_ROUTE_FLAG_OFF"
+      : !requireWorkspaceRoleEnabled
+        ? "REQUIRE_WORKSPACE_ROLE_FLAG_OFF"
+        : workspacePolicy.accessAllowed
+          ? "ALLOW_ROUTE"
+          : workspacePolicy.decision;
+  } else if (currentRoute === "notices" && !session?.currentWorkspaceId) {
+    finalDecision = "ALLOW_ROUTE_WITH_DATA_BLOCKED";
+  }
+
+  const directUrlAllowed = finalDecision === "ALLOW_ROUTE" ||
+    finalDecision === "ALLOW_ROUTE_WITH_DATA_BLOCKED" ||
+    finalDecision === "SHOW_LOGIN" ||
+    finalDecision === "SHOW_ACCOUNT_STATUS" ||
+    finalDecision === "SHOW_LOADING";
+  const menuRoute = currentRoute === "admin-preview" || currentRoute === "workspace-preview";
+
+  return {
+    currentRoute,
+    requestedRoute,
+    accountStatus: session?.status ?? state,
+    globalRoleCategory: roleCategory(session?.globalRole),
+    workspaceRoleCategory: roleCategory(session?.currentWorkspaceRole),
+    hasWorkspace: Boolean(session?.currentWorkspaceId),
+    requireAuthDecision: accountDecision,
+    protectedRouteDecision,
+    requireWorkspaceRoleDecision,
+    finalDecision,
+    renderedScreen: currentRoute,
+    menuVisible,
+    directUrlAllowed,
+    protectedChildRenderAllowed: finalDecision === "ALLOW_ROUTE",
+    policyMismatchDetected: menuRoute ? menuVisible !== directUrlAllowed : false,
+    requiresAuth,
+    requiresProtectedRoute,
+    requiresWorkspaceRole,
+    workspaceRequired: currentRoute === "workspace-preview",
+    allowSystemOwner: currentRoute === "workspace-preview",
+    requiredWorkspaceRoles: currentRoute === "workspace-preview"
+      ? Array.from(APP_NEXT_WORKSPACE_PREVIEW_ROLES)
+      : [],
   };
 }

@@ -23,6 +23,8 @@ import {
   appNextAuthDiagnosticsText,
   appNextWorkspaceNoticeDiagnosticsText,
   getAppNextDiagnosticEvents,
+  getAppNextAuthRouteMatrixDiagnostics,
+  recordAppNextAuthRouteMatrixDiagnostics,
 } from "./appNextDiagnostics";
 import {
   appNextAccountState,
@@ -77,6 +79,7 @@ import {
 } from "./appNextDiagnostics";
 import {
   appNextRouteHash,
+  appNextAuthRouteMatrixSnapshot,
   canShowAppNextAdminPreview,
   canShowAppNextWorkspacePreview,
   resolveAppNextRoute,
@@ -134,6 +137,7 @@ function AppNextDiagnostics({
   const authDiagnostics = getAuthProviderDiagnosticsSnapshot();
   const appNextAuthDiagnostics = getAppNextAuthDiagnostics();
   const noticeDiagnostics = getAppNextNoticeDiagnostics();
+  const authRouteMatrixDiagnostics = getAppNextAuthRouteMatrixDiagnostics();
   const recentEvents = getAppNextDiagnosticEvents();
 
   return (
@@ -197,6 +201,16 @@ function AppNextDiagnostics({
         <ValueRow label="bootstrap attempt count" value={String(authDiagnostics.bootstrapAttemptCount)} />
         <ValueRow label="bootstrap blocked count" value={String(authDiagnostics.bootstrapBlockedCount)} />
         <ValueRow label="resource exhausted" value={booleanLabel(authDiagnostics.resourceExhausted)} />
+        <ValueRow label="routeMatrix.currentRoute" value={authRouteMatrixDiagnostics.currentRoute} />
+        <ValueRow label="routeMatrix.requestedRoute" value={authRouteMatrixDiagnostics.requestedRoute} />
+        <ValueRow label="routeMatrix.requireAuthDecision" value={authRouteMatrixDiagnostics.requireAuthDecision} />
+        <ValueRow label="routeMatrix.protectedRouteDecision" value={authRouteMatrixDiagnostics.protectedRouteDecision} />
+        <ValueRow label="routeMatrix.requireWorkspaceRoleDecision" value={authRouteMatrixDiagnostics.requireWorkspaceRoleDecision} />
+        <ValueRow label="routeMatrix.finalDecision" value={authRouteMatrixDiagnostics.finalDecision} />
+        <ValueRow label="routeMatrix.policyMismatchDetected" value={booleanLabel(authRouteMatrixDiagnostics.policyMismatchDetected)} />
+        <ValueRow label="routeMatrix.firestoreReadCount" value={String(authRouteMatrixDiagnostics.firestoreReadCount)} />
+        <ValueRow label="routeMatrix.firestoreWriteAttemptCount" value={String(authRouteMatrixDiagnostics.firestoreWriteAttemptCount)} />
+        <ValueRow label="routeMatrix.workspaceListenerCount" value={String(authRouteMatrixDiagnostics.workspaceListenerCount)} />
         <ValueRow label="notice.lastRequestedReadMode" value={noticeDiagnostics.lastRequestedReadMode} />
         <ValueRow label="notice.lastCompletedReadMode" value={noticeDiagnostics.lastCompletedReadMode} />
         <ValueRow label="notice.lastErrorKind" value={noticeDiagnostics.lastErrorKind} />
@@ -419,6 +433,26 @@ export function AppNext({
   });
   const adminPreviewMenuVisible = canShowAppNextAdminPreview(session);
   const workspacePreviewMenuVisible = canShowAppNextWorkspacePreview(session);
+  const routeMatrix = useMemo(
+    () => appNextAuthRouteMatrixSnapshot({
+      requestedRoute: routeDecision.requestedRoute,
+      currentRoute: routeDecision.currentRoute,
+      state,
+      session,
+      requireAuthEnabled,
+      protectedRouteEnabled,
+      requireWorkspaceRoleEnabled,
+    }),
+    [
+      protectedRouteEnabled,
+      requireAuthEnabled,
+      requireWorkspaceRoleEnabled,
+      routeDecision.currentRoute,
+      routeDecision.requestedRoute,
+      session,
+      state,
+    ],
+  );
 
   const warningCount = useMemo(
     () => session?.warnings.length ?? 0,
@@ -494,6 +528,24 @@ export function AppNext({
     routeDecision.currentRoute,
     routeDecision.fallbackReason,
     routeDecision.requestedRoute,
+  ]);
+
+  useEffect(() => {
+    const authDiagnostics = getAuthProviderDiagnosticsSnapshot();
+    recordAppNextAuthRouteMatrixDiagnostics({
+      ...routeMatrix,
+      accountPhase: phase,
+      authListenerCount: authDiagnostics.authStateListenerCount,
+      redirectCount: getAppNextRouteDiagnostics().routeRedirectCount,
+      protectedChildRenderCount: getAppNextRouteDiagnostics().protectedRouteRenderCount,
+      firestoreReadCount: 0,
+      firestoreWriteAttemptCount: 0,
+      workspaceListenerCount: 0,
+      restoreConflictDetected: false,
+    });
+  }, [
+    phase,
+    routeMatrix,
   ]);
 
   const handleRoute = useCallback((route: AppNextRoute) => {

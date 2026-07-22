@@ -6193,6 +6193,172 @@ const tests = [
       state: "active",
     }).currentRoute, "access-denied");
   }],
+  ["app-next canonical route matrix fixes route guard policy", () => {
+    const activeSession = makeSession({
+      currentWorkspaceId: "workspace-1",
+      currentWorkspaceRole: "teacher",
+    });
+    const matrix = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "workspace-preview",
+      currentRoute: "workspace-preview",
+      state: "active",
+      session: activeSession,
+      requireAuthEnabled: true,
+      protectedRouteEnabled: true,
+      requireWorkspaceRoleEnabled: true,
+    });
+    assert.equal(matrix.requiresAuth, true);
+    assert.equal(matrix.requiresProtectedRoute, true);
+    assert.equal(matrix.requiresWorkspaceRole, true);
+    assert.equal(matrix.requireAuthDecision, "AUTHENTICATED_ACTIVE");
+    assert.equal(matrix.protectedRouteDecision, "ALLOWED_PROTECTED_ROUTE");
+    assert.equal(matrix.requireWorkspaceRoleDecision, "ALLOWED_WORKSPACE_ROLE");
+    assert.equal(matrix.finalDecision, "ALLOW_ROUTE");
+    assert.equal(matrix.directUrlAllowed, true);
+    assert.equal(matrix.protectedChildRenderAllowed, true);
+    assert.equal(matrix.policyMismatchDetected, false);
+    assert.equal(matrix.requiredWorkspaceRoles.join(","), "super_manager,manager,teacher");
+  }],
+  ["app-next route matrix blocks protected child before role preview renders", () => {
+    const matrix = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "workspace-preview",
+      currentRoute: "workspace-preview",
+      state: "active",
+      session: makeSession({
+        currentWorkspaceId: "workspace-1",
+        currentWorkspaceRole: "normal",
+      }),
+      requireAuthEnabled: true,
+      protectedRouteEnabled: true,
+      requireWorkspaceRoleEnabled: true,
+    });
+    assert.equal(matrix.finalDecision, "WORKSPACE_ROLE_NOT_ALLOWED");
+    assert.equal(matrix.directUrlAllowed, false);
+    assert.equal(matrix.menuVisible, false);
+    assert.equal(matrix.protectedChildRenderAllowed, false);
+    assert.equal(matrix.policyMismatchDetected, false);
+  }],
+  ["app-next route matrix handles system owner workspace exception", () => {
+    const withWorkspace = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "workspace-preview",
+      currentRoute: "workspace-preview",
+      state: "active",
+      session: makeSession({
+        globalRole: "system_owner",
+        currentWorkspaceId: "workspace-1",
+        currentWorkspaceRole: null,
+        isSystemOwner: true,
+      }),
+      requireAuthEnabled: true,
+      protectedRouteEnabled: true,
+      requireWorkspaceRoleEnabled: true,
+    });
+    assert.equal(withWorkspace.requireWorkspaceRoleDecision, "SYSTEM_OWNER_EXPLICIT_ALLOW");
+    assert.equal(withWorkspace.finalDecision, "ALLOW_ROUTE");
+    assert.equal(withWorkspace.workspaceRoleCategory, "none");
+
+    const withoutWorkspace = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "workspace-preview",
+      currentRoute: "workspace-preview",
+      state: "active",
+      session: makeSession({
+        globalRole: "system_owner",
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+        isSystemOwner: true,
+      }),
+      requireAuthEnabled: true,
+      protectedRouteEnabled: true,
+      requireWorkspaceRoleEnabled: true,
+    });
+    assert.equal(withoutWorkspace.requireWorkspaceRoleDecision, "NO_WORKSPACE");
+    assert.equal(withoutWorkspace.finalDecision, "NO_WORKSPACE");
+    assert.equal(withoutWorkspace.directUrlAllowed, false);
+  }],
+  ["app-next route matrix handles account status and workspace-null notices", () => {
+    const signedOut = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "login",
+      currentRoute: "login",
+      state: "signed_out",
+      session: null,
+      requireAuthEnabled: true,
+      protectedRouteEnabled: true,
+      requireWorkspaceRoleEnabled: true,
+    });
+    assert.equal(signedOut.finalDecision, "SHOW_LOGIN");
+
+    for (const [state, route] of [
+      ["pending", "pending"],
+      ["rejected", "rejected"],
+      ["disabled", "disabled"],
+      ["error", "error"],
+    ]) {
+      const matrix = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+        requestedRoute: route,
+        currentRoute: route,
+        state,
+        session: makeSession({ status: state === "error" ? "active" : state }),
+        requireAuthEnabled: true,
+        protectedRouteEnabled: true,
+        requireWorkspaceRoleEnabled: true,
+      });
+      assert.equal(matrix.finalDecision, "SHOW_ACCOUNT_STATUS");
+    }
+
+    const notices = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "notices",
+      currentRoute: "notices",
+      state: "active",
+      session: makeSession({
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+      requireAuthEnabled: true,
+      protectedRouteEnabled: true,
+      requireWorkspaceRoleEnabled: true,
+    });
+    assert.equal(notices.finalDecision, "ALLOW_ROUTE_WITH_DATA_BLOCKED");
+  }],
+  ["app-next route matrix keeps flag rollback explicit", () => {
+    const requireAuthOff = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "notices",
+      currentRoute: "notices",
+      state: "active",
+      session: makeSession({ currentWorkspaceId: "workspace-1" }),
+      requireAuthEnabled: false,
+      protectedRouteEnabled: true,
+      requireWorkspaceRoleEnabled: true,
+    });
+    assert.equal(requireAuthOff.finalDecision, "REQUIRE_AUTH_FLAG_OFF");
+
+    const protectedOff = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "admin-preview",
+      currentRoute: "admin-preview",
+      state: "active",
+      session: makeSession({
+        currentWorkspaceId: "workspace-1",
+        currentWorkspaceRole: "manager",
+      }),
+      requireAuthEnabled: true,
+      protectedRouteEnabled: false,
+      requireWorkspaceRoleEnabled: true,
+    });
+    assert.equal(protectedOff.finalDecision, "PROTECTED_ROUTE_FLAG_OFF");
+
+    const workspaceRoleOff = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "workspace-preview",
+      currentRoute: "workspace-preview",
+      state: "active",
+      session: makeSession({
+        currentWorkspaceId: "workspace-1",
+        currentWorkspaceRole: "teacher",
+      }),
+      requireAuthEnabled: true,
+      protectedRouteEnabled: true,
+      requireWorkspaceRoleEnabled: false,
+    });
+    assert.equal(workspaceRoleOff.finalDecision, "REQUIRE_WORKSPACE_ROLE_FLAG_OFF");
+  }],
   ["app-next admin preview menu policy matches ProtectedRoute route policy", () => {
     assert.equal(appNextRouteUtils.canShowAppNextAdminPreview(makeSession({
       globalRole: "system_owner",
@@ -6457,10 +6623,23 @@ const tests = [
     const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
     assert.match(diagnosticsSource, /PMAppNextRouteDiagnostics/);
     assert.match(diagnosticsSource, /PMAppNextNoticeDiagnostics/);
+    assert.match(diagnosticsSource, /PMAppNextAuthRouteMatrixDiagnostics/);
     assert.match(diagnosticsSource, /fetchedCount/);
     assert.match(diagnosticsSource, /visibleCount/);
     assert.match(diagnosticsSource, /writeAttemptCount:\s*0/);
     assert.match(diagnosticsSource, /workspaceMasked/);
+  }],
+  ["app-next auth route matrix diagnostics are privacy safe and guard-read-only", () => {
+    const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
+    const appSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    assert.match(diagnosticsSource, /AppNextAuthRouteMatrixDiagnosticsSnapshot/);
+    assert.match(diagnosticsSource, /getAppNextAuthRouteMatrixDiagnostics/);
+    assert.match(diagnosticsSource, /recordAppNextAuthRouteMatrixDiagnostics/);
+    assert.match(appSource, /recordAppNextAuthRouteMatrixDiagnostics/);
+    assert.match(appSource, /routeMatrix\.firestoreReadCount/);
+    assert.match(appSource, /routeMatrix\.firestoreWriteAttemptCount/);
+    assert.match(appSource, /routeMatrix\.workspaceListenerCount/);
+    assert.equal(diagnosticsSource.includes("token"), false);
   }],
   ["app-next protected notices pilot keeps operational route storage untouched", () => {
     const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");

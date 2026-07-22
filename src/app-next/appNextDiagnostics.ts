@@ -124,6 +124,29 @@ export interface AppNextRouteDiagnosticsSnapshot {
   requireAuthConsumerMountCount: number;
 }
 
+export interface AppNextAuthRouteMatrixDiagnosticsSnapshot {
+  currentRoute: string;
+  requestedRoute: string;
+  accountPhase: string;
+  accountStatus: string;
+  globalRoleCategory: string;
+  workspaceRoleCategory: string;
+  hasWorkspace: boolean;
+  requireAuthDecision: string;
+  protectedRouteDecision: string;
+  requireWorkspaceRoleDecision: string;
+  finalDecision: string;
+  renderedScreen: string;
+  redirectCount: number;
+  protectedChildRenderCount: number;
+  policyMismatchDetected: boolean;
+  firestoreReadCount: number;
+  firestoreWriteAttemptCount: number;
+  authListenerCount: number;
+  workspaceListenerCount: number;
+  restoreConflictDetected: boolean;
+}
+
 const MAX_APP_NEXT_DIAGNOSTIC_EVENTS = 30;
 const diagnosticEvents: AppNextDiagnosticEvent[] = [];
 const APP_NEXT_LAST_STATE_KEY = "pm-app-next-last-state-v1";
@@ -180,6 +203,28 @@ let routeDiagnostics: AppNextRouteDiagnosticsSnapshot = {
   routeRedirectCount: 0,
   requireAuthConsumerMounted: false,
   requireAuthConsumerMountCount: 0,
+};
+let authRouteMatrixDiagnostics: AppNextAuthRouteMatrixDiagnosticsSnapshot = {
+  currentRoute: "dashboard",
+  requestedRoute: "dashboard",
+  accountPhase: "unknown",
+  accountStatus: "unknown",
+  globalRoleCategory: "none",
+  workspaceRoleCategory: "none",
+  hasWorkspace: false,
+  requireAuthDecision: "unknown",
+  protectedRouteDecision: "NOT_APPLICABLE",
+  requireWorkspaceRoleDecision: "NOT_APPLICABLE",
+  finalDecision: "unknown",
+  renderedScreen: "dashboard",
+  redirectCount: 0,
+  protectedChildRenderCount: 0,
+  policyMismatchDetected: false,
+  firestoreReadCount: 0,
+  firestoreWriteAttemptCount: 0,
+  authListenerCount: 0,
+  workspaceListenerCount: 0,
+  restoreConflictDetected: false,
 };
 let lastRouteFallbackKey = "none";
 let lastRequireAuthConsumerMounted = false;
@@ -253,6 +298,9 @@ function installAppNextDiagnosticsWindows(): void {
     PMAppNextNoticeDiagnostics?: {
       snapshot(): AppNextNoticeRouteDiagnosticsSnapshot;
     };
+    PMAppNextAuthRouteMatrixDiagnostics?: {
+      snapshot(): AppNextAuthRouteMatrixDiagnosticsSnapshot;
+    };
   }).PMAppNextRouteDiagnostics = {
     snapshot: getAppNextRouteDiagnostics,
   };
@@ -266,6 +314,14 @@ function installAppNextDiagnosticsWindows(): void {
     };
   }).PMAppNextNoticeDiagnostics = {
     snapshot: getAppNextNoticeRouteDiagnostics,
+  };
+
+  (window as typeof window & {
+    PMAppNextAuthRouteMatrixDiagnostics?: {
+      snapshot(): AppNextAuthRouteMatrixDiagnosticsSnapshot;
+    };
+  }).PMAppNextAuthRouteMatrixDiagnostics = {
+    snapshot: getAppNextAuthRouteMatrixDiagnostics,
   };
 }
 
@@ -690,6 +746,23 @@ export function recordAppNextRouteDiagnostics(
 
 export function getAppNextRouteDiagnostics(): AppNextRouteDiagnosticsSnapshot {
   return { ...routeDiagnostics };
+}
+
+export function recordAppNextAuthRouteMatrixDiagnostics(
+  next: Partial<AppNextAuthRouteMatrixDiagnosticsSnapshot>,
+): void {
+  authRouteMatrixDiagnostics = {
+    ...authRouteMatrixDiagnostics,
+    ...next,
+    firestoreReadCount: next.firestoreReadCount ?? 0,
+    firestoreWriteAttemptCount: next.firestoreWriteAttemptCount ?? 0,
+    workspaceListenerCount: next.workspaceListenerCount ?? 0,
+    restoreConflictDetected: next.restoreConflictDetected ?? false,
+  };
+}
+
+export function getAppNextAuthRouteMatrixDiagnostics(): AppNextAuthRouteMatrixDiagnosticsSnapshot {
+  return { ...authRouteMatrixDiagnostics };
 }
 
 export function getAppNextNoticeRouteDiagnostics(): AppNextNoticeRouteDiagnosticsSnapshot {
