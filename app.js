@@ -26781,3 +26781,245 @@ if (typeof refreshWorkspaceNoticesFromServerV113 === "function" && !refreshWorks
   };
   refreshWorkspaceNoticesFromServerV113.__transportWrappedV119 = true;
 }
+
+// Final V120: keep the last successful top-level page in the current browser
+// tab and restore it after auth/workspace/navigation are ready.
+const APP_PATCH_VERSION_V120 = "v120.0 - 2026-07-23";
+const NAVIGATION_PAGE_STORAGE_KEY_V120 = "pm-current-page-v1";
+let navigationRestoreAttemptedV120 = false;
+let navigationRestoreCompletedV120 = false;
+let navigationRestoreInProgressV120 = false;
+let navigationRestoreUserKeyV120 = "";
+const navigationPersistenceDiagnosticsV120 = {
+  restoreAttemptCount: 0,
+  restoreSuccessCount: 0,
+  fallbackCount: 0,
+  fallbackReason: "",
+  navigationStateWriteCount: 0,
+  lastRequestedPage: "",
+  lastRenderedPage: "",
+  lastStoredPage: "",
+  lastRestoredPage: ""
+};
+
+function safeSessionGetV120(key) {
+  try {
+    return sessionStorage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+}
+
+function safeSessionSetV120(key, value) {
+  try {
+    sessionStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function safeSessionRemoveV120(key) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {}
+}
+
+function normalizePageKeyV120(key) {
+  return String(key || "").trim();
+}
+
+function currentNavigationUserKeyV120(user = currentUser) {
+  if (!user) return "";
+  return String(user.uid || user.id || user.email || "").trim();
+}
+
+function knownPageKeysV120() {
+  return new Set([
+    ...Object.keys(pageMeta || {}),
+    "chat",
+    "masterData",
+    "workspaceUpdates",
+    "omrForms",
+    "systemOwner"
+  ]);
+}
+
+function pageRequiresWorkspaceV120(key) {
+  return !["dashboard", "systemOwner", "print"].includes(key);
+}
+
+function pageCanRenderV120(key) {
+  return knownPageKeysV120().has(key);
+}
+
+function currentStatusAllowsPageRestoreV120() {
+  if (!currentUser) return { ok: false, reason: "signed-out" };
+  const status = typeof userStatusV54 === "function" ? userStatusV54(currentUser) : currentUser.status || "active";
+  if (status !== "active") return { ok: false, reason: `status-${status || "unknown"}` };
+  if (typeof isApprovalGateUserV54 === "function" && isApprovalGateUserV54(currentUser)) return { ok: false, reason: "account-action-required" };
+  return { ok: true, reason: "" };
+}
+
+function validateNavigationPageV120(key) {
+  const page = normalizePageKeyV120(key);
+  if (!page) return { ok: false, page: "dashboard", reason: "empty" };
+  if (!pageCanRenderV120(page)) return { ok: false, page: "dashboard", reason: "unknown-page" };
+  const status = currentStatusAllowsPageRestoreV120();
+  if (!status.ok) return { ok: false, page: "dashboard", reason: status.reason };
+  if (typeof isAdminSurfaceV60 === "function" && isAdminSurfaceV60() && page !== "systemOwner") {
+    return { ok: false, page: "systemOwner", reason: "admin-surface" };
+  }
+  const workspaceId = typeof userWorkspaceIdV54 === "function" ? userWorkspaceIdV54(currentUser) : currentUser?.workspaceId || "";
+  if (pageRequiresWorkspaceV120(page) && !workspaceId) return { ok: false, page: "dashboard", reason: "workspace-missing" };
+  const available = typeof navKeys === "function" ? navKeys() : [];
+  if (!available.includes(page)) return { ok: false, page: "dashboard", reason: "menu-unavailable" };
+  return { ok: true, page, reason: "" };
+}
+
+function recordNavigationFallbackV120(reason) {
+  navigationPersistenceDiagnosticsV120.fallbackCount += 1;
+  navigationPersistenceDiagnosticsV120.fallbackReason = reason || "fallback";
+}
+
+function rememberCurrentPageV120(page, reason = "render") {
+  const key = normalizePageKeyV120(page);
+  const validation = validateNavigationPageV120(key);
+  if (!validation.ok) {
+    if (safeSessionGetV120(NAVIGATION_PAGE_STORAGE_KEY_V120) === key) {
+      safeSessionRemoveV120(NAVIGATION_PAGE_STORAGE_KEY_V120);
+    }
+    if (key) recordNavigationFallbackV120(validation.reason);
+    return false;
+  }
+  if (!safeSessionSetV120(NAVIGATION_PAGE_STORAGE_KEY_V120, validation.page)) return false;
+  navigationPersistenceDiagnosticsV120.navigationStateWriteCount += 1;
+  navigationPersistenceDiagnosticsV120.lastStoredPage = validation.page;
+  navigationPersistenceDiagnosticsV120.lastRenderedPage = validation.page;
+  navigationPersistenceDiagnosticsV120.lastWriteReason = reason;
+  return true;
+}
+
+function clearNavigationPageV120(reason = "clear") {
+  safeSessionRemoveV120(NAVIGATION_PAGE_STORAGE_KEY_V120);
+  navigationRestoreAttemptedV120 = false;
+  navigationRestoreCompletedV120 = false;
+  navigationPersistenceDiagnosticsV120.fallbackReason = reason;
+}
+
+function fallbackNavigationPageV120(reason) {
+  recordNavigationFallbackV120(reason);
+  safeSessionRemoveV120(NAVIGATION_PAGE_STORAGE_KEY_V120);
+  const status = currentStatusAllowsPageRestoreV120();
+  if (!status.ok) return "";
+  if (typeof isAdminSurfaceV60 === "function" && isAdminSurfaceV60()) return "systemOwner";
+  if (currentUser?.role === "system_owner" && typeof userWorkspaceIdV54 === "function" && !userWorkspaceIdV54(currentUser)) return "systemOwner";
+  if (currentUser?.role === "print_account" || currentUser?.role === "print") return "print";
+  return "dashboard";
+}
+
+function restoreNavigationPageV120(reason = "session-ready", options = {}) {
+  if (navigationRestoreInProgressV120) return false;
+  if (navigationRestoreAttemptedV120 && !options.force) return false;
+  navigationRestoreAttemptedV120 = true;
+  navigationRestoreInProgressV120 = true;
+  navigationPersistenceDiagnosticsV120.restoreAttemptCount += 1;
+  navigationPersistenceDiagnosticsV120.lastRestoreReason = reason;
+  try {
+    const stored = safeSessionGetV120(NAVIGATION_PAGE_STORAGE_KEY_V120);
+    navigationPersistenceDiagnosticsV120.lastStoredPage = stored;
+    const validation = validateNavigationPageV120(stored);
+    if (!validation.ok) {
+      const fallback = fallbackNavigationPageV120(validation.reason);
+      navigationRestoreCompletedV120 = true;
+      if (fallback && currentPage !== fallback) renderPage(fallback);
+      return false;
+    }
+    navigationPersistenceDiagnosticsV120.restoreSuccessCount += 1;
+    navigationPersistenceDiagnosticsV120.lastRestoredPage = validation.page;
+    navigationRestoreCompletedV120 = true;
+    if (currentPage !== validation.page) renderPage(validation.page);
+    return true;
+  } finally {
+    navigationRestoreInProgressV120 = false;
+  }
+}
+
+const renderPageBeforeV120 = renderPage;
+renderPage = function renderPageV120(key) {
+  const requested = normalizePageKeyV120(key) || "dashboard";
+  navigationPersistenceDiagnosticsV120.lastRequestedPage = requested;
+  let target = requested;
+  if (!navigationRestoreCompletedV120 && !navigationRestoreInProgressV120 && requested === "dashboard") {
+    const stored = safeSessionGetV120(NAVIGATION_PAGE_STORAGE_KEY_V120);
+    const validation = validateNavigationPageV120(stored);
+    if (validation.ok && validation.page !== "dashboard") {
+      target = validation.page;
+      navigationPersistenceDiagnosticsV120.restoreAttemptCount += 1;
+      navigationPersistenceDiagnosticsV120.restoreSuccessCount += 1;
+      navigationPersistenceDiagnosticsV120.lastRestoredPage = target;
+      navigationRestoreAttemptedV120 = true;
+      navigationRestoreCompletedV120 = true;
+    }
+  }
+  const result = renderPageBeforeV120(target);
+  const rendered = normalizePageKeyV120(currentPage || target);
+  if (rendered && !navigationRestoreInProgressV120) rememberCurrentPageV120(rendered, "renderPage");
+  return result;
+};
+
+const completeLoginBeforeV120 = completeLoginV34;
+completeLoginV34 = function completeLoginV120(user) {
+  const beforeUserKey = navigationRestoreUserKeyV120;
+  const result = completeLoginBeforeV120.apply(this, arguments);
+  const afterUserKey = currentNavigationUserKeyV120(currentUser || user);
+  if (beforeUserKey && afterUserKey && beforeUserKey !== afterUserKey) {
+    clearNavigationPageV120("user-changed");
+  }
+  navigationRestoreUserKeyV120 = afterUserKey;
+  navigationRestoreAttemptedV120 = false;
+  navigationRestoreCompletedV120 = false;
+  setTimeout(() => restoreNavigationPageV120("complete-login"), 0);
+  return result;
+};
+
+const logoutBeforeV120 = logout;
+logout = function logoutV120() {
+  clearNavigationPageV120("logout");
+  navigationRestoreUserKeyV120 = "";
+  return logoutBeforeV120.apply(this, arguments);
+};
+
+const clearSessionStateBeforeV120 = clearSessionStateV36;
+clearSessionStateV36 = function clearSessionStateV120() {
+  clearNavigationPageV120("session-cleared");
+  navigationRestoreUserKeyV120 = "";
+  return clearSessionStateBeforeV120.apply(this, arguments);
+};
+
+if (typeof window !== "undefined") {
+  window.PMNavigationPersistenceDiagnostics = {
+    snapshot() {
+      return {
+        storedPage: safeSessionGetV120(NAVIGATION_PAGE_STORAGE_KEY_V120),
+        currentPage: normalizePageKeyV120(currentPage || ""),
+        restoreAttemptCount: navigationPersistenceDiagnosticsV120.restoreAttemptCount,
+        restoreSuccessCount: navigationPersistenceDiagnosticsV120.restoreSuccessCount,
+        fallbackCount: navigationPersistenceDiagnosticsV120.fallbackCount,
+        fallbackReason: navigationPersistenceDiagnosticsV120.fallbackReason || "",
+        navigationStateWriteCount: navigationPersistenceDiagnosticsV120.navigationStateWriteCount,
+        restoreInProgress: navigationRestoreInProgressV120,
+        restoreCompleted: navigationRestoreCompletedV120,
+        lastRequestedPage: navigationPersistenceDiagnosticsV120.lastRequestedPage || "",
+        lastRenderedPage: navigationPersistenceDiagnosticsV120.lastRenderedPage || "",
+        lastRestoredPage: navigationPersistenceDiagnosticsV120.lastRestoredPage || ""
+      };
+    },
+    clear: clearNavigationPageV120,
+    restore: restoreNavigationPageV120
+  };
+}
+
+setTimeout(() => restoreNavigationPageV120("script-ready"), 0);
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V120;

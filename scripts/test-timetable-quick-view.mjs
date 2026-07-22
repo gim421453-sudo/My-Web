@@ -25,6 +25,7 @@ const markerV116 = 'const APP_PATCH_VERSION_V116 = "v116.0 - 2026-07-22";';
 const markerV117 = 'const APP_PATCH_VERSION_V117 = "v117.0 - 2026-07-22";';
 const markerV118 = 'const APP_PATCH_VERSION_V118 = "v118.0 - 2026-07-22";';
 const markerV119 = 'const APP_PATCH_VERSION_V119 = "v119.0 - 2026-07-22";';
+const markerV120 = 'const APP_PATCH_VERSION_V120 = "v120.0 - 2026-07-23";';
 const blockStartV101 = appJs.indexOf(markerV101);
 const blockStartV102 = appJs.indexOf(markerV102);
 const blockStartV103 = appJs.indexOf(markerV103);
@@ -44,6 +45,7 @@ const blockStartV116 = appJs.indexOf(markerV116);
 const blockStartV117 = appJs.indexOf(markerV117);
 const blockStartV118 = appJs.indexOf(markerV118);
 const blockStartV119 = appJs.indexOf(markerV119);
+const blockStartV120 = appJs.indexOf(markerV120);
 const workspaceServiceJs = fs.readFileSync(path.join(rootDir, "services", "workspaceDataService.js"), "utf8");
 
 function ok(name, condition) {
@@ -81,6 +83,7 @@ ok("canonical workspace alignment V116 patch exists", blockStartV116 >= 0);
 ok("canonical diagnostic fingerprint V117 patch exists", blockStartV117 >= 0);
 ok("app-next workspace/session diagnostics V118 patch exists", blockStartV118 >= 0);
 ok("Firestore transport diagnostics V119 patch exists", blockStartV119 >= 0);
+ok("navigation persistence V120 patch exists", blockStartV120 >= 0);
 
 const v101 = blockStartV101 >= 0 ? appJs.slice(blockStartV101) : "";
 const v102 = blockStartV102 >= 0 ? appJs.slice(blockStartV102) : "";
@@ -100,6 +103,7 @@ const v116 = blockStartV116 >= 0 ? appJs.slice(blockStartV116) : "";
 const v117 = blockStartV117 >= 0 ? appJs.slice(blockStartV117) : "";
 const v118 = blockStartV118 >= 0 ? appJs.slice(blockStartV118) : "";
 const v119 = blockStartV119 >= 0 ? appJs.slice(blockStartV119) : "";
+const v120 = blockStartV120 >= 0 ? appJs.slice(blockStartV120) : "";
 
 const ensureBodyV101 = between(v101, "ensureTimetableSetsFromRowsV99 = function ensureTimetableSetsFromRowsV101", "};\n\nnormalizedTimetableRowsV99");
 const activeQuickBodyV101 = between(v101, "activeQuickTimetableSetIdV100 = function activeQuickTimetableSetIdV101", "};\n\nrowsForQuickTimetableSetV100");
@@ -316,7 +320,15 @@ ok("V119 classifies WebChannel 400 without hiding browser console logs", v119.in
 ok("V119 records notice write request and server confirmation separately", v119.includes('recordFirestoreWriteRequestedV119("notice-save")') && v119.includes('recordFirestoreWriteServerConfirmedV119("notice-save-server-confirmed")'));
 ok("V119 records server reads after transport errors as recovery", v119.includes("serverReadSucceededAfterTransportError") && v119.includes("firestoreRecoveredAfterTransportError"));
 ok("V119 is final app version marker", v119.includes("store.settings.appVersion = APP_PATCH_VERSION_V119"));
-ok("index uses V119 app cache version", indexHtml.includes("app.js?v=119"));
+ok("V120 uses browser-tab sessionStorage for page key", v120.includes('NAVIGATION_PAGE_STORAGE_KEY_V120 = "pm-current-page-v1"') && v120.includes("sessionStorage.setItem(key, value)") && !v120.includes("localStorage.setItem"));
+ok("V120 restores after login instead of forcing dashboard", v120.includes("completeLoginV34 = function completeLoginV120") && v120.includes('restoreNavigationPageV120("complete-login")'));
+ok("V120 render wrapper stores only final rendered page", v120.includes("renderPage = function renderPageV120") && v120.includes("rememberCurrentPageV120(rendered, \"renderPage\")"));
+ok("V120 validates menu and workspace before restoring", v120.includes("navKeys()") && v120.includes("menu-unavailable") && v120.includes("workspace-missing"));
+ok("V120 clears stored page on logout and session clear", v120.includes("logout = function logoutV120") && v120.includes("clearSessionStateV36 = function clearSessionStateV120") && v120.includes('sessionStorage.removeItem(key)'));
+ok("V120 exposes safe navigation diagnostics", v120.includes("window.PMNavigationPersistenceDiagnostics") && v120.includes("restoreAttemptCount") && v120.includes("navigationStateWriteCount"));
+ok("V120 navigation restore has no Firestore write APIs", !v120.includes("deleteDoc") && !v120.includes("setDoc") && !v120.includes("writeBatch") && !v120.includes(".set(") && !v120.includes(".delete("));
+ok("V120 is final app version marker", v120.includes("store.settings.appVersion = APP_PATCH_VERSION_V120"));
+ok("index uses V120 app cache version", indexHtml.includes("app.js?v=120"));
 ok("index uses firebase runtime V6 and auth service V16 cache versions", indexHtml.includes("services/firebaseRuntime.js?v=6") && indexHtml.includes("services/authService.js?v=16"));
 ok("index uses V9 workspace data service cache version", indexHtml.includes("services/workspaceDataService.js?v=9"));
 
