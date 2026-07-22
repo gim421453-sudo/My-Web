@@ -9,6 +9,7 @@ import {
 
 import {
   AuthProvider,
+  getAuthProviderDiagnosticsSnapshot,
 } from "../../AuthProvider";
 import {
   LegacyAuthAdapterProvider,
@@ -19,6 +20,7 @@ import type {
 } from "../../../constants/roles";
 import {
   decideWorkspaceRoleAccess,
+  recordRequireWorkspaceRoleBridgeSnapshot,
   redirectDestinationForWorkspaceRoleDecision,
   shouldNavigateWorkspaceRoleDecision,
   workspaceRoleDecisionLabel,
@@ -33,6 +35,10 @@ interface NewAuthRequireWorkspaceRoleBridgeProps {
   allowSystemOwnerBypass?: boolean;
   previewMode?: boolean;
   onSnapshot?: (snapshot: RequireWorkspaceRoleBridgeSnapshot) => void;
+  wrapProviders?: boolean;
+  currentRoute?: string;
+  requestedRoute?: string;
+  menuVisible?: boolean;
 }
 
 function NewAuthRequireWorkspaceRoleInner({
@@ -42,6 +48,9 @@ function NewAuthRequireWorkspaceRoleInner({
   allowSystemOwnerBypass = false,
   previewMode = false,
   onSnapshot,
+  currentRoute,
+  requestedRoute,
+  menuVisible = false,
 }: NewAuthRequireWorkspaceRoleBridgeProps) {
   const location = useLocation();
   const legacy = useLegacyAuthAdapter();
@@ -67,8 +76,11 @@ function NewAuthRequireWorkspaceRoleInner({
   const shouldNavigate = Boolean(destination && !previewMode && shouldNavigateWorkspaceRoleDecision(decision));
 
   useEffect(() => {
-    onSnapshot?.({
+    const authProviderDiagnostics = getAuthProviderDiagnosticsSnapshot();
+    const snapshot: RequireWorkspaceRoleBridgeSnapshot = {
       mode: "new",
+      currentRoute,
+      requestedRoute,
       phase: legacy.phase,
       loading: legacy.loading,
       isAuthenticated: legacy.isAuthenticated,
@@ -80,17 +92,25 @@ function NewAuthRequireWorkspaceRoleInner({
       allowedRoles,
       requireWorkspace,
       allowSystemOwnerBypass,
+      menuVisible,
       warnings: legacy.session?.warningCodes ?? [],
       decision,
       childrenRendered,
       expectedDestination: decision.expectedDestination,
       redirectAttempted: shouldNavigate,
       automaticSignOutOccurred: false,
-    });
+      authListenerCount: authProviderDiagnostics.authStateListenerCount,
+      workspaceListenerCount: 0,
+      firestoreReadCount: 0,
+      firestoreWriteAttemptCount: 0,
+    };
+    recordRequireWorkspaceRoleBridgeSnapshot(snapshot);
+    onSnapshot?.(snapshot);
   }, [
     allowSystemOwnerBypass,
     allowedRoles,
     childrenRendered,
+    currentRoute,
     decision,
     legacy.currentRole,
     legacy.isAuthenticated,
@@ -101,7 +121,9 @@ function NewAuthRequireWorkspaceRoleInner({
     legacy.session?.warningCodes,
     legacy.status,
     legacy.workspaceId,
+    menuVisible,
     onSnapshot,
+    requestedRoute,
     requireWorkspace,
     shouldNavigate,
   ]);
@@ -142,7 +164,28 @@ export function NewAuthRequireWorkspaceRoleBridge({
   allowSystemOwnerBypass,
   previewMode,
   onSnapshot,
+  wrapProviders = true,
+  currentRoute,
+  requestedRoute,
+  menuVisible,
 }: NewAuthRequireWorkspaceRoleBridgeProps) {
+  if (!wrapProviders) {
+    return (
+      <NewAuthRequireWorkspaceRoleInner
+        allowedRoles={allowedRoles}
+        requireWorkspace={requireWorkspace}
+        allowSystemOwnerBypass={allowSystemOwnerBypass}
+        previewMode={previewMode}
+        onSnapshot={onSnapshot}
+        currentRoute={currentRoute}
+        requestedRoute={requestedRoute}
+        menuVisible={menuVisible}
+      >
+        {children}
+      </NewAuthRequireWorkspaceRoleInner>
+    );
+  }
+
   return (
     <AuthProvider>
       <LegacyAuthAdapterProvider>
@@ -152,6 +195,9 @@ export function NewAuthRequireWorkspaceRoleBridge({
           allowSystemOwnerBypass={allowSystemOwnerBypass}
           previewMode={previewMode}
           onSnapshot={onSnapshot}
+          currentRoute={currentRoute}
+          requestedRoute={requestedRoute}
+          menuVisible={menuVisible}
         >
           {children}
         </NewAuthRequireWorkspaceRoleInner>

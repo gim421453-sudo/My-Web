@@ -3948,7 +3948,24 @@ const tests = [
     });
     assert.equal(decision.reason, "WORKSPACE_ROLE_MISSING");
   }],
-  ["workspace role bridge system owner bypass true allows", () => {
+  ["workspace role bridge system owner bypass true allows only with workspace", () => {
+    const decision = workspaceRoleBridgeUtils.decideWorkspaceRoleAccess({
+      phase: "authenticated",
+      loading: false,
+      isAuthenticated: true,
+      status: "active",
+      globalRole: "system_owner",
+      currentWorkspaceId: "ws-1",
+      currentWorkspaceRole: null,
+      isSystemOwner: true,
+      error: null,
+      allowedRoles: ["manager"],
+      allowSystemOwnerBypass: true,
+    });
+    assert.equal(decision.reason, "SYSTEM_OWNER");
+    assert.equal(decision.allow, true);
+  }],
+  ["workspace role bridge system owner without workspace is workspace required", () => {
     const decision = workspaceRoleBridgeUtils.decideWorkspaceRoleAccess({
       phase: "authenticated",
       loading: false,
@@ -3962,8 +3979,9 @@ const tests = [
       allowedRoles: ["manager"],
       allowSystemOwnerBypass: true,
     });
-    assert.equal(decision.reason, "SYSTEM_OWNER");
-    assert.equal(decision.allow, true);
+    assert.equal(decision.reason, "WORKSPACE_REQUIRED");
+    assert.equal(decision.allow, false);
+    assert.equal(decision.expectedDestination, "/workspace-select");
   }],
   ["workspace role bridge system owner bypass false uses workspace role", () => {
     const decision = workspaceRoleBridgeUtils.decideWorkspaceRoleAccess({
@@ -3980,6 +3998,22 @@ const tests = [
       allowSystemOwnerBypass: false,
     });
     assert.equal(decision.reason, "WORKSPACE_ROLE_NOT_ALLOWED");
+  }],
+  ["workspace role bridge unknown role denies safely", () => {
+    const decision = workspaceRoleBridgeUtils.decideWorkspaceRoleAccess({
+      phase: "authenticated",
+      loading: false,
+      isAuthenticated: true,
+      status: "active",
+      globalRole: "user",
+      currentWorkspaceId: "ws-1",
+      currentWorkspaceRole: "admin",
+      isSystemOwner: false,
+      error: null,
+      allowedRoles: ["manager"],
+    });
+    assert.equal(decision.reason, "UNKNOWN_WORKSPACE_ROLE");
+    assert.equal(decision.allow, false);
   }],
   ["workspace role bridge pending rejected disabled block without sign out", () => {
     for (const [status, reason] of [
@@ -6066,11 +6100,35 @@ const tests = [
     assert.match(source, /AppNextAdminAccessPreview/);
     assert.match(source, /handleProtectedRouteSnapshot/);
   }],
+  ["app-next production route tree has actual RequireWorkspaceRole workspace-preview consumer", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    assert.match(source, /activeTab === "workspace-preview"[\s\S]*<RequireAuth[\s\S]*<ProtectedRoute[\s\S]*<RequireWorkspaceRole[\s\S]*<AppNextWorkspaceAccessPreview/);
+    assert.match(source, /allowedRoles=\{APP_NEXT_WORKSPACE_PREVIEW_ALLOWED_ROLES\}/);
+    assert.match(source, /allowSystemOwnerBypass/);
+    assert.match(source, /requireWorkspace/);
+    assert.match(source, /useExistingAuthProvider/);
+    assert.match(source, /defaultNewAuth/);
+    assert.match(source, /handleRequireWorkspaceRoleSnapshot/);
+  }],
+  ["app-next RequireWorkspaceRole consumer reuses existing providers", () => {
+    const bridgeSource = readFileSync(path.resolve(projectRoot, "src/auth/legacy/guards/NewAuthRequireWorkspaceRoleBridge.tsx"), "utf8");
+    const guardSource = readFileSync(path.resolve(projectRoot, "src/components/guards/RequireWorkspaceRole.tsx"), "utf8");
+    assert.match(bridgeSource, /wrapProviders/);
+    assert.match(bridgeSource, /if \(!wrapProviders\)/);
+    assert.match(guardSource, /useExistingAuthProvider/);
+    assert.match(guardSource, /wrapProviders=\{!useExistingAuthProvider\}/);
+  }],
   ["app-next admin-preview mounts RequireAuth before ProtectedRoute", () => {
     const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
     assert.match(source, /activeTab === "admin-preview"[\s\S]*<RequireAuth[\s\S]*<ProtectedRoute/);
     assert.match(source, /routeDecision\.currentRoute === "admin-preview" && protectedRouteEnabled/);
     assert.match(source, /onSnapshot=\{handleRequireAuthSnapshot\}[\s\S]*onSnapshot=\{handleProtectedRouteSnapshot\}/);
+  }],
+  ["app-next workspace-preview mounts RequireAuth ProtectedRoute then RequireWorkspaceRole", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    assert.match(source, /activeTab === "workspace-preview"[\s\S]*<RequireAuth[\s\S]*<ProtectedRoute[\s\S]*<RequireWorkspaceRole/);
+    assert.match(source, /routeDecision\.currentRoute === "workspace-preview" && protectedRouteEnabled && requireWorkspaceRoleEnabled/);
+    assert.match(source, /onSnapshot=\{handleRequireAuthSnapshot\}[\s\S]*onSnapshot=\{handleProtectedRouteSnapshot\}[\s\S]*onSnapshot=\{handleRequireWorkspaceRoleSnapshot\}/);
   }],
   ["app-next route diagnostics UI avoids auto-subscribe render loops", () => {
     const appSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
@@ -6120,6 +6178,16 @@ const tests = [
       hash: "#/admin-preview",
       state: "active",
     }).currentRoute, "admin-preview");
+    const activeWorkspacePreview = appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/workspace-preview",
+      state: "active",
+    });
+    assert.equal(activeWorkspacePreview.currentRoute, "workspace-preview");
+    assert.equal(activeWorkspacePreview.isProtectedRoute, true);
+    assert.equal(appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/workspace-required",
+      state: "active",
+    }).currentRoute, "workspace-required");
     assert.equal(appNextRouteUtils.resolveAppNextRoute({
       hash: "#/access-denied",
       state: "active",
@@ -6150,6 +6218,57 @@ const tests = [
       currentWorkspaceId: null,
       currentWorkspaceRole: null,
     })), false);
+  }],
+  ["app-next workspace preview menu policy matches RequireWorkspaceRole policy", () => {
+    assert.equal(appNextRouteUtils.canShowAppNextWorkspacePreview(makeSession({
+      globalRole: "system_owner",
+      currentWorkspaceId: "workspace-1",
+      currentWorkspaceRole: null,
+      isSystemOwner: true,
+    })), true);
+    assert.equal(appNextRouteUtils.canShowAppNextWorkspacePreview(makeSession({
+      globalRole: "system_owner",
+      currentWorkspaceId: null,
+      currentWorkspaceRole: null,
+      isSystemOwner: true,
+    })), false);
+    for (const role of ["super_manager", "manager", "teacher"]) {
+      assert.equal(appNextRouteUtils.canShowAppNextWorkspacePreview(makeSession({
+        currentWorkspaceId: "workspace-1",
+        currentWorkspaceRole: role,
+      })), true, role);
+    }
+    for (const role of ["normal", "viewer", "print_account", null, "admin"]) {
+      assert.equal(appNextRouteUtils.canShowAppNextWorkspacePreview(makeSession({
+        currentWorkspaceId: role ? "workspace-1" : "workspace-1",
+        currentWorkspaceRole: role,
+      })), false, String(role));
+    }
+    assert.equal(appNextRouteUtils.canShowAppNextWorkspacePreview(makeSession({
+      currentWorkspaceId: null,
+      currentWorkspaceRole: "teacher",
+    })), false);
+  }],
+  ["app-next workspace preview policy snapshot is privacy safe", () => {
+    const systemOwnerPolicy = appNextRouteUtils.appNextWorkspacePreviewPolicySnapshot(makeSession({
+      globalRole: "system_owner",
+      currentWorkspaceId: "workspace-1",
+      currentWorkspaceRole: null,
+      isSystemOwner: true,
+    }));
+    assert.equal(systemOwnerPolicy.accessAllowed, true);
+    assert.equal(systemOwnerPolicy.workspacePresent, true);
+    assert.equal(systemOwnerPolicy.decision, "SYSTEM_OWNER_EXPLICIT_ALLOW");
+    assert.equal(systemOwnerPolicy.requiredWorkspaceRoles.join(","), "super_manager,manager,teacher");
+
+    const blockedPolicy = appNextRouteUtils.appNextWorkspacePreviewPolicySnapshot(makeSession({
+      currentWorkspaceId: null,
+      currentWorkspaceRole: "teacher",
+    }));
+    assert.equal(blockedPolicy.accessAllowed, false);
+    assert.equal(blockedPolicy.decision, "NO_WORKSPACE");
+    assert.equal(JSON.stringify(blockedPolicy).includes("workspace-1"), false);
+    assert.equal(JSON.stringify(blockedPolicy).includes("user-1@example.test"), false);
   }],
   ["ProtectedRoute admin policy allows only canonical admin roles", () => {
     const allowedFixtures = [
@@ -6211,6 +6330,37 @@ const tests = [
       defaultEnabled: true,
     }), true);
   }],
+  ["app-next RequireWorkspaceRole flag defaults new only for app-next opt-in", () => {
+    assert.equal(workspaceRoleBridgeUtils.resolveNewAuthRequireWorkspaceRoleFlag({
+      search: "",
+      envValue: undefined,
+      isDev: true,
+    }), false);
+    assert.equal(workspaceRoleBridgeUtils.resolveNewAuthRequireWorkspaceRoleFlag({
+      search: "",
+      envValue: undefined,
+      isDev: true,
+      defaultEnabled: true,
+    }), true);
+    assert.equal(workspaceRoleBridgeUtils.resolveNewAuthRequireWorkspaceRoleFlag({
+      search: "?newAuthRequireWorkspaceRole=off",
+      envValue: undefined,
+      isDev: true,
+      defaultEnabled: true,
+    }), false);
+    assert.equal(workspaceRoleBridgeUtils.resolveNewAuthRequireWorkspaceRoleFlag({
+      search: "?newAuthRequireWorkspaceRole=off",
+      envValue: undefined,
+      isDev: false,
+      defaultEnabled: true,
+    }), true);
+    assert.equal(workspaceRoleBridgeUtils.resolveNewAuthRequireWorkspaceRoleFlag({
+      search: "",
+      envValue: "false",
+      isDev: true,
+      defaultEnabled: true,
+    }), false);
+  }],
   ["app-next admin preview is read-only and imports no Firebase APIs", () => {
     const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextAdminAccessPreview.tsx"), "utf8");
     for (const forbidden of ["getDoc", "getDocs", "onSnapshot", "addDoc", "setDoc", "updateDoc", "deleteDoc", "signOut"]) {
@@ -6218,6 +6368,15 @@ const tests = [
     }
     assert.match(source, /Firestore read/);
     assert.match(source, /Firestore write/);
+  }],
+  ["app-next workspace preview is read-only and imports no Firebase APIs", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextWorkspaceAccessPreview.tsx"), "utf8");
+    for (const forbidden of ["getDoc", "getDocs", "onSnapshot", "addDoc", "setDoc", "updateDoc", "deleteDoc", "signOut", "firebase"]) {
+      assert.equal(source.includes(forbidden), false);
+    }
+    assert.match(source, /Firestore read count/);
+    assert.match(source, /Firestore write count/);
+    assert.match(source, /This page does not open real workspace data/);
   }],
   ["ProtectedRoute diagnostics API is available and privacy-safe", () => {
     const source = readFileSync(path.resolve(projectRoot, "src/auth/legacy/guards/protectedRouteBridgeUtils.ts"), "utf8");
@@ -6228,6 +6387,63 @@ const tests = [
     assert.match(source, /safeRoleCategory/);
     assert.equal(source.includes("email"), false);
     assert.equal(source.includes("token"), false);
+  }],
+  ["RequireWorkspaceRole diagnostics API is available and privacy-safe", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/auth/legacy/guards/workspaceRoleBridgeUtils.ts"), "utf8");
+    assert.match(source, /PMRequireWorkspaceRoleDiagnostics/);
+    assert.match(source, /firestoreReadCount/);
+    assert.match(source, /firestoreWriteAttemptCount/);
+    assert.match(source, /workspaceListenerCount/);
+    assert.match(source, /policyMismatchDetected/);
+    assert.match(source, /safeRoleCategory/);
+    assert.equal(source.includes("email"), false);
+    assert.equal(source.includes("token"), false);
+
+    workspaceRoleBridgeUtils.recordRequireWorkspaceRoleBridgeSnapshot({
+      mode: "new",
+      currentRoute: "workspace-preview",
+      requestedRoute: "workspace-preview",
+      phase: "authenticated",
+      loading: false,
+      isAuthenticated: true,
+      status: "active",
+      globalRole: "user",
+      currentWorkspaceRole: "teacher",
+      isSystemOwner: false,
+      hasCurrentWorkspaceId: true,
+      allowedRoles: ["super_manager", "manager", "teacher"],
+      requireWorkspace: true,
+      allowSystemOwnerBypass: true,
+      menuVisible: true,
+      warnings: [],
+      decision: {
+        state: "allow",
+        allow: true,
+        reason: "WORKSPACE_ROLE_ALLOWED",
+        expectedDestination: null,
+      },
+      childrenRendered: true,
+      expectedDestination: null,
+      redirectAttempted: false,
+      automaticSignOutOccurred: false,
+      authListenerCount: 1,
+      workspaceListenerCount: 0,
+      firestoreReadCount: 0,
+      firestoreWriteAttemptCount: 0,
+    });
+    const snapshot = workspaceRoleBridgeUtils.getRequireWorkspaceRoleDiagnosticsSnapshot();
+    assert.equal(snapshot.providerMode, "new");
+    assert.equal(snapshot.currentRoute, "workspace-preview");
+    assert.equal(snapshot.accessAllowed, true);
+    assert.equal(snapshot.hasWorkspace, true);
+    assert.equal(snapshot.workspaceRoleCategory, "teacher");
+    assert.equal(snapshot.globalRoleCategory, "user");
+    assert.equal(snapshot.allowSystemOwner, true);
+    assert.equal(snapshot.workspaceListenerCount, 0);
+    assert.equal(snapshot.firestoreReadCount, 0);
+    assert.equal(snapshot.firestoreWriteAttemptCount, 0);
+    assert.equal(JSON.stringify(snapshot).includes("workspace-1"), false);
+    assert.equal(JSON.stringify(snapshot).includes("user-1@example.test"), false);
   }],
   ["RequireAuth can consume an existing app-next AuthProvider without duplicate providers", () => {
     const requireAuthSource = readFileSync(path.resolve(projectRoot, "src/components/guards/RequireAuth.tsx"), "utf8");

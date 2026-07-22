@@ -14,6 +14,7 @@ import {
   currentSearchFromDocument,
 } from "../../auth/legacy/guards/requireAuthBridgeUtils";
 import {
+  recordRequireWorkspaceRoleBridgeSnapshot,
   requireWorkspaceRoleModeForFlag,
   resolveNewAuthRequireWorkspaceRoleFlag,
   type RequireWorkspaceRoleBridgeSnapshot,
@@ -37,6 +38,11 @@ interface RequireWorkspaceRoleProps {
   allowSystemOwnerBypass?: boolean;
   previewMode?: boolean;
   onSnapshot?: (snapshot: RequireWorkspaceRoleBridgeSnapshot) => void;
+  useExistingAuthProvider?: boolean;
+  defaultNewAuth?: boolean;
+  currentRoute?: string;
+  requestedRoute?: string;
+  menuVisible?: boolean;
 }
 
 function LegacyRequireWorkspaceRoleBranch({
@@ -46,6 +52,9 @@ function LegacyRequireWorkspaceRoleBranch({
   allowSystemOwnerBypass = true,
   previewMode = false,
   onSnapshot,
+  currentRoute,
+  requestedRoute,
+  menuVisible = false,
 }: RequireWorkspaceRoleProps) {
   const {
     session,
@@ -59,8 +68,10 @@ function LegacyRequireWorkspaceRoleBranch({
       [...allowedRoles],
     ));
 
-    onSnapshot?.({
+    const snapshot: RequireWorkspaceRoleBridgeSnapshot = {
       mode: "legacy",
+      currentRoute,
+      requestedRoute,
       phase: "legacy",
       loading,
       isAuthenticated: Boolean(session),
@@ -72,6 +83,7 @@ function LegacyRequireWorkspaceRoleBranch({
       allowedRoles,
       requireWorkspace,
       allowSystemOwnerBypass,
+      menuVisible,
       warnings: [],
       decision: loading
         ? {
@@ -115,13 +127,22 @@ function LegacyRequireWorkspaceRoleBranch({
           : null,
       redirectAttempted: false,
       automaticSignOutOccurred: false,
-    });
+      authListenerCount: 0,
+      workspaceListenerCount: 0,
+      firestoreReadCount: 0,
+      firestoreWriteAttemptCount: 0,
+    };
+    recordRequireWorkspaceRoleBridgeSnapshot(snapshot);
+    onSnapshot?.(snapshot);
   }, [
     allowSystemOwnerBypass,
     allowedRoles,
+    currentRoute,
     loading,
+    menuVisible,
     onSnapshot,
     previewMode,
+    requestedRoute,
     requireWorkspace,
     session,
   ]);
@@ -164,11 +185,17 @@ export default function RequireWorkspaceRole({
   allowSystemOwnerBypass,
   previewMode,
   onSnapshot,
+  useExistingAuthProvider = false,
+  defaultNewAuth = false,
+  currentRoute,
+  requestedRoute,
+  menuVisible,
 }: RequireWorkspaceRoleProps) {
   const mode = requireWorkspaceRoleModeForFlag(resolveNewAuthRequireWorkspaceRoleFlag({
     search: currentSearchFromDocument(),
     envValue: import.meta.env.VITE_ENABLE_NEW_AUTH_REQUIRE_WORKSPACE_ROLE,
     isDev: import.meta.env.DEV,
+    defaultEnabled: defaultNewAuth,
   }));
 
   if (mode === "new") {
@@ -179,9 +206,21 @@ export default function RequireWorkspaceRole({
         allowSystemOwnerBypass={allowSystemOwnerBypass}
         previewMode={previewMode}
         onSnapshot={onSnapshot}
+        wrapProviders={!useExistingAuthProvider}
+        currentRoute={currentRoute}
+        requestedRoute={requestedRoute}
+        menuVisible={menuVisible}
       >
         {children}
       </NewAuthRequireWorkspaceRoleBridge>
+    );
+  }
+
+  if (useExistingAuthProvider) {
+    return (
+      <div>
+        RequireWorkspaceRole rollback mode is disabled in this app-next entry.
+      </div>
     );
   }
 
@@ -189,10 +228,13 @@ export default function RequireWorkspaceRole({
     <LegacyRequireWorkspaceRoleBranch
       allowedRoles={allowedRoles}
       requireWorkspace={requireWorkspace}
-      allowSystemOwnerBypass={allowSystemOwnerBypass}
-      previewMode={previewMode}
-      onSnapshot={onSnapshot}
-    >
+        allowSystemOwnerBypass={allowSystemOwnerBypass}
+        previewMode={previewMode}
+        onSnapshot={onSnapshot}
+        currentRoute={currentRoute}
+        requestedRoute={requestedRoute}
+        menuVisible={menuVisible}
+      >
       {children}
     </LegacyRequireWorkspaceRoleBranch>
   );

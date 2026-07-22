@@ -45,9 +45,13 @@ import {
   AppNextWorkspaceNotices,
 } from "./AppNextWorkspaceNotices";
 import {
+  AppNextWorkspaceAccessPreview,
+} from "./AppNextWorkspaceAccessPreview";
+import {
   AppNextAdminAccessPreview,
 } from "./AppNextAdminAccessPreview";
 import RequireAuth from "../components/guards/RequireAuth";
+import RequireWorkspaceRole from "../components/guards/RequireWorkspaceRole";
 import {
   ProtectedRoute,
 } from "../components/ProtectedRoute";
@@ -61,15 +65,29 @@ import {
   type ProtectedRouteBridgeSnapshot,
 } from "../auth/legacy/guards/protectedRouteBridgeUtils";
 import {
+  resolveNewAuthRequireWorkspaceRoleFlag,
+  type RequireWorkspaceRoleBridgeSnapshot,
+} from "../auth/legacy/guards/workspaceRoleBridgeUtils";
+import {
+  WORKSPACE_ROLES,
+} from "../constants/roles";
+import {
   getAppNextRouteDiagnostics,
   recordAppNextRouteDiagnostics,
 } from "./appNextDiagnostics";
 import {
   appNextRouteHash,
   canShowAppNextAdminPreview,
+  canShowAppNextWorkspacePreview,
   resolveAppNextRoute,
   type AppNextRoute,
 } from "./appNextRouteUtils";
+
+const APP_NEXT_WORKSPACE_PREVIEW_ALLOWED_ROLES = [
+  WORKSPACE_ROLES.SUPER_MANAGER,
+  WORKSPACE_ROLES.MANAGER,
+  WORKSPACE_ROLES.TEACHER,
+] as const;
 
 function ValueRow({
   label,
@@ -299,6 +317,8 @@ type AppNextTab =
   | "notifications"
   | "workspace-notices"
   | "admin-preview"
+  | "workspace-preview"
+  | "workspace-required"
   | "access-denied";
 
 function AppNextRouteOnlyPanel({
@@ -366,8 +386,12 @@ export function AppNext({
           ? "workspace-notices"
           : routeDecision.currentRoute === "admin-preview"
             ? "admin-preview"
-            : routeDecision.currentRoute === "access-denied"
-              ? "access-denied"
+            : routeDecision.currentRoute === "workspace-preview"
+              ? "workspace-preview"
+              : routeDecision.currentRoute === "workspace-required"
+                ? "workspace-required"
+                : routeDecision.currentRoute === "access-denied"
+                  ? "access-denied"
           : "account";
   const showMainNavigation = ![
     "login",
@@ -387,7 +411,14 @@ export function AppNext({
     isDev: import.meta.env.DEV,
     defaultEnabled: true,
   });
+  const requireWorkspaceRoleEnabled = resolveNewAuthRequireWorkspaceRoleFlag({
+    search: currentSearchFromDocument(),
+    envValue: import.meta.env.VITE_ENABLE_NEW_AUTH_REQUIRE_WORKSPACE_ROLE,
+    isDev: import.meta.env.DEV,
+    defaultEnabled: true,
+  });
   const adminPreviewMenuVisible = canShowAppNextAdminPreview(session);
+  const workspacePreviewMenuVisible = canShowAppNextWorkspacePreview(session);
 
   const warningCount = useMemo(
     () => session?.warnings.length ?? 0,
@@ -444,18 +475,22 @@ export function AppNext({
       routeRenderDelta: 1,
       requireAuthConsumerMounted: (
         (routeDecision.currentRoute === "notices" && requireAuthEnabled) ||
-        (routeDecision.currentRoute === "admin-preview" && protectedRouteEnabled)
+        (routeDecision.currentRoute === "admin-preview" && protectedRouteEnabled) ||
+        (routeDecision.currentRoute === "workspace-preview" && protectedRouteEnabled && requireWorkspaceRoleEnabled)
       ),
       lastBlockedReason: routeDecision.currentRoute === "notices" && !requireAuthEnabled
         ? "require-auth-flag-off"
         : routeDecision.currentRoute === "admin-preview" && !protectedRouteEnabled
           ? "protected-route-flag-off"
+          : routeDecision.currentRoute === "workspace-preview" && !requireWorkspaceRoleEnabled
+            ? "require-workspace-role-flag-off"
           : "none",
     });
     setRouteDiagnosticsView(getAppNextRouteDiagnostics());
   }, [
     protectedRouteEnabled,
     requireAuthEnabled,
+    requireWorkspaceRoleEnabled,
     routeDecision.currentRoute,
     routeDecision.fallbackReason,
     routeDecision.requestedRoute,
@@ -489,6 +524,17 @@ export function AppNext({
       requestedRoute: routeDecision.requestedRoute,
       currentRoute: routeDecision.currentRoute,
       protectedRouteRenderDelta: 1,
+      lastBlockedReason: snapshot.childrenRendered ? "none" : snapshot.decision.reason,
+    });
+  }, [
+    routeDecision.currentRoute,
+    routeDecision.requestedRoute,
+  ]);
+
+  const handleRequireWorkspaceRoleSnapshot = useCallback((snapshot: RequireWorkspaceRoleBridgeSnapshot) => {
+    recordAppNextRouteDiagnostics({
+      requestedRoute: routeDecision.requestedRoute,
+      currentRoute: routeDecision.currentRoute,
       lastBlockedReason: snapshot.childrenRendered ? "none" : snapshot.decision.reason,
     });
   }, [
@@ -594,6 +640,15 @@ export function AppNext({
               Admin Preview
             </button>
           ) : null}
+          {workspacePreviewMenuVisible ? (
+            <button
+              type="button"
+              className={activeTab === "workspace-preview" ? "active" : "secondary"}
+              onClick={() => handleRoute("workspace-preview")}
+            >
+              Workspace Preview
+            </button>
+          ) : null}
         </nav>
       ) : null}
 
@@ -683,6 +738,49 @@ export function AppNext({
             body="The app-next admin preview route is disabled by VITE_ENABLE_NEW_AUTH_PROTECTED_ROUTE or ?newAuthProtectedRoute=off."
           />
         )
+      ) : activeTab === "workspace-preview" ? (
+        requireWorkspaceRoleEnabled ? (
+          <RequireAuth
+            previewMode
+            useExistingAuthProvider
+            onSnapshot={handleRequireAuthSnapshot}
+          >
+            <ProtectedRoute
+              previewMode
+              useExistingAuthProvider
+              defaultNewAuth
+              currentRoute={routeDecision.currentRoute}
+              requestedRoute={routeDecision.requestedRoute}
+              requiredPolicy="workspace-preview"
+              onSnapshot={handleProtectedRouteSnapshot}
+            >
+              <RequireWorkspaceRole
+                allowedRoles={APP_NEXT_WORKSPACE_PREVIEW_ALLOWED_ROLES}
+                allowSystemOwnerBypass
+                requireWorkspace
+                previewMode
+                useExistingAuthProvider
+                defaultNewAuth
+                currentRoute={routeDecision.currentRoute}
+                requestedRoute={routeDecision.requestedRoute}
+                menuVisible={workspacePreviewMenuVisible}
+                onSnapshot={handleRequireWorkspaceRoleSnapshot}
+              >
+                <AppNextWorkspaceAccessPreview />
+              </RequireWorkspaceRole>
+            </ProtectedRoute>
+          </RequireAuth>
+        ) : (
+          <AppNextRouteOnlyPanel
+            title="RequireWorkspaceRole rollback mode"
+            body="The app-next workspace preview route is disabled by VITE_ENABLE_NEW_AUTH_REQUIRE_WORKSPACE_ROLE or ?newAuthRequireWorkspaceRole=off."
+          />
+        )
+      ) : activeTab === "workspace-required" ? (
+        <AppNextRouteOnlyPanel
+          title="Workspace required"
+          body="A selected workspace is required for this read-only pilot. Your login session is kept."
+        />
       ) : activeTab === "access-denied" ? (
         <AppNextRouteOnlyPanel
           title="Access denied"

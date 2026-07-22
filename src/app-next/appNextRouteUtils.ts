@@ -15,6 +15,8 @@ export type AppNextRoute =
   | "notifications"
   | "notices"
   | "admin-preview"
+  | "workspace-preview"
+  | "workspace-required"
   | "access-denied"
   | "login"
   | "pending"
@@ -44,6 +46,8 @@ const APP_NEXT_ROUTES = new Set<AppNextRoute>([
   "notifications",
   "notices",
   "admin-preview",
+  "workspace-preview",
+  "workspace-required",
   "access-denied",
   "login",
   "pending",
@@ -55,9 +59,15 @@ const APP_NEXT_ROUTES = new Set<AppNextRoute>([
 const PROTECTED_ROUTES = new Set<AppNextRoute>([
   "notices",
   "admin-preview",
+  "workspace-preview",
 ]);
 
 const APP_NEXT_ADMIN_MENU_KEY = "admin";
+const APP_NEXT_WORKSPACE_PREVIEW_ROLES = new Set([
+  "super_manager",
+  "manager",
+  "teacher",
+]);
 
 export function appNextRouteHash(route: AppNextRoute): string {
   return `#/${route}`;
@@ -197,6 +207,15 @@ export function canShowAppNextAdminPreview(
   return canAccessMenu(permissionRole, APP_NEXT_ADMIN_MENU_KEY);
 }
 
+export function canShowAppNextWorkspacePreview(
+  session: AppSession | null | undefined,
+): boolean {
+  if (!session || session.status !== "active") return false;
+  if (!session.currentWorkspaceId) return false;
+  if (session.isSystemOwner && session.globalRole === "system_owner") return true;
+  return APP_NEXT_WORKSPACE_PREVIEW_ROLES.has(session.currentWorkspaceRole ?? "");
+}
+
 export function appNextAdminPreviewPolicySnapshot(
   session: AppSession | null | undefined,
 ) {
@@ -213,5 +232,38 @@ export function appNextAdminPreviewPolicySnapshot(
     isSystemOwner: Boolean(session?.isSystemOwner),
     hasWorkspace: Boolean(session?.currentWorkspaceId),
     permissionRoleCategory: permissionRole ?? "none",
+  };
+}
+
+export function appNextWorkspacePreviewPolicySnapshot(
+  session: AppSession | null | undefined,
+) {
+  const workspacePresent = Boolean(session?.currentWorkspaceId);
+  const systemOwnerExplicitAllow = Boolean(
+    workspacePresent &&
+    session?.isSystemOwner &&
+    session.globalRole === "system_owner",
+  );
+  const accessAllowed = canShowAppNextWorkspacePreview(session);
+  const decision = !workspacePresent
+    ? "NO_WORKSPACE"
+    : systemOwnerExplicitAllow
+      ? "SYSTEM_OWNER_EXPLICIT_ALLOW"
+      : accessAllowed
+        ? "ALLOWED_WORKSPACE_ROLE"
+        : session?.currentWorkspaceRole
+          ? "WORKSPACE_ROLE_NOT_ALLOWED"
+          : "NO_WORKSPACE_ROLE";
+
+  return {
+    route: "workspace-preview",
+    accessAllowed,
+    workspacePresent,
+    workspaceRoleCategory: session?.currentWorkspaceRole ?? "none",
+    globalRoleCategory: session?.globalRole ?? "none",
+    isSystemOwner: Boolean(session?.isSystemOwner),
+    allowSystemOwner: true,
+    requiredWorkspaceRoles: Array.from(APP_NEXT_WORKSPACE_PREVIEW_ROLES),
+    decision,
   };
 }
