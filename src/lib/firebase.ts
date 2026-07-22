@@ -1,6 +1,10 @@
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
+import {
+  recordAppNextAuthInstanceCreated,
+  recordAppNextFirebaseInit,
+} from "../app-next/appNextDiagnostics";
 
 const requiredEnv = {
   VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -47,6 +51,14 @@ export const app: FirebaseApp = getApps().length
   ? getApps()[0]
   : initializeApp(firebaseConfig);
 
+recordAppNextFirebaseInit({
+  appName: app.name,
+  appCount: getApps().length,
+  projectId: firebaseConfig.projectId,
+  authDomain: firebaseConfig.authDomain,
+});
+
 export const auth: Auth = getAuth(app);
+recordAppNextAuthInstanceCreated();
 export const firestore: Firestore = getFirestore(app);
 export const db = firestore;

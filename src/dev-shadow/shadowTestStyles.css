@@ -1,0 +1,295 @@
+:root {
+  color: #10213f;
+  background: #f3f7fc;
+  font-family:
+    Inter, Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 28rem),
+    #f3f7fc;
+}
+
+button {
+  min-height: 42px;
+  border: 1px solid #c8d7ee;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #123057;
+  font-weight: 700;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.shadow-page {
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.shadow-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.shadow-hero h1 {
+  margin: 4px 0 8px;
+  font-size: 28px;
+  letter-spacing: 0;
+}
+
+.shadow-hero p,
+.notice p,
+.network-note p {
+  margin: 0;
+  color: #65789a;
+  line-height: 1.65;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #2563eb;
+  font-weight: 800;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.result-pill {
+  border-radius: 999px;
+  padding: 10px 16px;
+  color: #fff;
+  font-weight: 900;
+  min-width: 110px;
+  text-align: center;
+}
+
+.result-pill.match,
+.status-text.match {
+  background: #059669;
+}
+
+.result-pill.warning,
+.status-text.warning {
+  background: #d97706;
+}
+
+.result-pill.critical,
+.status-text.critical {
+  background: #dc2626;
+}
+
+.notice,
+.panel,
+.checklist,
+.network-note {
+  border: 1px solid #d6e2f3;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 32px rgba(31, 64, 108, 0.08);
+}
+
+.notice {
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.notice span {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  color: #1d4ed8;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.message {
+  margin: 0 0 18px;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.panel {
+  padding: 18px;
+  min-width: 0;
+}
+
+.panel h2,
+.checklist h2,
+.network-note h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.75fr) minmax(0, 1.25fr);
+  gap: 10px 14px;
+  margin: 0;
+}
+
+dt {
+  color: #63799e;
+  font-weight: 800;
+}
+
+dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-weight: 700;
+}
+
+.status-text {
+  display: inline-block;
+  border-radius: 999px;
+  color: #fff;
+  padding: 4px 10px;
+}
+
+.mismatch-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.mismatch {
+  border-radius: 10px;
+  border: 1px solid #d7e3f4;
+  padding: 12px;
+  background: #f8fbff;
+}
+
+.mismatch strong,
+.mismatch span {
+  display: inline-block;
+  margin-right: 8px;
+}
+
+.mismatch span {
+  color: #64748b;
+  font-weight: 800;
+}
+
+.mismatch p {
+  margin: 8px 0 0;
+  color: #475569;
+  line-height: 1.55;
+}
+
+.mismatch.critical {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.mismatch.warning {
+  border-color: #fed7aa;
+  background: #fffaf0;
+}
+
+.empty {
+  color: #64748b;
+}
+
+.checklist,
+.network-note {
+  padding: 18px;
+  margin-top: 16px;
+}
+
+.first-auth-screen .compact-actions {
+  margin: 12px 0 0;
+}
+
+.first-auth-state.success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.first-auth-state.warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.first-auth-state.error {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.first-auth-state.muted {
+  border-color: #d6e2f3;
+}
+
+.first-auth-denied {
+  margin: 14px 0 0;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
+  background: #fff5f5;
+  color: #be123c;
+  font-weight: 800;
+  padding: 12px;
+}
+
+.checklist ol {
+  margin: 0;
+  padding-left: 22px;
+  line-height: 1.8;
+}
+
+@media (max-width: 760px) {
+  .shadow-page {
+    padding: 18px;
+  }
+
+  .shadow-hero {
+    display: block;
+  }
+
+  .result-pill {
+    width: fit-content;
+    margin-top: 14px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  dl {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    display: grid;
+  }
+}

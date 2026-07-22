@@ -14,6 +14,23 @@
       .slice(0, 180);
   }
 
+  function maskDiagnosticId(value) {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    let hash = 0;
+    for (let index = 0; index < text.length; index += 1) {
+      hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+    }
+    return `fp_${Math.abs(hash).toString(16).slice(0, 8)}`;
+  }
+
+  function safeError(error) {
+    return {
+      code: error?.code || "",
+      message: error?.message || String(error)
+    };
+  }
+
   async function runtimeRequired() {
     const runtime = await window.PMFirebaseRuntime?.init?.();
     if (!runtime) throw new Error("Firebase 서버와 연결이 필요합니다.");
@@ -104,7 +121,11 @@
           nestedMemberExists: true
         };
       } catch (error) {
-        console.error("[workspace-members:nested:direct-check:error]", { workspaceId, uid, error });
+        console.error("[workspace-members:nested:direct-check:error]", {
+          workspaceFingerprint: maskDiagnosticId(workspaceId),
+          uidPresent: Boolean(uid),
+          ...safeError(error)
+        });
         return { ...normalized, rootMemberExists: true, nestedMemberExists: normalized.nestedMemberExists === true };
       }
     }));
@@ -200,7 +221,12 @@
       updatedAt: now
     }, { merge: true });
     await batch.commit();
-    console.info("[workspace-join-request]", { requestId, workspaceId, uid, inviteCodeId: normalized });
+    console.info("[workspace-join-request]", {
+      requestFingerprint: maskDiagnosticId(requestId),
+      workspaceFingerprint: maskDiagnosticId(workspaceId),
+      uidPresent: Boolean(uid),
+      inviteCodeFingerprint: maskDiagnosticId(normalized)
+    });
     return { requestId, workspaceId, inviteCodeId: normalized, invitedBy: inviteOwnerUid };
   }
 
@@ -387,7 +413,10 @@
             }));
             onChange?.(Object.values(bucket).flat());
           }, (error) => {
-            console.error(`[workspace-notices:onSnapshot:error] workspaceId=${workspaceId}`, error);
+            console.error("[workspace-notices:onSnapshot:error]", {
+              workspaceFingerprint: maskDiagnosticId(workspaceId),
+              ...safeError(error)
+            });
             onError?.(error);
           }));
       })

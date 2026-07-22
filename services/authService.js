@@ -3,6 +3,226 @@
   const LEGACY_AUTH_KEY = "pm-auth-v31";
   const AUTH_KEY = "pm:auth:v1";
   const SIGNUP_MODE_KEY = "pm:auth:signup-mode";
+  const PM_AUTH_DEVICE_ID_KEY = "pm:device:id";
+  const AUTH_BOOTSTRAP_BACKOFF_MS = 60 * 60 * 1000;
+  const authBootstrapInFlightByUid = new Map();
+  let authBootstrapBackoffUntil = 0;
+  const authBootstrapDiagnostics = {
+    authStateEventCount: 0,
+    sessionLoadCount: 0,
+    bootstrapCheckCount: 0,
+    bootstrapCommitCount: 0,
+    bootstrapSkippedNoDiffCount: 0,
+    bootstrapBlockedInFlightCount: 0,
+    userWriteCount: 0,
+    membershipWriteCount: 0,
+    deviceWriteCount: 0,
+    welcomeNotificationWriteCount: 0,
+    resourceExhaustedCount: 0,
+    backoffActive: false,
+    lastBootstrapReason: "",
+    lastChangedFields: []
+  };
+  const operationalGoogleLoginDiagnostics = {
+    googlePopupRequestedCount: 0,
+    googlePopupResolvedCount: 0,
+    googlePopupRejectedCount: 0,
+    googlePopupResult: "idle",
+    googlePopupErrorKind: "none",
+    coopWarningDisposition: "not-observed",
+    authStateReceivedAfterPopup: false,
+    authUserPresentAfterPopup: false,
+    sessionResolvedAfterPopup: false,
+    lastFlowState: "idle"
+  };
+
+  function updateBackoffState() {
+    authBootstrapDiagnostics.backoffActive = authBootstrapBackoffUntil > Date.now();
+    return authBootstrapDiagnostics.backoffActive;
+  }
+
+  function noteBootstrap(reason, changedFields = []) {
+    authBootstrapDiagnostics.lastBootstrapReason = reason || "";
+    authBootstrapDiagnostics.lastChangedFields = Array.from(new Set(changedFields)).sort();
+    updateBackoffState();
+  }
+
+  function snapshotAuthBootstrapDiagnostics() {
+    updateBackoffState();
+    return {
+      ...authBootstrapDiagnostics,
+      lastChangedFields: [...authBootstrapDiagnostics.lastChangedFields]
+    };
+  }
+
+  function resetAuthBootstrapDiagnostics() {
+    Object.assign(authBootstrapDiagnostics, {
+      authStateEventCount: 0,
+      sessionLoadCount: 0,
+      bootstrapCheckCount: 0,
+      bootstrapCommitCount: 0,
+      bootstrapSkippedNoDiffCount: 0,
+      bootstrapBlockedInFlightCount: 0,
+      userWriteCount: 0,
+      membershipWriteCount: 0,
+      deviceWriteCount: 0,
+      welcomeNotificationWriteCount: 0,
+      resourceExhaustedCount: 0,
+      backoffActive: false,
+      lastBootstrapReason: "",
+      lastChangedFields: []
+    });
+    authBootstrapBackoffUntil = 0;
+    authBootstrapInFlightByUid.clear();
+  }
+
+  function classifyGooglePopupError(error) {
+    const code = String(error?.code || "");
+    if (code.includes("popup-closed-by-user")) return "auth/popup-closed-by-user";
+    if (code.includes("popup-blocked")) return "auth/popup-blocked";
+    if (code.includes("cancelled-popup-request")) return "auth/cancelled-popup-request";
+    if (code.includes("unauthorized-domain")) return "auth/unauthorized-domain";
+    if (code.includes("network-request-failed")) return "auth/network-request-failed";
+    return code || "unknown";
+  }
+
+  function snapshotOperationalGoogleLoginDiagnostics() {
+    return { ...operationalGoogleLoginDiagnostics };
+  }
+
+  function resetOperationalGoogleLoginDiagnostics() {
+    Object.assign(operationalGoogleLoginDiagnostics, {
+      googlePopupRequestedCount: 0,
+      googlePopupResolvedCount: 0,
+      googlePopupRejectedCount: 0,
+      googlePopupResult: "idle",
+      googlePopupErrorKind: "none",
+      coopWarningDisposition: "not-observed",
+      authStateReceivedAfterPopup: false,
+      authUserPresentAfterPopup: false,
+      sessionResolvedAfterPopup: false,
+      lastFlowState: "reset"
+    });
+    return snapshotOperationalGoogleLoginDiagnostics();
+  }
+
+  function recordOperationalGoogleAuthState(hasUser) {
+    operationalGoogleLoginDiagnostics.authStateReceivedAfterPopup = true;
+    operationalGoogleLoginDiagnostics.authUserPresentAfterPopup = Boolean(hasUser);
+    operationalGoogleLoginDiagnostics.lastFlowState = hasUser ? "auth-state-user" : "auth-state-empty";
+    if (!hasUser && operationalGoogleLoginDiagnostics.googlePopupResolvedCount > 0) {
+      operationalGoogleLoginDiagnostics.googlePopupResult = "popup-resolved-but-no-auth-user";
+      operationalGoogleLoginDiagnostics.googlePopupErrorKind = "popup-resolved-but-no-auth-user";
+      operationalGoogleLoginDiagnostics.coopWarningDisposition = "not-applicable";
+    }
+  }
+
+  function recordOperationalGoogleSessionResolved(resolved) {
+    operationalGoogleLoginDiagnostics.sessionResolvedAfterPopup = Boolean(resolved);
+    operationalGoogleLoginDiagnostics.lastFlowState = resolved ? "session-resolved" : "session-missing";
+    if (resolved && operationalGoogleLoginDiagnostics.googlePopupResolvedCount > 0) {
+      operationalGoogleLoginDiagnostics.googlePopupResult = "success";
+      operationalGoogleLoginDiagnostics.googlePopupErrorKind = "none";
+      operationalGoogleLoginDiagnostics.coopWarningDisposition = "benign-after-success";
+    }
+    if (!resolved && operationalGoogleLoginDiagnostics.googlePopupResolvedCount > 0) {
+      operationalGoogleLoginDiagnostics.googlePopupResult = "session-failed";
+      operationalGoogleLoginDiagnostics.googlePopupErrorKind = "auth-user-present-session-missing";
+      operationalGoogleLoginDiagnostics.coopWarningDisposition = "not-applicable";
+    }
+  }
+
+  function isResourceExhaustedError(error) {
+    const code = String(error?.code || "");
+    const message = String(error?.message || error || "").toLowerCase();
+    return code === "resource-exhausted" || message.includes("resource-exhausted") || message.includes("quota");
+  }
+
+  function activateAuthBootstrapBackoff(reason) {
+    authBootstrapBackoffUntil = Date.now() + AUTH_BOOTSTRAP_BACKOFF_MS;
+    authBootstrapDiagnostics.resourceExhaustedCount += 1;
+    noteBootstrap(reason || "resource-exhausted-backoff");
+  }
+
+  function maskFirestorePath(path) {
+    return String(path || "")
+      .replace(/users\/[^,\s/]+/g, "users/{uid}")
+      .replace(/systemOwners\/[^,\s/]+/g, "systemOwners/{uid}")
+      .replace(/user_devices\/[^,\s/]+/g, "user_devices/{deviceId}")
+      .replace(/notifications\/[^,\s/]+/g, "notifications/{notificationId}")
+      .replace(/workspaces\/[^,\s/]+\/members\/[^,\s/]+/g, "workspaces/{workspaceId}/members/{uid}")
+      .replace(/workspace_members\/[^,\s/]+/g, "workspace_members/{memberId}")
+      .replace(/workspaceMembers\/[^,\s/]+/g, "workspaceMembers/{memberId}")
+      .replace(/workspace_members where uid=[^,\s]+/g, "workspace_members where uid={uid}");
+  }
+
+  function valuesMatch(current, expected) {
+    if (expected === undefined) return true;
+    if (expected === null) return current === null || current === undefined;
+    return current === expected;
+  }
+
+  function buildMergePatch(current, expected) {
+    const patch = {};
+    const changedFields = [];
+    Object.entries(expected).forEach(([field, value]) => {
+      if (!valuesMatch(current?.[field], value)) {
+        patch[field] = value;
+        changedFields.push(field);
+      }
+    });
+    return { patch, changedFields };
+  }
+
+  function maybeAddBatchSet(batch, ref, current, expected, now, options = {}) {
+    const { patch, changedFields } = buildMergePatch(current || {}, expected);
+    if (!changedFields.length) return [];
+    if (options.updatedAt) patch[options.updatedAt] = now;
+    batch.set(ref, patch, { merge: true });
+    return changedFields.map((field) => options.prefix ? `${options.prefix}.${field}` : field);
+  }
+
+  function authBootstrapBackoffActive() {
+    return updateBackoffState();
+  }
+
+  function fallbackMembershipFromUser(user) {
+    const workspaceId = user?.pmWorkspaceId || user?.workspaceId || user?.currentWorkspaceId || "";
+    const role = user?.pmRole || "normal";
+    return {
+      workspaceId,
+      role,
+      workspaceRole: user?.pmWorkspaceRole || role,
+      status: user?.pmStatus || (workspaceId ? "active" : "pending"),
+      pendingWorkspaceId: user?.pmPendingWorkspaceId || "",
+      pendingInviteCodeId: user?.pmPendingInviteCodeId || ""
+    };
+  }
+
+  function stableAuthDeviceId() {
+    const serviceId = window.PMDeviceService?.currentDeviceId?.();
+    if (serviceId) return serviceId;
+    let id = localStorage.getItem(PM_AUTH_DEVICE_ID_KEY);
+    if (!id) {
+      id = `device_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem(PM_AUTH_DEVICE_ID_KEY, id);
+    }
+    return id;
+  }
+
+  if (typeof window !== "undefined") {
+    window.PMAuthBootstrapDiagnostics = {
+      snapshot: snapshotAuthBootstrapDiagnostics,
+      reset: resetAuthBootstrapDiagnostics,
+      recordAuthStateEvent() {
+        authBootstrapDiagnostics.authStateEventCount += 1;
+      }
+    };
+    window.PMOperationalGoogleLoginDiagnostics = {
+      snapshot: snapshotOperationalGoogleLoginDiagnostics,
+      reset: resetOperationalGoogleLoginDiagnostics
+    };
+  }
 
   function readJson(key) {
     const raw = localStorage.getItem(key);
@@ -160,6 +380,8 @@
       updatedAt: firestore.serverTimestamp(),
       disabled: false
     }, { merge: true }));
+    authBootstrapDiagnostics.userWriteCount += 1;
+    noteBootstrap("base-user-document-created", ["users.createdAt"]);
   }
 
   async function firebaseLoginWithEmail(email, password) {
@@ -187,13 +409,13 @@
   }
 
   function logFirestoreStep(step, path) {
-    console.info("[PM Firestore]", { step, path });
+    console.info("[PM Firestore]", { step, path: maskFirestorePath(path) });
   }
 
   function logFirestoreError(error, step, path) {
     const code = error?.code || "";
     const message = error?.message || String(error);
-    console.error("[PM Firestore permission check]", { step, path, code, message });
+    console.error("[PM Firestore permission check]", { step, path: maskFirestorePath(path), code, message });
   }
 
   async function runFirestoreStep(step, path, action) {
@@ -201,6 +423,9 @@
       logFirestoreStep(step, path);
       return await action();
     } catch (error) {
+      if (isResourceExhaustedError(error)) {
+        activateAuthBootstrapBackoff(`${step}:resource-exhausted`);
+      }
       logFirestoreError(error, step, path);
       throw error;
     }
@@ -227,9 +452,42 @@
     const runtime = await window.PMFirebaseRuntime?.init?.();
     if (!runtime) throw new Error("Firebase 서버와 연결이 필요합니다.");
     const { auth } = runtime.sdk;
+    operationalGoogleLoginDiagnostics.googlePopupRequestedCount += 1;
+    operationalGoogleLoginDiagnostics.googlePopupResult = "pending";
+    operationalGoogleLoginDiagnostics.googlePopupErrorKind = "none";
+    operationalGoogleLoginDiagnostics.coopWarningDisposition = "not-observed";
+    operationalGoogleLoginDiagnostics.authStateReceivedAfterPopup = false;
+    operationalGoogleLoginDiagnostics.authUserPresentAfterPopup = false;
+    operationalGoogleLoginDiagnostics.sessionResolvedAfterPopup = false;
+    operationalGoogleLoginDiagnostics.lastFlowState = "popup-requested";
     const provider = new auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
-    const credential = await auth.signInWithPopup(runtime.auth, provider);
+    let credential;
+    try {
+      operationalGoogleLoginDiagnostics.lastFlowState = "popup-opened";
+      credential = await auth.signInWithPopup(runtime.auth, provider);
+      operationalGoogleLoginDiagnostics.googlePopupResolvedCount += 1;
+      operationalGoogleLoginDiagnostics.authUserPresentAfterPopup = Boolean(runtime.auth?.currentUser?.uid);
+      operationalGoogleLoginDiagnostics.googlePopupResult = operationalGoogleLoginDiagnostics.authUserPresentAfterPopup
+        ? "popup-resolved-auth-user-present"
+        : "popup-resolved-but-no-auth-user";
+      operationalGoogleLoginDiagnostics.lastFlowState = operationalGoogleLoginDiagnostics.authUserPresentAfterPopup
+        ? "popup-resolved-auth-user-present"
+        : "popup-resolved-no-auth-user";
+      if (!operationalGoogleLoginDiagnostics.authUserPresentAfterPopup) {
+        const noUserError = new Error("Google login popup resolved without an active Firebase Auth user.");
+        noUserError.code = "popup-resolved-but-no-auth-user";
+        operationalGoogleLoginDiagnostics.googlePopupErrorKind = noUserError.code;
+        throw noUserError;
+      }
+    } catch (error) {
+      operationalGoogleLoginDiagnostics.googlePopupRejectedCount += 1;
+      operationalGoogleLoginDiagnostics.googlePopupResult = "popup-rejected";
+      operationalGoogleLoginDiagnostics.googlePopupErrorKind = classifyGooglePopupError(error);
+      operationalGoogleLoginDiagnostics.coopWarningDisposition = "not-applicable";
+      operationalGoogleLoginDiagnostics.lastFlowState = "popup-rejected";
+      throw error;
+    }
     const membership = await firebaseEnsureUserStructure(credential.user, credential.user.displayName || credential.user.email, "pending");
     credential.user.pmWorkspaceId = membership.workspaceId;
     credential.user.pmRole = membership.role;
@@ -254,6 +512,31 @@
   }
 
   async function firebaseEnsureUserStructure(user, displayName, defaultRole) {
+    const uid = user?.uid || "";
+    authBootstrapDiagnostics.authStateEventCount += 1;
+    authBootstrapDiagnostics.sessionLoadCount += 1;
+    authBootstrapDiagnostics.bootstrapCheckCount += 1;
+    if (!uid) return fallbackMembershipFromUser(user);
+    if (authBootstrapBackoffActive()) {
+      authBootstrapDiagnostics.bootstrapBlockedInFlightCount += 1;
+      noteBootstrap("bootstrap-skipped-backoff-active");
+      return fallbackMembershipFromUser(user);
+    }
+    const inFlight = authBootstrapInFlightByUid.get(uid);
+    if (inFlight) {
+      authBootstrapDiagnostics.bootstrapBlockedInFlightCount += 1;
+      noteBootstrap("bootstrap-deduped-in-flight");
+      return inFlight;
+    }
+    const promise = firebaseEnsureUserStructureInternal(user, displayName, defaultRole)
+      .finally(() => {
+        authBootstrapInFlightByUid.delete(uid);
+      });
+    authBootstrapInFlightByUid.set(uid, promise);
+    return promise;
+  }
+
+  async function firebaseEnsureUserStructureInternal(user, displayName, defaultRole) {
     const runtime = await window.PMFirebaseRuntime?.init?.();
     if (!runtime) throw new Error("Firebase 서버와 연결이 필요합니다.");
     const { firestore } = runtime.sdk;
@@ -281,7 +564,7 @@
     if (!workspaceId || ["pending", "waiting_approval", "rejected", "disabled"].includes(status)) {
       const savedRole = userData.role || userData.currentRole || "normal";
       const pendingRole = isSystemOwnerDoc ? "system_owner" : savedRole === "pending" ? "normal" : savedRole;
-      await runFirestoreStep("update pending user login timestamp", `users/${uid}`, () => firestore.setDoc(userRef, {
+      const pendingExpected = {
         uid,
         email: user.email || userData.email || "",
         displayName: userData.displayName || displayName || user.displayName || user.email || "",
@@ -295,11 +578,23 @@
         workspace_id: workspaceId || null,
         pendingWorkspaceId: userData.pendingWorkspaceId || null,
         pendingInviteCodeId: userData.pendingInviteCodeId || userData.inviteCodeId || userData.inviteCode || null,
-        createdAt: userData.createdAt || now,
-        lastLoginAt: now,
-        updatedAt: now,
         disabled: status === "disabled" || userData.disabled === true
-      }, { merge: true }));
+      };
+      const pendingPatchResult = buildMergePatch(userData, pendingExpected);
+      if (!userData.createdAt) {
+        pendingPatchResult.patch.createdAt = now;
+        pendingPatchResult.changedFields.push("createdAt");
+      }
+      if (pendingPatchResult.changedFields.length && !authBootstrapBackoffActive()) {
+        pendingPatchResult.patch.updatedAt = now;
+        await runFirestoreStep("update pending user login structure", `users/${uid}`, () => firestore.setDoc(userRef, pendingPatchResult.patch, { merge: true }));
+        authBootstrapDiagnostics.bootstrapCommitCount += 1;
+        authBootstrapDiagnostics.userWriteCount += 1;
+        noteBootstrap("pending-user-structure-updated", pendingPatchResult.changedFields.map((field) => `users.${field}`));
+      } else {
+        authBootstrapDiagnostics.bootstrapSkippedNoDiffCount += 1;
+        noteBootstrap("pending-user-structure-no-diff");
+      }
       return {
         workspaceId,
         role: pendingRole,
@@ -316,17 +611,26 @@
     const nestedMemberRef = firestore.doc(runtime.db, "workspaces", workspaceId, "members", uid);
     const memberSnap = await runFirestoreStep("get workspace member document", `workspaces/${workspaceId}/members/${uid}`, () => firestore.getDoc(nestedMemberRef));
     let rootMemberSnap;
+    let standardMemberSnap;
     try {
       rootMemberSnap = await runFirestoreStep("get legacy workspace member document", `workspace_members/${memberId}`, () => firestore.getDoc(memberRef));
     } catch (error) {
       console.info("[PM root membership lookup skipped]", {
-        path: `workspace_members/${memberId}`,
-        uid,
-        workspaceId,
+        path: "workspace_members/{memberId}",
         code: error?.code || "",
         message: error?.message || String(error)
       });
       rootMemberSnap = { exists: () => false, data: () => ({}) };
+    }
+    try {
+      standardMemberSnap = await runFirestoreStep("get standard legacy workspace member document", `workspaceMembers/${memberId}`, () => firestore.getDoc(standardMemberRef));
+    } catch (error) {
+      console.info("[PM standard membership lookup skipped]", {
+        path: "workspaceMembers/{memberId}",
+        code: error?.code || "",
+        message: error?.message || String(error)
+      });
+      standardMemberSnap = { exists: () => false, data: () => ({}) };
     }
     const workspaceRole = memberSnap.exists()
       ? memberSnap.data().role || "normal"
@@ -337,69 +641,43 @@
     const role = isGlobalSystemOwner ? "system_owner" : workspaceRole;
     const canRepairRootMembership = isGlobalSystemOwner || ["super_manager", "manager"].includes(workspaceRole);
     const batch = firestore.writeBatch(runtime.db);
+    const changedFields = [];
+    let userWriteQueued = false;
+    let membershipWriteQueued = 0;
 
-    batch.set(userRef, {
+    const userExpected = {
       uid,
       email: user.email || "",
       displayName: userData.displayName || displayName || user.displayName || user.email || "???",
       emailVerified: !!user.emailVerified,
-      globalRole: "user",
       workspaceId,
       currentWorkspaceId: workspaceId,
       workspace_id: workspaceId,
       role,
       currentRole: role,
       workspaceRole,
-      createdAt: userSnap.exists() ? userSnap.data().createdAt || now : now,
-      lastLoginAt: now,
-      updatedAt: now,
       status: status || "active",
       disabled: userData.disabled === true,
       pendingWorkspaceId: null,
       pendingInviteCodeId: null
-    }, { merge: true });
+    };
+    const userPatchResult = buildMergePatch(userData, userExpected);
+    if (!userData.createdAt) {
+      userPatchResult.patch.createdAt = now;
+      userPatchResult.changedFields.push("createdAt");
+    }
+    if (userPatchResult.changedFields.length) {
+      userPatchResult.patch.updatedAt = now;
+      batch.set(userRef, userPatchResult.patch, { merge: true });
+      userWriteQueued = true;
+      changedFields.push(...userPatchResult.changedFields.map((field) => `users.${field}`));
+    }
 
     if (!memberSnap.exists() && !rootMemberSnap.exists()) {
-      console.warn("[PM role repair]", { uid, workspaceId, role, message: "active user member document was missing; repairing with users.role" });
+      console.warn("[PM role repair]", { role, message: "active user member document was missing; repairing with users.role" });
     }
 
-    if (canRepairRootMembership) {
-      batch.set(memberRef, {
-        id: memberId,
-        workspaceId,
-        workspace_id: workspaceId,
-        rootMemberExists: true,
-        nestedMemberExists: true,
-        uid,
-        email: user.email || userData.email || "",
-        displayName: userData.displayName || displayName || user.displayName || user.email || "",
-        role: workspaceRole,
-        status: "active",
-        joinedAt: rootMemberSnap.exists() ? rootMemberSnap.data().joinedAt || now : now,
-        invitedBy: null
-      }, { merge: true });
-      batch.set(standardMemberRef, {
-        id: memberId,
-        workspaceId,
-        workspace_id: workspaceId,
-        rootMemberExists: true,
-        nestedMemberExists: true,
-        uid,
-        email: user.email || userData.email || "",
-        displayName: userData.displayName || displayName || user.displayName || user.email || "",
-        role: workspaceRole,
-        status: "active",
-        joinedAt: rootMemberSnap.exists() ? rootMemberSnap.data().joinedAt || now : now,
-        invitedBy: null
-      }, { merge: true });
-    } else {
-      console.info("[PM member bootstrap] root membership repair skipped for non-admin login", {
-        uid,
-        workspaceId,
-        workspaceRole
-      });
-    }
-    batch.set(nestedMemberRef, {
+    const memberExpected = {
       id: memberId,
       workspaceId,
       workspace_id: workspaceId,
@@ -410,12 +688,50 @@
       displayName: userData.displayName || displayName || user.displayName || user.email || "",
       role: workspaceRole,
       status: "active",
-      joinedAt: memberSnap.exists() ? memberSnap.data().joinedAt || now : now,
-      updatedAt: now,
-      invitedBy: memberSnap.exists() ? memberSnap.data().invitedBy || null : null
-    }, { merge: true });
+      invitedBy: null
+    };
+    if (canRepairRootMembership) {
+      const rootData = rootMemberSnap.exists() ? rootMemberSnap.data() || {} : {};
+      const standardData = standardMemberSnap.exists() ? standardMemberSnap.data() || {} : {};
+      const rootChanged = maybeAddBatchSet(batch, memberRef, rootData, {
+        ...memberExpected,
+        joinedAt: rootData.joinedAt || now
+      }, now, { updatedAt: "updatedAt", prefix: "workspace_members" });
+      const standardChanged = maybeAddBatchSet(batch, standardMemberRef, standardData, {
+        ...memberExpected,
+        joinedAt: standardData.joinedAt || rootData.joinedAt || now
+      }, now, { updatedAt: "updatedAt", prefix: "workspaceMembers" });
+      if (rootChanged.length) membershipWriteQueued += 1;
+      if (standardChanged.length) membershipWriteQueued += 1;
+      changedFields.push(...rootChanged, ...standardChanged);
+    } else {
+      console.info("[PM member bootstrap] root membership repair skipped for non-admin login", { workspaceRole });
+    }
+    const nestedData = memberSnap.exists() ? memberSnap.data() || {} : {};
+    const nestedChanged = maybeAddBatchSet(batch, nestedMemberRef, nestedData, {
+      ...memberExpected,
+      joinedAt: nestedData.joinedAt || now,
+      invitedBy: nestedData.invitedBy || null
+    }, now, { updatedAt: "updatedAt", prefix: "members" });
+    if (nestedChanged.length) membershipWriteQueued += 1;
+    changedFields.push(...nestedChanged);
+
+    if (!changedFields.length) {
+      authBootstrapDiagnostics.bootstrapSkippedNoDiffCount += 1;
+      noteBootstrap("active-user-structure-no-diff");
+      return { workspaceId, role, workspaceRole, status: status || "active", pendingWorkspaceId: "", pendingInviteCodeId: "" };
+    }
+    if (authBootstrapBackoffActive()) {
+      authBootstrapDiagnostics.bootstrapBlockedInFlightCount += 1;
+      noteBootstrap("bootstrap-write-skipped-backoff", changedFields);
+      return { workspaceId, role, workspaceRole, status: status || "active", pendingWorkspaceId: "", pendingInviteCodeId: "" };
+    }
 
     await runFirestoreStep("commit user workspace bootstrap", `users/${uid}, workspaces/${workspaceId}/members/${uid}${canRepairRootMembership ? `, workspace_members/${memberId}` : ""}`, () => batch.commit());
+    authBootstrapDiagnostics.bootstrapCommitCount += 1;
+    if (userWriteQueued) authBootstrapDiagnostics.userWriteCount += 1;
+    authBootstrapDiagnostics.membershipWriteCount += membershipWriteQueued;
+    noteBootstrap("active-user-structure-updated", changedFields);
     return { workspaceId, role, workspaceRole, status: status || "active", pendingWorkspaceId: "", pendingInviteCodeId: "" };
   }
 
@@ -426,9 +742,22 @@
     const uid = user.uid;
     const workspaceId = user.pmWorkspaceId || user.workspaceId || user.currentWorkspaceId || "";
     if (!workspaceId) return null;
-    const deviceId = window.PMDeviceService?.currentDeviceId?.() || `device_${Date.now()}`;
+    if (authBootstrapBackoffActive()) {
+      noteBootstrap("device-write-skipped-backoff");
+      return null;
+    }
+    const deviceId = stableAuthDeviceId();
     const ua = navigator.userAgent || "";
-    await runFirestoreStep("set login device", `user_devices/${deviceId}`, () => firestore.setDoc(firestore.doc(runtime.db, "user_devices", deviceId), {
+    const deviceRef = firestore.doc(runtime.db, "user_devices", deviceId);
+    let deviceSnap;
+    try {
+      deviceSnap = await runFirestoreStep("get login device", `user_devices/${deviceId}`, () => firestore.getDoc(deviceRef));
+    } catch (error) {
+      console.warn("[PM auth bootstrap] login device read skipped", { code: error?.code || "", message: error?.message || String(error) });
+      return null;
+    }
+    const existing = deviceSnap.exists() ? deviceSnap.data() || {} : {};
+    const desired = {
       deviceId,
       uid,
       workspaceId,
@@ -436,12 +765,20 @@
       deviceType: /Mobi|Android/i.test(ua) ? "mobile" : "desktop",
       browser: ua,
       os: navigator.platform || "",
-      lastLoginAt: firestore.serverTimestamp(),
-      lastActiveAt: firestore.serverTimestamp(),
       pushToken: null,
       isCurrentDevice: true,
       revokedAt: null
-    }, { merge: true }));
+    };
+    const { patch, changedFields } = buildMergePatch(existing, desired);
+    if (!changedFields.length && deviceSnap.exists()) {
+      noteBootstrap("login-device-no-diff");
+      return deviceId;
+    }
+    patch.lastLoginAt = firestore.serverTimestamp();
+    patch.lastActiveAt = firestore.serverTimestamp();
+    await runFirestoreStep("set login device", `user_devices/${deviceId}`, () => firestore.setDoc(deviceRef, patch, { merge: true }));
+    authBootstrapDiagnostics.deviceWriteCount += 1;
+    noteBootstrap("login-device-updated", changedFields.map((field) => `user_devices.${field}`));
     return deviceId;
   }
 
@@ -452,7 +789,23 @@
     const workspaceId = user.pmWorkspaceId || user.workspaceId || user.currentWorkspaceId || "";
     if (!workspaceId) return null;
     const notificationId = `welcome_${user.uid}`;
-    await runFirestoreStep("set welcome notification", `notifications/${notificationId}`, () => firestore.setDoc(firestore.doc(runtime.db, "notifications", notificationId), {
+    if (authBootstrapBackoffActive()) {
+      noteBootstrap("welcome-notification-skipped-backoff");
+      return null;
+    }
+    const notificationRef = firestore.doc(runtime.db, "notifications", notificationId);
+    let notificationSnap;
+    try {
+      notificationSnap = await runFirestoreStep("get welcome notification", `notifications/${notificationId}`, () => firestore.getDoc(notificationRef));
+    } catch (error) {
+      console.warn("[PM auth bootstrap] welcome notification read skipped", { code: error?.code || "", message: error?.message || String(error) });
+      return null;
+    }
+    if (notificationSnap.exists()) {
+      noteBootstrap("welcome-notification-existing");
+      return notificationId;
+    }
+    await runFirestoreStep("set welcome notification", `notifications/${notificationId}`, () => firestore.setDoc(notificationRef, {
       notificationId,
       workspaceId,
       uid: user.uid,
@@ -463,6 +816,8 @@
       createdAt: firestore.serverTimestamp(),
       relatedId: null
     }, { merge: true }));
+    authBootstrapDiagnostics.welcomeNotificationWriteCount += 1;
+    noteBootstrap("welcome-notification-created", ["notifications.createdAt"]);
     return notificationId;
   }
 
@@ -486,6 +841,13 @@
     firebaseResetPassword,
     firebaseEnsureUserStructure,
     firebaseRegisterDevice,
-    firebaseCreateWelcomeNotification
+    firebaseCreateWelcomeNotification,
+    getAuthBootstrapDiagnostics: snapshotAuthBootstrapDiagnostics,
+    resetAuthBootstrapDiagnostics
+    ,
+    getOperationalGoogleLoginDiagnostics: snapshotOperationalGoogleLoginDiagnostics,
+    resetOperationalGoogleLoginDiagnostics,
+    recordOperationalGoogleAuthState,
+    recordOperationalGoogleSessionResolved
   };
 })();

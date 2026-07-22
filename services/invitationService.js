@@ -12,6 +12,23 @@
     return String(code || "").trim().toUpperCase();
   }
 
+  function maskDiagnosticId(value) {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    let hash = 0;
+    for (let index = 0; index < text.length; index += 1) {
+      hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+    }
+    return `fp_${Math.abs(hash).toString(16).slice(0, 8)}`;
+  }
+
+  function safeError(error) {
+    return {
+      code: error?.code || "",
+      message: error?.message || String(error)
+    };
+  }
+
   async function sha256(value) {
     const bytes = new TextEncoder().encode(normalizeCode(value));
     const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -98,9 +115,9 @@
     } catch (error) {
       console.error("[PM Firestore permission check]", {
         step: "save invite code",
-        path: `invites/${invite.code || invite.invitationId}`,
-        code: error?.code || "",
-        message: error?.message || String(error)
+        path: "invites/{inviteCode}",
+        inviteFingerprint: maskDiagnosticId(invite.code || invite.invitationId),
+        ...safeError(error)
       });
       throw error;
     }
@@ -112,15 +129,19 @@
     if (!runtime) return null;
     const { firestore } = runtime.sdk;
     try {
-      console.info("[PM Firestore]", { step: "get invite code", path: `invites/${normalized}` });
+      console.info("[PM Firestore]", {
+        step: "get invite code",
+        path: "invites/{inviteCode}",
+        inviteFingerprint: maskDiagnosticId(normalized)
+      });
       const snap = await firestore.getDoc(firestore.doc(runtime.db, "invites", normalized));
       return snap.exists() ? normalizeInvite({ ...snap.data(), invitationId: normalized, code: normalized }) : null;
     } catch (error) {
       console.error("[PM Firestore permission check]", {
         step: "get invite code",
-        path: `invites/${normalized}`,
-        code: error?.code || "",
-        message: error?.message || String(error)
+        path: "invites/{inviteCode}",
+        inviteFingerprint: maskDiagnosticId(normalized),
+        ...safeError(error)
       });
       throw error;
     }
@@ -222,30 +243,35 @@
       }, { merge: true });
     }
 
-    console.info("[PM Firestore]", { step: "submit invite join request", path: `invites/${normalized}, users/${uid}, workspaceJoinRequests/${requestId}` });
+    console.info("[PM Firestore]", {
+      step: "submit invite join request",
+      path: "invites/{inviteCode}, users/{uid}, workspaceJoinRequests/{requestId}",
+      inviteFingerprint: maskDiagnosticId(normalized),
+      requestFingerprint: maskDiagnosticId(requestId),
+      uidPresent: Boolean(uid)
+    });
     try {
       await batch.commit();
       console.info("[PM invite request success]", {
-        inviteCodeId: normalized,
-        workspaceId,
-        inviteOwnerUid: ownerUid,
-        joinedUserUid: uid,
-        joinedUserEmail: email,
+        inviteCodeFingerprint: maskDiagnosticId(normalized),
+        workspaceFingerprint: maskDiagnosticId(workspaceId),
+        inviteOwnerUidPresent: Boolean(ownerUid),
+        joinedUserUidPresent: Boolean(uid),
+        joinedUserEmailPresent: Boolean(email),
         usersDocumentSaved: true,
         workspaceJoinRequestSaved: true,
         inviterLinkSaved: !!ownerUid
       });
     } catch (error) {
       console.error("[PM invite request failure]", {
-        inviteCodeId: normalized,
-        workspaceId,
-        inviteOwnerUid: ownerUid,
-        joinedUserUid: uid,
-        joinedUserEmail: email,
+        inviteCodeFingerprint: maskDiagnosticId(normalized),
+        workspaceFingerprint: maskDiagnosticId(workspaceId),
+        inviteOwnerUidPresent: Boolean(ownerUid),
+        joinedUserUidPresent: Boolean(uid),
+        joinedUserEmailPresent: Boolean(email),
         usersDocumentSaved: false,
         workspaceJoinRequestSaved: false,
-        code: error?.code || "",
-        message: error?.message || String(error)
+        ...safeError(error)
       });
       throw new Error("초대코드 등록 중 일부 데이터 연결에 실패했습니다. 관리자에게 문의해주세요.");
     }

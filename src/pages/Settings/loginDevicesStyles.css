@@ -1,0 +1,244 @@
+:root {
+  color: #10213f;
+  background: #f3f7fc;
+  font-family:
+    Inter, Pretendard, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.11), transparent 28rem),
+    #f3f7fc;
+}
+
+.login-devices-page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.login-devices-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.login-devices-eyebrow {
+  margin: 0 0 6px;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.login-devices-header h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  letter-spacing: 0;
+}
+
+.login-devices-header p,
+.login-devices-card p,
+.login-devices-panel p,
+.login-devices-actions p {
+  margin: 0;
+  color: #65789a;
+  line-height: 1.65;
+}
+
+.login-devices-actions,
+.login-devices-card,
+.login-devices-panel,
+.login-devices-device {
+  border: 1px solid #d6e2f3;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 32px rgba(31, 64, 108, 0.08);
+}
+
+.login-devices-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px;
+}
+
+.login-devices-actions button,
+.login-devices-refresh-row button {
+  min-height: 42px;
+  border: 1px solid #c8d7ee;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 800;
+  padding: 0 16px;
+  cursor: pointer;
+}
+
+.login-devices-actions button.secondary,
+.login-devices-refresh-row button.secondary {
+  background: #ffffff;
+  color: #10213f;
+}
+
+.login-devices-actions button:disabled,
+.login-devices-refresh-row button:disabled {
+  opacity: 0.58;
+  cursor: wait;
+}
+
+.login-devices-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.login-devices-card,
+.login-devices-panel {
+  padding: 18px;
+}
+
+.login-devices-card h2,
+.login-devices-panel h2,
+.login-devices-device h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.login-devices-success {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.login-devices-warning {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.login-devices-error {
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+.login-devices-muted {
+  border-color: #d6e2f3;
+}
+
+.login-devices-panel {
+  margin-bottom: 16px;
+}
+
+.login-devices-refresh-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.login-devices-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.login-devices-device {
+  padding: 16px;
+}
+
+.login-devices-device-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+.login-devices-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #eaf1ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.login-devices-badge.warning {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.login-devices-badge.error {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.login-devices-device dl,
+.login-devices-panel dl {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1.3fr);
+  gap: 9px 12px;
+  margin: 0;
+}
+
+.login-devices-device dt,
+.login-devices-panel dt {
+  color: #63799e;
+  font-weight: 800;
+}
+
+.login-devices-device dd,
+.login-devices-panel dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.login-devices-empty {
+  border: 1px dashed #c8d7ee;
+  border-radius: 12px;
+  padding: 28px;
+  text-align: center;
+  color: #65789a;
+}
+
+@media (max-width: 760px) {
+  .login-devices-page {
+    padding: 18px;
+  }
+
+  .login-devices-header {
+    grid-template-columns: 1fr;
+  }
+
+  .login-devices-card-grid,
+  .login-devices-list {
+    grid-template-columns: 1fr;
+  }
+
+  .login-devices-device dl,
+  .login-devices-panel dl {
+    grid-template-columns: 1fr;
+  }
+
+  .login-devices-actions,
+  .login-devices-refresh-row {
+    display: grid;
+  }
+}

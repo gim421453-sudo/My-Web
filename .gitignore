@@ -20,6 +20,7 @@ firebase-init.local.json
 admin-init-key*
 my-management-app-8a933-firebase-adminsdk-fbsvc-4a3447a87a.json
 pm-firebase-config.js
+output/
 
 # firebase admin keys
 serviceAccountKey.json
@@ -44,3 +45,6 @@ backups/
 *.bak
 *.local.log
 *.tmp
+
+# Local backup archives
+*.zip

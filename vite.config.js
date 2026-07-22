@@ -1,3 +1,4 @@
+const { resolve } = require("node:path");
 const { defineConfig } = require("vite");
 
 const proxyAllowHosts = new Set(["school.busanedu.net", "open.neis.go.kr"]);
@@ -39,5 +40,14 @@ function schoolProxyPlugin() {
 }
 
 module.exports = defineConfig({
-  plugins: [schoolProxyPlugin()]
+  plugins: [schoolProxyPlugin()],
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, "index.html"),
+        appNext: resolve(__dirname, "app-next.html"),
+        authRegressionPreview: resolve(__dirname, "auth-regression-preview.html")
+      }
+    }
+  }
 });

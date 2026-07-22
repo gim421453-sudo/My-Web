@@ -2,6 +2,16 @@
 // The TypeScript/Vite side still uses npm Firebase SDK through src/lib/firebase.ts.
 (function () {
   const CONFIG_KEY = "pm:firebase:config";
+  const runtimeDiagnostics = {
+    firebaseAppCountAtInit: 0,
+    firebaseInitializeAppCalledCount: 0,
+    authInstanceCreatedCount: 0,
+    firestoreInstanceCreatedCount: 0,
+    lastInitAt: "",
+    appName: "",
+    compatFirestoreLoaded: false,
+    compatAuthLoaded: false
+  };
 
   function isPlaceholder(value) {
     return String(value || "").startsWith("%VITE_");
@@ -136,17 +146,26 @@
     if (window.__pmFirebaseRuntime) return window.__pmFirebaseRuntime;
 
     const config = readConfig();
+    runtimeDiagnostics.firebaseAppCountAtInit = firebase.apps.length;
     const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(config);
+    if (!runtimeDiagnostics.firebaseAppCountAtInit) runtimeDiagnostics.firebaseInitializeAppCalledCount += 1;
     const authInstance = firebase.auth(app);
+    runtimeDiagnostics.authInstanceCreatedCount += 1;
     try {
       await authInstance.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     } catch (error) {
       console.warn("[PM Firebase] in-memory persistence setup failed", error?.code || "", error?.message || String(error));
     }
+    const firestoreInstance = firebase.firestore(app);
+    runtimeDiagnostics.firestoreInstanceCreatedCount += 1;
+    runtimeDiagnostics.lastInitAt = new Date().toISOString();
+    runtimeDiagnostics.appName = app?.name || "";
+    runtimeDiagnostics.compatFirestoreLoaded = Boolean(firebase.firestore);
+    runtimeDiagnostics.compatAuthLoaded = Boolean(firebase.auth);
     window.__pmFirebaseRuntime = {
       app,
       auth: authInstance,
-      db: firebase.firestore(app),
+      db: firestoreInstance,
       sdk: {
         auth: compatAuthSdk(),
         firestore: compatFirestoreSdk()
@@ -156,5 +175,14 @@
   }
 
   debugConfig();
+  window.PMFirebaseRuntimeDiagnostics = {
+    snapshot() {
+      return {
+        ...runtimeDiagnostics,
+        firebaseAppCount: window.firebase?.apps?.length || 0,
+        runtimeCached: Boolean(window.__pmFirebaseRuntime)
+      };
+    }
+  };
   window.PMFirebaseRuntime = { readConfig, saveConfig, hasConfig, init, debugConfig };
 })();

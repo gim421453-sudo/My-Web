@@ -1,0 +1,148 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #f3f7fc;
+  color: #10213f;
+  font-family: Inter, "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.legacy-guard-shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0 56px;
+}
+
+.legacy-guard-header {
+  margin-bottom: 20px;
+}
+
+.legacy-guard-header h1,
+.legacy-guard-panel h1,
+.legacy-guard-panel h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.legacy-guard-header p,
+.legacy-guard-panel p {
+  line-height: 1.6;
+}
+
+.legacy-guard-eyebrow {
+  margin: 0 0 8px;
+  color: #5f78a4;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.legacy-guard-muted {
+  color: #6f84aa;
+}
+
+.legacy-guard-panel {
+  margin-top: 16px;
+  padding: 22px;
+  border: 1px solid #d9e5f5;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 16px 42px rgba(29, 92, 255, 0.06);
+}
+
+.legacy-guard-panel-accent {
+  border-color: #b8ebd3;
+  background: #f7fffb;
+}
+
+.legacy-guard-warning {
+  border-color: #ffe2a8;
+  background: #fffaf0;
+}
+
+.legacy-guard-success {
+  border-color: #b8ebd3;
+  background: #f7fffb;
+}
+
+.legacy-guard-error,
+.legacy-guard-denied {
+  border-color: #ffc8d2;
+  background: #fff7f8;
+}
+
+.legacy-guard-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  gap: 10px 16px;
+  margin: 18px 0 0;
+}
+
+.legacy-guard-grid dt {
+  color: #5f78a4;
+  font-weight: 900;
+}
+
+.legacy-guard-grid dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 800;
+}
+
+.legacy-guard-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.legacy-guard-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.legacy-guard-checkbox-grid label,
+.legacy-guard-toggle-row label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #d9e5f5;
+  border-radius: 10px;
+  background: #f8fbff;
+  font-weight: 800;
+}
+
+.legacy-guard-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.legacy-guard-decision h2 {
+  font-size: 28px;
+}
+
+@media (max-width: 760px) {
+  .legacy-guard-shell {
+    width: min(100% - 20px, 1180px);
+    padding-top: 20px;
+  }
+
+  .legacy-guard-grid,
+  .legacy-guard-columns,
+  .legacy-guard-checkbox-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .legacy-guard-panel {
+    padding: 16px;
+  }
+}

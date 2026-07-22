@@ -5,6 +5,52 @@ function appTodayValue() {
 }
 const today = appTodayValue();
 
+function isDevelopmentDiagnosticsV114() {
+  try {
+    const host = window.location.hostname;
+    return host === "127.0.0.1" || host === "localhost" || sessionStorage.getItem("pm-debug") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function maskIdentifierV114(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+  }
+  return `fp_${Math.abs(hash).toString(16).slice(0, 8)}`;
+}
+
+function sanitizeDiagnosticPayloadV114(payload = {}) {
+  const safe = {};
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (/email|token|password/i.test(key)) return;
+    if (/uid/i.test(key)) {
+      safe[`${key}Present`] = Boolean(value);
+      return;
+    }
+    if (/workspaceId|workspace|docId|documentId|notice/i.test(key) && typeof value === "string") {
+      safe[`${key}Fingerprint`] = maskIdentifierV114(value);
+      return;
+    }
+    if (value && typeof value === "object") {
+      safe[key] = "[object]";
+      return;
+    }
+    safe[key] = value;
+  });
+  return safe;
+}
+
+function devNoticeLogV114(level, label, payload = {}) {
+  if (!isDevelopmentDiagnosticsV114()) return;
+  const logger = level === "error" ? console.error : level === "warn" ? console.warn : console.info;
+  logger(label, sanitizeDiagnosticPayloadV114(payload));
+}
+
 const defaults = {
   subjects: ["국어", "수학", "영어", "과학", "사회", "정보"],
   publishers: ["미래엔", "천재교육", "비상교육", "동아출판", "지학사", "능률", "YBM", "기타"],
@@ -207,7 +253,7 @@ function startWorkspaceDataSyncV45(workspaceId) {
   if (!isFirebaseBackedSessionV45()) {
     window.PMWorkspaceDataService?.stop?.();
     stopCurrentUserRealtimeV50();
-    console.info(`[PM workspace sync] skipped local account workspaceId=${workspaceId || ""}`);
+    devNoticeLogV114("info", "[PM workspace sync] skipped local account", { workspaceId });
     return;
   }
   if (!workspaceId || !window.PMWorkspaceDataService?.start) return;
@@ -220,10 +266,13 @@ function startWorkspaceDataSyncV45(workspaceId) {
     status: currentUser?.status || "",
     pendingWorkspaceId: currentUser?.pendingWorkspaceId || "",
     store,
-    onRemoteChange() {
+    onRemoteChange(change = {}) {
       if (!store || store.workspace_id !== workspaceId) return;
       saveStore({ skipRemote: true });
       applySettings();
+      if (["timetable", "timetableSets", "periodTimes"].includes(change?.key || "")) {
+        window.PMTimetableQuickViewService?.refreshAfterRemoteChange?.(change);
+      }
       clearTimeout(workspaceDataRenderTimerV45);
       workspaceDataRenderTimerV45 = setTimeout(() => {
         if (!currentUser || app?.classList.contains("hidden")) return;
@@ -4486,18 +4535,10 @@ function cleanFirestoreObjectV52(value) {
 
 function visibleNotices() {
   const rows = (store.notices || []).filter(noticeVisibleInWorkspaceV52);
-  console.info("[notice:visible-filter]", {
+  devNoticeLogV114("info", "[notice:visible-filter]", {
     beforeCount: (store.notices || []).length,
     afterCount: rows.length,
-    workspaceId: currentWorkspaceIdV52(),
-    notices: (store.notices || []).map((notice) => ({
-      id: notice.id,
-      title: notice.title,
-      status: notice.status,
-      authorRole: notice.authorRole,
-      workspaceId: notice.workspaceId || notice.workspace_id,
-      expiresAt: notice.expiresAt || notice.visibleUntil || notice.autoHideAt || null
-    }))
+    workspaceId: currentWorkspaceIdV52()
   });
   return rows;
 }
@@ -4511,18 +4552,18 @@ async function saveNoticeDirectToFirestoreV52(row) {
     if (!runtime) return;
     const FieldValue = firebase.firestore.FieldValue;
     const docId = String(row.id);
-    console.info("[notice:add:start]", {
+    devNoticeLogV114("info", "[notice:add:start]", {
       workspaceId,
       uid: currentUser?.uid || currentUser?.id || "",
       role: currentRoleV52(),
-      title: row.title || ""
+      titleLength: String(row.title || "").length
     });
     const payload = cleanFirestoreObjectV52({ ...row, id: docId, workspaceId, workspace_id: workspaceId, updatedAt: FieldValue.serverTimestamp() });
     if (!row.createdAt) payload.createdAt = FieldValue.serverTimestamp();
     await runtime.db.collection("workspaces").doc(workspaceId).collection("notices").doc(docId).set(payload, { merge: true });
-    console.info("[notice:add:success]", { workspaceId, docId });
+    devNoticeLogV114("info", "[notice:add:success]", { workspaceId, docId });
   } catch (error) {
-    console.error("[notice:add:error]", {
+    devNoticeLogV114("error", "[notice:add:error]", {
       workspaceId,
       uid: currentUser?.uid || currentUser?.id || "",
       role: currentRoleV52(),
@@ -9612,11 +9653,11 @@ async function startWorkspaceMembersRealtimeV49(workspaceId) {
       .onSnapshot((snapshot) => {
         applyWorkspaceMembersSnapshotV49(workspaceId, snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) })));
       }, (error) => {
-        console.error(`[PM workspace members sync] listener failed workspaceId=${workspaceId} code=${error?.code || ""} message=${error?.message || String(error)}`);
+        devNoticeLogV114("error", "[PM workspace members sync] listener failed", { workspaceId, code: error?.code || "", message: error?.message || String(error) });
       });
-    console.info(`[PM workspace members sync] realtime listener started workspaceId=${workspaceId}`);
+    devNoticeLogV114("info", "[PM workspace members sync] realtime listener started", { workspaceId });
   } catch (error) {
-    console.error(`[PM workspace members sync] start failed workspaceId=${workspaceId} code=${error?.code || ""} message=${error?.message || String(error)}`);
+    devNoticeLogV114("error", "[PM workspace members sync] start failed", { workspaceId, code: error?.code || "", message: error?.message || String(error) });
   }
 }
 
@@ -9764,11 +9805,11 @@ async function startCurrentUserRealtimeV50() {
         updateGreeting();
       }
     }, (error) => {
-      console.error(`[PM user profile sync] listener failed uid=${uid} code=${error?.code || ""} message=${error?.message || String(error)}`);
+      devNoticeLogV114("error", "[PM user profile sync] listener failed", { uid, code: error?.code || "", message: error?.message || String(error) });
     });
-    console.info(`[PM user profile sync] realtime listener started uid=${uid}`);
+    devNoticeLogV114("info", "[PM user profile sync] realtime listener started", { uid });
   } catch (error) {
-    console.error(`[PM user profile sync] start failed uid=${uid} code=${error?.code || ""} message=${error?.message || String(error)}`);
+    devNoticeLogV114("error", "[PM user profile sync] start failed", { uid, code: error?.code || "", message: error?.message || String(error) });
   }
 }
 
@@ -9986,9 +10027,9 @@ async function syncRemoteMemberRoleV39(user, workspaceId, uid) {
     batch.set(firestore.doc(runtime.db, "workspace_members", memberId), payload, { merge: true });
     batch.set(firestore.doc(runtime.db, "workspaces", workspaceId, "members", uid), payload, { merge: true });
     await batch.commit();
-    console.info("[PM role sync]", { workspaceId, uid, role: payload.role, usersDocumentSaved: true, workspaceMembersSaved: true });
+    devNoticeLogV114("info", "[PM role sync]", { workspaceId, uid, role: payload.role, usersDocumentSaved: true, workspaceMembersSaved: true });
   } catch (error) {
-    console.error("[PM role sync failure]", {
+    devNoticeLogV114("error", "[PM role sync failure]", {
       workspaceId,
       uid,
       role: user.role,
@@ -10299,6 +10340,7 @@ async function restoreFirebaseSessionV34() {
     const runtime = await window.PMFirebaseRuntime.init();
     if (!runtime) return;
     runtime.sdk.auth.onAuthStateChanged(runtime.auth, async (firebaseUser) => {
+      window.PMAuthService?.recordOperationalGoogleAuthState?.(Boolean(firebaseUser));
       if (!firebaseUser) {
         if (currentUser?.provider === "firebase") logout();
         return;
@@ -10980,6 +11022,18 @@ async function restoreFirebaseSessionV34() {
         if (currentUser?.provider === "firebase") logout();
         return;
       }
+      if (typeof canUseBrowserAuthSessionV80 === "function"
+        && typeof hasPendingExplicitAuthV80 === "function"
+        && !canUseBrowserAuthSessionV80()
+        && !hasPendingExplicitAuthV80()) {
+        try {
+          await runtime.sdk.auth.signOut(runtime.auth);
+        } catch (error) {
+          console.info("[auth persistence guard signout skipped]", error?.code || "", error?.message || String(error));
+        }
+        if (typeof showLoginOnlyV80 === "function") showLoginOnlyV80();
+        return;
+      }
       if (currentUser) return;
       const membership = await window.PMAuthService.firebaseEnsureUserStructure(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
       firebaseUser.pmWorkspaceId = membership.workspaceId;
@@ -11067,9 +11121,9 @@ async function startCurrentUserRealtimeV50() {
       updateGreeting();
     }
   }, (error) => {
-    console.error(`[PM user profile sync] listener failed uid=${uid} code=${error?.code || ""} message=${error?.message || String(error)}`);
+    devNoticeLogV114("error", "[PM user profile sync] listener failed", { uid, code: error?.code || "", message: error?.message || String(error) });
   });
-  console.info(`[PM user profile sync] realtime listener started uid=${uid}`);
+  devNoticeLogV114("info", "[PM user profile sync] realtime listener started", { uid });
 }
 
 function startSystemNoticeRealtimeV54(workspaceId) {
@@ -19673,3 +19727,7057 @@ printOptionsPanelV95 = function printOptionsPanelV96() {
 store.settings.printOptions ??= {};
 store.settings.printOptions.visibility = normalizeVisibilityValueV96(store.settings.printOptions.visibility);
 store.settings.appVersion = APP_PATCH_VERSION_V96;
+
+// Final V97: P0/P1 stabilization for re-auth guarded actions, program hubs,
+// timetable period editing, and homepage settings save binding.
+const APP_PATCH_VERSION_V97 = "v97.0 - 2026-07-21";
+const PROGRAM_TYPES_V97 = ["afterschool", "specialLectures", "clubs"];
+let activeProgramViewV97 = null;
+let forceProgramListOnceV97 = false;
+
+function firebaseUserForCurrentSessionV97() {
+  try {
+    const firebaseUser = window.firebase?.auth?.().currentUser || null;
+    const currentUid = currentUser?.uid || currentUser?.id || "";
+    if (!firebaseUser || !currentUid || firebaseUser.uid !== currentUid) return null;
+    return firebaseUser;
+  } catch {
+    return null;
+  }
+}
+
+function firebaseProviderIdsV97(firebaseUser = firebaseUserForCurrentSessionV97()) {
+  return (firebaseUser?.providerData || []).map((provider) => provider?.providerId).filter(Boolean);
+}
+
+function isGoogleOnlyFirebaseUserV97(firebaseUser = firebaseUserForCurrentSessionV97()) {
+  const providers = firebaseProviderIdsV97(firebaseUser);
+  return providers.includes("google.com") && !providers.includes("password");
+}
+
+async function reauthenticateGoogleUserV97(firebaseUser = firebaseUserForCurrentSessionV97()) {
+  try {
+    const runtime = await window.PMFirebaseRuntime?.init?.();
+    const user = firebaseUser || runtime?.auth?.currentUser;
+    if (!runtime || !user || !isGoogleOnlyFirebaseUserV97(user)) return false;
+    const Provider = runtime.sdk?.auth?.GoogleAuthProvider || window.firebase?.auth?.GoogleAuthProvider;
+    if (!Provider) return false;
+    const provider = new Provider();
+    provider.setCustomParameters?.({ prompt: "select_account" });
+    const credential = typeof user.reauthenticateWithPopup === "function"
+      ? await user.reauthenticateWithPopup(provider)
+      : await runtime.auth.signInWithPopup(provider);
+    return !!credential?.user?.uid && credential.user.uid === user.uid;
+  } catch (error) {
+    console.info("[reauth v97 google failed]", error?.code || "", error?.message || String(error));
+    return false;
+  }
+}
+
+async function reauthenticatePasswordUserV97(passwordValue) {
+  const value = String(passwordValue || "");
+  const firebaseUser = firebaseUserForCurrentSessionV97();
+  if (firebaseUser) {
+    const providers = firebaseProviderIdsV97(firebaseUser);
+    if (isGoogleOnlyFirebaseUserV97(firebaseUser)) return reauthenticateGoogleUserV97(firebaseUser);
+    if (!providers.includes("password")) return false;
+    if (!value || value === "__google_reauth__") return false;
+    try {
+      const Provider = window.firebase?.auth?.EmailAuthProvider;
+      if (!Provider?.credential) return false;
+      const email = firebaseUser.email || currentUser?.email || "";
+      const credential = Provider.credential(email, value);
+      const result = await firebaseUser.reauthenticateWithCredential(credential);
+      if (!result?.user?.uid || result.user.uid !== firebaseUser.uid) return false;
+      currentUser.password = value;
+      return true;
+    } catch (error) {
+      console.info("[reauth v97 password failed]", error?.code || "", error?.message || String(error));
+      return false;
+    }
+  }
+
+  if (!value || !currentUser) return false;
+  if (currentUser.password && value === currentUser.password) return true;
+  const authUser = typeof currentAuthUserV78 === "function" ? currentAuthUserV78() : null;
+  if (window.PMAuthService?.verifyLocalPassword && authUser) {
+    try {
+      if (await window.PMAuthService.verifyLocalPassword(authUser, value)) {
+        currentUser.password = value;
+        return true;
+      }
+    } catch (error) {
+      console.info("[reauth v97 local check skipped]", error?.message || String(error));
+    }
+  }
+  return false;
+}
+
+async function runApprovedActionV97(action, { googleOnly = false, passwordValue = "" } = {}) {
+  const ok = googleOnly
+    ? await reauthenticateGoogleUserV97()
+    : await reauthenticatePasswordUserV97(passwordValue);
+  if (!ok) return false;
+  await action?.();
+  return true;
+}
+
+verifyCurrentPasswordV78 = async function verifyCurrentPasswordV97(passwordValue) {
+  return reauthenticatePasswordUserV97(passwordValue);
+};
+
+sitePasswordOkV70 = async function sitePasswordOkV97(passwordValue) {
+  return reauthenticatePasswordUserV97(passwordValue);
+};
+
+passwordApprovalMessageV78 = function passwordApprovalMessageV97() {
+  return "재인증에 실패했습니다. 이메일/비밀번호 계정은 현재 비밀번호를 입력하고, Google 계정은 Google 재인증을 완료해야 합니다.";
+};
+
+requirePassword = function requirePasswordV97(action) {
+  pendingPasswordAction = action;
+  const input = document.getElementById("confirmPasswordInput");
+  const error = document.getElementById("passwordError");
+  const dialog = document.getElementById("passwordDialog");
+  if (input) {
+    input.value = "";
+    input.required = true;
+    input.placeholder = "이메일/비밀번호 계정의 현재 비밀번호";
+  }
+  if (error) error.textContent = "";
+  if (isGoogleOnlyFirebaseUserV97()) {
+    runApprovedActionV97(action, { googleOnly: true }).then((ok) => {
+      if (!ok) showMessage("재인증 실패", passwordApprovalMessageV78());
+      pendingPasswordAction = null;
+    }).catch((error) => {
+      console.error("[password approval action failed]", error);
+      showMessage("작업 실패", error?.message || String(error));
+      pendingPasswordAction = null;
+    });
+    return;
+  }
+  if (dialog?.showModal) dialog.showModal();
+};
+
+confirmPassword = async function confirmPasswordV97(event) {
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  const input = document.getElementById("confirmPasswordInput");
+  const error = document.getElementById("passwordError");
+  const submit = event?.submitter || document.querySelector("#passwordDialog button[value='default']");
+  if (error) error.textContent = "";
+  if (submit) submit.disabled = true;
+  try {
+    const action = pendingPasswordAction;
+    const ok = await runApprovedActionV97(action, { passwordValue: input?.value || "" });
+    if (!ok) {
+      if (error) error.textContent = passwordApprovalMessageV78();
+      return;
+    }
+    document.getElementById("passwordDialog")?.close?.();
+    pendingPasswordAction = null;
+  } catch (errorValue) {
+    console.error("[password approval action failed]", errorValue);
+    showMessage("작업 실패", errorValue?.message || String(errorValue));
+  } finally {
+    if (submit) submit.disabled = false;
+  }
+};
+
+const renderProgramPageBeforeV97 = renderProgramPageV26;
+renderProgramPageV26 = function renderProgramPageV97(type, programId, mode = "attendance") {
+  activeProgramViewV97 = { type, programId, mode, until: Date.now() + 30000 };
+  return renderProgramPageBeforeV97(type, programId, mode);
+};
+
+const renderProgramListBeforeV97 = renderProgramListV26;
+renderProgramListV26 = function renderProgramListV97(type) {
+  if (forceProgramListOnceV97 || activeProgramViewV97?.type !== type) activeProgramViewV97 = null;
+  renderProgramListBeforeV97(type);
+  const grid = content.querySelector(".modern-program-grid");
+  if (grid && !grid.children.length) {
+    grid.append(el("div", "empty", "등록된 항목이 없습니다. 신규 등록 버튼으로 추가하세요."));
+  }
+};
+
+document.addEventListener("click", (event) => {
+  const navButton = event.target?.closest?.(".nav-btn");
+  if (!navButton || navButton.dataset.programId) return;
+  const key = navButton.dataset.page;
+  if (!PROGRAM_TYPES_V97.includes(key)) return;
+  activeProgramViewV97 = null;
+  try { programDetailLockV84 = null; } catch {}
+  forceProgramListOnceV97 = true;
+  setTimeout(() => { forceProgramListOnceV97 = false; }, 0);
+}, true);
+
+const ensureAppV26BeforeV97 = ensureAppV26;
+ensureAppV26 = function ensureAppV97() {
+  ensureAppV26BeforeV97();
+  PROGRAM_TYPES_V97.forEach((type) => {
+    const cfg = programConfigV26(type);
+    const disabled = !!store.settings?.programDefaultDisabledV81?.[type];
+    if (disabled && Array.isArray(store[cfg.programs]) && store[cfg.programs].length === 1) {
+      const only = store[cfg.programs][0];
+      const isDefault = !only.teacher && !only.location && !only.notice && !only.memo && (only.name === cfg.defaultName || only.name === cfg.title);
+      if (isDefault) store[cfg.programs] = [];
+    }
+  });
+  store.settings.appVersion = APP_PATCH_VERSION_V97;
+};
+
+const programCardBeforeV97 = programCardV26;
+programCardV26 = function programCardV97(type, program) {
+  const card = programCardBeforeV97(type, program);
+  const deleteButton = card.querySelector(".program-delete-link");
+  if (deleteButton) {
+    deleteButton.addEventListener("click", () => markProgramDefaultDisabledV81(type, true), true);
+  }
+  return card;
+};
+
+const addProgramBeforeV97 = addProgramV26;
+addProgramV26 = function addProgramV97(type) {
+  const cfg = programConfigV26(type);
+  const before = (store[cfg.programs] || []).length;
+  addProgramBeforeV97(type);
+  if ((store[cfg.programs] || []).length > before) {
+    markProgramDefaultDisabledV81(type, false);
+    saveStore();
+  }
+};
+
+const addProgramScheduleSlotBeforeV97 = addProgramScheduleSlotV26;
+addProgramScheduleSlotV26 = function addProgramScheduleSlotV97(type, program, day, period, room) {
+  activeProgramViewV97 = { type, programId: program?.id, mode: "schedule", until: Date.now() + 30000 };
+  const result = addProgramScheduleSlotBeforeV97(type, program, day, period, room);
+  setTimeout(() => {
+    if (currentPage === type && program?.id) renderProgramPageV26(type, program.id, "schedule");
+  }, 180);
+  return result;
+};
+
+const renderPageBeforeV97 = renderPage;
+renderPage = function renderPageV97(key) {
+  if (PROGRAM_TYPES_V97.includes(key) && forceProgramListOnceV97) {
+    activeProgramViewV97 = null;
+    try { programDetailLockV84 = null; } catch {}
+  } else if (PROGRAM_TYPES_V97.includes(key) && activeProgramViewV97?.type === key && activeProgramViewV97.until > Date.now()) {
+    const cfg = programConfigV26(key);
+    if ((store[cfg.programs] || []).some((program) => program.id === activeProgramViewV97.programId)) {
+      return renderProgramPageV26(key, activeProgramViewV97.programId, activeProgramViewV97.mode);
+    }
+  }
+  return renderPageBeforeV97(key);
+};
+
+function normalizePeriodRowsV97(rows = []) {
+  return (rows || []).map((row, index) => {
+    const start = row.start || "";
+    const end = row.end || "";
+    const time = row.time || [start, end].filter(Boolean).join("-");
+    return {
+      period: normalizePeriodLabelV84(row.period, index),
+      start,
+      end,
+      time
+    };
+  });
+}
+
+function persistPeriodRowsV97(rows = []) {
+  store.settings ??= {};
+  store.settings.periodTimesConfiguredV81 = true;
+  store.periodTimes = normalizePeriodRowsV97(rows);
+  store.settings.timetablePeriods = store.periodTimes.length;
+  if (typeof normalizeTimetableRowsV84 === "function") normalizeTimetableRowsV84();
+  saveStore();
+}
+
+const timetablePeriodsBeforeV97 = timetablePeriodsV29;
+timetablePeriodsV29 = function timetablePeriodsV97() {
+  if (store.settings?.periodTimesConfiguredV81 === true) {
+    return normalizePeriodRowsV97(Array.isArray(store.periodTimes) ? store.periodTimes : []);
+  }
+  return normalizePeriodRowsV97(timetablePeriodsBeforeV97());
+};
+
+function periodCardV97(row, index) {
+  const card = el("article", "period-card");
+  const top = el("div", "period-card-top");
+  const period = row.period || `${index + 1}교시`;
+  top.append(el("strong", "", `${period} 설정`));
+  const del = button("삭제", "ghost small");
+  del.addEventListener("click", () => {
+    const next = timetablePeriodsV29().filter((_, rowIndex) => rowIndex !== index);
+    persistPeriodRowsV97(next);
+    renderTimetableV29();
+  });
+  top.append(del);
+  const start = document.createElement("input");
+  start.type = "time";
+  start.value = row.start || "";
+  const end = document.createElement("input");
+  end.type = "time";
+  end.value = row.end || "";
+  const persist = () => {
+    const next = timetablePeriodsV29();
+    next[index] = { period, start: start.value, end: end.value, time: `${start.value}-${end.value}` };
+    (store.timetable || []).filter((item) => item.period === period).forEach((item) => { item.time = next[index].time; });
+    persistPeriodRowsV97(next);
+  };
+  start.addEventListener("change", persist);
+  end.addEventListener("change", persist);
+  card.append(top, makeField("시작", `periodStartV97-${index}`, start), makeField("종료", `periodEndV97-${index}`, end));
+  return card;
+}
+
+periodEditorV29 = function periodEditorV97() {
+  const box = el("section", "modern-period-editor");
+  const head = el("div", "period-editor-head-v81");
+  const actions = el("div", "row-actions");
+  const add = button("+ 신규 교시 추가", "ghost");
+  add.addEventListener("click", () => {
+    const periods = timetablePeriodsV29();
+    periods.push({ period: `${periods.length + 1}교시`, start: "", end: "", time: "" });
+    persistPeriodRowsV97(periods);
+    renderTimetableV29();
+  });
+  const clear = button("교시 전체 삭제", "danger");
+  clear.addEventListener("click", () => requirePassword(() => {
+    if (!confirm("등록된 교시 시간을 모두 삭제할까요? 시간표 배정 내용은 유지되지만 교시 시간 표시는 비워집니다.")) return;
+    persistPeriodRowsV97([]);
+    renderTimetableV29();
+  }));
+  actions.append(add, clear);
+  head.append(el("h3", "", "정규 수강 교시 및 시간 설정"), actions);
+  const grid = el("div", "period-card-grid");
+  timetablePeriodsV29().forEach((row, index) => grid.append(periodCardV97(row, index)));
+  if (!grid.children.length) grid.append(el("div", "empty", "등록된 교시가 없습니다. 신규 교시 추가를 눌러 다시 만들 수 있습니다."));
+  box.append(head, el("p", "muted", "교시 수정 중 중복 교시가 자동 생성되지 않도록 저장 기준을 고정했습니다."), grid);
+  return box;
+};
+
+const saveSiteSettingsBeforeV97 = saveSiteSettingsV2;
+saveSiteSettingsV2 = async function saveSiteSettingsV97(...args) {
+  const input = ensureSitePasswordInputV86?.() || document.getElementById("sitePasswordInput");
+  if (input && isGoogleOnlyFirebaseUserV97()) {
+    input.required = false;
+    input.value = "__google_reauth__";
+    input.placeholder = "Google 계정은 저장 시 Google 재인증";
+  }
+  const result = await saveSiteSettingsBeforeV97(...args);
+  store.settings.appVersion = APP_PATCH_VERSION_V97;
+  return result;
+};
+
+const renderSiteBeforeV97 = renderSiteV20;
+renderSiteV20 = function renderSiteV97() {
+  renderSiteBeforeV97();
+  const save = document.getElementById("saveSite");
+  if (save) {
+    const clone = save.cloneNode(true);
+    clone.id = "saveSite";
+    clone.type = "button";
+    clone.addEventListener("click", () => saveSiteSettingsV2());
+    save.replaceWith(clone);
+  }
+  ensureSitePasswordInputV86?.();
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V97;
+
+// Final V98: focused P0/P1 regression fixes for schedule deletion,
+// user-facing re-auth copy, program timetable sync, and guarded period deletion.
+const APP_PATCH_VERSION_V98 = "v98.0 - 2026-07-21";
+const PROGRAM_TYPE_DEFAULT_LABELS_V98 = {
+  afterschool: "방과후",
+  specialLectures: "특강",
+  clubs: "동아리"
+};
+
+let lastReauthFailureCodeV98 = "";
+
+function isPopupCancelCodeV98(code = "") {
+  return ["auth/popup-closed-by-user", "auth/cancelled-popup-request", "auth/popup-blocked"].includes(String(code || ""));
+}
+
+reauthenticateGoogleUserV97 = async function reauthenticateGoogleUserV98(firebaseUser = firebaseUserForCurrentSessionV97()) {
+  lastReauthFailureCodeV98 = "";
+  try {
+    const runtime = await window.PMFirebaseRuntime?.init?.();
+    const user = firebaseUser || runtime?.auth?.currentUser;
+    if (!runtime || !user || !isGoogleOnlyFirebaseUserV97(user)) return false;
+    const Provider = runtime.sdk?.auth?.GoogleAuthProvider || window.firebase?.auth?.GoogleAuthProvider;
+    if (!Provider) return false;
+    const provider = new Provider();
+    provider.setCustomParameters?.({ prompt: "select_account" });
+    const credential = typeof user.reauthenticateWithPopup === "function"
+      ? await user.reauthenticateWithPopup(provider)
+      : await runtime.auth.signInWithPopup(provider);
+    return !!credential?.user?.uid && credential.user.uid === user.uid;
+  } catch (error) {
+    lastReauthFailureCodeV98 = error?.code || "unknown";
+    console.info("[reauth v98 google check failed]", error?.code || "", error?.message || String(error));
+    return false;
+  }
+};
+
+passwordApprovalMessageV78 = function passwordApprovalMessageV98() {
+  if (isGoogleOnlyFirebaseUserV97()) {
+    return isPopupCancelCodeV98(lastReauthFailureCodeV98)
+      ? "계정 확인이 취소되었습니다. 정보는 삭제되지 않았습니다."
+      : "Google 계정 확인에 실패했습니다. 다시 시도해 주세요.";
+  }
+  return "비밀번호가 올바르지 않습니다. 다시 입력해 주세요.";
+};
+
+requirePassword = function requirePasswordV98(action) {
+  pendingPasswordAction = action;
+  const input = document.getElementById("confirmPasswordInput");
+  const error = document.getElementById("passwordError");
+  const dialog = document.getElementById("passwordDialog");
+  if (input) {
+    input.value = "";
+    input.required = true;
+    input.placeholder = "이메일/비밀번호 계정의 현재 비밀번호";
+  }
+  if (error) error.textContent = "";
+  if (isGoogleOnlyFirebaseUserV97()) {
+    runApprovedActionV97(action, { googleOnly: true }).then((ok) => {
+      if (!ok) showMessage("계정 확인 실패", passwordApprovalMessageV78());
+      pendingPasswordAction = null;
+    }).catch((errorValue) => {
+      console.error("[account confirmation action failed]", errorValue);
+      showMessage("작업 실패", errorValue?.message || String(errorValue));
+      pendingPasswordAction = null;
+    });
+    return;
+  }
+  if (dialog?.showModal) dialog.showModal();
+};
+
+confirmPassword = async function confirmPasswordV98(event) {
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  const input = document.getElementById("confirmPasswordInput");
+  const error = document.getElementById("passwordError");
+  const submit = event?.submitter || document.querySelector("#passwordDialog button[value='default']");
+  if (error) error.textContent = "";
+  if (submit) submit.disabled = true;
+  try {
+    const action = pendingPasswordAction;
+    const ok = await runApprovedActionV97(action, { passwordValue: input?.value || "" });
+    if (!ok) {
+      if (error) error.textContent = passwordApprovalMessageV78();
+      return;
+    }
+    document.getElementById("passwordDialog")?.close?.();
+    pendingPasswordAction = null;
+  } catch (errorValue) {
+    console.error("[password approval action failed]", errorValue);
+    showMessage("작업 실패", errorValue?.message || String(errorValue));
+  } finally {
+    if (submit) submit.disabled = false;
+  }
+};
+
+function clearScheduleDetailStateV98() {
+  ["selectedScheduleId", "scheduleSelectedId", "activeScheduleId", "pm-selected-schedule", "schedule-view-id"].forEach((key) => sessionStorage.removeItem(key));
+  if (typeof editing === "object" && editing?.key === "schedules") editing = null;
+  try { editorDialog?.close?.(); } catch {}
+  document.querySelectorAll(".schedule-detail,.schedule-viewer,[data-schedule-detail]").forEach((node) => node.remove());
+}
+
+const deleteRowBeforeV98 = deleteRow;
+deleteRow = function deleteRowV98(key, id) {
+  const normalizedKey = key === "schedule" ? "schedules" : key;
+  const isScheduleDelete = normalizedKey === "schedules";
+  if (isScheduleDelete) {
+    clearScheduleDetailStateV98();
+    currentPage = "schedules";
+  }
+  const result = deleteRowBeforeV98(normalizedKey, id);
+  if (isScheduleDelete) {
+    clearScheduleDetailStateV98();
+    currentPage = "schedules";
+    if (typeof renderSchedulesV10 === "function") renderSchedulesV10();
+    else renderPage("schedules");
+    document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.page === "schedules"));
+  }
+  return result;
+};
+
+function ensureProgramTypeLabelsV98() {
+  store.settings ??= {};
+  store.settings.programTypeLabelsV98 ??= { ...PROGRAM_TYPE_DEFAULT_LABELS_V98 };
+  Object.entries(PROGRAM_TYPE_DEFAULT_LABELS_V98).forEach(([type, label]) => {
+    if (!String(store.settings.programTypeLabelsV98[type] || "").trim()) store.settings.programTypeLabelsV98[type] = label;
+  });
+  pageMeta.afterschool = ["방", store.settings.programTypeLabelsV98.afterschool];
+  pageMeta.specialLectures = ["특", store.settings.programTypeLabelsV98.specialLectures];
+  pageMeta.clubs = ["동", store.settings.programTypeLabelsV98.clubs];
+}
+
+function programTypeLabelV98(type) {
+  ensureProgramTypeLabelsV98();
+  return store.settings.programTypeLabelsV98[type] || PROGRAM_TYPE_DEFAULT_LABELS_V98[type] || type;
+}
+
+const programConfigBeforeV98 = programConfigV26;
+programConfigV26 = function programConfigV98(type) {
+  const cfg = { ...programConfigBeforeV98(type) };
+  const label = programTypeLabelV98(type);
+  cfg.title = label;
+  cfg.scheduleType = label;
+  cfg.titleLong = type === "afterschool"
+    ? `${label} 고품격 특강 기획국`
+    : type === "specialLectures"
+      ? `${label} 집중 관리 센터`
+      : `학생 자치 브랜드 ${label} 활동실`;
+  cfg.addLabel = type === "afterschool" ? "신규 강좌 개설등록" : `신규 ${label} 개설등록`;
+  return cfg;
+};
+
+function syncProgramTimetableSetNamesV98() {
+  ensureProgramTypeLabelsV98();
+  let changed = false;
+  if (!Array.isArray(store.timetableSets)) return false;
+  PROGRAM_TYPES_V97.forEach((type) => {
+    const cfg = programConfigV26(type);
+    (store[cfg.programs] || []).forEach((program) => {
+      const setId = programSetIdV26(type, program);
+      const set = store.timetableSets.find((item) => item.id === setId);
+      if (!set) return;
+      const nextName = `${cfg.title} · ${program.name || cfg.title}`;
+      if (set.name !== nextName) {
+        set.name = nextName;
+        changed = true;
+      }
+      if (set.type !== cfg.scheduleType) {
+        set.type = cfg.scheduleType;
+        changed = true;
+      }
+    });
+  });
+  return changed;
+}
+
+const saveStoreBeforeV98 = saveStore;
+saveStore = function saveStoreV98(options) {
+  syncProgramTimetableSetNamesV98();
+  return saveStoreBeforeV98(options);
+};
+
+const buildNavBeforeV98 = buildNav;
+buildNav = function buildNavV98() {
+  ensureProgramTypeLabelsV98();
+  syncProgramTimetableSetNamesV98();
+  return buildNavBeforeV98();
+};
+
+periodTimeForV26 = function periodTimeForV98(period) {
+  const normalized = normalizePeriodLabelV84(period, 0);
+  const row = timetablePeriodsV29().find((item) => normalizePeriodLabelV84(item.period, 0) === normalized);
+  return row ? ([row.start, row.end].filter(Boolean).join("-") || row.time || "") : "";
+};
+
+function formatPeriodTimeV98(row = {}) {
+  return [row.start, row.end].filter(Boolean).join("-") || row.time || "";
+}
+
+persistPeriodRowsV97 = function persistPeriodRowsV98(rows = []) {
+  store.settings ??= {};
+  store.settings.periodTimesConfiguredV81 = true;
+  store.periodTimes = normalizePeriodRowsV97(rows);
+  store.settings.timetablePeriods = store.periodTimes.length;
+  const byPeriod = new Map(store.periodTimes.map((row) => [normalizePeriodLabelV84(row.period, 0), formatPeriodTimeV98(row)]));
+  (store.timetable || []).forEach((row) => {
+    const normalized = normalizePeriodLabelV84(row.period, 0);
+    if (byPeriod.has(normalized)) row.time = byPeriod.get(normalized);
+  });
+  saveStore();
+};
+
+function renumberDraftPeriodsV98(rows) {
+  rows.forEach((row, index) => {
+    row.period = `${index + 1}교시`;
+    row.time = [row.start || "", row.end || ""].filter(Boolean).join("-");
+  });
+  return rows;
+}
+
+function periodDraftCardV98(row, index, { onDirty, onDelete }) {
+  const card = el("article", "period-card");
+  const top = el("div", "period-card-top");
+  top.append(el("strong", "", `${row.period || `${index + 1}교시`} 설정`));
+  const del = button("삭제", "ghost small");
+  del.addEventListener("click", () => requirePassword(() => {
+    if (!confirm(`${row.period || `${index + 1}교시`}를 삭제할까요? 수업 배정은 유지되고 시간 표시만 제거됩니다.`)) return;
+    onDelete(index);
+  }));
+  top.append(del);
+  const start = document.createElement("input");
+  start.type = "time";
+  start.value = row.start || "";
+  const end = document.createElement("input");
+  end.type = "time";
+  end.value = row.end || "";
+  const updateDraft = () => {
+    row.start = start.value;
+    row.end = end.value;
+    row.time = [row.start, row.end].filter(Boolean).join("-");
+    onDirty();
+  };
+  start.addEventListener("input", updateDraft);
+  end.addEventListener("input", updateDraft);
+  card.append(top, makeField("시작", `periodStartV98-${index}`, start), makeField("종료", `periodEndV98-${index}`, end));
+  return card;
+}
+
+periodEditorV29 = function periodEditorV98() {
+  const draft = normalizePeriodRowsV97(timetablePeriodsV29()).map((row) => ({ ...row }));
+  const box = el("section", "modern-period-editor");
+  const head = el("div", "period-editor-head-v81");
+  const actions = el("div", "row-actions");
+  const status = el("p", "muted period-save-status-v98", "저장된 교시 시간입니다.");
+  const grid = el("div", "period-card-grid");
+  const save = button("교시 시간 저장");
+  save.disabled = true;
+  let dirty = false;
+  let saving = false;
+  const markDirty = () => {
+    dirty = true;
+    save.disabled = false;
+    status.textContent = "저장되지 않은 교시 시간 변경이 있습니다.";
+    status.classList.add("dirty");
+  };
+  const renderGrid = () => {
+    grid.replaceChildren();
+    renumberDraftPeriodsV98(draft).forEach((row, index) => {
+      grid.append(periodDraftCardV98(row, index, {
+        onDirty: markDirty,
+        onDelete: (targetIndex) => {
+          draft.splice(targetIndex, 1);
+          persistPeriodRowsV97(draft);
+          showMessage("교시 삭제 완료", "선택한 교시 시간이 삭제되었습니다.");
+          renderTimetableV29();
+        }
+      }));
+    });
+    if (!grid.children.length) grid.append(el("div", "empty", "등록된 교시가 없습니다. 신규 교시 추가를 눌러 다시 만들 수 있습니다."));
+  };
+  const add = button("+ 신규 교시 추가", "ghost");
+  add.addEventListener("click", () => {
+    draft.push({ period: `${draft.length + 1}교시`, start: "", end: "", time: "" });
+    markDirty();
+    renderGrid();
+  });
+  const clear = button("교시 전체 삭제", "danger");
+  clear.addEventListener("click", () => requirePassword(() => {
+    if (!confirm("등록된 교시 시간을 모두 삭제할까요? 시간표 배정 내용은 유지되고 교시 시간 표시만 비워집니다.")) return;
+    persistPeriodRowsV97([]);
+    showMessage("교시 전체 삭제 완료", "모든 교시 시간 설정을 삭제했습니다.");
+    renderTimetableV29();
+  }));
+  save.addEventListener("click", () => {
+    if (!dirty || saving) return;
+    saving = true;
+    save.disabled = true;
+    try {
+      persistPeriodRowsV97(draft);
+      status.textContent = "교시 시간을 저장했습니다.";
+      status.classList.remove("dirty");
+      showMessage("저장 완료", "교시 시간을 저장했습니다.");
+      renderTimetableV29();
+    } catch (error) {
+      console.error("[period save failed]", error);
+      status.textContent = "교시 시간 저장에 실패했습니다.";
+      status.classList.add("dirty");
+      save.disabled = false;
+    } finally {
+      saving = false;
+    }
+  });
+  actions.append(add, clear, save);
+  head.append(el("h3", "", "정규 수강 교시 및 시간 설정"), actions);
+  renderGrid();
+  box.append(head, el("p", "muted", "교시 시작/종료 시간을 수정한 뒤 교시 시간 저장을 눌러 확정합니다."), status, grid);
+  return box;
+};
+
+function programScheduleRowsV98(type, program) {
+  const cfg = programConfigV26(type);
+  const setId = programSetIdV26(type, program);
+  const rows = (store.timetable || [])
+    .filter((row) => (row.setId || "") === setId || (row.programId && row.programId === program.id))
+    .map((row) => ({
+      ...row,
+      programId: program.id,
+      room: row.room || row.location || "",
+      teacher: row.teacher || program.teacher || "",
+      subject: row.subject || program.name || "",
+      memo: row.memo || cfg.scheduleType,
+      setId
+    }));
+  const seen = new Set(rows.map((row) => `${row.day || ""}|${normalizePeriodLabelV84(row.period, 0)}`));
+  (store[cfg.schedules] || []).filter((row) => row.programId === program.id).forEach((legacy) => {
+    const key = `${legacy.day || ""}|${normalizePeriodLabelV84(legacy.period, 0)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push({
+      ...legacy,
+      setId,
+      period: normalizePeriodLabelV84(legacy.period, rows.length),
+      time: legacy.time || periodTimeForV26(legacy.period),
+      room: legacy.room || legacy.location || "",
+      teacher: legacy.teacher || program.teacher || "",
+      subject: legacy.subject || program.name || "",
+      memo: legacy.memo || cfg.scheduleType,
+      legacyOnlyV98: true
+    });
+  });
+  const dayOrder = new Map(programDaysV26().map((day, index) => [day, index]));
+  return rows.sort((a, b) => {
+    const dayDiff = (dayOrder.get(a.day) ?? 99) - (dayOrder.get(b.day) ?? 99);
+    if (dayDiff) return dayDiff;
+    return Number(String(a.period || "").replace(/\D/g, "")) - Number(String(b.period || "").replace(/\D/g, ""));
+  });
+}
+
+function ensureProgramTimetableSetV98(type, program) {
+  const cfg = programConfigV26(type);
+  const setId = programSetIdV26(type, program);
+  store.timetableSets ??= [];
+  const setName = `${cfg.title} · ${program.name || cfg.title}`;
+  const existingSet = store.timetableSets.find((set) => set.id === setId);
+  if (existingSet) {
+    existingSet.name = setName;
+    existingSet.type = cfg.scheduleType;
+  } else {
+    store.timetableSets.push({ id: setId, name: setName, type: cfg.scheduleType });
+  }
+  return setId;
+}
+
+addProgramScheduleSlotV26 = function addProgramScheduleSlotV98(type, program, day, period, room) {
+  const cfg = programConfigV26(type);
+  const normalizedPeriod = normalizePeriodLabelV84(period, 0);
+  const setId = ensureProgramTimetableSetV98(type, program);
+  const time = periodTimeForV26(normalizedPeriod);
+  store.timetable ??= [];
+  const existingIndex = store.timetable.findIndex((item) => (item.setId || "") === setId && item.day === day && normalizePeriodLabelV84(item.period, 0) === normalizedPeriod);
+  const base = existingIndex >= 0 ? store.timetable[existingIndex] : {};
+  const row = {
+    ...base,
+    id: base.id || `tt-${type}-${program.id}-${Date.now()}`,
+    setId,
+    programId: program.id,
+    sourceType: type,
+    day,
+    period: normalizedPeriod,
+    time,
+    subject: program.name || cfg.title,
+    teacher: program.teacher || "",
+    room: room || program.location || "",
+    location: room || program.location || "",
+    seat: base.seat || "",
+    memo: cfg.scheduleType
+  };
+  if (existingIndex >= 0) store.timetable[existingIndex] = row;
+  else store.timetable.push(row);
+  setProgramDetailLockV84?.(type, program.id, "schedule");
+  activeProgramViewV97 = { type, programId: program.id, mode: "schedule", until: Date.now() + 30000 };
+  saveStore();
+  buildNav();
+};
+
+editTimeCellV15 = function editTimeCellV98(setId, day, period, time, row) {
+  if (!can("create", "timetable") && !can("edit", "timetable")) return;
+  const subject = prompt(`${day} ${period} 과목`, row?.subject || "");
+  if (subject === null) return;
+  const teacher = prompt("선생님", row?.teacher || "");
+  if (teacher === null) return;
+  const room = prompt("위치", row?.room || "");
+  if (room === null) return;
+  const seat = prompt("좌석", row?.seat || "");
+  if (seat === null) return;
+  const normalizedPeriod = normalizePeriodLabelV84(period, 0);
+  const next = {
+    ...(row || {}),
+    id: row?.id || `tt-manual-${Date.now()}`,
+    setId,
+    day,
+    period: normalizedPeriod,
+    time: time || periodTimeForV26(normalizedPeriod),
+    subject,
+    teacher,
+    room,
+    location: room,
+    seat
+  };
+  const index = (store.timetable || []).findIndex((item) => String(item.id) === String(next.id));
+  if (index >= 0) store.timetable[index] = next;
+  else {
+    store.timetable ??= [];
+    store.timetable.push(next);
+  }
+  saveStore();
+  renderTimetableV29();
+};
+
+programSlotChipsV26 = function programSlotChipsV98(type, program, rows) {
+  const wrap = el("div", "program-slot-chips");
+  const list = rows?.length ? rows : programScheduleRowsV98(type, program);
+  if (!list.length) wrap.append(el("span", "muted", "아직 배정된 슬롯이 없습니다."));
+  list.forEach((row) => {
+    const label = `${row.day} [${normalizePeriodLabelV84(row.period, 0)}] ${row.time ? row.time + " " : ""}(${row.room || "장소 미정"})`;
+    wrap.append(el("span", "program-slot-chip", label));
+  });
+  return wrap;
+};
+
+programSchedulePreviewV26 = function programSchedulePreviewV98(type, program) {
+  const rows = programScheduleRowsV98(type, program);
+  const days = programDaysV26();
+  const periodRows = timetablePeriodsV29();
+  const periods = periodRows.length ? periodRows.map((row) => row.period) : Array.from({ length: 7 }, (_, i) => `${i + 1}교시`);
+  const wrap = el("div", "program-timetable-preview");
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const hr = document.createElement("tr");
+  hr.append(el("th", "", "교시"));
+  days.forEach((day) => hr.append(el("th", "", day)));
+  thead.append(hr);
+  const tbody = document.createElement("tbody");
+  periods.forEach((period) => {
+    const tr = document.createElement("tr");
+    tr.append(el("th", "", period));
+    days.forEach((day) => {
+      const cell = document.createElement("td");
+      const hit = rows.find((row) => row.day === day && normalizePeriodLabelV84(row.period, 0) === normalizePeriodLabelV84(period, 0));
+      if (hit) cell.append(el("div", "program-time-pill", `${program.name}\n${hit.time || ""}\n${hit.room || ""}`));
+      else cell.textContent = "-";
+      tr.append(cell);
+    });
+    tbody.append(tr);
+  });
+  table.append(thead, tbody);
+  wrap.append(table);
+  return wrap;
+};
+
+programScheduleV26 = function programScheduleV98(type, program) {
+  const cfg = programConfigV26(type);
+  const wrap = el("div", "program-mode-body");
+  const notice = el("div", "program-schedule-notice");
+  notice.append(el("strong", "", `${cfg.title} 전산 시간표 연동 수칙`), el("p", "muted", "요일과 교시는 공통 시간표 데이터를 기준으로 저장되어 전체 시간표와 이 화면에 함께 반영됩니다."));
+  const preview = programSchedulePreviewV26(type, program);
+  const form = el("div", "program-slot-form");
+  const day = document.createElement("select");
+  programDaysV26().forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  const periods = timetablePeriodsV29();
+  (periods.length ? periods.map((row) => row.period) : Array.from({ length: Number(store.settings.timetablePeriods || 8) }, (_, i) => `${i + 1}교시`)).forEach((value) => period.append(option(value, value)));
+  const room = document.createElement("input");
+  room.placeholder = `기본: ${program.location || "장소"}`;
+  room.value = program.location || "";
+  const add = button("⊕ 추가 요일/시간표 연동 등록");
+  add.addEventListener("click", () => {
+    addProgramScheduleSlotV26(type, program, day.value, period.value, room.value || program.location || "");
+    renderProgramPageV26(type, program.id, "schedule");
+  });
+  form.append(makeField("요일 지정", "programScheduleDayV98", day), makeField("교시 선택", "programSchedulePeriodV98", period), makeField("강의장 변경", "programScheduleRoomV98", room), add);
+  const rows = programScheduleRowsV98(type, program);
+  wrap.append(notice, el("h4", "", "현재 확정 배정된 시간표 슬롯"), programSlotChipsV26(type, program, rows), el("h4", "", "수강 시간표 시각적 격자 판"), preview, form);
+  return wrap;
+};
+
+const addProgramBeforeV98 = addProgramV26;
+addProgramV26 = function addProgramV98(type) {
+  const cfg = programConfigV26(type);
+  const name = prompt(`${cfg.title} 이름`, cfg.defaultName);
+  if (name === null) return;
+  const trimmedName = String(name || "").trim();
+  if (!trimmedName) return showMessage("입력 필요", `${cfg.title} 이름을 입력해주세요.`);
+  if (!confirm("기타 정보 없이 추가하시겠습니까?")) return;
+  store[cfg.programs] ??= [];
+  store[cfg.programs].push({ id: `${type}-${Date.now()}`, name: trimmedName, teacher: "", location: "", regular: "", notice: "", memo: "", students: "" });
+  markProgramDefaultDisabledV81?.(type, false);
+  saveStore();
+  buildNav();
+  renderProgramListV26(type);
+};
+
+const programAttendanceBeforeV98 = programAttendanceV26;
+function removeObjectNodeTextV98(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const targets = [];
+  while (walker.nextNode()) {
+    if (String(walker.currentNode.nodeValue || "").includes("[object HTML")) targets.push(walker.currentNode);
+  }
+  targets.forEach((node) => node.remove());
+}
+
+programAttendanceV26 = function programAttendanceV98(type, program) {
+  const wrap = programAttendanceBeforeV98(type, program);
+  removeObjectButtonTextV85?.(wrap);
+  removeObjectNodeTextV98(wrap);
+  [...wrap.querySelectorAll("button")].forEach((btn) => {
+    const text = String(btn.textContent || "").replace(/\s+/g, " ").trim();
+    if (!(/출결.*저장/.test(text) || /전산망 저장/.test(text))) return;
+    const parent = btn.parentElement;
+    btn.remove();
+    if (parent?.classList.contains("program-sticky-actions") && !parent.children.length) parent.remove();
+  });
+  if (!wrap.querySelector(".program-v98-save-attendance")) {
+    const save = button("출결 저장", "program-v98-save-attendance");
+    save.addEventListener("click", () => saveProgramAttendanceFromDomV84(type, program, wrap));
+    const actions = el("div", "program-sticky-actions program-v98-attendance-actions");
+    actions.append(save);
+    const table = wrap.querySelector(".program-attendance-table");
+    if (table) table.before(actions);
+    else wrap.querySelector(".attendance-date-bar")?.after(actions);
+  }
+  return wrap;
+};
+
+function programTypeSettingsPanelV98(target = "timetable") {
+  ensureProgramTypeLabelsV98();
+  const section = panel("수업 유형 이름 설정");
+  section.id = `programTypeSettingsV98-${target}`;
+  section.classList.add("program-type-settings-v98");
+  const grid = el("div", "form-grid");
+  const inputs = {};
+  Object.entries(PROGRAM_TYPE_DEFAULT_LABELS_V98).forEach(([type, label]) => {
+    const input = document.createElement("input");
+    input.value = programTypeLabelV98(type);
+    inputs[type] = input;
+    grid.append(makeField(label, `programTypeLabelV98-${target}-${type}`, input));
+  });
+  const save = button("수업 유형 이름 저장");
+  save.addEventListener("click", () => requirePassword(() => {
+    Object.entries(inputs).forEach(([type, input]) => {
+      const value = input.value.trim() || PROGRAM_TYPE_DEFAULT_LABELS_V98[type];
+      store.settings.programTypeLabelsV98[type] = value;
+      store.settings.labels ??= {};
+      store.settings.labels[type] = value;
+    });
+    ensureProgramTypeLabelsV98();
+    syncProgramTimetableSetNamesV98();
+    saveStore();
+    buildNav();
+    showMessage("저장 완료", "수업 유형 이름을 저장했습니다.");
+    if (currentPage === "site") renderSiteV20();
+    else if (currentPage === "timetable") renderTimetableV29();
+  }));
+  const actions = el("div", "row-actions");
+  actions.append(save);
+  section.append(el("p", "muted", "방과후, 동아리, 특강 이름은 사이드바, 각 수업 화면, 시간표, 프린트 제목에서 같은 설정값을 사용합니다."), grid, actions);
+  return section;
+}
+
+function safeMarkDeletedRowsV98(key, rows = []) {
+  (rows || []).forEach((row) => {
+    if (row?.id !== undefined && row?.id !== null && row.id !== "") markWorkspaceDeleted(key, row.id);
+  });
+}
+
+function clearProgramScheduleMirrorsV98() {
+  PROGRAM_TYPES_V97.forEach((type) => {
+    const cfg = programConfigV26(type);
+    safeMarkDeletedRowsV98(cfg.schedules, store[cfg.schedules] || []);
+    store[cfg.schedules] = [];
+  });
+}
+
+function executeTimetableBulkDeleteV98(scope) {
+  const allAssignments = store.timetable || [];
+  safeMarkDeletedRowsV98("timetable", allAssignments);
+  store.timetable = [];
+  clearProgramScheduleMirrorsV98();
+  if (scope === "all") {
+    safeMarkDeletedRowsV98("timetableSets", store.timetableSets || []);
+    safeMarkDeletedRowsV98("periodTimes", store.periodTimes || []);
+    store.timetableSets = [];
+    store.periodTimes = [];
+    store.settings.timetablePeriods = 0;
+    store.settings.periodTimesConfiguredV81 = true;
+    store.settings.timetableSetsClearedV98 = true;
+    sessionStorage.removeItem("pm-timetable-set");
+  }
+  saveStore();
+  showMessage("삭제 완료", scope === "all" ? "시간표와 교시 시간을 모두 초기화했습니다." : "모든 수업 배정을 초기화했습니다.");
+  renderTimetableV29();
+}
+
+function timetableBulkDeletePanelV98() {
+  const section = panel("시간표 일괄 삭제");
+  section.id = "timetableBulkDeleteV98";
+  section.classList.add("timetable-bulk-panel-v98");
+  const scope = document.createElement("select");
+  scope.append(option("assignments", "수업 배정만 초기화"));
+  scope.append(option("all", "시간표와 교시 시간 전체 초기화"));
+  const run = button("선택 범위 삭제", "danger");
+  run.addEventListener("click", () => {
+    const label = scope.value === "all" ? "시간표 이름, 수업 배정, 교시 시간" : "수업 배정";
+    if (!confirm(`${label}을 삭제합니다. 이 작업은 되돌리기 어렵습니다. 계속할까요?`)) return;
+    requirePassword(() => {
+      if (!confirm("최종 확인입니다. 선택한 범위를 삭제할까요?")) return;
+      executeTimetableBulkDeleteV98(scope.value);
+    });
+  });
+  const grid = el("div", "form-grid");
+  grid.append(makeField("삭제 범위", "timetableBulkScopeV98", scope), run);
+  section.append(
+    el("p", "muted", "삭제 범위를 먼저 선택한 뒤 계정 확인과 최종 확인을 거쳐 실행합니다. 실제 운영 데이터는 버튼을 누르기 전까지 변경되지 않습니다."),
+    grid
+  );
+  return section;
+}
+
+const addTimetableSetBeforeV98 = addTimetableSetV29;
+addTimetableSetV29 = function addTimetableSetV98(defaultName = "새 시간표", rerender = true) {
+  if (rerender === false && defaultName === "학교수업 시간표" && store.settings?.timetableSetsClearedV98 && !(store.timetableSets || []).length) return;
+  store.settings ??= {};
+  store.settings.timetableSetsClearedV98 = false;
+  return addTimetableSetBeforeV98(defaultName, rerender);
+};
+
+function renderEmptyTimetableStateV98() {
+  content.replaceChildren();
+  const section = panel("시간표");
+  const head = section.querySelector(".panel-head");
+  const add = button("+ 시간표 추가");
+  add.addEventListener("click", () => addTimetableSetV29("새 시간표", true));
+  const actions = el("div", "row-actions");
+  actions.append(add);
+  head?.append(actions);
+  section.append(
+    el("div", "empty timetable-empty", "시간표가 비어 있습니다. 시간표 추가를 눌러 새 시간표를 만들 수 있습니다."),
+    programTypeSettingsPanelV98("timetable-empty"),
+    timetableBulkDeletePanelV98()
+  );
+  content.append(section);
+}
+
+const renderTimetableBeforeV98 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV98() {
+  ensureProgramTypeLabelsV98();
+  syncProgramTimetableSetNamesV98();
+  const result = renderTimetableBeforeV98();
+  document.getElementById("deleteAllTimetablesV80")?.remove();
+  if (store.settings?.timetableSetsClearedV98 && !(store.timetableSets || []).length) {
+    renderEmptyTimetableStateV98();
+    return result;
+  }
+  const section = content.querySelector(".panel");
+  if (section) {
+    if (!document.getElementById("programTypeSettingsV98-timetable")) section.append(programTypeSettingsPanelV98("timetable"));
+    if (!document.getElementById("timetableBulkDeleteV98")) section.append(timetableBulkDeletePanelV98());
+  }
+  return result;
+};
+
+const renderSiteBeforeV98 = renderSiteV20;
+renderSiteV20 = function renderSiteV98() {
+  renderSiteBeforeV98();
+  const exists = document.getElementById("programTypeSettingsV98-site");
+  if (!exists) content.append(programTypeSettingsPanelV98("site"));
+};
+
+function installStyleV98() {
+  if (document.getElementById("style-v98")) return;
+  const style = document.createElement("style");
+  style.id = "style-v98";
+  style.textContent = `
+    .program-v98-attendance-actions{position:sticky;top:0;z-index:3;justify-content:flex-end;margin:10px 0 12px;padding:10px;background:rgba(248,251,255,.94);border:1px solid #dbe7f8;border-radius:12px}
+    .period-save-status-v98{margin:6px 0 12px}
+    .period-save-status-v98.dirty{color:#1d5cff;font-weight:800}
+    .program-type-settings-v98,.timetable-bulk-panel-v98{margin-top:18px}
+    .timetable-bulk-panel-v98 .form-grid{align-items:end}
+    @media (max-width: 720px){.program-v98-attendance-actions{top:56px}.period-editor-head-v81{align-items:flex-start}.period-editor-head-v81 .row-actions{width:100%;justify-content:flex-start}}`;
+  document.head.append(style);
+}
+
+installStyleV98();
+ensureProgramTypeLabelsV98();
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V98;
+
+// Final V99: stabilize timetable render/load, shared quick/detail timetable source,
+// guarded period deletion persistence, and timetable set controls.
+const APP_PATCH_VERSION_V99 = "v99.0 - 2026-07-21";
+
+function periodNumberV99(value, fallback = 0) {
+  const match = String(value || "").match(/\d+/);
+  return match ? Number(match[0]) : fallback;
+}
+
+function periodRowIdV99(row = {}, index = 0) {
+  if (row.id !== undefined && row.id !== null && row.id !== "") return String(row.id);
+  const number = periodNumberV99(row.period, index + 1) || index + 1;
+  return `period-${number}`;
+}
+
+normalizePeriodRowsV97 = function normalizePeriodRowsV99(rows = []) {
+  return (rows || []).map((row, index) => {
+    const start = row.start || "";
+    const end = row.end || "";
+    const time = row.time || [start, end].filter(Boolean).join("-");
+    return {
+      id: periodRowIdV99(row, index),
+      period: normalizePeriodLabelV84(row.period, index),
+      start,
+      end,
+      time
+    };
+  });
+};
+
+function formatPeriodTimeV99(row = {}) {
+  return [row.start, row.end].filter(Boolean).join("-") || row.time || "";
+}
+
+persistPeriodRowsV97 = function persistPeriodRowsV99(rows = []) {
+  store.settings ??= {};
+  const beforeRows = normalizePeriodRowsV97(Array.isArray(store.periodTimes) ? store.periodTimes : []);
+  const nextRows = normalizePeriodRowsV97(rows);
+  const nextIds = new Set(nextRows.map((row) => String(row.id)));
+  beforeRows.forEach((row) => {
+    if (row.id && !nextIds.has(String(row.id))) markWorkspaceDeleted("periodTimes", row.id);
+  });
+  store.settings.periodTimesConfiguredV81 = true;
+  store.periodTimes = nextRows;
+  store.settings.timetablePeriods = store.periodTimes.length;
+  const byPeriod = new Map(store.periodTimes.map((row) => [normalizePeriodLabelV84(row.period, 0), formatPeriodTimeV99(row)]));
+  (store.timetable || []).forEach((row) => {
+    const normalized = normalizePeriodLabelV84(row.period, 0);
+    row.period = normalized;
+    row.time = byPeriod.has(normalized) ? byPeriod.get(normalized) : row.time || "";
+  });
+  saveStore();
+};
+
+function findProgramForTimetableSetV99(setId) {
+  const target = String(setId || "");
+  if (!target || typeof programSetIdV26 !== "function" || typeof programConfigV26 !== "function") return null;
+  for (const type of PROGRAM_TYPES_V97) {
+    const cfg = programConfigV26(type);
+    const programs = store[cfg.programs] || [];
+    for (const program of programs) {
+      if (String(programSetIdV26(type, program)) === target) return { type, cfg, program, setId: target };
+    }
+  }
+  return null;
+}
+
+function timetableSetDisplayNameV99(setId) {
+  if (String(setId || "") === "school") return "학교수업 시간표";
+  const ref = findProgramForTimetableSetV99(setId);
+  if (ref) return `${ref.cfg.title} · ${ref.program.name || ref.cfg.title}`;
+  const row = (store.timetable || []).find((item) => String(item.setId || "school") === String(setId || ""));
+  return row?.setName || row?.scheduleName || String(setId || "시간표");
+}
+
+function ensureTimetableSetsFromRowsV99() {
+  ensureTimetableStateV15();
+  syncProgramTimetableSetNamesV98();
+  const known = new Set((store.timetableSets || []).map((set) => String(set.id)));
+  (store.timetable || []).forEach((row) => {
+    const setId = String(row.setId || "school");
+    if (known.has(setId)) return;
+    store.timetableSets.push({ id: setId, name: timetableSetDisplayNameV99(setId), type: row.sourceType || "복구 표시" });
+    known.add(setId);
+  });
+  const selected = sessionStorage.getItem("pm-timetable-set");
+  if (selected && known.size && !known.has(String(selected))) {
+    sessionStorage.setItem("pm-timetable-set", store.timetableSets[0]?.id || "school");
+  }
+}
+
+const addTimetableSetBeforeV99 = addTimetableSetV29;
+addTimetableSetV29 = function addTimetableSetV99(defaultName = "새 시간표", rerender = true) {
+  if (rerender === false && defaultName === "학교수업 시간표") {
+    store.settings ??= {};
+    store.settings.timetableAutoCreateBlockedV99 = true;
+    return null;
+  }
+  store.settings ??= {};
+  store.settings.timetableSetsClearedV98 = false;
+  return addTimetableSetBeforeV99(defaultName, rerender);
+};
+
+function programNameFromTimetableSetNameV99(value, cfg) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.includes("·")) return trimmed.split("·").pop().trim();
+  const prefix = String(cfg?.title || "").trim();
+  if (prefix && trimmed.startsWith(prefix)) return trimmed.slice(prefix.length).replace(/^[-:\s]+/, "").trim() || prefix;
+  return trimmed;
+}
+
+renameTimetableSetV29 = function renameTimetableSetV99(setId) {
+  ensureTimetableSetsFromRowsV99();
+  const activeSet = setId || activeTimetableSetV29();
+  const set = (store.timetableSets || []).find((item) => String(item.id) === String(activeSet));
+  if (!set) return showMessage("수정 실패", "이름을 바꿀 시간표를 찾지 못했습니다.");
+  const next = prompt("시간표 이름 수정", set.name || "");
+  if (next === null) return;
+  const trimmed = String(next || "").trim();
+  if (!trimmed) return showMessage("입력 필요", "시간표 이름을 입력해주세요.");
+  const programRef = findProgramForTimetableSetV99(activeSet);
+  if (programRef) {
+    programRef.program.name = programNameFromTimetableSetNameV99(trimmed, programRef.cfg);
+    set.name = `${programRef.cfg.title} · ${programRef.program.name || programRef.cfg.title}`;
+    set.type = programRef.cfg.scheduleType;
+    (store.timetable || []).forEach((row) => {
+      if (String(row.setId || "") !== String(activeSet)) return;
+      row.programId = programRef.program.id;
+      row.sourceType = programRef.type;
+      row.subject = programRef.program.name || row.subject || programRef.cfg.title;
+      row.teacher = row.teacher || programRef.program.teacher || "";
+    });
+  } else {
+    set.name = trimmed;
+  }
+  saveStore();
+  buildNav();
+  showMessage("저장 완료", "시간표 이름을 저장했습니다.");
+  renderTimetableV29();
+};
+
+function normalizedTimetableRowsV99() {
+  ensureTimetableStateV15();
+  return (store.timetable || []).filter(Boolean).map((row, index) => {
+    const period = normalizePeriodLabelV84(row.period, index);
+    return {
+      ...row,
+      id: row.id || `tt-${String(row.setId || "school")}-${row.day || "day"}-${period}`,
+      setId: row.setId || "school",
+      period,
+      time: row.time || periodTimeForV26(period)
+    };
+  });
+}
+
+function sortTimetableRowsV99(rows = []) {
+  const dayOrder = new Map(programDaysV26().map((day, index) => [day, index]));
+  return [...rows].sort((a, b) => {
+    const dayDiff = (dayOrder.get(a.day) ?? 99) - (dayOrder.get(b.day) ?? 99);
+    if (dayDiff) return dayDiff;
+    return periodNumberV99(a.period, 999) - periodNumberV99(b.period, 999);
+  });
+}
+
+quickTimetableControlsV9 = function quickTimetableControlsV99() {
+  ensureTimetableSetsFromRowsV99();
+  const box = el("div", "quick-tt-controls");
+  const selector = document.createElement("select");
+  (store.timetableSets || []).forEach((set) => selector.append(option(set.id, set.name)));
+  const fallbackSet = sessionStorage.getItem("pm-timetable-set") || store.timetableSets?.[0]?.id || "";
+  const wantedSet = sessionStorage.getItem("quickTimetableSet") || fallbackSet;
+  selector.value = (store.timetableSets || []).some((set) => String(set.id) === String(wantedSet)) ? wantedSet : fallbackSet;
+  const daySelect = document.createElement("select");
+  ["일", "월", "화", "수", "목", "금", "토"].forEach((day) => daySelect.append(option(day, `${day}요일`)));
+  const defaultDay = ["일", "월", "화", "수", "목", "금", "토"][new Date().getDay()];
+  daySelect.value = sessionStorage.getItem("quickTimetableDay") || defaultDay;
+  selector.addEventListener("change", () => {
+    sessionStorage.setItem("quickTimetableSet", selector.value);
+    showQuickPopup("timetable");
+  });
+  daySelect.addEventListener("change", () => {
+    sessionStorage.setItem("quickTimetableDay", daySelect.value);
+    showQuickPopup("timetable");
+  });
+  box.append(makeField("시간표", "quickTimetableSetV99", selector), makeField("요일", "quickTimetableDayV99", daySelect));
+  return box;
+};
+
+quickTimetableRowsV9 = function quickTimetableRowsV99() {
+  ensureTimetableSetsFromRowsV99();
+  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  const fallbackSet = sessionStorage.getItem("pm-timetable-set") || store.timetableSets?.[0]?.id || "school";
+  const wantedSet = sessionStorage.getItem("quickTimetableSet") || fallbackSet;
+  const setId = (store.timetableSets || []).some((set) => String(set.id) === String(wantedSet)) ? wantedSet : fallbackSet;
+  const selectedDay = sessionStorage.getItem("quickTimetableDay") || dayNames[new Date().getDay()];
+  return sortTimetableRowsV99(normalizedTimetableRowsV99().filter((row) => String(row.setId || "school") === String(setId) && row.day === selectedDay)).slice(0, 12);
+};
+
+programScheduleRowsV98 = function programScheduleRowsV99(type, program) {
+  const cfg = programConfigV26(type);
+  const setId = programSetIdV26(type, program);
+  return sortTimetableRowsV99(normalizedTimetableRowsV99()
+    .filter((row) => String(row.setId || "") === String(setId) || (row.programId && String(row.programId) === String(program.id)))
+    .map((row) => ({
+      ...row,
+      setId,
+      programId: program.id,
+      sourceType: type,
+      room: row.room || row.location || "",
+      teacher: row.teacher || program.teacher || "",
+      subject: row.subject || program.name || cfg.title,
+      memo: row.memo || cfg.scheduleType
+    })));
+};
+
+addProgramScheduleSlotV26 = function addProgramScheduleSlotV99(type, program, day, period, room) {
+  const cfg = programConfigV26(type);
+  const normalizedPeriod = normalizePeriodLabelV84(period, 0);
+  const setId = ensureProgramTimetableSetV98(type, program);
+  const time = periodTimeForV26(normalizedPeriod);
+  store.timetable ??= [];
+  const existingIndex = store.timetable.findIndex((item) => String(item.setId || "") === String(setId) && item.day === day && normalizePeriodLabelV84(item.period, 0) === normalizedPeriod);
+  const base = existingIndex >= 0 ? store.timetable[existingIndex] : {};
+  const row = {
+    ...base,
+    id: base.id || `tt-${type}-${program.id}-${day}-${normalizedPeriod}`,
+    setId,
+    programId: program.id,
+    sourceType: type,
+    day,
+    period: normalizedPeriod,
+    time,
+    subject: program.name || cfg.title,
+    teacher: program.teacher || "",
+    room: room || program.location || "",
+    location: room || program.location || "",
+    seat: base.seat || "",
+    memo: cfg.scheduleType
+  };
+  if (existingIndex >= 0) store.timetable[existingIndex] = row;
+  else store.timetable.push(row);
+  setProgramDetailLockV84?.(type, program.id, "schedule");
+  activeProgramViewV97 = { type, programId: program.id, mode: "schedule", until: Date.now() + 30000 };
+  saveStore();
+  buildNav();
+};
+
+editTimeCellV15 = function editTimeCellV99(setId, day, period, time, row) {
+  if (!can("create", "timetable") && !can("edit", "timetable")) return;
+  const programRef = findProgramForTimetableSetV99(setId);
+  const subject = prompt(`${day} ${period} 과목`, row?.subject || programRef?.program?.name || "");
+  if (subject === null) return;
+  const teacher = prompt("선생님", row?.teacher || programRef?.program?.teacher || "");
+  if (teacher === null) return;
+  const room = prompt("위치", row?.room || row?.location || programRef?.program?.location || "");
+  if (room === null) return;
+  const seat = prompt("좌석", row?.seat || "");
+  if (seat === null) return;
+  const normalizedPeriod = normalizePeriodLabelV84(period, 0);
+  const next = {
+    ...(row || {}),
+    id: row?.id || `tt-${String(setId || "school")}-${day}-${normalizedPeriod}`,
+    setId,
+    day,
+    period: normalizedPeriod,
+    time: time || periodTimeForV26(normalizedPeriod),
+    subject,
+    teacher,
+    room,
+    location: room,
+    seat
+  };
+  if (programRef) {
+    next.programId = programRef.program.id;
+    next.sourceType = programRef.type;
+    next.memo = next.memo || programRef.cfg.scheduleType;
+  }
+  store.timetable ??= [];
+  const index = store.timetable.findIndex((item) => String(item.id) === String(next.id));
+  if (index >= 0) store.timetable[index] = next;
+  else store.timetable.push(next);
+  saveStore();
+  renderTimetableV29();
+};
+
+function periodDraftCardV99(row, index, { onDirty, onDelete }) {
+  const card = el("article", "period-card");
+  const top = el("div", "period-card-top");
+  const label = row.period || `${index + 1}교시`;
+  top.append(el("strong", "", `${label} 설정`));
+  const del = button("삭제", "ghost small");
+  del.addEventListener("click", () => {
+    if (!confirm(`${label}를 삭제할까요? 수업 배정은 유지되고 시간 표시만 제거됩니다.`)) return;
+    const targetId = row.id;
+    requirePassword(() => onDelete(targetId));
+  });
+  top.append(del);
+  const start = document.createElement("input");
+  start.type = "time";
+  start.value = row.start || "";
+  const end = document.createElement("input");
+  end.type = "time";
+  end.value = row.end || "";
+  const updateDraft = () => {
+    row.start = start.value;
+    row.end = end.value;
+    row.time = [row.start, row.end].filter(Boolean).join("-");
+    onDirty();
+  };
+  start.addEventListener("input", updateDraft);
+  end.addEventListener("input", updateDraft);
+  card.append(top, makeField("시작", `periodStartV99-${row.id}`, start), makeField("종료", `periodEndV99-${row.id}`, end));
+  return card;
+}
+
+periodEditorV29 = function periodEditorV99() {
+  const draft = normalizePeriodRowsV97(timetablePeriodsV29()).map((row) => ({ ...row }));
+  const box = el("section", "modern-period-editor");
+  const head = el("div", "period-editor-head-v81");
+  const actions = el("div", "row-actions");
+  const status = el("p", "muted period-save-status-v98", "저장된 교시 시간입니다.");
+  const grid = el("div", "period-card-grid");
+  const save = button("교시 시간 저장");
+  save.disabled = true;
+  let dirty = false;
+  let saving = false;
+  const markDirty = () => {
+    dirty = true;
+    save.disabled = false;
+    status.textContent = "저장되지 않은 교시 시간 변경이 있습니다.";
+    status.classList.add("dirty");
+  };
+  const renderGrid = () => {
+    grid.replaceChildren();
+    normalizePeriodRowsV97(draft).forEach((row, index) => {
+      draft[index] = row;
+      grid.append(periodDraftCardV99(row, index, {
+        onDirty: markDirty,
+        onDelete: (targetId) => {
+          const targetIndex = draft.findIndex((item) => String(item.id) === String(targetId));
+          if (targetIndex < 0) return showMessage("삭제 실패", "삭제할 교시를 다시 선택해주세요.");
+          draft.splice(targetIndex, 1);
+          persistPeriodRowsV97(draft);
+          showMessage("교시 삭제 완료", "선택한 교시 시간이 삭제되었습니다.");
+          renderTimetableV29();
+        }
+      }));
+    });
+    if (!grid.children.length) grid.append(el("div", "empty", "등록된 교시가 없습니다. 신규 교시 추가를 눌러 다시 만들 수 있습니다."));
+  };
+  const add = button("+ 신규 교시 추가", "ghost");
+  add.addEventListener("click", () => {
+    draft.push({ id: `period-${Date.now()}`, period: `${draft.length + 1}교시`, start: "", end: "", time: "" });
+    markDirty();
+    renderGrid();
+  });
+  const clear = button("교시 시간 전체 삭제", "danger");
+  clear.addEventListener("click", () => {
+    if (!confirm("등록된 교시 시간을 모두 삭제할까요? 수업 배정 내용은 유지되고 교시 시간 표시만 비워집니다.")) return;
+    requirePassword(() => {
+      persistPeriodRowsV97([]);
+      showMessage("교시 시간 전체 삭제 완료", "모든 교시 시간 설정을 삭제했습니다.");
+      renderTimetableV29();
+    });
+  });
+  save.addEventListener("click", () => {
+    if (!dirty || saving) return;
+    saving = true;
+    save.disabled = true;
+    try {
+      persistPeriodRowsV97(draft);
+      status.textContent = "교시 시간을 저장했습니다.";
+      status.classList.remove("dirty");
+      showMessage("저장 완료", "교시 시간을 저장했습니다.");
+      renderTimetableV29();
+    } catch (error) {
+      console.error("[period save failed]", error);
+      status.textContent = "교시 시간 저장에 실패했습니다.";
+      status.classList.add("dirty");
+      save.disabled = false;
+    } finally {
+      saving = false;
+    }
+  });
+  actions.append(add, clear, save);
+  head.append(el("h3", "", "정규 수강 교시 및 시간 설정"), actions);
+  renderGrid();
+  box.append(head, el("p", "muted", "교시 시작/종료 시간을 수정한 뒤 교시 시간 저장을 눌러 확정합니다."), status, grid);
+  return box;
+};
+
+function deleteCurrentTimetableSetV99(setId) {
+  ensureTimetableSetsFromRowsV99();
+  const activeSet = setId || activeTimetableSetV29();
+  const set = (store.timetableSets || []).find((item) => String(item.id) === String(activeSet));
+  if (!set) return showMessage("삭제 실패", "삭제할 시간표를 찾지 못했습니다.");
+  if (!confirm(`${set.name || "현재 시간표"}를 삭제할까요? 이 시간표의 수업 배정도 함께 제거됩니다.`)) return;
+  requirePassword(() => {
+    const programRef = findProgramForTimetableSetV99(activeSet);
+    markWorkspaceDeleted("timetableSets", activeSet);
+    markWorkspaceDeletedRows("timetable", (store.timetable || []).filter((row) => String(row.setId || "school") === String(activeSet)));
+    store.timetableSets = (store.timetableSets || []).filter((item) => String(item.id) !== String(activeSet));
+    store.timetable = (store.timetable || []).filter((row) => String(row.setId || "school") !== String(activeSet));
+    if (programRef) {
+      markWorkspaceDeletedRows(programRef.cfg.schedules, (store[programRef.cfg.schedules] || []).filter((row) => String(row.programId) === String(programRef.program.id)));
+      store[programRef.cfg.schedules] = (store[programRef.cfg.schedules] || []).filter((row) => String(row.programId) !== String(programRef.program.id));
+    }
+    const nextSet = store.timetableSets[0]?.id || "";
+    if (nextSet) sessionStorage.setItem("pm-timetable-set", nextSet);
+    else sessionStorage.removeItem("pm-timetable-set");
+    saveStore();
+    buildNav();
+    showMessage("삭제 완료", "현재 시간표를 삭제했습니다.");
+    renderTimetableV29();
+  });
+}
+
+function renderEmptyTimetableStateV99() {
+  content.replaceChildren();
+  const section = panel("시간표");
+  const head = section.querySelector(".panel-head");
+  const add = button("+ 시간표 추가");
+  add.addEventListener("click", () => addTimetableSetV29("새 시간표", true));
+  const actions = el("div", "row-actions");
+  actions.append(add);
+  head?.append(actions);
+  section.append(
+    el("div", "empty timetable-empty", "시간표가 비어 있습니다. 시간표 추가를 눌러 새 시간표를 만들 수 있습니다."),
+    periodEditorV29(),
+    programTypeSettingsPanelV98("timetable-empty")
+  );
+  content.append(section);
+}
+
+function patchTimetableToolbarV99() {
+  const toolbar = content.querySelector(".modern-tt-toolbar");
+  if (!toolbar) return;
+  const selector = toolbar.querySelector("select");
+  const rename = [...toolbar.querySelectorAll("button")].find((btn) => (btn.textContent || "").trim() === "이름 수정");
+  if (rename && !rename.dataset.v99Bound) {
+    rename.dataset.v99Bound = "true";
+    rename.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      renameTimetableSetV29(selector?.value || activeTimetableSetV29());
+    }, true);
+  }
+  if (!document.getElementById("deleteCurrentTimetableSetV99")) {
+    const remove = button("현재 시간표 삭제", "danger");
+    remove.id = "deleteCurrentTimetableSetV99";
+    remove.addEventListener("click", () => deleteCurrentTimetableSetV99(selector?.value || activeTimetableSetV29()));
+    toolbar.append(remove);
+  }
+}
+
+const renderTimetableBeforeV99 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV99() {
+  ensureProgramTypeLabelsV98();
+  ensureTimetableSetsFromRowsV99();
+  if (!(store.timetableSets || []).length && !(store.timetable || []).length) {
+    renderEmptyTimetableStateV99();
+    document.getElementById("timetableBulkDeleteV98")?.remove();
+    document.getElementById("deleteAllTimetablesV80")?.remove();
+    return;
+  }
+  const result = renderTimetableBeforeV99();
+  document.getElementById("timetableBulkDeleteV98")?.remove();
+  document.getElementById("deleteAllTimetablesV80")?.remove();
+  patchTimetableToolbarV99();
+  return result;
+};
+
+function installStyleV99() {
+  if (document.getElementById("style-v99")) return;
+  const style = document.createElement("style");
+  style.id = "style-v99";
+  style.textContent = `
+    #deleteCurrentTimetableSetV99{margin-left:auto}
+    .quick-tt-controls select{min-width:160px}
+    @media (max-width: 720px){#deleteCurrentTimetableSetV99{margin-left:0}.quick-tt-controls select{min-width:100%}}
+  `;
+  document.head.append(style);
+}
+
+installStyleV99();
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V99;
+
+// Final V100: make timetable quick-view follow the active timetable set and
+// current normalized timetable rows without legacy fallbacks.
+const APP_PATCH_VERSION_V100 = "v100.0 - 2026-07-21";
+
+function activeQuickTimetableSetIdV100() {
+  ensureTimetableSetsFromRowsV99();
+  const sets = store.timetableSets || [];
+  const active = sessionStorage.getItem("pm-timetable-set") || "";
+  if (sets.some((set) => String(set.id) === String(active))) {
+    sessionStorage.setItem("quickTimetableSet", active);
+    return active;
+  }
+  const firstRowSet = normalizedTimetableRowsV99()[0]?.setId || "";
+  if (firstRowSet && sets.some((set) => String(set.id) === String(firstRowSet))) {
+    sessionStorage.setItem("pm-timetable-set", firstRowSet);
+    sessionStorage.setItem("quickTimetableSet", firstRowSet);
+    return firstRowSet;
+  }
+  const fallback = sets[0]?.id || "school";
+  sessionStorage.setItem("pm-timetable-set", fallback);
+  sessionStorage.setItem("quickTimetableSet", fallback);
+  return fallback;
+}
+
+function selectedQuickTimetableDayV100() {
+  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  const saved = sessionStorage.getItem("quickTimetableDay");
+  return dayNames.includes(saved || "") ? saved : dayNames[new Date().getDay()];
+}
+
+function rowsForQuickTimetableSetV100() {
+  const setId = activeQuickTimetableSetIdV100();
+  return sortTimetableRowsV99(normalizedTimetableRowsV99().filter((row) => String(row.setId || "school") === String(setId)));
+}
+
+quickTimetableControlsV9 = function quickTimetableControlsV100() {
+  ensureTimetableSetsFromRowsV99();
+  const box = el("div", "quick-tt-controls");
+  const selector = document.createElement("select");
+  (store.timetableSets || []).forEach((set) => selector.append(option(set.id, set.name)));
+  selector.value = activeQuickTimetableSetIdV100();
+  const daySelect = document.createElement("select");
+  ["일", "월", "화", "수", "목", "금", "토"].forEach((day) => daySelect.append(option(day, `${day}요일`)));
+  daySelect.value = selectedQuickTimetableDayV100();
+  selector.addEventListener("change", () => {
+    sessionStorage.setItem("pm-timetable-set", selector.value);
+    sessionStorage.setItem("quickTimetableSet", selector.value);
+    showQuickPopup("timetable");
+  });
+  daySelect.addEventListener("change", () => {
+    sessionStorage.setItem("quickTimetableDay", daySelect.value);
+    showQuickPopup("timetable");
+  });
+  box.append(makeField("시간표", "quickTimetableSetV100", selector), makeField("요일", "quickTimetableDayV100", daySelect));
+  return box;
+};
+
+quickTimetableRowsV9 = function quickTimetableRowsV100() {
+  const setRows = rowsForQuickTimetableSetV100();
+  const selectedDay = selectedQuickTimetableDayV100();
+  const dayRows = setRows.filter((row) => row.day === selectedDay);
+  return (dayRows.length ? dayRows : setRows).slice(0, 24);
+};
+
+function quickTimetableViewV100(wrap) {
+  wrap.append(quickTimetableControlsV9());
+  const setRows = rowsForQuickTimetableSetV100();
+  const selectedDay = selectedQuickTimetableDayV100();
+  const rows = quickTimetableRowsV9();
+  if (!rows.length) {
+    wrap.append(el("div", "empty", "표시할 시간표가 없습니다."));
+    return;
+  }
+  if (!setRows.some((row) => row.day === selectedDay)) {
+    wrap.append(el("p", "muted quick-tt-fallback-note-v100", `${selectedDay}요일 항목이 없어 현재 시간표 전체를 표시합니다.`));
+  }
+  rows.forEach((row) => {
+    const item = el("div", "quick-tt-row");
+    item.append(
+      el("strong", "", `${row.period || ""} ${row.time || ""}`.trim()),
+      el("span", "", `${row.day || ""} · ${row.subject || ""}`),
+      el("small", "", [row.teacher, row.room || row.location].filter(Boolean).join(" / "))
+    );
+    wrap.append(item);
+  });
+}
+
+showQuickPopup = function showQuickPopupV100(type) {
+  const old = document.getElementById("quickPopup");
+  if (old) old.remove();
+  const wrap = el("div", "quick-popup quick-popup-v70");
+  wrap.id = "quickPopup";
+  wrap.dataset.quickType = type;
+  const head = el("div", "panel-head");
+  head.append(el("h3", "", type === "meals" ? "급식 빠른 보기" : "시간표 빠른 보기"));
+  const close = button("×", "icon-button");
+  close.addEventListener("click", () => wrap.remove());
+  head.append(close);
+  wrap.append(head);
+  if (type === "meals") quickMealViewV70(wrap);
+  else quickTimetableViewV100(wrap);
+  document.body.append(wrap);
+};
+
+function refreshOpenQuickTimetableV100() {
+  const popup = document.getElementById("quickPopup");
+  if (popup?.dataset?.quickType === "timetable") {
+    clearTimeout(refreshOpenQuickTimetableV100.timer);
+    refreshOpenQuickTimetableV100.timer = setTimeout(() => showQuickPopup("timetable"), 0);
+  }
+}
+
+const renderTimetableBeforeV100 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV100() {
+  const result = renderTimetableBeforeV100();
+  refreshOpenQuickTimetableV100();
+  return result;
+};
+
+const saveStoreBeforeV100 = saveStore;
+saveStore = function saveStoreV100(options) {
+  const result = saveStoreBeforeV100(options);
+  if (!window.PMWorkspaceDataService?.isApplyingRemote?.()) refreshOpenQuickTimetableV100();
+  return result;
+};
+
+function installStyleV100() {
+  if (document.getElementById("style-v100")) return;
+  const style = document.createElement("style");
+  style.id = "style-v100";
+  style.textContent = `
+    .quick-tt-fallback-note-v100{margin:8px 0;color:#5f78a4;font-weight:700}
+  `;
+  document.head.append(style);
+}
+
+installStyleV100();
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V100;
+
+// Final V101: strict timetable selection for quick-view and shared timetable rows.
+const APP_PATCH_VERSION_V101 = "v101.0 - 2026-07-21";
+const TIMETABLE_REMOTE_KEYS_V101 = new Set(["timetable", "timetableSets", "periodTimes"]);
+
+function isTimetableDebugV101() {
+  try {
+    return location.hostname === "127.0.0.1"
+      || location.hostname === "localhost"
+      || location.search.includes("debugTimetable=1")
+      || localStorage.getItem("pm-debug-timetable") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function logTimetableDebugV101(payload = {}) {
+  if (!isTimetableDebugV101()) return;
+  console.info("[timetable:quick-view]", {
+    source: payload.source || "store.timetable",
+    requestedSetId: payload.requestedSetId || "",
+    displayedSetId: payload.displayedSetId || "",
+    rows: Number(payload.rows || 0),
+    fallback: !!payload.fallback,
+    orphanRowsExcluded: Number(payload.orphanRowsExcluded || 0),
+    remoteRefresh: !!payload.remoteRefresh
+  });
+}
+
+function isDeletedTimetableEntityV101(item = {}) {
+  const status = String(item.status || "").toLowerCase();
+  return item.deleted === true
+    || item.disabled === true
+    || item.active === false
+    || ["deleted", "archived", "hidden", "disabled"].includes(status);
+}
+
+function validTimetableSetsV101(storeRef = store) {
+  ensureTimetableStateV15();
+  return (storeRef.timetableSets || [])
+    .filter((set) => set && set.id !== undefined && set.id !== null && String(set.id).trim())
+    .filter((set) => !isDeletedTimetableEntityV101(set));
+}
+
+function validTimetableSetIdsV101(storeRef = store) {
+  return new Set(validTimetableSetsV101(storeRef).map((set) => String(set.id)));
+}
+
+function rawTimetableRowSetIdV101(row = {}) {
+  const setId = row.setId ?? row.timetableSetId ?? row.scheduleSetId;
+  return setId === undefined || setId === null || String(setId).trim() === "" ? "" : String(setId);
+}
+
+function normalizeTimetableRowStrictV101(row = {}, index = 0) {
+  const setId = rawTimetableRowSetIdV101(row);
+  if (!setId || isDeletedTimetableEntityV101(row)) return null;
+  const period = normalizePeriodLabelV84(row.period, index);
+  return {
+    ...row,
+    id: row.id || `tt-${setId}-${row.day || "day"}-${period}`,
+    setId,
+    period,
+    time: row.time || periodTimeForV26(period)
+  };
+}
+
+function getActiveTimetableRows(storeRef = store, requestedSetId = "", options = {}) {
+  ensureTimetableStateV15();
+  const validSetIds = validTimetableSetIdsV101(storeRef);
+  const normalized = [];
+  let orphanRowsExcluded = 0;
+  (storeRef.timetable || []).forEach((row, index) => {
+    const next = normalizeTimetableRowStrictV101(row, index);
+    if (!next || !validSetIds.has(String(next.setId))) {
+      orphanRowsExcluded += 1;
+      return;
+    }
+    normalized.push(next);
+  });
+  const requested = requestedSetId === undefined || requestedSetId === null ? "" : String(requestedSetId);
+  const hasRequested = requested.trim() !== "";
+  const validRequested = hasRequested && validSetIds.has(requested);
+  const implicitSetId = options.allowImplicitDefault === false ? "" : validTimetableSetsV101(storeRef)[0]?.id || "";
+  const activeSetId = validRequested ? requested : (hasRequested ? "" : implicitSetId);
+  const rows = activeSetId
+    ? sortTimetableRowsV99(normalized.filter((row) => String(row.setId) === String(activeSetId)))
+    : [];
+  return {
+    rows,
+    setId: activeSetId,
+    requestedSetId: requested,
+    validRequested,
+    missingRequested: hasRequested && !validRequested,
+    fallback: !hasRequested && !!activeSetId,
+    orphanRowsExcluded
+  };
+}
+
+ensureTimetableSetsFromRowsV99 = function ensureTimetableSetsFromRowsV101() {
+  ensureTimetableStateV15();
+  syncProgramTimetableSetNamesV98();
+  return store.timetableSets;
+};
+
+normalizedTimetableRowsV99 = function normalizedTimetableRowsV101() {
+  ensureTimetableStateV15();
+  const validSetIds = validTimetableSetIdsV101();
+  return (store.timetable || [])
+    .map((row, index) => normalizeTimetableRowStrictV101(row, index))
+    .filter((row) => row && validSetIds.has(String(row.setId)));
+};
+
+activeTimetableSetV29 = function activeTimetableSetV101() {
+  const requested = sessionStorage.getItem("pm-timetable-set") || "";
+  const state = getActiveTimetableRows(store, requested);
+  return state.setId || validTimetableSetsV101()[0]?.id || "";
+};
+
+makeTimeCellV29 = function makeTimeCellV101(setId, day, period, time) {
+  const row = getActiveTimetableRows(store, setId, { allowImplicitDefault: false }).rows
+    .find((item) => item.day === day && normalizePeriodLabelV84(item.period, 0) === normalizePeriodLabelV84(period, 0));
+  const cell = el("div", row ? "tt-cell" : "tt-cell empty-cell");
+  if (row) {
+    cell.append(el("strong", "", row.subject || ""), el("span", "", row.teacher || ""), el("small", "", row.room || row.location || ""));
+  } else cell.textContent = "-";
+  cell.addEventListener("click", () => editTimeCellV15(setId, day, period, time, row));
+  return cell;
+};
+
+programScheduleRowsV98 = function programScheduleRowsV101(type, program) {
+  const cfg = programConfigV26(type);
+  const setId = programSetIdV26(type, program);
+  return getActiveTimetableRows(store, setId, { allowImplicitDefault: false }).rows
+    .filter((row) => String(row.setId || "") === String(setId) || (row.programId && String(row.programId) === String(program.id)))
+    .map((row) => ({
+      ...row,
+      setId,
+      programId: program.id,
+      sourceType: type,
+      room: row.room || row.location || "",
+      teacher: row.teacher || program.teacher || "",
+      subject: row.subject || program.name || cfg.title,
+      memo: row.memo || cfg.scheduleType
+    }));
+};
+
+function activeQuickTimetableStateV101() {
+  const requested = sessionStorage.getItem("pm-timetable-set") || sessionStorage.getItem("quickTimetableSet") || "";
+  return getActiveTimetableRows(store, requested);
+}
+
+activeQuickTimetableSetIdV100 = function activeQuickTimetableSetIdV101() {
+  return activeQuickTimetableStateV101().setId;
+};
+
+rowsForQuickTimetableSetV100 = function rowsForQuickTimetableSetV101() {
+  return activeQuickTimetableStateV101().rows;
+};
+
+quickTimetableControlsV9 = function quickTimetableControlsV101() {
+  const state = activeQuickTimetableStateV101();
+  const box = el("div", "quick-tt-controls");
+  const selector = document.createElement("select");
+  selector.append(option("", state.missingRequested ? "선택한 시간표를 찾을 수 없습니다" : "시간표 선택"));
+  validTimetableSetsV101().forEach((set) => selector.append(option(set.id, set.name)));
+  selector.value = state.setId || "";
+  const daySelect = document.createElement("select");
+  ["일", "월", "화", "수", "목", "금", "토"].forEach((day) => daySelect.append(option(day, `${day}요일`)));
+  daySelect.value = selectedQuickTimetableDayV100();
+  selector.addEventListener("change", () => {
+    if (selector.value) {
+      sessionStorage.setItem("pm-timetable-set", selector.value);
+      sessionStorage.setItem("quickTimetableSet", selector.value);
+    } else {
+      sessionStorage.removeItem("quickTimetableSet");
+    }
+    showQuickPopup("timetable");
+  });
+  daySelect.addEventListener("change", () => {
+    sessionStorage.setItem("quickTimetableDay", daySelect.value);
+    showQuickPopup("timetable");
+  });
+  box.append(makeField("시간표", "quickTimetableSetV101", selector), makeField("요일", "quickTimetableDayV101", daySelect));
+  return box;
+};
+
+quickTimetableRowsV9 = function quickTimetableRowsV101() {
+  const state = activeQuickTimetableStateV101();
+  const selectedDay = selectedQuickTimetableDayV100();
+  const dayRows = state.rows.filter((row) => row.day === selectedDay);
+  logTimetableDebugV101({
+    requestedSetId: state.requestedSetId,
+    displayedSetId: state.setId,
+    rows: dayRows.length || state.rows.length,
+    fallback: state.fallback || (state.rows.length > 0 && dayRows.length === 0),
+    orphanRowsExcluded: state.orphanRowsExcluded
+  });
+  return (dayRows.length ? dayRows : state.rows).slice(0, 24);
+};
+
+quickTimetableViewV100 = function quickTimetableViewV101(wrap) {
+  const state = activeQuickTimetableStateV101();
+  wrap.append(quickTimetableControlsV9());
+  if (state.missingRequested) {
+    wrap.append(el("div", "empty", "선택한 시간표를 찾을 수 없습니다. 시간표 목록에서 다시 선택해 주세요."));
+    logTimetableDebugV101({
+      requestedSetId: state.requestedSetId,
+      displayedSetId: "",
+      rows: 0,
+      fallback: false,
+      orphanRowsExcluded: state.orphanRowsExcluded
+    });
+    return;
+  }
+  const selectedDay = selectedQuickTimetableDayV100();
+  const rows = quickTimetableRowsV9();
+  if (!rows.length) {
+    wrap.append(el("div", "empty", "표시할 시간표가 없습니다."));
+    return;
+  }
+  if (!state.rows.some((row) => row.day === selectedDay)) {
+    wrap.append(el("p", "muted quick-tt-fallback-note-v100", `${selectedDay}요일 항목이 없어 현재 시간표 전체를 표시합니다.`));
+  }
+  rows.forEach((row) => {
+    const item = el("div", "quick-tt-row");
+    item.append(
+      el("strong", "", `${row.period || ""} ${row.time || ""}`.trim()),
+      el("span", "", `${row.day || ""} · ${row.subject || ""}`),
+      el("small", "", [row.teacher, row.room || row.location].filter(Boolean).join(" / "))
+    );
+    wrap.append(item);
+  });
+};
+
+refreshOpenQuickTimetableV100 = function refreshOpenQuickTimetableV101(reason = {}) {
+  const popup = document.getElementById("quickPopup");
+  if (popup?.dataset?.quickType !== "timetable") return;
+  clearTimeout(refreshOpenQuickTimetableV100.timer);
+  refreshOpenQuickTimetableV100.timer = setTimeout(() => {
+    logTimetableDebugV101({ source: "store.timetable", remoteRefresh: TIMETABLE_REMOTE_KEYS_V101.has(reason?.key || "") });
+    showQuickPopup("timetable");
+  }, 0);
+};
+
+window.PMTimetableQuickViewService = {
+  refreshAfterRemoteChange(change = {}) {
+    if (!TIMETABLE_REMOTE_KEYS_V101.has(change.key || "")) return;
+    refreshOpenQuickTimetableV100(change);
+  },
+  getActiveTimetableRows,
+  debugState() {
+    const state = activeQuickTimetableStateV101();
+    return {
+      requestedSetId: state.requestedSetId,
+      displayedSetId: state.setId,
+      rowCount: state.rows.length,
+      fallback: state.fallback,
+      orphanRowsExcluded: state.orphanRowsExcluded
+    };
+  }
+};
+
+store.settings.appVersion = APP_PATCH_VERSION_V101;
+
+// Emergency timetable stabilization V102: keep period-time deletion out of
+// sensitive reauthentication flows, and make timetable selection states explicit.
+const APP_PATCH_VERSION_V102 = "v102.0 - 2026-07-21";
+
+function logTimetableStabilityV102(payload = {}) {
+  if (!isTimetableDebugV101()) return;
+  console.info("[timetable:stability]", {
+    source: payload.source || "store.timetable",
+    action: payload.action || "",
+    requestedSetId: payload.requestedSetId || "",
+    displayedSetId: payload.displayedSetId || "",
+    phase: payload.phase || "",
+    rows: Number(payload.rows || 0),
+    fallback: !!payload.fallback,
+    orphanRowsExcluded: Number(payload.orphanRowsExcluded || 0),
+    remoteRefresh: !!payload.remoteRefresh
+  });
+}
+
+function normalizeTimetableRowForSetV102(row = {}, index = 0, activeSetId = "") {
+  let setId = rawTimetableRowSetIdV101(row);
+  if (!setId && String(activeSetId) === "school") setId = "school";
+  if (!setId || isDeletedTimetableEntityV101(row)) return null;
+  const period = normalizePeriodLabelV84(row.period, index);
+  return {
+    ...row,
+    id: row.id || `tt-${setId}-${row.day || "day"}-${period}`,
+    setId,
+    period,
+    time: row.time || periodTimeForV26(period)
+  };
+}
+
+getActiveTimetableRows = function getActiveTimetableRowsV102(storeRef = store, requestedSetId = "", options = {}) {
+  ensureTimetableStateV15();
+  const sets = validTimetableSetsV101(storeRef);
+  const validSetIds = new Set(sets.map((set) => String(set.id)));
+  const rawRows = Array.isArray(storeRef.timetable) ? storeRef.timetable : [];
+  const requested = requestedSetId === undefined || requestedSetId === null ? "" : String(requestedSetId).trim();
+  const hasRequested = requested !== "";
+  const validRequested = hasRequested && validSetIds.has(requested);
+  const hasRawSets = Array.isArray(storeRef.timetableSets) && storeRef.timetableSets.length > 0;
+  const loadingRowsBeforeSets = rawRows.length > 0 && !hasRawSets;
+  const implicitSetId = options.allowImplicitDefault === false ? "" : (sets[0]?.id || "");
+  const activeSetId = validRequested ? requested : (hasRequested ? (loadingRowsBeforeSets ? requested : "") : implicitSetId);
+  const normalized = [];
+  let orphanRowsExcluded = 0;
+  let missingSetRowsIncluded = 0;
+
+  rawRows.forEach((row, index) => {
+    const rawSetId = rawTimetableRowSetIdV101(row);
+    const next = normalizeTimetableRowForSetV102(row, index, activeSetId);
+    if (!next || !validSetIds.has(String(next.setId))) {
+      orphanRowsExcluded += 1;
+      return;
+    }
+    if (!rawSetId && String(next.setId) === "school") missingSetRowsIncluded += 1;
+    normalized.push(next);
+  });
+
+  const rows = activeSetId && validSetIds.has(String(activeSetId))
+    ? sortTimetableRowsV99(normalized.filter((row) => String(row.setId) === String(activeSetId)))
+    : [];
+  const phase = loadingRowsBeforeSets
+    ? "loading"
+    : (hasRequested && !validRequested)
+      ? "invalid_selection"
+      : activeSetId
+        ? "valid"
+        : rawRows.length || sets.length
+          ? "no_selection"
+          : "empty";
+
+  return {
+    rows,
+    setId: validSetIds.has(String(activeSetId)) ? activeSetId : "",
+    requestedSetId: requested,
+    validRequested,
+    missingRequested: phase === "invalid_selection",
+    fallback: !hasRequested && !!implicitSetId,
+    orphanRowsExcluded,
+    missingSetRowsIncluded,
+    phase,
+    loading: phase === "loading"
+  };
+};
+
+normalizedTimetableRowsV99 = function normalizedTimetableRowsV102() {
+  ensureTimetableStateV15();
+  const validSetIds = validTimetableSetIdsV101();
+  const activeSetId = activeTimetableSetV29();
+  return (store.timetable || [])
+    .map((row, index) => normalizeTimetableRowForSetV102(row, index, activeSetId))
+    .filter((row) => row && validSetIds.has(String(row.setId)));
+};
+
+activeTimetableSetV29 = function activeTimetableSetV102() {
+  const requested = sessionStorage.getItem("pm-timetable-set") || "";
+  const state = getActiveTimetableRows(store, requested, { allowImplicitDefault: !requested });
+  if (state.loading && requested) return requested;
+  if (state.missingRequested && requested) return requested;
+  return state.setId || "";
+};
+
+function timetableSelectionStateV102() {
+  const requested = sessionStorage.getItem("pm-timetable-set") || "";
+  return getActiveTimetableRows(store, requested, { allowImplicitDefault: !requested });
+}
+
+function renderTimetableLoadNoticeV102() {
+  const section = content?.querySelector?.(".panel");
+  if (!section) return;
+  section.querySelectorAll(".timetable-selection-notice-v102").forEach((node) => node.remove());
+  const state = timetableSelectionStateV102();
+  let message = "";
+  if (state.phase === "loading") message = "시간표를 불러오는 중입니다. 잠시 후 자동으로 다시 표시됩니다.";
+  if (state.phase === "invalid_selection") message = "선택한 시간표를 찾을 수 없습니다. 시간표 목록에서 다시 선택해 주세요.";
+  if (!message) return;
+  const notice = el("div", "empty timetable-selection-notice-v102", message);
+  const head = section.querySelector(".page-head, .panel-head, .modern-tt-toolbar");
+  if (head?.parentNode) head.parentNode.insertBefore(notice, head.nextSibling);
+  else section.prepend(notice);
+}
+
+const renderTimetableBeforeV102 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV102() {
+  const result = renderTimetableBeforeV102();
+  renderTimetableLoadNoticeV102();
+  return result;
+};
+
+periodDraftCardV99 = function periodDraftCardV102(row, index, { onDirty, onDelete }) {
+  const card = el("article", "period-card");
+  const top = el("div", "period-card-top");
+  const label = row.period || `${index + 1}교시`;
+  top.append(el("strong", "", `${label} 설정`));
+  const del = button("삭제", "ghost small");
+  del.dataset.action = "delete-period-time";
+  del.addEventListener("click", () => {
+    if (!confirm(`${label} 시간 설정을 삭제할까요?`)) return;
+    logTimetableStabilityV102({ action: "delete-period-time-confirmed", requestedSetId: activeTimetableSetV29() });
+    onDelete(row.id);
+  });
+  top.append(del);
+  const start = document.createElement("input");
+  start.type = "time";
+  start.value = row.start || "";
+  const end = document.createElement("input");
+  end.type = "time";
+  end.value = row.end || "";
+  const updateDraft = () => {
+    row.start = start.value;
+    row.end = end.value;
+    row.time = [row.start, row.end].filter(Boolean).join("-");
+    onDirty();
+  };
+  start.addEventListener("input", updateDraft);
+  end.addEventListener("input", updateDraft);
+  card.append(top, makeField("시작", `periodStartV102-${row.id}`, start), makeField("종료", `periodEndV102-${row.id}`, end));
+  return card;
+};
+
+periodEditorV29 = function periodEditorV102() {
+  const draft = normalizePeriodRowsV97(timetablePeriodsV29()).map((row) => ({ ...row }));
+  const box = el("section", "modern-period-editor");
+  const head = el("div", "period-editor-head-v81");
+  const actions = el("div", "row-actions");
+  const status = el("p", "muted period-save-status-v98", "저장된 교시 시간입니다.");
+  const grid = el("div", "period-card-grid");
+  const save = button("교시 시간 저장");
+  save.disabled = true;
+  let dirty = false;
+  let saving = false;
+  const markDirty = () => {
+    dirty = true;
+    save.disabled = false;
+    status.textContent = "저장되지 않은 교시 시간 변경이 있습니다.";
+    status.classList.add("dirty");
+  };
+  const renderGrid = () => {
+    grid.replaceChildren();
+    normalizePeriodRowsV97(draft).forEach((row, index) => {
+      draft[index] = row;
+      grid.append(periodDraftCardV99(row, index, {
+        onDirty: markDirty,
+        onDelete: (targetId) => {
+          const targetIndex = draft.findIndex((item) => String(item.id) === String(targetId));
+          if (targetIndex < 0) return showMessage("삭제 실패", "삭제할 교시를 다시 선택해 주세요.");
+          draft.splice(targetIndex, 1);
+          persistPeriodRowsV97(draft);
+          showMessage("교시 삭제 완료", "선택한 교시 시간이 삭제되었습니다.");
+          renderTimetableV29();
+        }
+      }));
+    });
+    if (!grid.children.length) grid.append(el("div", "empty", "등록된 교시가 없습니다. 신규 교시 추가를 눌러 다시 만들 수 있습니다."));
+  };
+  const add = button("+ 신규 교시 추가", "ghost");
+  add.addEventListener("click", () => {
+    draft.push({ id: `period-${Date.now()}`, period: `${draft.length + 1}교시`, start: "", end: "", time: "" });
+    markDirty();
+    renderGrid();
+  });
+  const clear = button("교시 시간 전체 삭제", "danger");
+  clear.dataset.action = "clear-period-times";
+  clear.addEventListener("click", () => {
+    if (!confirm("등록된 교시 시간을 모두 삭제할까요? 수업 배정 내용은 유지되고 교시 시간 표시만 비워집니다.")) return;
+    persistPeriodRowsV97([]);
+    showMessage("교시 시간 전체 삭제 완료", "모든 교시 시간 설정이 삭제되었습니다.");
+    renderTimetableV29();
+  });
+  save.addEventListener("click", () => {
+    if (!dirty || saving) return;
+    saving = true;
+    save.disabled = true;
+    try {
+      persistPeriodRowsV97(draft);
+      status.textContent = "교시 시간을 저장했습니다.";
+      status.classList.remove("dirty");
+      showMessage("저장 완료", "교시 시간을 저장했습니다.");
+      renderTimetableV29();
+    } catch (error) {
+      console.error("[period save failed]", error);
+      status.textContent = "교시 시간 저장에 실패했습니다.";
+      status.classList.add("dirty");
+      save.disabled = false;
+    } finally {
+      saving = false;
+    }
+  });
+  actions.append(add, clear, save);
+  head.append(el("h3", "", "정규 수강 교시 및 시간 설정"), actions);
+  renderGrid();
+  box.append(head, el("p", "muted", "교시 시작/종료 시간을 수정한 뒤 교시 시간 저장을 눌러 확정합니다."), status, grid);
+  return box;
+};
+
+programTypeSettingsPanelV98 = function programTypeSettingsPanelV102(target = "timetable") {
+  ensureProgramTypeLabelsV98();
+  const section = panel("수업 유형 표시 이름");
+  section.id = `programTypeSettingsV98-${target}`;
+  section.classList.add("program-type-settings-v98");
+  const grid = el("div", "form-grid");
+  const inputs = {};
+  Object.entries(PROGRAM_TYPE_DEFAULT_LABELS_V98).forEach(([type, label]) => {
+    const input = document.createElement("input");
+    input.value = programTypeLabelV98(type);
+    inputs[type] = input;
+    grid.append(makeField(label, `programTypeLabelV102-${target}-${type}`, input));
+  });
+  const save = button("수업 유형 이름 저장");
+  save.addEventListener("click", () => requirePassword(() => {
+    Object.entries(inputs).forEach(([type, input]) => {
+      const value = input.value.trim() || PROGRAM_TYPE_DEFAULT_LABELS_V98[type];
+      store.settings.programTypeLabelsV98[type] = value;
+      store.settings.labels ??= {};
+      store.settings.labels[type] = value;
+    });
+    ensureProgramTypeLabelsV98();
+    syncProgramTimetableSetNamesV98();
+    saveStore();
+    buildNav();
+    showMessage("저장 완료", "수업 유형 표시 이름을 저장했습니다.");
+    if (currentPage === "site") renderSiteV20();
+    else if (currentPage === "timetable") renderTimetableV29();
+  }));
+  const actions = el("div", "row-actions");
+  actions.append(save);
+  section.append(
+    el("p", "muted", "시간표에 표시되는 일반 수업, 방과후, 동아리, 특강 등의 이름을 변경합니다. 과목명, 교시명, 개별 시간표 이름을 바꾸는 기능은 아닙니다."),
+    grid,
+    actions
+  );
+  return section;
+};
+
+function activeQuickTimetableStateV102() {
+  const requested = sessionStorage.getItem("pm-timetable-set") || sessionStorage.getItem("quickTimetableSet") || "";
+  return getActiveTimetableRows(store, requested, { allowImplicitDefault: !requested });
+}
+
+activeQuickTimetableSetIdV100 = function activeQuickTimetableSetIdV102() {
+  return activeQuickTimetableStateV102().setId;
+};
+
+rowsForQuickTimetableSetV100 = function rowsForQuickTimetableSetV102() {
+  return activeQuickTimetableStateV102().rows;
+};
+
+quickTimetableControlsV9 = function quickTimetableControlsV102() {
+  const state = activeQuickTimetableStateV102();
+  const box = el("div", "quick-tt-controls");
+  const selector = document.createElement("select");
+  selector.append(option("", state.missingRequested ? "선택한 시간표를 찾을 수 없습니다" : "시간표 선택"));
+  validTimetableSetsV101().forEach((set) => selector.append(option(set.id, set.name)));
+  selector.value = state.setId || "";
+  const daySelect = document.createElement("select");
+  ["일", "월", "화", "수", "목", "금", "토"].forEach((day) => daySelect.append(option(day, `${day}요일`)));
+  daySelect.value = selectedQuickTimetableDayV100();
+  selector.addEventListener("change", () => {
+    if (selector.value) {
+      sessionStorage.setItem("pm-timetable-set", selector.value);
+      sessionStorage.setItem("quickTimetableSet", selector.value);
+    } else {
+      sessionStorage.removeItem("quickTimetableSet");
+    }
+    showQuickPopup("timetable");
+  });
+  daySelect.addEventListener("change", () => {
+    sessionStorage.setItem("quickTimetableDay", daySelect.value);
+    showQuickPopup("timetable");
+  });
+  box.append(makeField("시간표", "quickTimetableSetV102", selector), makeField("요일", "quickTimetableDayV102", daySelect));
+  return box;
+};
+
+quickTimetableRowsV9 = function quickTimetableRowsV102() {
+  const state = activeQuickTimetableStateV102();
+  const selectedDay = selectedQuickTimetableDayV100();
+  const dayRows = state.rows.filter((row) => row.day === selectedDay);
+  logTimetableStabilityV102({
+    requestedSetId: state.requestedSetId,
+    displayedSetId: state.setId,
+    phase: state.phase,
+    rows: dayRows.length || state.rows.length,
+    fallback: state.fallback || (state.rows.length > 0 && dayRows.length === 0),
+    orphanRowsExcluded: state.orphanRowsExcluded
+  });
+  return (dayRows.length ? dayRows : state.rows).slice(0, 24);
+};
+
+quickTimetableViewV100 = function quickTimetableViewV102(wrap) {
+  const state = activeQuickTimetableStateV102();
+  wrap.append(quickTimetableControlsV9());
+  if (state.loading) {
+    wrap.append(el("div", "empty", "시간표를 불러오는 중입니다."));
+    return;
+  }
+  if (state.missingRequested) {
+    wrap.append(el("div", "empty", "선택한 시간표를 찾을 수 없습니다. 시간표 목록에서 다시 선택해 주세요."));
+    logTimetableStabilityV102({
+      requestedSetId: state.requestedSetId,
+      displayedSetId: "",
+      phase: state.phase,
+      rows: 0,
+      fallback: false,
+      orphanRowsExcluded: state.orphanRowsExcluded
+    });
+    return;
+  }
+  const selectedDay = selectedQuickTimetableDayV100();
+  const rows = quickTimetableRowsV9();
+  if (!rows.length) {
+    wrap.append(el("div", "empty", "표시할 시간표가 없습니다."));
+    return;
+  }
+  if (!state.rows.some((row) => row.day === selectedDay)) {
+    wrap.append(el("p", "muted quick-tt-fallback-note-v100", `${selectedDay}요일 항목이 없어 현재 시간표 전체를 표시합니다.`));
+  }
+  rows.forEach((row) => {
+    const item = el("div", "quick-tt-row");
+    item.append(
+      el("strong", "", `${row.period || ""} ${row.time || ""}`.trim()),
+      el("span", "", `${row.day || ""} · ${row.subject || ""}`),
+      el("small", "", [row.teacher, row.room || row.location].filter(Boolean).join(" / "))
+    );
+    wrap.append(item);
+  });
+};
+
+function scheduleTimetableSurfaceRefreshV102(change = {}) {
+  if (!TIMETABLE_REMOTE_KEYS_V101.has(change.key || "")) return;
+  refreshOpenQuickTimetableV100(change);
+  const page = currentPage || "";
+  if (!["timetable", ...PROGRAM_TYPES_V97].includes(page)) return;
+  clearTimeout(scheduleTimetableSurfaceRefreshV102.timer);
+  scheduleTimetableSurfaceRefreshV102.timer = setTimeout(() => {
+    logTimetableStabilityV102({ action: "remote-surface-rerender", remoteRefresh: true });
+    renderPage(page);
+  }, 80);
+}
+
+window.PMTimetableQuickViewService = {
+  refreshAfterRemoteChange(change = {}) {
+    scheduleTimetableSurfaceRefreshV102(change);
+  },
+  getActiveTimetableRows,
+  debugState() {
+    const state = activeQuickTimetableStateV102();
+    return {
+      requestedSetId: state.requestedSetId,
+      displayedSetId: state.setId,
+      rowCount: state.rows.length,
+      phase: state.phase,
+      fallback: state.fallback,
+      orphanRowsExcluded: state.orphanRowsExcluded
+    };
+  }
+};
+
+store.settings.appVersion = APP_PATCH_VERSION_V102;
+
+// Emergency timetable stabilization V103: separate timetable-set scope from
+// workspace-wide period time definitions.
+const APP_PATCH_VERSION_V103 = "v103.0 - 2026-07-21";
+const TIMETABLE_DEFAULT_VISIBLE_PERIOD_COUNT_V103 = 7;
+
+function timetableSetByIdV103(setId) {
+  ensureTimetableStateV15();
+  const target = String(setId || "");
+  return (store.timetableSets || []).find((set) => String(set.id) === target) || null;
+}
+
+function timetableRowSetIdV103(row = {}) {
+  return String(row.setId || row.timetableSetId || row.scheduleSetId || "school");
+}
+
+function timetableRowTypeV103(row = {}) {
+  return String(row.sourceType || row.type || row.memo || "manual");
+}
+
+function timetableRowsForSetV103(setId) {
+  const target = String(setId || "");
+  if (!target) return [];
+  return (store.timetable || []).filter((row) => timetableRowSetIdV103(row) === target && !isDeletedTimetableEntityV101(row));
+}
+
+function maxPeriodNumberFromRowsV103(rows = []) {
+  return rows.reduce((max, row, index) => Math.max(max, periodNumberV99(row.period, index + 1) || 0), 0);
+}
+
+function visiblePeriodCountForSetV103(setId) {
+  const set = timetableSetByIdV103(setId);
+  const saved = Number(set?.visiblePeriodCount || set?.periodCount || 0);
+  const rowMax = maxPeriodNumberFromRowsV103(timetableRowsForSetV103(setId));
+  if (rowMax || saved) return Math.max(rowMax, saved);
+  return TIMETABLE_DEFAULT_VISIBLE_PERIOD_COUNT_V103;
+}
+
+function setVisiblePeriodCountV103(setId, count) {
+  const set = timetableSetByIdV103(setId);
+  if (!set) return false;
+  const next = Math.max(1, Number(count || 1));
+  set.visiblePeriodCount = next;
+  return true;
+}
+
+function commonPeriodRowsByNumberV103() {
+  const map = new Map();
+  normalizePeriodRowsV97(Array.isArray(store.periodTimes) ? store.periodTimes : timetablePeriodsV29()).forEach((row, index) => {
+    const number = periodNumberV99(row.period, index + 1) || index + 1;
+    map.set(number, row);
+  });
+  return map;
+}
+
+function periodsForTimetableSetV103(setId) {
+  const count = visiblePeriodCountForSetV103(setId);
+  const common = commonPeriodRowsByNumberV103();
+  return Array.from({ length: count }, (_, index) => {
+    const number = index + 1;
+    const row = common.get(number) || {};
+    const time = row.time || [row.start, row.end].filter(Boolean).join("-");
+    return {
+      id: row.id || `period-${number}`,
+      period: `${number}교시`,
+      start: row.start || "",
+      end: row.end || "",
+      time: time || ""
+    };
+  });
+}
+
+function periodTimeForSetV103(setId, period) {
+  const normalized = normalizePeriodLabelV84(period, 0);
+  const row = periodsForTimetableSetV103(setId).find((item) => normalizePeriodLabelV84(item.period, 0) === normalized);
+  return row ? ([row.start, row.end].filter(Boolean).join("-") || row.time || "") : "";
+}
+
+function findTimetableCellRowV103(setId, day, period, type = "") {
+  const normalizedPeriod = normalizePeriodLabelV84(period, 0);
+  const targetType = String(type || "").trim();
+  return (store.timetable || []).find((item) => (
+    timetableRowSetIdV103(item) === String(setId || "")
+    && item.day === day
+    && normalizePeriodLabelV84(item.period, 0) === normalizedPeriod
+    && (!targetType || timetableRowTypeV103(item) === targetType)
+  )) || null;
+}
+
+function markAndRemoveTimetableRowsV103(predicate) {
+  const rows = (store.timetable || []).filter(predicate);
+  markWorkspaceDeletedRows("timetable", rows);
+  store.timetable = (store.timetable || []).filter((row) => !predicate(row));
+  return rows.length;
+}
+
+function removeCurrentTimetablePeriodV103(setId, period) {
+  const activeSet = String(setId || activeTimetableSetV29() || "");
+  const set = timetableSetByIdV103(activeSet);
+  if (!set) return showMessage("삭제 실패", "현재 시간표를 먼저 선택해 주세요.");
+  const normalizedPeriod = normalizePeriodLabelV84(period, 0);
+  if (!confirm(`현재 시간표에서 ${normalizedPeriod} 수업을 제거할까요?\n다른 시간표와 공통 교시 시간은 유지됩니다.`)) return;
+  const removed = markAndRemoveTimetableRowsV103((row) => (
+    timetableRowSetIdV103(row) === activeSet
+    && normalizePeriodLabelV84(row.period, 0) === normalizedPeriod
+  ));
+  const periodNumber = periodNumberV99(normalizedPeriod, 0);
+  const currentVisible = visiblePeriodCountForSetV103(activeSet);
+  if (periodNumber >= currentVisible) {
+    const nextMax = maxPeriodNumberFromRowsV103(timetableRowsForSetV103(activeSet));
+    setVisiblePeriodCountV103(activeSet, Math.max(nextMax, periodNumber - 1, 1));
+  }
+  saveStore();
+  showMessage("교시 제거 완료", removed ? "현재 시간표의 해당 교시 수업만 제거했습니다." : "제거할 수업 배정은 없지만 표시 범위를 정리했습니다.");
+  renderTimetableV29();
+}
+
+function clearCurrentTimetableAssignmentsV103(setId) {
+  const activeSet = String(setId || activeTimetableSetV29() || "");
+  const set = timetableSetByIdV103(activeSet);
+  if (!set) return showMessage("삭제 실패", "현재 시간표를 먼저 선택해 주세요.");
+  if (!confirm("현재 시간표의 모든 수업 배정을 비울까요?\n시간표 목록과 공통 교시 시간은 유지됩니다.")) return;
+  const removed = markAndRemoveTimetableRowsV103((row) => timetableRowSetIdV103(row) === activeSet);
+  saveStore();
+  showMessage("비우기 완료", `${set.name || "현재 시간표"}의 수업 배정 ${removed}건을 비웠습니다.`);
+  renderTimetableV29();
+}
+
+function deleteCurrentTimetableSetV103(setId) {
+  ensureTimetableStateV15();
+  const activeSet = String(setId || activeTimetableSetV29() || "");
+  const set = timetableSetByIdV103(activeSet);
+  if (!set) return showMessage("삭제 실패", "삭제할 시간표를 찾지 못했습니다.");
+  const name = set.name || "현재 시간표";
+  if (!confirm(`'${name}'을 삭제할까요?\n이 시간표에 등록된 수업 배정도 함께 삭제됩니다.\n다른 시간표와 공통 교시 시간은 유지됩니다.`)) return;
+  markWorkspaceDeleted("timetableSets", activeSet);
+  const removed = markAndRemoveTimetableRowsV103((row) => timetableRowSetIdV103(row) === activeSet);
+  store.timetableSets = (store.timetableSets || []).filter((item) => String(item.id) !== activeSet);
+  if (sessionStorage.getItem("pm-timetable-set") === activeSet) {
+    sessionStorage.removeItem("pm-timetable-set");
+    sessionStorage.setItem("pm-timetable-needs-selection", "1");
+  }
+  if (sessionStorage.getItem("quickTimetableSet") === activeSet) sessionStorage.removeItem("quickTimetableSet");
+  saveStore();
+  buildNav();
+  showMessage("삭제 완료", `${name}과 해당 수업 배정 ${removed}건을 삭제했습니다.`);
+  renderTimetableV29();
+}
+
+deleteCurrentTimetableSetV99 = deleteCurrentTimetableSetV103;
+
+function clearCommonPeriodTimesV103() {
+  if (!confirm("워크스페이스 공통 교시 시간 전체 삭제\n모든 시간표의 교시 시간 표시가 영향을 받을 수 있습니다.\n과목 배정과 시간표 목록은 삭제되지 않습니다.")) return;
+  markWorkspaceDeletedRows("periodTimes", store.periodTimes || []);
+  store.periodTimes = [];
+  store.settings ??= {};
+  store.settings.periodTimesConfiguredV81 = true;
+  store.settings.timetablePeriods = 0;
+  saveStore();
+  showMessage("공통 교시 시간 삭제 완료", "공통 교시 시간만 삭제했습니다. 과목 배정과 시간표 목록은 유지됩니다.");
+  renderTimetableV29();
+}
+
+function addVisiblePeriodToCurrentSetV103(setId) {
+  const activeSet = String(setId || activeTimetableSetV29() || "");
+  const set = timetableSetByIdV103(activeSet);
+  if (!set) return showMessage("추가 실패", "현재 시간표를 먼저 선택해 주세요.");
+  const nextCount = visiblePeriodCountForSetV103(activeSet) + 1;
+  setVisiblePeriodCountV103(activeSet, nextCount);
+  saveStore();
+  showMessage("교시 추가 완료", `현재 시간표만 ${nextCount}교시까지 표시합니다. 공통 시간은 필요할 때 별도로 저장하세요.`);
+  renderTimetableV29();
+}
+
+activeTimetableSetV29 = function activeTimetableSetV103() {
+  const requested = sessionStorage.getItem("pm-timetable-set") || "";
+  if (sessionStorage.getItem("pm-timetable-needs-selection") === "1" && !requested) return "";
+  const state = getActiveTimetableRows(store, requested, { allowImplicitDefault: !requested });
+  if (state.loading && requested) return requested;
+  if (state.missingRequested && requested) return requested;
+  return state.setId || "";
+};
+
+timetableGridV29 = function timetableGridV103(setId) {
+  const activeSet = String(setId || "");
+  const grid = el("div", "timetable-grid modern-timetable-grid");
+  grid.append(makeTimeHead("교시/시간"), ...programDaysV26().map(makeTimeHead));
+  periodsForTimetableSetV103(activeSet).forEach((row) => {
+    const timeText = [row.start, row.end].filter(Boolean).join(" ~ ") || row.time || "";
+    const timeBox = el("div", "tt-time");
+    timeBox.append(el("strong", "", row.period), el("span", "", timeText || "시간 미정"));
+    grid.append(timeBox);
+    programDaysV26().forEach((day) => grid.append(makeTimeCellV29(activeSet, day, row.period, timeText)));
+  });
+  return grid;
+};
+
+makeTimeCellV29 = function makeTimeCellV103(setId, day, period, time) {
+  const row = findTimetableCellRowV103(setId, day, period);
+  const cell = el("div", row ? "tt-cell" : "tt-cell empty-cell");
+  cell.dataset.setId = String(setId || "");
+  cell.dataset.day = day;
+  cell.dataset.period = normalizePeriodLabelV84(period, 0);
+  if (row) {
+    cell.append(el("strong", "", row.subject || ""), el("span", "", row.teacher || ""), el("small", "", row.room || row.location || ""));
+  } else cell.textContent = "-";
+  cell.addEventListener("click", () => editTimeCellV15(setId, day, period, time, row || null));
+  return cell;
+};
+
+editTimeCellV15 = function editTimeCellV103(setId, day, period, time, row) {
+  if (!can("create", "timetable") && !can("edit", "timetable")) return;
+  const normalizedPeriod = normalizePeriodLabelV84(period, 0);
+  const programRef = findProgramForTimetableSetV99(setId);
+  const rowType = programRef?.type || timetableRowTypeV103(row || {});
+  const existing = row || findTimetableCellRowV103(setId, day, normalizedPeriod, rowType);
+  const subject = prompt(`${day} ${normalizedPeriod} 과목`, existing?.subject || programRef?.program?.name || "");
+  if (subject === null) return;
+  const teacher = prompt("선생님", existing?.teacher || programRef?.program?.teacher || "");
+  if (teacher === null) return;
+  const room = prompt("위치", existing?.room || existing?.location || programRef?.program?.location || "");
+  if (room === null) return;
+  const seat = prompt("좌석", existing?.seat || "");
+  if (seat === null) return;
+  const duplicate = findTimetableCellRowV103(setId, day, normalizedPeriod, rowType);
+  if (!existing && duplicate) {
+    showMessage("중복 등록 차단", "이미 등록된 수업입니다. 기존 수업을 수정하거나 삭제해 주세요.");
+    return editTimeCellV15(setId, day, normalizedPeriod, time, duplicate);
+  }
+  const next = {
+    ...(existing || {}),
+    id: existing?.id || `tt-${String(setId || "school")}-${day}-${normalizedPeriod}-${rowType}`,
+    setId,
+    day,
+    period: normalizedPeriod,
+    time: time || periodTimeForSetV103(setId, normalizedPeriod),
+    subject,
+    teacher,
+    room,
+    location: room,
+    seat,
+    sourceType: programRef?.type || existing?.sourceType || "manual"
+  };
+  if (programRef) {
+    next.programId = programRef.program.id;
+    next.sourceType = programRef.type;
+    next.memo = next.memo || programRef.cfg.scheduleType;
+  }
+  store.timetable ??= [];
+  const index = store.timetable.findIndex((item) => String(item.id) === String(next.id));
+  if (index >= 0) store.timetable[index] = next;
+  else {
+    const beforeSaveDuplicate = findTimetableCellRowV103(setId, day, normalizedPeriod, rowType);
+    if (beforeSaveDuplicate) {
+      showMessage("중복 등록 차단", "이미 등록된 수업입니다. 기존 수업을 수정하거나 삭제해 주세요.");
+      return;
+    }
+    store.timetable.push(next);
+  }
+  setVisiblePeriodCountV103(setId, Math.max(visiblePeriodCountForSetV103(setId), periodNumberV99(normalizedPeriod, 1)));
+  saveStore();
+  renderTimetableV29();
+};
+
+manualTimetableFormV29 = function manualTimetableFormV103(setId) {
+  const form = el("section", "manual-timetable-form");
+  form.append(el("h3", "", "수동 시간표 배정"));
+  const grid = el("div", "form-grid");
+  const day = document.createElement("select");
+  programDaysV26().forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  periodsForTimetableSetV103(setId).forEach((row) => period.append(option(row.period, `${row.period} (${[row.start, row.end].filter(Boolean).join(" ~ ") || row.time || "시간 미정"})`)));
+  const subject = document.createElement("select");
+  subjectsList().forEach((value) => subject.append(option(value, value)));
+  const teacher = document.createElement("select");
+  teachersList().forEach((value) => teacher.append(option(value, value)));
+  const room = document.createElement("input");
+  room.placeholder = "302호";
+  const start = document.createElement("input");
+  start.type = "time";
+  const end = document.createElement("input");
+  end.type = "time";
+  const syncTime = () => {
+    const row = periodsForTimetableSetV103(setId).find((item) => item.period === period.value);
+    start.value = row?.start || "";
+    end.value = row?.end || "";
+  };
+  period.addEventListener("change", syncTime);
+  syncTime();
+  grid.append(
+    makeField("배정 요일 *", "manualDayV103", day),
+    makeField("해당 교시 *", "manualPeriodV103", period),
+    makeField("배치 수강과목 *", "manualSubjectV103", subject),
+    makeField("강의실 호실", "manualRoomV103", room),
+    makeField("강의 전임 교사 *", "manualTeacherV103", teacher),
+    makeField("시작 시간", "manualStartV103", start),
+    makeField("종료 시간", "manualEndV103", end)
+  );
+  const actions = el("div", "row-actions manual-actions");
+  const cancel = button("취소", "ghost");
+  cancel.addEventListener("click", () => renderTimetableV29());
+  const save = button("시간표 등록 완료");
+  save.addEventListener("click", () => {
+    const normalizedPeriod = normalizePeriodLabelV84(period.value, 0);
+    const rowType = "manual";
+    const duplicate = findTimetableCellRowV103(setId, day.value, normalizedPeriod, rowType);
+    if (duplicate) return showMessage("중복 등록 차단", "이미 등록된 수업입니다. 기존 수업을 수정하거나 삭제해 주세요.");
+    const time = [start.value, end.value].filter(Boolean).join("-");
+    store.timetable ??= [];
+    store.timetable.push({
+      id: `tt-${String(setId || "school")}-${day.value}-${normalizedPeriod}-${rowType}`,
+      setId,
+      day: day.value,
+      period: normalizedPeriod,
+      time,
+      subject: subject.value,
+      teacher: teacher.value,
+      room: room.value,
+      location: room.value,
+      sourceType: rowType
+    });
+    setVisiblePeriodCountV103(setId, Math.max(visiblePeriodCountForSetV103(setId), periodNumberV99(normalizedPeriod, 1)));
+    saveStore();
+    renderTimetableV29();
+  });
+  actions.append(cancel, save);
+  form.append(grid, actions);
+  return form;
+};
+
+periodEditorV29 = function periodEditorV103() {
+  const activeSet = activeTimetableSetV29();
+  const draft = periodsForTimetableSetV103(activeSet).map((row) => ({ ...row }));
+  const box = el("section", "modern-period-editor");
+  const head = el("div", "period-editor-head-v81");
+  const actions = el("div", "row-actions");
+  const status = el("p", "muted period-save-status-v98", "현재 시간표의 표시 교시 범위와 워크스페이스 공통 교시 시간을 분리해 관리합니다.");
+  const grid = el("div", "period-card-grid");
+  const save = button("공통 교시 시간 저장");
+  save.disabled = true;
+  let dirty = false;
+  let saving = false;
+  const markDirty = () => {
+    dirty = true;
+    save.disabled = false;
+    status.textContent = "저장되지 않은 공통 교시 시간 변경이 있습니다.";
+    status.classList.add("dirty");
+  };
+  const renderGrid = () => {
+    grid.replaceChildren();
+    draft.forEach((row, index) => {
+      row.period = normalizePeriodLabelV84(row.period, index);
+      const card = el("article", "period-card");
+      const top = el("div", "period-card-top");
+      top.append(el("strong", "", `${row.period} 설정`));
+      const remove = button("현재 시간표에서 제거", "ghost small");
+      remove.dataset.action = "remove-current-set-period";
+      remove.addEventListener("click", () => removeCurrentTimetablePeriodV103(activeSet, row.period));
+      top.append(remove);
+      const start = document.createElement("input");
+      start.type = "time";
+      start.value = row.start || "";
+      const end = document.createElement("input");
+      end.type = "time";
+      end.value = row.end || "";
+      const updateDraft = () => {
+        row.start = start.value;
+        row.end = end.value;
+        row.time = [row.start, row.end].filter(Boolean).join("-");
+        markDirty();
+      };
+      start.addEventListener("input", updateDraft);
+      end.addEventListener("input", updateDraft);
+      card.append(top, makeField("공통 시작", `periodStartV103-${row.id || index}`, start), makeField("공통 종료", `periodEndV103-${row.id || index}`, end));
+      grid.append(card);
+    });
+  };
+  const add = button("+ 현재 시간표 교시 추가", "ghost");
+  add.addEventListener("click", () => addVisiblePeriodToCurrentSetV103(activeSet));
+  const clearCurrent = button("현재 시간표 교시 전체 비우기", "ghost");
+  clearCurrent.dataset.action = "clear-current-set-assignments";
+  clearCurrent.addEventListener("click", () => clearCurrentTimetableAssignmentsV103(activeSet));
+  const clearCommon = button("공통 교시 시간 전체 삭제", "danger");
+  clearCommon.dataset.action = "clear-common-period-times";
+  clearCommon.addEventListener("click", clearCommonPeriodTimesV103);
+  save.addEventListener("click", () => {
+    if (!dirty || saving) return;
+    saving = true;
+    save.disabled = true;
+    try {
+      persistPeriodRowsV97(draft);
+      status.textContent = "공통 교시 시간을 저장했습니다.";
+      status.classList.remove("dirty");
+      showMessage("저장 완료", "공통 교시 시간을 저장했습니다.");
+      renderTimetableV29();
+    } catch (error) {
+      console.error("[period save failed]", error);
+      status.textContent = "공통 교시 시간 저장에 실패했습니다.";
+      status.classList.add("dirty");
+      save.disabled = false;
+    } finally {
+      saving = false;
+    }
+  });
+  actions.append(add, clearCurrent, clearCommon, save);
+  head.append(el("h3", "", "시간표별 교시 범위 및 공통 시간 설정"), actions);
+  renderGrid();
+  box.append(head, status, grid);
+  return box;
+};
+
+function renderTimetableNeedsSelectionV103() {
+  content.replaceChildren();
+  const section = panel("시간표");
+  const head = section.querySelector(".panel-head");
+  const add = button("+ 시간표 추가");
+  add.addEventListener("click", () => {
+    sessionStorage.removeItem("pm-timetable-needs-selection");
+    addTimetableSetV29("새 시간표", true);
+  });
+  head?.append(el("div", "row-actions", add));
+  const selector = document.createElement("select");
+  selector.append(option("", "시간표 선택"));
+  validTimetableSetsV101().forEach((set) => selector.append(option(set.id, set.name)));
+  selector.addEventListener("change", () => {
+    if (!selector.value) return;
+    sessionStorage.setItem("pm-timetable-set", selector.value);
+    sessionStorage.removeItem("pm-timetable-needs-selection");
+    renderTimetableV29();
+  });
+  section.append(el("div", "empty timetable-selection-empty-v103", "시간표를 선택해 주세요. 삭제된 시간표는 자동 복구하거나 다른 시간표로 자동 전환하지 않습니다."), makeField("시간표 선택", "timetableSelectAfterDeleteV103", selector));
+  content.append(section);
+}
+
+function patchTimetableToolbarV103() {
+  const toolbar = content.querySelector(".modern-tt-toolbar");
+  if (!toolbar) return;
+  const selector = toolbar.querySelector("select");
+  const selectedSet = () => selector?.value || activeTimetableSetV29();
+  toolbar.querySelectorAll("button").forEach((btn) => {
+    const text = (btn.textContent || "").replace(/\s+/g, " ").trim();
+    if (["선택 시간표 비우기", "현재 시간표 비우기", "현재 시간표 삭제"].includes(text) || btn.id === "deleteCurrentTimetableSetV99") btn.remove();
+  });
+  const rename = [...toolbar.querySelectorAll("button")].find((btn) => (btn.textContent || "").trim() === "이름 수정");
+  if (rename && !rename.dataset.v103Bound) {
+    rename.dataset.v103Bound = "true";
+    rename.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      renameTimetableSetV29(selectedSet());
+    }, true);
+  }
+  const clear = button("현재 시간표 비우기", "ghost");
+  clear.dataset.action = "clear-current-timetable";
+  clear.addEventListener("click", () => clearCurrentTimetableAssignmentsV103(selectedSet()));
+  const remove = button("현재 시간표 삭제", "danger");
+  remove.id = "deleteCurrentTimetableSetV99";
+  remove.dataset.action = "delete-current-timetable-set";
+  remove.addEventListener("click", () => deleteCurrentTimetableSetV103(selectedSet()));
+  toolbar.append(clear, remove);
+}
+
+const renderTimetableBeforeV103 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV103() {
+  ensureProgramTypeLabelsV98();
+  syncProgramTimetableSetNamesV98();
+  if (sessionStorage.getItem("pm-timetable-needs-selection") === "1" && !sessionStorage.getItem("pm-timetable-set") && validTimetableSetsV101().length) {
+    renderTimetableNeedsSelectionV103();
+    return;
+  }
+  const result = renderTimetableBeforeV103();
+  patchTimetableToolbarV103();
+  return result;
+};
+
+function quickTimetableCardsV103(state) {
+  const grid = el("div", "quick-tt-card-grid-v103");
+  const selected = String(state.setId || "");
+  validTimetableSetsV101().forEach((set) => {
+    const card = button("", `quick-tt-card-v103 ${String(set.id) === selected ? "active" : ""}`);
+    card.type = "button";
+    const visible = visiblePeriodCountForSetV103(set.id);
+    const rows = getActiveTimetableRows(store, set.id, { allowImplicitDefault: false }).rows.slice(0, 4);
+    card.append(
+      el("strong", "", set.name || "시간표"),
+      el("span", "", `최대 ${visible}교시`),
+      el("small", "", rows.length ? rows.map((row) => `${row.day} ${row.period} ${row.subject || ""}`.trim()).join(" / ") : "등록된 수업 없음")
+    );
+    card.addEventListener("click", () => {
+      sessionStorage.setItem("pm-timetable-set", set.id);
+      sessionStorage.setItem("quickTimetableSet", set.id);
+      sessionStorage.removeItem("pm-timetable-needs-selection");
+      showQuickPopup("timetable");
+    });
+    grid.append(card);
+  });
+  return grid;
+}
+
+quickTimetableControlsV9 = function quickTimetableControlsV103() {
+  const state = activeQuickTimetableStateV102();
+  const box = el("div", "quick-tt-controls quick-tt-controls-v103");
+  const selector = document.createElement("select");
+  selector.append(option("", state.missingRequested ? "선택한 시간표를 찾을 수 없습니다" : "시간표 선택"));
+  validTimetableSetsV101().forEach((set) => selector.append(option(set.id, set.name)));
+  selector.value = state.setId || "";
+  const daySelect = document.createElement("select");
+  ["일", "월", "화", "수", "목", "금", "토"].forEach((day) => daySelect.append(option(day, `${day}요일`)));
+  daySelect.value = selectedQuickTimetableDayV100();
+  selector.addEventListener("change", () => {
+    if (selector.value) {
+      sessionStorage.setItem("pm-timetable-set", selector.value);
+      sessionStorage.setItem("quickTimetableSet", selector.value);
+      sessionStorage.removeItem("pm-timetable-needs-selection");
+    } else {
+      sessionStorage.removeItem("quickTimetableSet");
+    }
+    showQuickPopup("timetable");
+  });
+  daySelect.addEventListener("change", () => {
+    sessionStorage.setItem("quickTimetableDay", daySelect.value);
+    showQuickPopup("timetable");
+  });
+  box.append(makeField("시간표", "quickTimetableSetV103", selector), makeField("요일", "quickTimetableDayV103", daySelect), quickTimetableCardsV103(state));
+  return box;
+};
+
+quickTimetableViewV100 = function quickTimetableViewV103(wrap) {
+  const state = activeQuickTimetableStateV102();
+  wrap.append(quickTimetableControlsV9());
+  if (state.loading) return wrap.append(el("div", "empty", "시간표를 불러오는 중입니다."));
+  if (state.missingRequested) return wrap.append(el("div", "empty", "선택한 시간표를 찾을 수 없습니다. 시간표 목록에서 다시 선택해 주세요."));
+  if (!state.setId) return wrap.append(el("div", "empty", "시간표를 선택해 주세요."));
+  const selectedDay = selectedQuickTimetableDayV100();
+  const rows = state.rows.filter((row) => row.day === selectedDay);
+  const byPeriod = new Map(rows.map((row) => [normalizePeriodLabelV84(row.period, 0), row]));
+  periodsForTimetableSetV103(state.setId).forEach((periodRow) => {
+    const row = byPeriod.get(normalizePeriodLabelV84(periodRow.period, 0));
+    const item = el("div", "quick-tt-row");
+    item.append(
+      el("strong", "", `${periodRow.period} ${[periodRow.start, periodRow.end].filter(Boolean).join("~") || periodRow.time || "시간 미정"}`),
+      el("span", "", row ? `${selectedDay} · ${row.subject || ""}` : `${selectedDay} · -`),
+      el("small", "", row ? [row.teacher, row.room || row.location, row.sourceType ? programTypeLabelV98(row.sourceType) : ""].filter(Boolean).join(" / ") : "등록된 수업 없음")
+    );
+    wrap.append(item);
+  });
+};
+
+function installStyleV103() {
+  if (document.getElementById("style-v103")) return;
+  const style = document.createElement("style");
+  style.id = "style-v103";
+  style.textContent = `
+    .quick-tt-controls-v103{display:grid;gap:10px}
+    .quick-tt-card-grid-v103{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:4px}
+    .quick-tt-card-v103{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:5px;min-height:92px;border:1px solid #d9e5f6;background:#fff;color:#0f213f;border-radius:12px;padding:12px;box-shadow:0 8px 20px rgba(15,33,63,.05)}
+    .quick-tt-card-v103.active{border-color:#1d5cff;background:#eef4ff;box-shadow:0 10px 24px rgba(29,92,255,.16)}
+    .quick-tt-card-v103 span{font-weight:800;color:#1d5cff}
+    .quick-tt-card-v103 small{color:#6c7f9f;line-height:1.35}
+    @media (max-width:720px){.quick-tt-card-grid-v103{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}.period-editor-head-v81 .row-actions{gap:8px}}
+  `;
+  document.head.append(style);
+}
+
+installStyleV103();
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V103;
+
+// Timetable emergency stabilization V104: quick-view list/grid modes, strict
+// one-class-per-cell policy, visible delete controls, and safer sync diagnostics.
+const APP_PATCH_VERSION_V104 = "v104.0 - 2026-07-21";
+const QUICK_TIMETABLE_VIEW_MODE_KEY_V104 = "quickTimetableViewMode";
+const QUICK_TIMETABLE_GRID_DAYS_V104 = ["월", "화", "수", "목", "금"];
+let timetableRenderCountV104 = 0;
+let timetableNameSaveStateV104 = { status: "idle", message: "", at: 0 };
+let lastWorkspaceSyncSkipV104 = { reason: "", workspaceId: "", at: 0 };
+
+function isTimetableDevDiagnosticsV104() {
+  try {
+    return ["127.0.0.1", "localhost"].includes(location.hostname)
+      || location.search.includes("debugTimetable=1")
+      || localStorage.getItem("pm-debug-timetable") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function timetableDevLogV104(event, payload = {}) {
+  if (!isTimetableDevDiagnosticsV104()) return;
+  console.info(`[timetable:v104:${event}]`, payload);
+}
+
+function selectedQuickTimetableModeV104() {
+  const saved = sessionStorage.getItem(QUICK_TIMETABLE_VIEW_MODE_KEY_V104);
+  return saved === "grid" ? "grid" : "list";
+}
+
+function activeQuickTimetableStateV104() {
+  const requested = sessionStorage.getItem("pm-timetable-set") || sessionStorage.getItem("quickTimetableSet") || "";
+  return getActiveTimetableRows(store, requested, { allowImplicitDefault: !requested });
+}
+
+function activeTimetableSetNameV104(setId) {
+  const set = timetableSetByIdV103(setId);
+  return set?.name || "시간표";
+}
+
+function timetableCellKeyV104(setId, day, period) {
+  return [
+    String(setId || ""),
+    String(day || ""),
+    normalizePeriodLabelV84(period, 0)
+  ].join("::");
+}
+
+function duplicateTimetableCellsV104(setId = "") {
+  const state = getActiveTimetableRows(store, setId || activeTimetableSetV29(), { allowImplicitDefault: false });
+  const seen = new Map();
+  const duplicates = [];
+  state.rows.forEach((row) => {
+    const key = timetableCellKeyV104(row.setId, row.day, row.period);
+    if (seen.has(key)) duplicates.push({ key, firstId: seen.get(key)?.id || "", duplicateId: row.id || "" });
+    else seen.set(key, row);
+  });
+  return duplicates;
+}
+
+function findTimetableCellRowV104(setId, day, period) {
+  const target = timetableCellKeyV104(setId, day, period);
+  const matches = (store.timetable || []).filter((item) => (
+    !isDeletedTimetableEntityV101(item)
+    && timetableCellKeyV104(timetableRowSetIdV103(item), item.day, item.period) === target
+  ));
+  if (matches.length > 1) {
+    timetableDevLogV104("duplicate-cell-detected", {
+      setId: String(setId || ""),
+      day,
+      period: normalizePeriodLabelV84(period, 0),
+      count: matches.length
+    });
+  }
+  return matches[0] || null;
+}
+
+findTimetableCellRowV103 = findTimetableCellRowV104;
+
+function buildTimetableGridModelV104(setId, options = {}) {
+  const days = options.days || programDaysV26();
+  const state = getActiveTimetableRows(store, setId, { allowImplicitDefault: false });
+  const periods = periodsForTimetableSetV103(state.setId || setId);
+  const byCell = new Map();
+  let duplicateCells = 0;
+  state.rows.forEach((row) => {
+    const key = timetableCellKeyV104(row.setId, row.day, row.period);
+    if (byCell.has(key)) {
+      duplicateCells += 1;
+      return;
+    }
+    byCell.set(key, row);
+  });
+  return {
+    setId: state.setId || "",
+    requestedSetId: state.requestedSetId || String(setId || ""),
+    timetableSet: timetableSetByIdV103(state.setId || setId),
+    days,
+    periods,
+    rows: state.rows,
+    phase: state.phase,
+    loading: state.loading,
+    missingRequested: state.missingRequested,
+    orphanRowsExcluded: state.orphanRowsExcluded,
+    duplicateCells,
+    cell(day, period) {
+      return byCell.get(timetableCellKeyV104(this.setId, day, period)) || null;
+    }
+  };
+}
+
+function makeTimetableCellContentV104(row) {
+  const frag = document.createDocumentFragment();
+  frag.append(
+    el("strong", "", row.subject || ""),
+    el("span", "", row.teacher || ""),
+    el("small", "", [row.room || row.location, row.sourceType ? programTypeLabelV98(row.sourceType) : ""].filter(Boolean).join(" / "))
+  );
+  return frag;
+}
+
+timetableGridV29 = function timetableGridV104(setId) {
+  const model = buildTimetableGridModelV104(setId, { days: programDaysV26() });
+  const grid = el("div", "timetable-grid modern-timetable-grid");
+  grid.append(makeTimeHead("교시/시간"), ...model.days.map(makeTimeHead));
+  model.periods.forEach((row) => {
+    const timeText = [row.start, row.end].filter(Boolean).join(" ~ ") || row.time || "";
+    const timeBox = el("div", "tt-time");
+    timeBox.append(el("strong", "", row.period), el("span", "", timeText || "시간 미정"));
+    grid.append(timeBox);
+    model.days.forEach((day) => grid.append(makeTimeCellV29(model.setId || setId, day, row.period, timeText)));
+  });
+  return grid;
+};
+
+makeTimeCellV29 = function makeTimeCellV104(setId, day, period, time) {
+  const row = findTimetableCellRowV104(setId, day, period);
+  const cell = el("div", row ? "tt-cell" : "tt-cell empty-cell");
+  cell.dataset.setId = String(setId || "");
+  cell.dataset.day = day;
+  cell.dataset.period = normalizePeriodLabelV84(period, 0);
+  if (row) cell.append(makeTimetableCellContentV104(row));
+  else cell.textContent = "-";
+  cell.addEventListener("click", () => editTimeCellV15(setId, day, period, time, row || null));
+  return cell;
+};
+
+editTimeCellV15 = function editTimeCellV104(setId, day, period, time, row) {
+  if (!can("create", "timetable") && !can("edit", "timetable")) return;
+  const normalizedPeriod = normalizePeriodLabelV84(period, 0);
+  const programRef = findProgramForTimetableSetV99(setId);
+  const existing = row || findTimetableCellRowV104(setId, day, normalizedPeriod);
+  const subject = prompt(`${day} ${normalizedPeriod} 과목`, existing?.subject || programRef?.program?.name || "");
+  if (subject === null) return;
+  const teacher = prompt("선생님", existing?.teacher || programRef?.program?.teacher || "");
+  if (teacher === null) return;
+  const room = prompt("위치", existing?.room || existing?.location || programRef?.program?.location || "");
+  if (room === null) return;
+  const seat = prompt("좌석", existing?.seat || "");
+  if (seat === null) return;
+  const duplicate = findTimetableCellRowV104(setId, day, normalizedPeriod);
+  if (!existing && duplicate) {
+    showMessage("중복 등록 차단", "이미 이 시간에 등록된 수업이 있습니다.\n기존 수업을 수정해 주세요.");
+    return editTimeCellV15(setId, day, normalizedPeriod, time, duplicate);
+  }
+  const rowType = programRef?.type || timetableRowTypeV103(existing || {}) || "manual";
+  const next = {
+    ...(existing || {}),
+    id: existing?.id || `tt-${String(setId || "school")}-${day}-${normalizedPeriod}`,
+    setId,
+    day,
+    period: normalizedPeriod,
+    time: time || periodTimeForSetV103(setId, normalizedPeriod),
+    subject,
+    teacher,
+    room,
+    location: room,
+    seat,
+    sourceType: rowType
+  };
+  if (programRef) {
+    next.programId = programRef.program.id;
+    next.sourceType = programRef.type;
+    next.memo = next.memo || programRef.cfg.scheduleType;
+  }
+  store.timetable ??= [];
+  const index = store.timetable.findIndex((item) => String(item.id) === String(next.id));
+  if (index >= 0) store.timetable[index] = next;
+  else {
+    const existingCell = findTimetableCellRowV104(setId, day, normalizedPeriod);
+    if (existingCell) {
+      showMessage("중복 등록 차단", "이미 이 시간에 등록된 수업이 있습니다.\n기존 수업을 수정해 주세요.");
+      return editTimeCellV15(setId, day, normalizedPeriod, time, existingCell);
+    }
+    store.timetable.push(next);
+  }
+  setVisiblePeriodCountV103(setId, Math.max(visiblePeriodCountForSetV103(setId), periodNumberV99(normalizedPeriod, 1)));
+  saveStore();
+  renderTimetableV29();
+};
+
+manualTimetableFormV29 = function manualTimetableFormV104(setId) {
+  const form = el("section", "manual-timetable-form");
+  form.append(el("h3", "", "수동 시간표 배정"));
+  const grid = el("div", "form-grid");
+  const day = document.createElement("select");
+  programDaysV26().forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  periodsForTimetableSetV103(setId).forEach((row) => period.append(option(row.period, `${row.period} (${[row.start, row.end].filter(Boolean).join(" ~ ") || row.time || "시간 미정"})`)));
+  const subject = document.createElement("select");
+  subjectsList().forEach((value) => subject.append(option(value, value)));
+  const teacher = document.createElement("select");
+  teachersList().forEach((value) => teacher.append(option(value, value)));
+  const room = document.createElement("input");
+  room.placeholder = "302호";
+  const start = document.createElement("input");
+  start.type = "time";
+  const end = document.createElement("input");
+  end.type = "time";
+  const syncTime = () => {
+    const row = periodsForTimetableSetV103(setId).find((item) => item.period === period.value);
+    start.value = row?.start || "";
+    end.value = row?.end || "";
+  };
+  period.addEventListener("change", syncTime);
+  syncTime();
+  grid.append(
+    makeField("배정 요일 *", "manualDayV104", day),
+    makeField("해당 교시 *", "manualPeriodV104", period),
+    makeField("배치 수강과목 *", "manualSubjectV104", subject),
+    makeField("강의실 호실", "manualRoomV104", room),
+    makeField("강의 전임 교사 *", "manualTeacherV104", teacher),
+    makeField("시작 시간", "manualStartV104", start),
+    makeField("종료 시간", "manualEndV104", end)
+  );
+  const actions = el("div", "row-actions manual-actions");
+  const cancel = button("취소", "ghost");
+  cancel.addEventListener("click", () => renderTimetableV29());
+  const save = button("시간표 등록 완료");
+  save.addEventListener("click", () => {
+    const normalizedPeriod = normalizePeriodLabelV84(period.value, 0);
+    const duplicate = findTimetableCellRowV104(setId, day.value, normalizedPeriod);
+    if (duplicate) {
+      showMessage("중복 등록 차단", "이미 이 시간에 등록된 수업이 있습니다.\n기존 수업을 수정해 주세요.");
+      return editTimeCellV15(setId, day.value, normalizedPeriod, [start.value, end.value].filter(Boolean).join("-"), duplicate);
+    }
+    const time = [start.value, end.value].filter(Boolean).join("-");
+    store.timetable ??= [];
+    store.timetable.push({
+      id: `tt-${String(setId || "school")}-${day.value}-${normalizedPeriod}`,
+      setId,
+      day: day.value,
+      period: normalizedPeriod,
+      time,
+      subject: subject.value,
+      teacher: teacher.value,
+      room: room.value,
+      location: room.value,
+      sourceType: "manual"
+    });
+    setVisiblePeriodCountV103(setId, Math.max(visiblePeriodCountForSetV103(setId), periodNumberV99(normalizedPeriod, 1)));
+    saveStore();
+    renderTimetableV29();
+  });
+  actions.append(cancel, save);
+  form.append(grid, actions);
+  return form;
+};
+
+function dedupeProgramNameForSetV104(value, cfg = {}) {
+  const label = String(cfg.title || "").trim();
+  let name = programNameFromTimetableSetNameV99(value, cfg).trim();
+  if (!name) name = label;
+  const repeated = label ? new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[·・-]\\s*${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) : null;
+  if (repeated?.test(name)) name = label;
+  return name;
+}
+
+function formatProgramTimetableSetNameV104(cfg = {}, programName = "") {
+  const label = String(cfg.title || "").trim();
+  const name = String(programName || "").trim();
+  if (!label) return name || "시간표";
+  if (!name || name === label) return label;
+  if (name.startsWith(`${label} ·`)) return name;
+  return `${label} · ${name}`;
+}
+
+syncProgramTimetableSetNamesV98 = function syncProgramTimetableSetNamesV104() {
+  ensureProgramTypeLabelsV98();
+  let changed = false;
+  if (!Array.isArray(store.timetableSets)) return false;
+  PROGRAM_TYPES_V97.forEach((type) => {
+    const cfg = programConfigV26(type);
+    (store[cfg.programs] || []).forEach((program) => {
+      const setId = programSetIdV26(type, program);
+      const set = store.timetableSets.find((item) => String(item.id) === String(setId));
+      if (!set) return;
+      const nextName = formatProgramTimetableSetNameV104(cfg, program.name || cfg.title);
+      if (set.name !== nextName) {
+        set.name = nextName;
+        changed = true;
+      }
+      if (set.type !== cfg.scheduleType) {
+        set.type = cfg.scheduleType;
+        changed = true;
+      }
+    });
+  });
+  return changed;
+};
+
+renameTimetableSetV29 = function renameTimetableSetV104(setId) {
+  const set = timetableSetByIdV103(setId);
+  if (!set) return showMessage("이름 수정 실패", "현재 시간표를 먼저 선택해 주세요.");
+  const next = prompt("시간표 이름 수정", set.name || "");
+  if (next === null) return;
+  const trimmed = next.trim();
+  if (!trimmed) return showMessage("이름 수정 실패", "시간표 이름을 입력해 주세요.");
+  timetableNameSaveStateV104 = { status: "saving", message: "저장 중", at: Date.now() };
+  const programRef = findProgramForTimetableSetV99(setId);
+  if (programRef) {
+    const programName = dedupeProgramNameForSetV104(trimmed, programRef.cfg);
+    programRef.program.name = programName;
+    set.name = formatProgramTimetableSetNameV104(programRef.cfg, programName);
+  } else {
+    set.name = trimmed;
+  }
+  saveStore();
+  buildNav();
+  refreshOpenQuickTimetableV100({ key: "timetableSets" });
+  const syncDiag = window.PMWorkspaceDataService?.diagnostics?.() || {};
+  const recentError = syncDiag.lastErrorAt && Date.now() - Number(syncDiag.lastErrorAt) < 120000;
+  if (recentError && ["resource-exhausted", "unavailable", "deadline-exceeded"].includes(syncDiag.lastErrorCode)) {
+    timetableNameSaveStateV104 = { status: "local-only", message: "로컬에만 반영됨", at: Date.now() };
+    showMessage("로컬에만 반영됨", "시간표 이름을 서버에 저장하지 못했습니다.\n네트워크 또는 사용량 제한이 해제된 뒤 다시 시도해 주세요.");
+  } else {
+    timetableNameSaveStateV104 = { status: "queued", message: "저장 요청 완료", at: Date.now() };
+    showMessage("저장 요청 완료", "시간표 이름 변경을 저장 대기열에 반영했습니다.");
+  }
+  renderTimetableV29();
+};
+
+function quickTimetableModeControlV104() {
+  const wrap = el("div", "quick-tt-mode-v104");
+  [["list", "목록형"], ["grid", "시간표표"]].forEach(([mode, label]) => {
+    const btn = button(label, selectedQuickTimetableModeV104() === mode ? "active" : "ghost");
+    btn.type = "button";
+    btn.dataset.quickMode = mode;
+    btn.addEventListener("click", () => {
+      sessionStorage.setItem(QUICK_TIMETABLE_VIEW_MODE_KEY_V104, mode);
+      showQuickPopup("timetable");
+    });
+    wrap.append(btn);
+  });
+  return wrap;
+}
+
+quickTimetableControlsV9 = function quickTimetableControlsV104() {
+  const state = activeQuickTimetableStateV104();
+  const box = el("div", "quick-tt-controls quick-tt-controls-v104");
+  const selector = document.createElement("select");
+  selector.append(option("", state.missingRequested ? "선택한 시간표를 찾을 수 없습니다" : "시간표 선택"));
+  validTimetableSetsV101().forEach((set) => selector.append(option(set.id, set.name)));
+  selector.value = state.setId || "";
+  const daySelect = document.createElement("select");
+  ["일", "월", "화", "수", "목", "금", "토"].forEach((day) => daySelect.append(option(day, `${day}요일`)));
+  daySelect.value = selectedQuickTimetableDayV100();
+  selector.addEventListener("change", () => {
+    if (selector.value) {
+      sessionStorage.setItem("pm-timetable-set", selector.value);
+      sessionStorage.setItem("quickTimetableSet", selector.value);
+      sessionStorage.removeItem("pm-timetable-needs-selection");
+    } else {
+      sessionStorage.removeItem("quickTimetableSet");
+    }
+    showQuickPopup("timetable");
+  });
+  daySelect.addEventListener("change", () => {
+    sessionStorage.setItem("quickTimetableDay", daySelect.value);
+    showQuickPopup("timetable");
+  });
+  box.append(makeField("시간표", "quickTimetableSetV104", selector), makeField("요일", "quickTimetableDayV104", daySelect), makeField("보기 방식", "quickTimetableModeV104", quickTimetableModeControlV104()));
+  return box;
+};
+
+function renderQuickTimetableListV104(wrap, state) {
+  const selectedDay = selectedQuickTimetableDayV100();
+  const periods = periodsForTimetableSetV103(state.setId);
+  const rowsByPeriod = new Map(state.rows
+    .filter((row) => row.day === selectedDay)
+    .map((row) => [normalizePeriodLabelV84(row.period, 0), row]));
+  const list = el("div", "quick-tt-list-v104");
+  list.append(el("h4", "", `${activeTimetableSetNameV104(state.setId)} · ${selectedDay}요일`));
+  periods.forEach((periodRow) => {
+    const row = rowsByPeriod.get(normalizePeriodLabelV84(periodRow.period, 0));
+    const item = el("div", "quick-tt-row");
+    item.append(
+      el("strong", "", `${periodRow.period} ${[periodRow.start, periodRow.end].filter(Boolean).join("~") || periodRow.time || "시간 미정"}`),
+      el("span", "", row ? row.subject || "-" : "-"),
+      el("small", "", row ? [row.teacher, row.room || row.location, row.sourceType ? programTypeLabelV98(row.sourceType) : ""].filter(Boolean).join(" / ") : "등록된 수업 없음")
+    );
+    list.append(item);
+  });
+  wrap.append(list);
+}
+
+function renderQuickTimetableGridV104(wrap, state) {
+  const model = buildTimetableGridModelV104(state.setId, { days: QUICK_TIMETABLE_GRID_DAYS_V104 });
+  const holder = el("div", "quick-tt-grid-wrap-v104");
+  holder.append(el("h4", "", `${activeTimetableSetNameV104(state.setId)} · 시간표표`));
+  const grid = el("div", "quick-tt-table-v104");
+  grid.style.setProperty("--quick-tt-day-cols", String(model.days.length));
+  grid.append(el("div", "quick-tt-head-v104", "교시/시간"), ...model.days.map((day) => el("div", "quick-tt-head-v104", `${day}요일`)));
+  model.periods.forEach((periodRow) => {
+    grid.append(el("div", "quick-tt-time-v104", `${periodRow.period}\n${[periodRow.start, periodRow.end].filter(Boolean).join("~") || periodRow.time || "시간 미정"}`));
+    model.days.forEach((day) => {
+      const row = model.cell(day, periodRow.period);
+      const cell = el("div", row ? "quick-tt-cell-v104" : "quick-tt-cell-v104 empty");
+      if (row) cell.append(makeTimetableCellContentV104(row));
+      else cell.textContent = "-";
+      grid.append(cell);
+    });
+  });
+  holder.append(grid);
+  wrap.append(holder);
+}
+
+quickTimetableRowsV9 = function quickTimetableRowsV104() {
+  const state = activeQuickTimetableStateV104();
+  const selectedDay = selectedQuickTimetableDayV100();
+  const dayRows = state.rows.filter((row) => row.day === selectedDay);
+  timetableDevLogV104("quick-rows", {
+    requestedSetId: state.requestedSetId,
+    displayedSetId: state.setId,
+    mode: selectedQuickTimetableModeV104(),
+    phase: state.phase,
+    rows: dayRows.length || state.rows.length,
+    fallback: state.fallback,
+    orphanRowsExcluded: state.orphanRowsExcluded
+  });
+  return dayRows.length ? dayRows : [];
+};
+
+quickTimetableViewV100 = function quickTimetableViewV104(wrap) {
+  const state = activeQuickTimetableStateV104();
+  wrap.append(quickTimetableControlsV9());
+  if (state.loading) return wrap.append(el("div", "empty", "시간표를 불러오는 중입니다."));
+  if (state.missingRequested) return wrap.append(el("div", "empty", "선택한 시간표를 찾을 수 없습니다. 시간표 목록에서 다시 선택해 주세요."));
+  if (!state.setId) return wrap.append(el("div", "empty", "시간표를 선택해 주세요."));
+  if (selectedQuickTimetableModeV104() === "grid") renderQuickTimetableGridV104(wrap, state);
+  else renderQuickTimetableListV104(wrap, state);
+};
+
+function timetableManagementPanelV104(setId) {
+  const panelBox = el("section", "timetable-management-panel-v104");
+  const activeSet = String(setId || activeTimetableSetV29() || "");
+  panelBox.append(el("h3", "", "현재 시간표 관리"));
+  const actions = el("div", "row-actions");
+  const clear = button("현재 시간표 비우기", "ghost");
+  clear.dataset.action = "clear-current-timetable";
+  clear.addEventListener("click", () => clearCurrentTimetableAssignmentsV103(activeSet));
+  const removeSet = button("현재 시간표 삭제", "danger");
+  removeSet.dataset.action = "delete-current-timetable-set";
+  removeSet.addEventListener("click", () => deleteCurrentTimetableSetV103(activeSet));
+  actions.append(clear, removeSet);
+  panelBox.append(el("p", "muted", "수업 배정 비우기와 시간표 삭제는 서로 다른 작업입니다. 공통 교시 시간은 별도 버튼에서만 삭제됩니다."), actions);
+  return panelBox;
+}
+
+periodEditorV29 = function periodEditorV104() {
+  const activeSet = activeTimetableSetV29();
+  const draft = periodsForTimetableSetV103(activeSet).map((row) => ({ ...row }));
+  const box = el("section", "modern-period-editor");
+  const head = el("div", "period-editor-head-v81");
+  const actions = el("div", "row-actions");
+  const status = el("p", "muted period-save-status-v98", "현재 시간표의 표시 교시 범위와 워크스페이스 공통 교시 시간을 분리해 관리합니다.");
+  const grid = el("div", "period-card-grid");
+  const save = button("공통 교시 시간 저장");
+  save.disabled = true;
+  let dirty = false;
+  let saving = false;
+  const markDirty = () => {
+    dirty = true;
+    save.disabled = false;
+    status.textContent = "저장되지 않은 공통 교시 시간 변경이 있습니다.";
+    status.classList.add("dirty");
+  };
+  const renderGrid = () => {
+    grid.replaceChildren();
+    draft.forEach((row, index) => {
+      row.period = normalizePeriodLabelV84(row.period, index);
+      const card = el("article", "period-card");
+      const top = el("div", "period-card-top");
+      top.append(el("strong", "", `${row.period} 설정`));
+      const remove = button("현재 시간표에서 이 교시 수업 제거", "ghost small");
+      remove.dataset.action = "remove-current-set-period";
+      remove.addEventListener("click", () => removeCurrentTimetablePeriodV103(activeSet, row.period));
+      top.append(remove);
+      const start = document.createElement("input");
+      start.type = "time";
+      start.value = row.start || "";
+      const end = document.createElement("input");
+      end.type = "time";
+      end.value = row.end || "";
+      const updateDraft = () => {
+        row.start = start.value;
+        row.end = end.value;
+        row.time = [row.start, row.end].filter(Boolean).join("-");
+        markDirty();
+      };
+      start.addEventListener("input", updateDraft);
+      end.addEventListener("input", updateDraft);
+      card.append(top, makeField("공통 시작", `periodStartV104-${row.id || index}`, start), makeField("공통 종료", `periodEndV104-${row.id || index}`, end));
+      grid.append(card);
+    });
+  };
+  const add = button("+ 현재 시간표 교시 추가", "ghost");
+  add.addEventListener("click", () => addVisiblePeriodToCurrentSetV103(activeSet));
+  const clearCommon = button("공통 교시 시간 전체 삭제", "danger");
+  clearCommon.dataset.action = "clear-common-period-times";
+  clearCommon.addEventListener("click", clearCommonPeriodTimesV103);
+  save.addEventListener("click", () => {
+    if (!dirty || saving) return;
+    saving = true;
+    save.disabled = true;
+    try {
+      persistPeriodRowsV97(draft);
+      status.textContent = "공통 교시 시간을 저장했습니다.";
+      status.classList.remove("dirty");
+      showMessage("저장 완료", "공통 교시 시간을 저장했습니다.");
+      renderTimetableV29();
+    } catch (error) {
+      console.error("[period save failed]", error);
+      status.textContent = "공통 교시 시간 저장에 실패했습니다.";
+      status.classList.add("dirty");
+      save.disabled = false;
+    } finally {
+      saving = false;
+    }
+  });
+  actions.append(add, clearCommon, save);
+  head.append(el("h3", "", "시간표별 교시 범위 및 공통 시간 설정"), actions);
+  renderGrid();
+  box.append(head, status, grid);
+  return box;
+};
+
+function patchTimetableToolbarV104() {
+  const toolbar = content.querySelector(".modern-tt-toolbar");
+  if (!toolbar) return;
+  const selector = toolbar.querySelector("select");
+  const selectedSet = () => selector?.value || activeTimetableSetV29();
+  toolbar.querySelectorAll("button").forEach((btn) => {
+    const text = (btn.textContent || "").replace(/\s+/g, " ").trim();
+    if (["선택 시간표 비우기", "현재 시간표 비우기", "현재 시간표 삭제"].includes(text) || btn.id === "deleteCurrentTimetableSetV99") btn.remove();
+  });
+  const rename = [...toolbar.querySelectorAll("button")].find((btn) => (btn.textContent || "").trim() === "이름 수정");
+  if (rename && !rename.dataset.v104Bound) {
+    rename.dataset.v104Bound = "true";
+    rename.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      renameTimetableSetV29(selectedSet());
+    }, true);
+  }
+}
+
+const renderTimetableBeforeV104 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV104() {
+  timetableRenderCountV104 += 1;
+  const result = renderTimetableBeforeV104();
+  patchTimetableToolbarV104();
+  const section = content.querySelector(".panel");
+  const activeSet = activeTimetableSetV29();
+  if (section && activeSet && !section.querySelector(".timetable-management-panel-v104")) {
+    section.append(timetableManagementPanelV104(activeSet));
+  }
+  timetableDevLogV104("render", {
+    count: timetableRenderCountV104,
+    activeSet,
+    duplicates: duplicateTimetableCellsV104(activeSet).length,
+    sync: window.PMWorkspaceDataService?.diagnostics?.() || {}
+  });
+  return result;
+};
+
+const startWorkspaceDataSyncBeforeV104 = startWorkspaceDataSyncV45;
+isFirebaseBackedSessionV45 = function isFirebaseBackedSessionV104() {
+  const uid = currentUser?.uid || currentUser?.id || "";
+  if (!uid) return false;
+  try {
+    const firebaseUid = window.firebase?.auth?.().currentUser?.uid || "";
+    return !!window.firebase?.apps?.length && !!firebaseUid && firebaseUid === uid;
+  } catch {
+    return false;
+  }
+};
+
+startWorkspaceDataSyncV45 = function startWorkspaceDataSyncV104(workspaceId) {
+  const backed = isFirebaseBackedSessionV45();
+  if (!backed) {
+    const reason = window.firebase?.auth?.().currentUser ? "auth-user-not-bound-to-app-user-yet" : "no-firebase-session";
+    const now = Date.now();
+    lastWorkspaceSyncSkipV104 = { reason, workspaceId: workspaceId || "", at: now };
+    if (now - Number(startWorkspaceDataSyncV104.lastLogAt || 0) > 3000) {
+      devNoticeLogV114("info", "[PM workspace sync] skipped local account", { reason, workspaceId });
+      startWorkspaceDataSyncV104.lastLogAt = now;
+    }
+  }
+  return startWorkspaceDataSyncBeforeV104(workspaceId);
+};
+
+window.PMTimetableDiagnostics = {
+  gridModel: buildTimetableGridModelV104,
+  duplicateCells: duplicateTimetableCellsV104,
+  activeQuickState: activeQuickTimetableStateV104,
+  nameSaveState: () => ({ ...timetableNameSaveStateV104 }),
+  lastSyncSkip: () => ({ ...lastWorkspaceSyncSkipV104 }),
+  renderCount: () => timetableRenderCountV104,
+  workspaceSync: () => window.PMWorkspaceDataService?.diagnostics?.() || {}
+};
+
+function installStyleV104() {
+  if (document.getElementById("style-v104")) return;
+  const style = document.createElement("style");
+  style.id = "style-v104";
+  style.textContent = `
+    .quick-tt-controls-v104{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px}
+    .quick-tt-mode-v104{display:flex;gap:6px;align-items:center}
+    .quick-tt-mode-v104 button{min-height:38px;padding:8px 12px;border-radius:10px}
+    .quick-tt-mode-v104 button.active{background:#1d5cff;color:#fff;border-color:#1d5cff}
+    .quick-tt-list-v104 h4,.quick-tt-grid-wrap-v104 h4{margin:8px 0 10px;font-size:15px}
+    .quick-tt-grid-wrap-v104{overflow-x:auto}
+    .quick-tt-table-v104{display:grid;grid-template-columns:120px repeat(var(--quick-tt-day-cols,5),minmax(118px,1fr));min-width:720px;border:1px solid #d9e5f6;border-radius:12px;overflow:hidden;background:#fff}
+    .quick-tt-head-v104,.quick-tt-time-v104,.quick-tt-cell-v104{border-right:1px solid #d9e5f6;border-bottom:1px solid #d9e5f6;padding:10px;min-height:64px;white-space:pre-line}
+    .quick-tt-head-v104{background:#f3f7fd;font-weight:900;text-align:center;min-height:auto}
+    .quick-tt-time-v104{background:#f8fbff;font-weight:800;color:#31517d}
+    .quick-tt-cell-v104{display:flex;flex-direction:column;gap:4px}
+    .quick-tt-cell-v104 strong{font-size:13px}
+    .quick-tt-cell-v104 span,.quick-tt-cell-v104 small{font-size:12px;color:#5f78a4}
+    .quick-tt-cell-v104.empty{align-items:center;justify-content:center;color:#9bb0cc}
+    .timetable-management-panel-v104{margin-top:18px;border:1px solid #d7e4f4;border-radius:14px;padding:16px;background:#fff}
+    .timetable-management-panel-v104 h3{margin:0 0 8px}
+    .quick-tt-card-grid-v103{display:none!important}
+    @media (max-width:720px){.quick-tt-controls-v104{grid-template-columns:1fr}.quick-tt-table-v104{min-width:640px}}
+  `;
+  document.head.append(style);
+}
+
+installStyleV104();
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V104;
+
+// Timetable stabilization V105: edit/delete a single class row from the cell
+// editor. A delete never removes a whole period, set, periodTimes, or another
+// timetable's row.
+const APP_PATCH_VERSION_V105 = "v105.0 - 2026-07-22";
+
+function timetableRowIdentityV105(row = {}, setId = "", day = "", period = "") {
+  return {
+    id: row?.id === undefined || row?.id === null ? "" : String(row.id),
+    setId: String(row?.setId || row?.timetableSetId || row?.scheduleSetId || setId || ""),
+    day: String(row?.day || day || ""),
+    period: normalizePeriodLabelV84(row?.period || period || "", 0),
+    subject: String(row?.subject || ""),
+    teacher: String(row?.teacher || ""),
+    room: String(row?.room || row?.location || "")
+  };
+}
+
+function sameTimetableRowTargetV105(row = {}, target = {}) {
+  const current = timetableRowIdentityV105(row);
+  if (target.id) return current.id === target.id;
+  return current.setId === target.setId
+    && current.day === target.day
+    && current.period === target.period
+    && current.subject === target.subject
+    && current.teacher === target.teacher
+    && current.room === target.room;
+}
+
+function removeSingleTimetableRowV105(row = {}, fallback = {}) {
+  const target = timetableRowIdentityV105(row, fallback.setId, fallback.day, fallback.period);
+  let removed = null;
+  let removedOnce = false;
+  const before = Array.isArray(store.timetable) ? store.timetable : [];
+  const nextRows = before.filter((item) => {
+    if (removedOnce || !sameTimetableRowTargetV105(item, target)) return true;
+    removed = item;
+    removedOnce = true;
+    return false;
+  });
+  if (!removed) return null;
+  if (target.id) markWorkspaceDeleted("timetable", target.id);
+  else markWorkspaceDeletedRows("timetable", [removed]);
+  store.timetable = nextRows;
+  return removed;
+}
+
+function refreshTimetableAfterSingleRowChangeV105() {
+  saveStore();
+  refreshOpenQuickTimetableV100({ key: "timetable" });
+  renderTimetableV29();
+}
+
+function openTimetableCellEditorV105(setId, day, period, time, row = null) {
+  if (!can("create", "timetable") && !can("edit", "timetable")) return;
+  const normalizedPeriod = normalizePeriodLabelV84(period, 0);
+  const existing = row || findTimetableCellRowV104(setId, day, normalizedPeriod);
+  const programRef = findProgramForTimetableSetV99(setId);
+  const dialog = document.createElement("dialog");
+  dialog.className = "timetable-cell-editor-v105";
+  const title = existing ? "수업 수정" : "새 수업 등록";
+  const subject = document.createElement("input");
+  subject.value = existing?.subject || programRef?.program?.name || "";
+  subject.placeholder = "과목명";
+  const teacher = document.createElement("input");
+  teacher.value = existing?.teacher || programRef?.program?.teacher || "";
+  teacher.placeholder = "선생님";
+  const room = document.createElement("input");
+  room.value = existing?.room || existing?.location || programRef?.program?.location || "";
+  room.placeholder = "교실/위치";
+  const seat = document.createElement("input");
+  seat.value = existing?.seat || "";
+  seat.placeholder = "좌석";
+  const error = el("p", "error");
+  const actions = el("div", "row-actions");
+  const cancel = button("취소", "ghost");
+  cancel.addEventListener("click", () => dialog.close());
+  const save = button(existing ? "수정 저장" : "등록");
+  save.addEventListener("click", () => {
+    const duplicate = findTimetableCellRowV104(setId, day, normalizedPeriod);
+    const target = existing || duplicate || null;
+    const rowType = programRef?.type || timetableRowTypeV103(target || {}) || "manual";
+    const next = {
+      ...(target || {}),
+      id: target?.id || `tt-${String(setId || "school")}-${day}-${normalizedPeriod}`,
+      setId,
+      day,
+      period: normalizedPeriod,
+      time: time || periodTimeForSetV103(setId, normalizedPeriod),
+      subject: subject.value.trim(),
+      teacher: teacher.value.trim(),
+      room: room.value.trim(),
+      location: room.value.trim(),
+      seat: seat.value.trim(),
+      sourceType: rowType
+    };
+    if (!next.subject) {
+      error.textContent = "과목명을 입력해 주세요.";
+      return;
+    }
+    if (programRef) {
+      next.programId = programRef.program.id;
+      next.sourceType = programRef.type;
+      next.memo = next.memo || programRef.cfg.scheduleType;
+    }
+    store.timetable ??= [];
+    const index = store.timetable.findIndex((item) => String(item.id) === String(next.id));
+    if (index >= 0) store.timetable[index] = next;
+    else store.timetable.push(next);
+    setVisiblePeriodCountV103(setId, Math.max(visiblePeriodCountForSetV103(setId), periodNumberV99(normalizedPeriod, 1)));
+    dialog.close();
+    refreshTimetableAfterSingleRowChangeV105();
+  });
+  if (existing) {
+    const del = button("이 수업 삭제", "danger");
+    del.dataset.action = "delete-single-timetable-row";
+    del.addEventListener("click", () => {
+      const label = `${day}요일 ${normalizedPeriod} '${existing.subject || "수업"}'`;
+      if (!confirm(`${label} 수업을 삭제할까요?`)) return;
+      const removed = removeSingleTimetableRowV105(existing, { setId, day, period: normalizedPeriod });
+      dialog.close();
+      if (!removed) return showMessage("삭제 실패", "삭제할 수업을 다시 선택해 주세요.");
+      refreshTimetableAfterSingleRowChangeV105();
+      showMessage("수업 삭제 완료", `${label} 수업만 삭제했습니다.`);
+    });
+    actions.append(del);
+  }
+  actions.append(cancel, save);
+  dialog.append(
+    el("h3", "", title),
+    el("p", "muted", `${day}요일 ${normalizedPeriod} · ${activeTimetableSetNameV104(setId)}`),
+    makeField("과목명", "timetableCellSubjectV105", subject),
+    makeField("선생님", "timetableCellTeacherV105", teacher),
+    makeField("교실/위치", "timetableCellRoomV105", room),
+    makeField("좌석", "timetableCellSeatV105", seat),
+    error,
+    actions
+  );
+  dialog.addEventListener("close", () => dialog.remove());
+  document.body.append(dialog);
+  if (dialog.showModal) dialog.showModal();
+  else subject.focus();
+}
+
+makeTimeCellV29 = function makeTimeCellV105(setId, day, period, time) {
+  const row = findTimetableCellRowV104(setId, day, period);
+  const cell = el("div", row ? "tt-cell" : "tt-cell empty-cell");
+  cell.dataset.setId = String(setId || "");
+  cell.dataset.day = day;
+  cell.dataset.period = normalizePeriodLabelV84(period, 0);
+  if (row) cell.append(makeTimetableCellContentV104(row));
+  else cell.textContent = "-";
+  cell.addEventListener("click", () => openTimetableCellEditorV105(setId, day, period, time, row || null));
+  return cell;
+};
+
+editTimeCellV15 = function editTimeCellV105(setId, day, period, time, row) {
+  return openTimetableCellEditorV105(setId, day, period, time, row || null);
+};
+
+manualTimetableFormV29 = function manualTimetableFormV105(setId) {
+  const form = el("section", "manual-timetable-form");
+  form.append(el("h3", "", "수동 시간표 배정"));
+  const grid = el("div", "form-grid");
+  const day = document.createElement("select");
+  programDaysV26().forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  periodsForTimetableSetV103(setId).forEach((row) => period.append(option(row.period, `${row.period} (${[row.start, row.end].filter(Boolean).join(" ~ ") || row.time || "시간 미정"})`)));
+  const subject = document.createElement("select");
+  subjectsList().forEach((value) => subject.append(option(value, value)));
+  const teacher = document.createElement("select");
+  teachersList().forEach((value) => teacher.append(option(value, value)));
+  const room = document.createElement("input");
+  room.placeholder = "302호";
+  const start = document.createElement("input");
+  start.type = "time";
+  const end = document.createElement("input");
+  end.type = "time";
+  const syncTime = () => {
+    const row = periodsForTimetableSetV103(setId).find((item) => item.period === period.value);
+    start.value = row?.start || "";
+    end.value = row?.end || "";
+  };
+  period.addEventListener("change", syncTime);
+  syncTime();
+  grid.append(
+    makeField("배정 요일 *", "manualDayV105", day),
+    makeField("해당 교시 *", "manualPeriodV105", period),
+    makeField("배치 수강과목 *", "manualSubjectV105", subject),
+    makeField("강의실 호실", "manualRoomV105", room),
+    makeField("강의 전임 교사 *", "manualTeacherV105", teacher),
+    makeField("시작 시간", "manualStartV105", start),
+    makeField("종료 시간", "manualEndV105", end)
+  );
+  const actions = el("div", "row-actions manual-actions");
+  const cancel = button("취소", "ghost");
+  cancel.addEventListener("click", () => renderTimetableV29());
+  const save = button("시간표 등록 완료");
+  save.addEventListener("click", () => {
+    const normalizedPeriod = normalizePeriodLabelV84(period.value, 0);
+    const time = [start.value, end.value].filter(Boolean).join("-");
+    const existing = findTimetableCellRowV104(setId, day.value, normalizedPeriod);
+    const next = {
+      ...(existing || {}),
+      id: existing?.id || `tt-${String(setId || "school")}-${day.value}-${normalizedPeriod}`,
+      setId,
+      day: day.value,
+      period: normalizedPeriod,
+      time,
+      subject: subject.value,
+      teacher: teacher.value,
+      room: room.value,
+      location: room.value,
+      sourceType: existing?.sourceType || "manual"
+    };
+    store.timetable ??= [];
+    const index = store.timetable.findIndex((item) => String(item.id) === String(next.id));
+    if (index >= 0) store.timetable[index] = next;
+    else store.timetable.push(next);
+    setVisiblePeriodCountV103(setId, Math.max(visiblePeriodCountForSetV103(setId), periodNumberV99(normalizedPeriod, 1)));
+    saveStore();
+    renderTimetableV29();
+  });
+  actions.append(cancel, save);
+  form.append(grid, actions);
+  return form;
+};
+
+function installStyleV105() {
+  if (document.getElementById("style-v105")) return;
+  const style = document.createElement("style");
+  style.id = "style-v105";
+  style.textContent = `
+    .timetable-cell-editor-v105{width:min(520px,calc(100vw - 32px));border:0;border-radius:18px;padding:22px;box-shadow:0 24px 70px rgba(15,33,63,.28)}
+    .timetable-cell-editor-v105::backdrop{background:rgba(15,33,63,.42)}
+    .timetable-cell-editor-v105 h3{margin:0 0 8px}
+    .timetable-cell-editor-v105 label{display:block;margin:10px 0}
+    .timetable-cell-editor-v105 input{width:100%}
+    .timetable-cell-editor-v105 .row-actions{justify-content:flex-end;margin-top:14px}
+    .timetable-cell-editor-v105 .row-actions .danger{margin-right:auto}
+  `;
+  document.head.append(style);
+}
+
+installStyleV105();
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V105;
+
+// Workspace sync stabilization V106: avoid treating an active Firebase Auth
+// session as a local account while app user binding is still settling, and do
+// not schedule remote writes from render paths.
+const APP_PATCH_VERSION_V106 = "v106.0 - 2026-07-22";
+let renderDepthV106 = 0;
+let lastWorkspaceSyncRetryAtV106 = 0;
+let lastWorkspaceSyncSkipV106 = null;
+
+function firebaseAuthUserV106() {
+  try {
+    return window.firebase?.auth?.().currentUser || null;
+  } catch {
+    return null;
+  }
+}
+
+function firebaseUidV106() {
+  return firebaseAuthUserV106()?.uid || "";
+}
+
+function currentUserUidCandidatesV106() {
+  return [
+    currentUser?.uid,
+    currentUser?.id,
+    currentUser?.firebaseUid,
+    authStateV31?.uid,
+    authStateV31?.user?.uid
+  ].filter(Boolean).map(String);
+}
+
+function currentUserEmailV106() {
+  return String(currentUser?.email || authStateV31?.email || authStateV31?.user?.email || "").toLowerCase();
+}
+
+function activeWorkspaceIdV106(workspaceId = "") {
+  const candidates = [
+    workspaceId,
+    currentUser?.workspace_id,
+    currentUser?.workspaceId,
+    currentUser?.currentWorkspaceId,
+    authWorkspaceStateV36?.currentWorkspaceId,
+    store?.workspace_id
+  ].filter(Boolean).map(String);
+  return candidates.find((value) => value && value !== "signed-out") || "";
+}
+
+function maskDiagnosticIdV106(value) {
+  const text = String(value || "");
+  if (!text) return "";
+  if (text.length <= 8) return `${text.slice(0, 2)}***`;
+  return `${text.slice(0, 4)}...${text.slice(-4)}`;
+}
+
+const isFirebaseBackedSessionBeforeV106 = isFirebaseBackedSessionV45;
+isFirebaseBackedSessionV45 = function isFirebaseBackedSessionV106() {
+  const authUser = firebaseAuthUserV106();
+  const firebaseUid = authUser?.uid || "";
+  if (!window.firebase?.apps?.length || !firebaseUid) return false;
+  const candidates = currentUserUidCandidatesV106();
+  if (candidates.includes(firebaseUid)) return true;
+  const authEmail = String(authUser?.email || "").toLowerCase();
+  const appEmail = currentUserEmailV106();
+  if (authEmail && appEmail && authEmail === appEmail) {
+    currentUser ??= {};
+    currentUser.uid ||= firebaseUid;
+    currentUser.provider ||= "firebase";
+    return true;
+  }
+  return isFirebaseBackedSessionBeforeV106?.() || false;
+};
+
+const startWorkspaceDataSyncBeforeV106 = startWorkspaceDataSyncV45;
+startWorkspaceDataSyncV45 = function startWorkspaceDataSyncV106(workspaceId) {
+  const targetWorkspaceId = activeWorkspaceIdV106(workspaceId);
+  const authUser = firebaseAuthUserV106();
+  const backed = isFirebaseBackedSessionV45();
+  if (!targetWorkspaceId) {
+    lastWorkspaceSyncSkipV106 = { reason: "missing-workspace-id", workspaceId: "", at: Date.now() };
+    devNoticeLogV114("info", "[PM workspace sync] skipped", { reason: "missing-workspace-id" });
+    return;
+  }
+  if (!backed) {
+    const reason = authUser ? "auth-user-not-bound-to-app-user-yet" : "no-firebase-session";
+    const now = Date.now();
+    lastWorkspaceSyncSkipV106 = { reason, workspaceId: maskDiagnosticIdV106(targetWorkspaceId), at: now };
+    if (now - Number(startWorkspaceDataSyncV106.lastLogAt || 0) > 3000) {
+      devNoticeLogV114("info", "[PM workspace sync] skipped", { reason, workspaceId: targetWorkspaceId });
+      startWorkspaceDataSyncV106.lastLogAt = now;
+    }
+    if (authUser && now - lastWorkspaceSyncRetryAtV106 > 1000) {
+      lastWorkspaceSyncRetryAtV106 = now;
+      setTimeout(() => {
+        if (activeWorkspaceIdV106(targetWorkspaceId) === targetWorkspaceId) startWorkspaceDataSyncV45(targetWorkspaceId);
+      }, 500);
+    }
+    return;
+  }
+  if (!currentUser?.uid && firebaseUidV106()) {
+    currentUser ??= {};
+    currentUser.uid = firebaseUidV106();
+  }
+  return startWorkspaceDataSyncBeforeV106(targetWorkspaceId);
+};
+
+const saveStoreBeforeV106 = saveStore;
+saveStore = function saveStoreV106(options = {}) {
+  const renderSource = renderDepthV106 > 0 ? "render" : "";
+  if (renderSource) {
+    return saveStoreBeforeV106({ ...options, skipRemote: true, syncReason: options.syncReason || renderSource });
+  }
+  const canSyncRemote = isFirebaseBackedSessionV45();
+  const workspaceId = activeWorkspaceIdV106();
+  if (!canSyncRemote || options.skipRemote || !workspaceId || window.PMWorkspaceDataService?.isApplyingRemote?.()) {
+    return saveStoreBeforeV106(options);
+  }
+  const result = saveStoreBeforeV106({ ...options, skipRemote: true });
+  window.PMWorkspaceDataService?.scheduleSave?.(workspaceId, store, {
+    keys: options.syncKeys,
+    source: options.syncReason || "app-saveStore"
+  });
+  return result;
+};
+
+const renderPageBeforeV106 = renderPage;
+renderPage = function renderPageV106(key) {
+  renderDepthV106 += 1;
+  try {
+    return renderPageBeforeV106(key);
+  } finally {
+    renderDepthV106 -= 1;
+  }
+};
+
+const renderTimetableBeforeV106 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV106() {
+  renderDepthV106 += 1;
+  try {
+    return renderTimetableBeforeV106();
+  } finally {
+    renderDepthV106 -= 1;
+  }
+};
+
+refreshTimetableAfterSingleRowChangeV105 = function refreshTimetableAfterSingleRowChangeV106() {
+  saveStore({ syncKeys: ["timetable", "settings"], syncReason: "single-timetable-row-change" });
+  refreshOpenQuickTimetableV100({ key: "timetable" });
+  renderTimetableV29();
+};
+
+const workspaceSyncDiagnosticsBeforeV106 = window.PMTimetableDiagnostics?.workspaceSync;
+window.PMTimetableDiagnostics = {
+  ...(window.PMTimetableDiagnostics || {}),
+  firebaseSession: () => ({
+    firebaseUid: firebaseUidV106() ? "present" : "",
+    currentUserUidCandidates: currentUserUidCandidatesV106().map((value) => value ? "present" : ""),
+    currentUserEmailMatchesAuth: !!firebaseAuthUserV106()?.email && currentUserEmailV106() === String(firebaseAuthUserV106()?.email || "").toLowerCase(),
+    isFirebaseBacked: isFirebaseBackedSessionV45(),
+    activeWorkspaceId: maskDiagnosticIdV106(activeWorkspaceIdV106()),
+    lastSkip: lastWorkspaceSyncSkipV106
+  }),
+  workspaceSync: () => ({
+    ...(workspaceSyncDiagnosticsBeforeV106?.() || window.PMWorkspaceDataService?.diagnostics?.() || {}),
+    appSync: {
+      activeWorkspaceId: maskDiagnosticIdV106(activeWorkspaceIdV106()),
+      renderDepth: renderDepthV106,
+      lastSkipV106: lastWorkspaceSyncSkipV106
+    }
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V106;
+
+// Workspace sync diagnostics V107: keep the V106 behavior and expose the
+// quota-safety diagnostics under a clear app patch version.
+const APP_PATCH_VERSION_V107 = "v107.0 - 2026-07-22";
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V107;
+
+// Timetable stabilization V108: restore explicit tab login policy with an
+// opt-in remember-login flag, and route every program timetable cell through
+// the same single-row editor/delete flow used by the main timetable.
+const APP_PATCH_VERSION_V108 = "v108.0 - 2026-07-22";
+const AUTH_REMEMBER_LOGIN_KEY_V108 = "pm-auth-remember-login-v108";
+const AUTH_PERSISTENCE_MODE_KEY_V108 = "pm-auth-persistence-mode-v108";
+
+function rememberLoginEnabledV108() {
+  try {
+    return localStorage.getItem(AUTH_REMEMBER_LOGIN_KEY_V108) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setRememberLoginV108(enabled) {
+  try {
+    if (enabled) localStorage.setItem(AUTH_REMEMBER_LOGIN_KEY_V108, "1");
+    else localStorage.removeItem(AUTH_REMEMBER_LOGIN_KEY_V108);
+  } catch {}
+}
+
+function rememberLoginCheckboxV108() {
+  return document.getElementById("rememberLoginV108");
+}
+
+function rememberLoginWantedV108() {
+  const checkbox = rememberLoginCheckboxV108();
+  return !!checkbox?.checked;
+}
+
+function tabSessionApprovedV108() {
+  const basic = sessionStorage.getItem(BROWSER_AUTH_SESSION_KEY_V80) === "1"
+    && !!sessionStorage.getItem("pm-current-user");
+  if (!basic) return false;
+  try {
+    if (typeof AUTH_TAB_SESSION_KEY_V82 !== "undefined" && typeof AUTH_TAB_ID_V82 !== "undefined") {
+      return sessionStorage.getItem(AUTH_TAB_SESSION_KEY_V82) === AUTH_TAB_ID_V82;
+    }
+  } catch {}
+  return true;
+}
+
+function authPersistenceModeV108() {
+  try {
+    return sessionStorage.getItem(AUTH_PERSISTENCE_MODE_KEY_V108)
+      || localStorage.getItem(AUTH_PERSISTENCE_MODE_KEY_V108)
+      || (rememberLoginEnabledV108() ? "local" : "session");
+  } catch {
+    return rememberLoginEnabledV108() ? "local" : "session";
+  }
+}
+
+async function applyFirebaseAuthPersistenceV108(remember) {
+  const runtime = await window.PMFirebaseRuntime?.init?.();
+  if (!runtime?.auth || !window.firebase?.auth?.Auth?.Persistence) return runtime;
+  const mode = remember ? "local" : "session";
+  const persistence = remember
+    ? window.firebase.auth.Auth.Persistence.LOCAL
+    : window.firebase.auth.Auth.Persistence.SESSION;
+  await runtime.auth.setPersistence(persistence);
+  try {
+    sessionStorage.setItem(AUTH_PERSISTENCE_MODE_KEY_V108, mode);
+    if (remember) localStorage.setItem(AUTH_PERSISTENCE_MODE_KEY_V108, mode);
+    else localStorage.removeItem(AUTH_PERSISTENCE_MODE_KEY_V108);
+  } catch {}
+  return runtime;
+}
+
+function installRememberLoginControlV108() {
+  if (!loginForm || document.getElementById("rememberLoginV108")) return;
+  const label = document.createElement("label");
+  label.className = "remember-login-v108";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.id = "rememberLoginV108";
+  input.checked = rememberLoginEnabledV108();
+  input.addEventListener("change", () => setRememberLoginV108(input.checked));
+  label.append(input, document.createTextNode(" 로그인 유지"));
+  const target = loginError || loginForm.querySelector(".invite-only-note");
+  if (target) target.before(label);
+  else loginForm.append(label);
+}
+
+const beginBrowserAuthAttemptBeforeV108 = beginBrowserAuthAttemptV80;
+beginBrowserAuthAttemptV80 = function beginBrowserAuthAttemptV108() {
+  const remember = rememberLoginWantedV108();
+  setRememberLoginV108(remember);
+  try {
+    sessionStorage.setItem(AUTH_PERSISTENCE_MODE_KEY_V108, remember ? "local" : "session");
+  } catch {}
+  return beginBrowserAuthAttemptBeforeV108();
+};
+
+canUseBrowserAuthSessionV80 = function canUseBrowserAuthSessionV108() {
+  return rememberLoginEnabledV108() || tabSessionApprovedV108();
+};
+
+const clearBrowserAuthSessionBeforeV108 = clearBrowserAuthSessionV80;
+clearBrowserAuthSessionV80 = function clearBrowserAuthSessionV108() {
+  clearBrowserAuthSessionBeforeV108();
+  try {
+    sessionStorage.removeItem(AUTH_PERSISTENCE_MODE_KEY_V108);
+  } catch {}
+};
+
+const logoutBeforeV108 = logout;
+logout = async function logoutV108() {
+  setRememberLoginV108(false);
+  try {
+    localStorage.removeItem(AUTH_PERSISTENCE_MODE_KEY_V108);
+    sessionStorage.removeItem(AUTH_PERSISTENCE_MODE_KEY_V108);
+  } catch {}
+  return logoutBeforeV108();
+};
+
+if (window.PMAuthService?.firebaseLoginWithEmail && !window.PMAuthService.__rememberLoginWrappedV108) {
+  const loginEmailBeforeV108 = window.PMAuthService.firebaseLoginWithEmail;
+  window.PMAuthService.firebaseLoginWithEmail = async function firebaseLoginWithEmailV108(...args) {
+    await applyFirebaseAuthPersistenceV108(rememberLoginWantedV108());
+    return loginEmailBeforeV108.apply(this, args);
+  };
+  const loginGoogleBeforeV108 = window.PMAuthService.firebaseLoginWithGoogle;
+  if (loginGoogleBeforeV108) {
+    window.PMAuthService.firebaseLoginWithGoogle = async function firebaseLoginWithGoogleV108(...args) {
+      await applyFirebaseAuthPersistenceV108(rememberLoginWantedV108());
+      return loginGoogleBeforeV108.apply(this, args);
+    };
+  }
+  window.PMAuthService.__rememberLoginWrappedV108 = true;
+}
+
+restoreFirebaseSessionV34 = async function restoreFirebaseSessionV108() {
+  if (!window.PMFirebaseRuntime?.hasConfig?.()) return;
+  try {
+    const runtime = await window.PMFirebaseRuntime.init();
+    if (!runtime) return;
+    runtime.sdk.auth.onAuthStateChanged(runtime.auth, async (firebaseUser) => {
+      window.PMAuthService?.recordOperationalGoogleAuthState?.(Boolean(firebaseUser));
+      if (!firebaseUser) {
+        if (currentUser?.provider === "firebase") logout();
+        return;
+      }
+      if (!canUseBrowserAuthSessionV80() && !hasPendingExplicitAuthV80()) {
+        try {
+          await runtime.sdk.auth.signOut(runtime.auth);
+        } catch (error) {
+          console.info("[auth persistence guard signout skipped]", error?.code || "", error?.message || String(error));
+        }
+        showLoginOnlyV80();
+        return;
+      }
+      if (currentUser) return;
+      const membership = await window.PMAuthService.firebaseEnsureUserStructure(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
+      firebaseUser.pmWorkspaceId = membership.workspaceId;
+      firebaseUser.pmRole = membership.role;
+      firebaseUser.pmStatus = membership.status;
+      firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+      firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
+      await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
+      const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
+      authStateV31 = window.PMAuthService.loadAuthState();
+      completeLoginV34(user);
+    });
+  } catch (error) {
+    console.warn("Firebase session restore failed", error);
+  }
+};
+
+const timetableRowIdentityBeforeV108 = timetableRowIdentityV105;
+timetableRowIdentityV105 = function timetableRowIdentityV108(row = {}, setId = "", day = "", period = "") {
+  const identity = timetableRowIdentityBeforeV108(row, setId, day, period);
+  return {
+    ...identity,
+    sourceType: String(row?.sourceType || row?.type || row?.classType || row?.memo || "")
+  };
+};
+
+sameTimetableRowTargetV105 = function sameTimetableRowTargetV108(row = {}, target = {}) {
+  const current = timetableRowIdentityV105(row);
+  if (target.id) return current.id === target.id;
+  return current.setId === target.setId
+    && current.day === target.day
+    && current.period === target.period
+    && current.subject === target.subject
+    && current.teacher === target.teacher
+    && current.room === target.room
+    && current.sourceType === target.sourceType;
+};
+
+function currentProgramViewV108() {
+  const type = currentPage;
+  if (!PROGRAM_TYPES_V97.includes(type)) return null;
+  const view = activeProgramViewV97 || {};
+  const cfg = programConfigV26(type);
+  const programs = store[cfg.programs] || [];
+  const program = programs.find((item) => String(item.id) === String(view.programId)) || programs[0] || null;
+  if (!program) return null;
+  return { type, program, mode: view.mode || "schedule" };
+}
+
+function refreshProgramOrTimetableAfterRowChangeV108() {
+  saveStore({ syncKeys: ["timetable", "settings"], syncReason: "single-timetable-row-change" });
+  refreshOpenQuickTimetableV100({ key: "timetable" });
+  const view = currentProgramViewV108();
+  if (view && typeof renderProgramPageV26 === "function") {
+    renderProgramPageV26(view.type, view.program.id, view.mode);
+    return;
+  }
+  renderTimetableV29();
+}
+
+refreshTimetableAfterSingleRowChangeV105 = refreshProgramOrTimetableAfterRowChangeV108;
+
+function openProgramTimetableCellEditorV108(type, program, row, day, period) {
+  const setId = programSetIdV26(type, program);
+  const normalizedPeriod = normalizePeriodLabelV84(row?.period || period, 0);
+  activeProgramViewV97 = { type, programId: program.id, mode: "schedule", until: Date.now() + 30000 };
+  openTimetableCellEditorV105(setId, row?.day || day, normalizedPeriod, row?.time || periodTimeForSetV103(setId, normalizedPeriod), row || null);
+}
+
+programSlotChipsV26 = function programSlotChipsV108(type, program, rows) {
+  const wrap = el("div", "program-slot-chips");
+  const list = rows?.length ? rows : programScheduleRowsV98(type, program);
+  if (!list.length) wrap.append(el("span", "muted", "아직 배정된 슬롯이 없습니다."));
+  list.forEach((row) => {
+    const normalizedPeriod = normalizePeriodLabelV84(row.period, 0);
+    const chip = button(`${row.day} [${normalizedPeriod}] ${row.time ? row.time + " " : ""}(${row.room || row.location || "장소 미정"})`, "program-slot-chip");
+    chip.type = "button";
+    chip.title = "수업 수정 또는 삭제";
+    chip.dataset.action = "edit-program-timetable-row";
+    chip.addEventListener("click", () => openProgramTimetableCellEditorV108(type, program, row, row.day, normalizedPeriod));
+    wrap.append(chip);
+  });
+  return wrap;
+};
+
+programSchedulePreviewV26 = function programSchedulePreviewV108(type, program) {
+  const rows = programScheduleRowsV98(type, program);
+  const setId = programSetIdV26(type, program);
+  const days = programDaysV26();
+  const periodRows = typeof periodsForTimetableSetV103 === "function" ? periodsForTimetableSetV103(setId) : timetablePeriodsV29();
+  const periods = periodRows.length ? periodRows.map((row) => row.period) : Array.from({ length: 7 }, (_, i) => `${i + 1}교시`);
+  const wrap = el("div", "program-timetable-preview program-timetable-preview-v108");
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const hr = document.createElement("tr");
+  hr.append(el("th", "", "교시"));
+  days.forEach((day) => hr.append(el("th", "", day)));
+  thead.append(hr);
+  const tbody = document.createElement("tbody");
+  periods.forEach((period) => {
+    const normalizedPeriod = normalizePeriodLabelV84(period, 0);
+    const periodTime = periodTimeForSetV103(setId, normalizedPeriod);
+    const tr = document.createElement("tr");
+    tr.append(el("th", "", [normalizedPeriod, periodTime].filter(Boolean).join("\n")));
+    days.forEach((day) => {
+      const cell = document.createElement("td");
+      const hit = rows.find((row) => row.day === day && normalizePeriodLabelV84(row.period, 0) === normalizedPeriod);
+      cell.className = hit ? "program-preview-cell-v108 has-row" : "program-preview-cell-v108 empty";
+      cell.tabIndex = 0;
+      cell.title = hit ? "수업 수정 또는 삭제" : "새 수업 등록";
+      const open = () => openProgramTimetableCellEditorV108(type, program, hit || null, day, normalizedPeriod);
+      cell.addEventListener("click", open);
+      cell.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          open();
+        }
+      });
+      if (hit) cell.append(el("div", "program-time-pill", `${program.name}\n${hit.time || periodTime || ""}\n${hit.room || hit.location || ""}`));
+      else cell.textContent = "-";
+      tr.append(cell);
+    });
+    tbody.append(tr);
+  });
+  table.append(thead, tbody);
+  wrap.append(table);
+  return wrap;
+};
+
+const firebaseSessionDiagnosticsBeforeV108 = window.PMTimetableDiagnostics?.firebaseSession;
+window.PMTimetableDiagnostics = {
+  ...(window.PMTimetableDiagnostics || {}),
+  firebaseSession: () => ({
+    ...(firebaseSessionDiagnosticsBeforeV108?.() || {}),
+    authPersistenceMode: authPersistenceModeV108(),
+    tabSessionApproved: tabSessionApprovedV108(),
+    rememberLoginEnabled: rememberLoginEnabledV108()
+  }),
+  authSession: () => ({
+    authPersistenceMode: authPersistenceModeV108(),
+    tabSessionApproved: tabSessionApprovedV108(),
+    rememberLoginEnabled: rememberLoginEnabledV108(),
+    hasPendingExplicitAuth: hasPendingExplicitAuthV80()
+  })
+};
+
+function installStyleV108() {
+  if (document.getElementById("style-v108")) return;
+  const style = document.createElement("style");
+  style.id = "style-v108";
+  style.textContent = `
+    .remember-login-v108{display:flex;align-items:center;gap:8px;margin:10px 0;color:#48628d;font-weight:800}
+    .remember-login-v108 input{width:18px;height:18px}
+    .program-slot-chip{border:1px solid #dbe7f8;background:#fff;border-radius:999px;padding:7px 12px;color:#17345f;cursor:pointer}
+    .program-slot-chip:hover,.program-preview-cell-v108.has-row:hover{border-color:#1d5cff;box-shadow:0 6px 16px rgba(29,92,255,.12)}
+    .program-preview-cell-v108{cursor:pointer}
+    .program-preview-cell-v108.empty:hover{background:#f6f9ff}
+  `;
+  document.head.append(style);
+}
+
+installRememberLoginControlV108();
+installStyleV108();
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V108;
+
+// Timetable stabilization V109: de-duplicate the program schedule period
+// dropdown. This changes only the select option source; it does not delete or
+// rewrite existing periodTimes or class rows.
+const APP_PATCH_VERSION_V109 = "v109.0 - 2026-07-22";
+
+function periodNumberKeyV109(value) {
+  const match = String(value || "").match(/\d+/);
+  const number = match ? Number(match[0]) : 0;
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+function normalizePeriodOptionLabelV109(value) {
+  const number = periodNumberKeyV109(value);
+  return number ? `${number}교시` : "";
+}
+
+function formatPeriodOptionTextV109(row = {}) {
+  const period = normalizePeriodOptionLabelV109(row.period || row.value || row.label);
+  if (!period) return "";
+  const time = [row.start, row.end].filter(Boolean).join("~") || String(row.time || "").replace(/\s+-\s+/, "~");
+  return time ? `${period} · ${time}` : period;
+}
+
+function periodOptionRowsForProgramV109(setId = "") {
+  const source = Array.isArray(store.periodTimes) && store.periodTimes.length
+    ? store.periodTimes
+    : [];
+  const byNumber = new Map();
+  source.forEach((row) => {
+    const number = periodNumberKeyV109(row?.period || row?.value || row?.label || row?.id);
+    if (!number || byNumber.has(number)) return;
+    byNumber.set(number, {
+      ...row,
+      period: `${number}교시`,
+      value: `${number}교시`
+    });
+  });
+  if (!byNumber.size) {
+    const set = typeof timetableSetByIdV103 === "function" ? timetableSetByIdV103(setId) : null;
+    const count = Math.max(1, Number(set?.visiblePeriodCount || set?.periodCount || store.settings?.timetablePeriods || TIMETABLE_DEFAULT_VISIBLE_PERIOD_COUNT_V103 || 7));
+    for (let number = 1; number <= count; number += 1) {
+      byNumber.set(number, { period: `${number}교시`, value: `${number}교시`, start: "", end: "", time: "" });
+    }
+  }
+  return [...byNumber.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, row]) => ({
+      ...row,
+      period: normalizePeriodOptionLabelV109(row.period || row.value),
+      value: normalizePeriodOptionLabelV109(row.period || row.value),
+      label: formatPeriodOptionTextV109(row)
+    }))
+    .filter((row) => row.value);
+}
+
+function populateProgramPeriodSelectV109(select, setId = "", selectedPeriod = "") {
+  if (!select) return [];
+  const rows = periodOptionRowsForProgramV109(setId);
+  const selected = normalizePeriodOptionLabelV109(selectedPeriod);
+  select.replaceChildren();
+  select.append(option("", "교시 선택"));
+  rows.forEach((row) => select.append(option(row.value, row.label || row.value)));
+  if (selected && rows.some((row) => row.value === selected)) select.value = selected;
+  return rows;
+}
+
+programScheduleV26 = function programScheduleV109(type, program) {
+  const cfg = programConfigV26(type);
+  const setId = programSetIdV26(type, program);
+  const wrap = el("div", "program-mode-body");
+  const notice = el("div", "program-schedule-notice");
+  notice.append(el("strong", "", `${cfg.title} 전산 시간표 연동 수칙`), el("p", "muted", "요일과 교시는 공통 시간표 데이터를 기준으로 저장되어 전체 시간표와 이 화면에 함께 반영됩니다."));
+  const preview = programSchedulePreviewV26(type, program);
+  const form = el("div", "program-slot-form");
+  const day = document.createElement("select");
+  day.replaceChildren();
+  programDaysV26().forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  populateProgramPeriodSelectV109(period, setId);
+  const room = document.createElement("input");
+  room.placeholder = `기본: ${program.location || "장소"}`;
+  room.value = program.location || "";
+  const add = button("⊕ 추가 요일/시간표 연동 등록");
+  add.addEventListener("click", () => {
+    const selectedPeriod = normalizePeriodOptionLabelV109(period.value);
+    if (!selectedPeriod) return showMessage("입력 필요", "교시를 선택해 주세요.");
+    addProgramScheduleSlotV26(type, program, day.value, selectedPeriod, room.value || program.location || "");
+    renderProgramPageV26(type, program.id, "schedule");
+  });
+  form.append(makeField("요일 지정", "programScheduleDayV109", day), makeField("교시 선택", "programSchedulePeriodV109", period), makeField("강의장 변경", "programScheduleRoomV109", room), add);
+  const rows = programScheduleRowsV98(type, program);
+  wrap.append(notice, el("h4", "", "현재 확정 배정된 시간표 슬롯"), programSlotChipsV26(type, program, rows), el("h4", "", "수강 시간표 시각적 격자 판"), preview, form);
+  return wrap;
+};
+
+window.PMTimetableDiagnostics = {
+  ...(window.PMTimetableDiagnostics || {}),
+  programPeriodOptions: (setId = "") => periodOptionRowsForProgramV109(setId).map((row) => ({ value: row.value, label: row.label }))
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V109;
+
+// Timetable stabilization V110: keep V109's de-duplicated period values, but
+// compute the visible option time from the timetable set connected to the
+// current program before falling back to workspace common periodTimes.
+const APP_PATCH_VERSION_V110 = "v110.0 - 2026-07-22";
+
+function devTimetableWarningV110(message, payload = {}) {
+  const dev = ["127.0.0.1", "localhost"].includes(window.location.hostname)
+    || sessionStorage.getItem("pm-debug-timetable") === "1";
+  if (!dev) return;
+  console.warn(message, payload);
+}
+
+function normalizeClockValueV110(value) {
+  const text = String(value ?? "").trim();
+  const match = text.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return "";
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return "";
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function clockMinutesV110(value) {
+  const normalized = normalizeClockValueV110(value);
+  if (!normalized) return null;
+  const [hour, minute] = normalized.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function extractTimeRangeV110(row = {}) {
+  const rawStart = row.start ?? row.startTime ?? row.in ?? "";
+  const rawEnd = row.end ?? row.endTime ?? row.out ?? "";
+  let start = normalizeClockValueV110(rawStart);
+  let end = normalizeClockValueV110(rawEnd);
+  if ((!start || !end) && row.time) {
+    const parts = String(row.time || "").split(/\s*(?:-|~|–|—)\s*/);
+    if (parts.length >= 2) {
+      start ||= normalizeClockValueV110(parts[0]);
+      end ||= normalizeClockValueV110(parts[1]);
+    }
+  }
+  if (!start || !end) return "";
+  const startMinutes = clockMinutesV110(start);
+  const endMinutes = clockMinutesV110(end);
+  if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) {
+    devTimetableWarningV110("[PM timetable] invalid period time", { period: normalizePeriodOptionLabelV109(row.period || row.value || row.label) });
+    return "";
+  }
+  return `${start}~${end}`;
+}
+
+function periodRowsFromTimetableSetV110(set = null) {
+  if (!set || typeof set !== "object") return [];
+  const arraySource = Array.isArray(set.periodTimes) ? set.periodTimes
+    : Array.isArray(set.periodRows) ? set.periodRows
+      : Array.isArray(set.periods) ? set.periods
+        : [];
+  const rows = arraySource.map((row, index) => ({
+    ...(typeof row === "object" ? row : { time: row }),
+    period: normalizePeriodOptionLabelV109(row?.period || row?.value || row?.label || `${index + 1}교시`)
+  }));
+  const rawTimes = set.times || set.periodTimeMap || set.periodTimesByNumber;
+  if (Array.isArray(rawTimes)) {
+    rawTimes.forEach((value, index) => rows.push({ period: `${index + 1}교시`, time: value }));
+  } else if (rawTimes && typeof rawTimes === "object") {
+    Object.entries(rawTimes).forEach(([key, value]) => {
+      rows.push({
+        ...(typeof value === "object" ? value : { time: value }),
+        period: normalizePeriodOptionLabelV109(key)
+      });
+    });
+  }
+  return rows.filter((row) => row.period);
+}
+
+function commonPeriodRowsV110() {
+  return (Array.isArray(store.periodTimes) ? store.periodTimes : [])
+    .map((row, index) => ({
+      ...row,
+      period: normalizePeriodOptionLabelV109(row?.period || row?.value || row?.label || `${index + 1}교시`)
+    }))
+    .filter((row) => row.period);
+}
+
+function getActiveTimetableSetForProgramV110(type = "", program = null) {
+  const candidates = [
+    program?.timetableSetId,
+    program?.selectedTimetableSetId,
+    program?.currentTimetableSetId,
+    program?.scheduleSetId,
+    program?.setId,
+    type && program ? programSetIdV26(type, program) : "",
+    sessionStorage.getItem("pm-timetable-set") || "",
+    typeof activeTimetableSetV29 === "function" ? activeTimetableSetV29() : ""
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  const known = new Set((store.timetableSets || []).map((set) => String(set.id || "")));
+  return candidates.find((id) => known.has(id)) || candidates[0] || "";
+}
+
+function periodRowsForSetWithFallbackV110(setId = "") {
+  const set = typeof timetableSetByIdV103 === "function" ? timetableSetByIdV103(setId) : null;
+  const setRows = periodRowsFromTimetableSetV110(set);
+  const commonRows = commonPeriodRowsV110();
+  const setByNumber = new Map();
+  const commonByNumber = new Map();
+  setRows.forEach((row) => {
+    const number = periodNumberKeyV109(row.period || row.value || row.label);
+    if (number && !setByNumber.has(number)) setByNumber.set(number, row);
+  });
+  commonRows.forEach((row) => {
+    const number = periodNumberKeyV109(row.period || row.value || row.label);
+    if (number && !commonByNumber.has(number)) commonByNumber.set(number, row);
+  });
+  const numbers = new Set([...commonByNumber.keys()]);
+  if (!numbers.size) setByNumber.forEach((_, number) => numbers.add(number));
+  const visibleCount = Math.max(0, Number(set?.visiblePeriodCount || set?.periodCount || store.settings?.timetablePeriods || 0));
+  const maxNumber = Math.max(visibleCount, ...numbers, 0);
+  if (!numbers.size && maxNumber) {
+    for (let number = 1; number <= maxNumber; number += 1) numbers.add(number);
+  } else {
+    for (let number = 1; number <= maxNumber; number += 1) {
+      if (number <= visibleCount) numbers.add(number);
+    }
+  }
+  return [...numbers].sort((a, b) => a - b).map((number) => {
+    const setRow = setByNumber.get(number) || {};
+    const commonRow = commonByNumber.get(number) || {};
+    const setTime = extractTimeRangeV110(setRow);
+    const commonTime = extractTimeRangeV110(commonRow);
+    const time = setTime || commonTime || "";
+    return {
+      ...commonRow,
+      ...setRow,
+      period: `${number}교시`,
+      value: `${number}교시`,
+      start: "",
+      end: "",
+      time,
+      timeSource: setTime ? "timetableSet" : commonTime ? "commonPeriodTimes" : "none",
+      label: time ? `${number}교시 · ${time}` : `${number}교시`
+    };
+  });
+}
+
+periodsForTimetableSetV103 = function periodsForTimetableSetV110(setId) {
+  return periodRowsForSetWithFallbackV110(setId).map((row, index) => {
+    const [start = "", end = ""] = String(row.time || "").split("~");
+    return {
+      id: row.id || `period-${index + 1}`,
+      period: row.value || row.period,
+      start,
+      end,
+      time: row.time || ""
+    };
+  });
+};
+
+periodTimeForSetV103 = function periodTimeForSetV110(setId, period) {
+  const wanted = normalizePeriodOptionLabelV109(period);
+  const row = periodRowsForSetWithFallbackV110(setId).find((item) => item.value === wanted);
+  return row?.time || "";
+};
+
+periodOptionRowsForProgramV109 = function periodOptionRowsForProgramV110(setId = "", context = {}) {
+  const activeSetId = context?.program
+    ? getActiveTimetableSetForProgramV110(context.type || "", context.program)
+    : String(setId || "").trim();
+  return periodRowsForSetWithFallbackV110(activeSetId || setId).map((row) => ({
+    ...row,
+    value: normalizePeriodOptionLabelV109(row.value || row.period),
+    label: row.label || formatPeriodOptionTextV109(row)
+  })).filter((row) => row.value);
+};
+
+populateProgramPeriodSelectV109 = function populateProgramPeriodSelectV110(select, setId = "", selectedPeriod = "", context = {}) {
+  if (!select) return [];
+  const rows = periodOptionRowsForProgramV109(setId, context);
+  const selected = normalizePeriodOptionLabelV109(selectedPeriod);
+  select.replaceChildren();
+  select.append(option("", "교시 선택"));
+  rows.forEach((row) => select.append(option(row.value, row.label || row.value)));
+  if (selected && rows.some((row) => row.value === selected)) select.value = selected;
+  return rows;
+};
+
+programScheduleV26 = function programScheduleV110(type, program) {
+  const cfg = programConfigV26(type);
+  const setId = getActiveTimetableSetForProgramV110(type, program);
+  const wrap = el("div", "program-mode-body");
+  const notice = el("div", "program-schedule-notice");
+  notice.append(el("strong", "", `${cfg.title} 전산 시간표 연동 수칙`), el("p", "muted", "요일과 교시는 현재 프로그램에 연결된 시간표의 교시 시간을 우선 표시하고, 없을 때만 공통 시간을 사용합니다."));
+  const preview = programSchedulePreviewV26(type, program);
+  const form = el("div", "program-slot-form");
+  const day = document.createElement("select");
+  day.replaceChildren();
+  programDaysV26().forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  populateProgramPeriodSelectV109(period, setId, "", { type, program });
+  const room = document.createElement("input");
+  room.placeholder = `기본: ${program.location || "장소"}`;
+  room.value = program.location || "";
+  const add = button("⊕ 추가 요일/시간표 연동 등록");
+  add.addEventListener("click", () => {
+    const selectedPeriod = normalizePeriodOptionLabelV109(period.value);
+    if (!selectedPeriod) return showMessage("입력 필요", "교시를 선택해 주세요.");
+    addProgramScheduleSlotV26(type, program, day.value, selectedPeriod, room.value || program.location || "");
+    renderProgramPageV26(type, program.id, "schedule");
+  });
+  form.append(makeField("요일 지정", "programScheduleDayV110", day), makeField("교시 선택", "programSchedulePeriodV110", period), makeField("강의장 변경", "programScheduleRoomV110", room), add);
+  const rows = programScheduleRowsV98(type, program);
+  wrap.append(notice, el("h4", "", "현재 확정 배정된 시간표 슬롯"), programSlotChipsV26(type, program, rows), el("h4", "", "수강 시간표 시각적 격자 판"), preview, form);
+  return wrap;
+};
+
+const timetableDiagnosticsBeforeV110 = window.PMTimetableDiagnostics || {};
+window.PMTimetableDiagnostics = {
+  ...timetableDiagnosticsBeforeV110,
+  programPeriodOptions: (setId = "", context = {}) => periodOptionRowsForProgramV109(setId, context).map((row) => ({ value: row.value, label: row.label, timeSource: row.timeSource })),
+  periodTimeForSet: (setId = "", period = "") => periodTimeForSetV103(setId, period)
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V110;
+
+// Timetable stabilization V111: store period times per timetableSet without
+// migrating or deleting existing workspace-common periodTimes.
+const APP_PATCH_VERSION_V111 = "v111.0 - 2026-07-22";
+let lastPeriodTimeSaveReasonV111 = "";
+
+function maskTimetableIdV111(value = "") {
+  const text = String(value || "");
+  if (!text) return "";
+  return text.length <= 8 ? `${text.slice(0, 2)}***` : `${text.slice(0, 4)}...${text.slice(-4)}`;
+}
+
+function safePeriodTimeIdPartV111(value = "") {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80) || "set";
+}
+
+function periodNumberV111(value) {
+  return periodNumberKeyV109(value);
+}
+
+function normalizedPeriodV111(value, fallbackIndex = 0) {
+  return normalizePeriodOptionLabelV109(value) || normalizePeriodLabelV84(value, fallbackIndex);
+}
+
+function periodTimeScopeSetIdV111(row = {}) {
+  return String(row.timetableSetId ?? row.setId ?? row.scheduleSetId ?? "").trim();
+}
+
+function isCommonPeriodTimeRowV111(row = {}) {
+  return !periodTimeScopeSetIdV111(row);
+}
+
+function periodTimeDocIdV111(setId = "", period = "") {
+  const number = periodNumberV111(period) || 0;
+  return `periodTime_${safePeriodTimeIdPartV111(setId)}_${String(number).padStart(2, "0")}`;
+}
+
+function periodTimeRangePartsV111(row = {}) {
+  const range = extractTimeRangeV110(row);
+  if (!range) return { start: "", end: "", time: "" };
+  const [start = "", end = ""] = range.split("~");
+  return { start, end, time: range.replace("~", "-") };
+}
+
+function periodTimeRowsByNumberV111(setId = "") {
+  const targetSetId = String(setId || "").trim();
+  const setSpecific = new Map();
+  const common = new Map();
+  const duplicateKeys = [];
+  (Array.isArray(store.periodTimes) ? store.periodTimes : []).forEach((row, index) => {
+    if (!row || typeof row !== "object" || isDeletedTimetableEntityV101(row)) return;
+    const period = normalizedPeriodV111(row.period || row.value || row.label, index);
+    const number = periodNumberV111(period);
+    if (!number) return;
+    const scope = periodTimeScopeSetIdV111(row);
+    if (scope && scope !== targetSetId) return;
+    const target = scope ? setSpecific : common;
+    if (target.has(number)) duplicateKeys.push(`${scope || "common"}::${number}교시`);
+    if (!target.has(number)) target.set(number, { ...row, period: `${number}교시` });
+  });
+  return { setSpecific, common, duplicateKeys };
+}
+
+function visiblePeriodNumbersForSetV111(setId = "") {
+  const count = Math.max(0, Number(visiblePeriodCountForSetV103(setId) || 0));
+  return Array.from({ length: count }, (_, index) => index + 1);
+}
+
+function resolvePeriodTimeV111(setId = "", period = "") {
+  const normalized = normalizedPeriodV111(period, 0);
+  const number = periodNumberV111(normalized);
+  const { setSpecific, common } = periodTimeRowsByNumberV111(setId);
+  const setRow = number ? setSpecific.get(number) : null;
+  const commonRow = number ? common.get(number) : null;
+  const setParts = periodTimeRangePartsV111(setRow || {});
+  const commonParts = periodTimeRangePartsV111(commonRow || {});
+  const source = setParts.time ? "set-specific" : commonParts.time ? "common" : "none";
+  const parts = setParts.time ? setParts : commonParts;
+  return {
+    period: normalized || `${number || 1}교시`,
+    source,
+    startTime: parts.start || "",
+    endTime: parts.end || "",
+    time: parts.time || "",
+    setRowId: setRow?.id || "",
+    commonRowId: commonRow?.id || ""
+  };
+}
+
+function periodRowsForSetWithFallbackV111(setId = "") {
+  const set = timetableSetByIdV103(setId);
+  const { setSpecific, common } = periodTimeRowsByNumberV111(setId);
+  const numbers = new Set([
+    ...visiblePeriodNumbersForSetV111(setId),
+    ...setSpecific.keys(),
+    ...common.keys()
+  ]);
+  const visible = Number(set?.visiblePeriodCount || set?.periodCount || 0);
+  if (!numbers.size && visible > 0) {
+    for (let number = 1; number <= visible; number += 1) numbers.add(number);
+  }
+  return [...numbers].sort((a, b) => a - b).map((number, index) => {
+    const period = `${number}교시`;
+    const resolved = resolvePeriodTimeV111(setId, period);
+    return {
+      id: resolved.setRowId || resolved.commonRowId || `period-${index + 1}`,
+      period,
+      value: period,
+      start: resolved.startTime,
+      end: resolved.endTime,
+      time: resolved.time,
+      timeSource: resolved.source,
+      label: resolved.time ? `${period} · ${resolved.startTime}~${resolved.endTime}` : period
+    };
+  });
+}
+
+function getActiveTimetableSetIdV111(options = {}) {
+  ensureTimetableStateV15();
+  const requested = String(options.requestedSetId ?? sessionStorage.getItem("pm-timetable-set") ?? "").trim();
+  const sets = validTimetableSetsV101();
+  const validSetIds = new Set(sets.map((set) => String(set.id)));
+  if (requested && validSetIds.has(requested)) return requested;
+  if (requested && !validSetIds.has(requested)) return options.allowMissing ? requested : "";
+  return options.allowImplicitDefault === false ? "" : (sets[0]?.id || "");
+}
+
+function periodTimeSaveRowsForCurrentSetV111(setId = "", draft = []) {
+  const targetSetId = String(setId || "").trim();
+  const scopedDraft = draft.filter((row) => row?._dirty || row?.timeSource === "set-specific");
+  const touchedPeriods = new Set(scopedDraft.map((row, index) => normalizedPeriodV111(row.period, index)).filter(Boolean));
+  const removed = [];
+  const remaining = (Array.isArray(store.periodTimes) ? store.periodTimes : []).filter((row, index) => {
+    const period = normalizedPeriodV111(row.period || row.value || row.label, index);
+    const isCurrentSetRow = periodTimeScopeSetIdV111(row) === targetSetId && touchedPeriods.has(period);
+    if (isCurrentSetRow) removed.push(row);
+    return !isCurrentSetRow;
+  });
+  const nextRows = [];
+  const errors = [];
+  scopedDraft.forEach((row, index) => {
+    const period = normalizedPeriodV111(row.period, index);
+    if (!period) return;
+    const start = normalizeClockValueV110(row.start || row.startTime || "");
+    const end = normalizeClockValueV110(row.end || row.endTime || "");
+    if ((row.start || row.end) && (!start || !end)) {
+      errors.push(`${period} 시간 형식이 올바르지 않습니다.`);
+      return;
+    }
+    if (start && end && clockMinutesV110(start) >= clockMinutesV110(end)) {
+      errors.push(`${period} 종료 시간이 시작 시간보다 늦어야 합니다.`);
+      return;
+    }
+    if (!start && !end) return;
+    nextRows.push({
+      id: periodTimeDocIdV111(targetSetId, period),
+      timetableSetId: targetSetId,
+      period,
+      start,
+      end,
+      time: `${start}-${end}`
+    });
+  });
+  return { rows: [...remaining, ...nextRows], removed, errors, changedCount: removed.length + nextRows.length };
+}
+
+function saveCurrentSetPeriodTimesV111(setId = "", draft = []) {
+  const targetSetId = String(setId || getActiveTimetableSetIdV111() || "").trim();
+  if (!targetSetId || !timetableSetByIdV103(targetSetId)) {
+    showMessage("저장 실패", "현재 시간표를 먼저 선택해 주세요.");
+    return false;
+  }
+  const next = periodTimeSaveRowsForCurrentSetV111(targetSetId, draft);
+  if (next.errors.length) {
+    showMessage("저장 실패", next.errors.join("\n"));
+    return false;
+  }
+  if (next.removed.length) markWorkspaceDeletedRows("periodTimes", next.removed);
+  store.periodTimes = next.rows;
+  lastPeriodTimeSaveReasonV111 = "period-times-current-set-save";
+  saveStore({ syncKeys: ["periodTimes"], syncReason: lastPeriodTimeSaveReasonV111 });
+  refreshOpenQuickTimetableV100({ key: "periodTimes" });
+  return true;
+}
+
+function clearCurrentSetPeriodTimesV111(setId = "") {
+  const targetSetId = String(setId || getActiveTimetableSetIdV111() || "").trim();
+  if (!targetSetId) return showMessage("초기화 실패", "현재 시간표를 먼저 선택해 주세요.");
+  if (!confirm("현재 시간표의 교시 시간만 초기화할까요?\n공통 교시 시간과 수업 배정은 유지됩니다.")) return;
+  const removed = [];
+  store.periodTimes = (Array.isArray(store.periodTimes) ? store.periodTimes : []).filter((row) => {
+    const isTarget = periodTimeScopeSetIdV111(row) === targetSetId;
+    if (isTarget) removed.push(row);
+    return !isTarget;
+  });
+  if (removed.length) markWorkspaceDeletedRows("periodTimes", removed);
+  lastPeriodTimeSaveReasonV111 = "period-times-current-set-clear";
+  saveStore({ syncKeys: ["periodTimes"], syncReason: lastPeriodTimeSaveReasonV111 });
+  showMessage("초기화 완료", "현재 시간표 전용 교시 시간만 초기화했습니다.");
+  refreshOpenQuickTimetableV100({ key: "periodTimes" });
+  renderTimetableV29();
+};
+
+periodRowsForSetWithFallbackV110 = function periodRowsForSetWithFallbackV111(setId = "") {
+  return periodRowsForSetWithFallbackV111(setId);
+};
+
+periodsForTimetableSetV103 = function periodsForTimetableSetV111(setId) {
+  return periodRowsForSetWithFallbackV111(setId);
+};
+
+periodTimeForSetV103 = function periodTimeForSetV111(setId, period) {
+  return resolvePeriodTimeV111(setId, period).time || "";
+};
+
+periodTimeForV26 = function periodTimeForV111(period) {
+  return periodTimeForSetV103(getActiveTimetableSetIdV111(), period);
+};
+
+periodOptionRowsForProgramV109 = function periodOptionRowsForProgramV111(setId = "", context = {}) {
+  const activeSetId = context?.program
+    ? getActiveTimetableSetForProgramV110(context.type || "", context.program)
+    : String(setId || "").trim();
+  return periodRowsForSetWithFallbackV111(activeSetId || setId).map((row) => ({
+    ...row,
+    value: normalizedPeriodV111(row.value || row.period),
+    label: row.label || row.value || row.period
+  })).filter((row) => row.value);
+};
+
+activeTimetableSetV29 = function activeTimetableSetV111() {
+  return getActiveTimetableSetIdV111({ allowMissing: true });
+};
+
+periodEditorV29 = function periodEditorV111() {
+  const activeSet = getActiveTimetableSetIdV111();
+  const draft = activeSet ? periodsForTimetableSetV103(activeSet).map((row) => ({ ...row })) : [];
+  const box = el("section", "modern-period-editor");
+  const head = el("div", "period-editor-head-v81");
+  const actions = el("div", "row-actions");
+  const title = activeSetName => `시간표별 교시 시간 설정${activeSetName ? ` · ${activeSetName}` : ""}`;
+  head.append(el("h3", "", title(activeTimetableSetNameV104?.(activeSet) || "")));
+  const status = el("p", "muted period-save-status-v98", "현재 선택한 시간표 전용 교시 시간을 저장합니다. 비어 있는 교시는 공통 시간을 사용합니다.");
+  const grid = el("div", "period-card-grid");
+  const save = button("교시 시간 저장");
+  save.disabled = true;
+  let dirty = false;
+  let saving = false;
+  const markDirty = () => {
+    dirty = true;
+    save.disabled = false;
+    status.textContent = "저장되지 않은 현재 시간표 교시 시간 변경이 있습니다.";
+    status.classList.add("dirty");
+  };
+  const renderGrid = () => {
+    grid.replaceChildren();
+    draft.forEach((row, index) => {
+      row.period = normalizedPeriodV111(row.period, index);
+      const card = el("article", "period-card");
+      const top = el("div", "period-card-top");
+      const sourceText = row.timeSource === "common" ? "공통값 사용 중" : row.timeSource === "set-specific" ? "현재 시간표 전용" : "시간 없음";
+      top.append(el("strong", "", `${row.period} 설정`), el("small", "muted", sourceText));
+      const remove = button("현재 시간표에서 이 교시 수업 제거", "ghost small");
+      remove.dataset.action = "remove-current-set-period";
+      remove.addEventListener("click", () => removeCurrentTimetablePeriodV103(activeSet, row.period));
+      top.append(remove);
+      const start = document.createElement("input");
+      start.type = "time";
+      start.value = row.start || "";
+      const end = document.createElement("input");
+      end.type = "time";
+      end.value = row.end || "";
+      const updateDraft = () => {
+        row.start = start.value;
+        row.end = end.value;
+        row.time = [row.start, row.end].filter(Boolean).join("-");
+        row._dirty = true;
+        markDirty();
+      };
+      start.addEventListener("input", updateDraft);
+      end.addEventListener("input", updateDraft);
+      card.append(top, makeField("시작 시간", `periodStartV111-${row.id || index}`, start), makeField("종료 시간", `periodEndV111-${row.id || index}`, end));
+      grid.append(card);
+    });
+    if (!grid.children.length) grid.append(el("div", "empty", "현재 시간표를 선택하면 교시 시간을 설정할 수 있습니다."));
+  };
+  const add = button("+ 현재 시간표 교시 추가", "ghost");
+  add.addEventListener("click", () => {
+    if (!activeSet) return showMessage("추가 실패", "현재 시간표를 먼저 선택해 주세요.");
+    const nextCount = visiblePeriodCountForSetV103(activeSet) + 1;
+    setVisiblePeriodCountV103(activeSet, nextCount);
+    saveStore({ syncKeys: ["timetableSets"], syncReason: "period-visible-count-add" });
+    renderTimetableV29();
+  });
+  const clearSetTimes = button("현재 시간표 교시 시간 초기화", "ghost");
+  clearSetTimes.addEventListener("click", () => clearCurrentSetPeriodTimesV111(activeSet));
+  const clearCommon = button("공통 교시 시간 전체 삭제", "danger");
+  clearCommon.dataset.action = "clear-common-period-times";
+  clearCommon.addEventListener("click", clearCommonPeriodTimesV103);
+  save.addEventListener("click", () => {
+    if (!dirty || saving) return;
+    saving = true;
+    save.disabled = true;
+    try {
+      if (!saveCurrentSetPeriodTimesV111(activeSet, draft)) {
+        save.disabled = false;
+        return;
+      }
+      status.textContent = "현재 시간표 교시 시간을 저장했습니다.";
+      status.classList.remove("dirty");
+      showMessage("저장 완료", "현재 시간표 교시 시간을 저장했습니다.");
+      renderTimetableV29();
+    } catch (error) {
+      console.error("[period time save failed]", error);
+      status.textContent = "교시 시간 저장에 실패했습니다.";
+      status.classList.add("dirty");
+      save.disabled = false;
+    } finally {
+      saving = false;
+    }
+  });
+  actions.append(add, clearSetTimes, clearCommon, save);
+  head.append(actions);
+  renderGrid();
+  box.append(head, status, grid);
+  return box;
+};
+
+addProgramScheduleSlotV26 = function addProgramScheduleSlotV111(type, program, day, period, room) {
+  const cfg = programConfigV26(type);
+  const setId = ensureProgramTimetableSetV98(type, program);
+  const normalized = normalizedPeriodV111(period, 0);
+  const periodTime = periodTimeForSetV103(setId, normalized);
+  store.timetable ??= [];
+  const existingIndex = store.timetable.findIndex((item) => String(item.setId || "") === String(setId)
+    && item.day === day
+    && normalizedPeriodV111(item.period, 0) === normalized
+    && item.programId === program.id);
+  const base = existingIndex >= 0 ? store.timetable[existingIndex] : {};
+  const row = {
+    ...base,
+    id: base.id || `tt-${type}-${program.id}-${Date.now()}`,
+    setId,
+    programId: program.id,
+    sourceType: type,
+    day,
+    period: normalized,
+    time: periodTime,
+    subject: program.name || cfg.title,
+    teacher: program.teacher || "",
+    room: room || program.location || "",
+    location: room || program.location || "",
+    seat: base.seat || "",
+    memo: cfg.scheduleType
+  };
+  if (existingIndex >= 0) store.timetable[existingIndex] = row;
+  else store.timetable.push(row);
+  setProgramDetailLockV84?.(type, program.id, "schedule");
+  activeProgramViewV97 = { type, programId: program.id, mode: "schedule", until: Date.now() + 30000 };
+  saveStore({ syncKeys: ["timetable"], syncReason: "program-slot-add" });
+  buildNav();
+};
+
+const programScheduleRowsBeforeV111 = programScheduleRowsV98;
+programScheduleRowsV98 = function programScheduleRowsV111(type, program) {
+  const setId = getActiveTimetableSetForProgramV110(type, program);
+  return programScheduleRowsBeforeV111(type, program).map((row) => ({
+    ...row,
+    time: periodTimeForSetV103(setId, row.period) || row.time || ""
+  }));
+};
+
+function renderTimetableEmptyOrLoadingV111(section) {
+  const sync = window.PMWorkspaceDataService?.diagnostics?.() || {};
+  const hasFirebaseUser = !!window.firebase?.auth?.().currentUser;
+  const loading = hasFirebaseUser && !Number(sync.listenerCount || 0) && !validTimetableSetsV101().length;
+  section.append(el("div", "empty timetable-load-state-v111", loading ? "시간표 데이터를 불러오는 중입니다." : "등록된 시간표가 없습니다. 시간표 추가로 시작하세요."));
+}
+
+renderTimetableV29 = function renderTimetableV111() {
+  ensureTimetableStateV15();
+  content.replaceChildren();
+  const section = panel("시간표");
+  const head = section.querySelector(".panel-head");
+  const actions = el("div", "row-actions");
+  const addSet = button("+ 시간표 추가");
+  addSet.addEventListener("click", () => addTimetableSetV29());
+  const download = button("시간표 일괄 다운", "ghost");
+  download.addEventListener("click", downloadTimetableBulkV29);
+  actions.append(addSet, download);
+  head?.append(actions);
+  const sets = validTimetableSetsV101();
+  if (!sets.length) {
+    renderTimetableEmptyOrLoadingV111(section);
+    content.append(section);
+    return;
+  }
+  const requested = sessionStorage.getItem("pm-timetable-set") || "";
+  const activeSet = getActiveTimetableSetIdV111({ requestedSetId: requested, allowImplicitDefault: !requested });
+  const toolbar = el("div", "toolbar timetable-toolbar modern-tt-toolbar");
+  const selector = document.createElement("select");
+  sets.forEach((set) => selector.append(option(set.id, set.name)));
+  selector.value = activeSet || "";
+  selector.addEventListener("change", () => {
+    if (selector.value) {
+      sessionStorage.setItem("pm-timetable-set", selector.value);
+      sessionStorage.removeItem("pm-timetable-needs-selection");
+    }
+    renderTimetableV29();
+  });
+  const rename = button("이름 수정", "ghost");
+  rename.addEventListener("click", () => renameTimetableSetV29(selector.value || activeSet));
+  toolbar.append(makeField("시간표 선택", "timetableSetSelectV111", selector), rename);
+  section.append(toolbar);
+  if (!activeSet) {
+    section.append(el("div", "empty timetable-selection-empty-v111", "선택한 시간표를 찾을 수 없습니다. 시간표 목록에서 다시 선택해 주세요."));
+    content.append(section);
+    return;
+  }
+  section.append(periodEditorV29(), timetableGridV29(activeSet), manualTimetableFormV29(activeSet), timetableManagementPanelV104(activeSet));
+  content.append(section);
+  refreshOpenQuickTimetableV100({ key: "periodTimes" });
+};
+
+const timetableDiagnosticsBeforeV111 = window.PMTimetableDiagnostics || {};
+window.PMTimetableDiagnostics = {
+  ...timetableDiagnosticsBeforeV111,
+  periodTimes() {
+    const activeSet = getActiveTimetableSetIdV111({ allowMissing: true });
+    const { setSpecific, common, duplicateKeys } = periodTimeRowsByNumberV111(activeSet);
+    const sync = window.PMWorkspaceDataService?.diagnostics?.() || {};
+    return {
+      activeTimetableSetMasked: maskTimetableIdV111(activeSet),
+      totalPeriodTimeRows: Array.isArray(store.periodTimes) ? store.periodTimes.length : 0,
+      activeSetSpecificRows: setSpecific.size,
+      commonFallbackRows: common.size,
+      duplicateKeys,
+      pendingPeriodTimeKeys: sync.pendingKeys?.periodTimes || 0,
+      lastPeriodTimeSaveReason: lastPeriodTimeSaveReasonV111,
+      lastPeriodTimeFlushOperationCount: (sync.lastFlushKeys || []).includes("periodTimes") ? sync.lastFlushOperationCount : 0
+    };
+  },
+  resolvePeriodTime(period = "1교시") {
+    const activeSet = getActiveTimetableSetIdV111({ allowMissing: true });
+    const resolved = resolvePeriodTimeV111(activeSet, period);
+    return {
+      period: resolved.period,
+      source: resolved.source,
+      startTime: resolved.startTime,
+      endTime: resolved.endTime
+    };
+  }
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V111;
+
+// Workspace notice deletion V112: confirm remote Firestore deletes before
+// changing the local notice list, and add current-workspace bulk delete tools.
+const APP_PATCH_VERSION_V112 = "v112.0 - 2026-07-22";
+const NOTICE_BULK_DELETE_CHUNK_SIZE_V112 = 400;
+const noticeDeleteSelectedIdsV112 = new Set();
+const noticeDeleteBusyIdsV112 = new Set();
+
+function maskNoticeDiagnosticIdV112(value) {
+  const text = String(value || "");
+  if (!text) return "";
+  if (typeof maskDiagnosticIdV106 === "function") return maskDiagnosticIdV106(text);
+  return text.length <= 8 ? "***" : `${text.slice(0, 4)}...${text.slice(-4)}`;
+}
+
+function recordNoticeDeleteDiagnosticV112(patch = {}) {
+  window.PMWorkspaceDataService?.recordNoticeDeleteDiagnostic?.(patch);
+  window.PMNoticeDeleteDiagnosticsV112 = {
+    ...(window.PMNoticeDeleteDiagnosticsV112 || {}),
+    ...patch
+  };
+}
+
+function incrementNoticeDeleteDiagnosticV112(key, amount = 1) {
+  window.PMWorkspaceDataService?.incrementNoticeDeleteDiagnostic?.(key, amount);
+  const current = window.PMNoticeDeleteDiagnosticsV112 || {};
+  window.PMNoticeDeleteDiagnosticsV112 = {
+    ...current,
+    [key]: Number(current[key] || 0) + Number(amount || 0)
+  };
+}
+
+function classifyNoticeDeleteErrorV112(error) {
+  const code = String(error?.code || "").replace(/^firestore\//, "");
+  if (code.includes("permission-denied")) return "permission-denied";
+  if (code.includes("resource-exhausted")) return "resource-exhausted";
+  if (code.includes("unavailable") || code.includes("network")) return "unavailable";
+  if (code.includes("not-found")) return "not-found";
+  return "unknown";
+}
+
+function noticeDeleteErrorMessageV112(code) {
+  if (code === "permission-denied") return "삭제 권한이 없습니다. 관리자 권한과 Firestore 규칙을 확인해 주세요.";
+  if (code === "resource-exhausted") return "Firestore 사용량 한도에 도달했습니다. 한도 초기화 후 다시 시도해 주세요.";
+  if (code === "unavailable") return "네트워크 연결이 불안정해 서버 삭제를 확인하지 못했습니다. 다시 시도해 주세요.";
+  return "공지 삭제에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+}
+
+function currentWorkspaceDisplayNameV112() {
+  return store?.settings?.workspaceName
+    || store?.settings?.workspaceTitle
+    || store?.settings?.siteTitle
+    || store?.settings?.schoolName
+    || currentUser?.workspaceName
+    || "현재 워크스페이스";
+}
+
+function currentNoticeDeleteRoleV112() {
+  const user = (typeof authCurrentUserV31 === "function" ? authCurrentUserV31() : null) || currentUser;
+  if (typeof effectiveMenuRoleV59 === "function") return effectiveMenuRoleV59(user);
+  return currentRoleV52();
+}
+
+function canBulkDeleteWorkspaceNoticesV112() {
+  const role = currentNoticeDeleteRoleV112();
+  if (!currentWorkspaceIdV52()) return false;
+  return role === "system_owner" || role === "super_manager";
+}
+
+function workspaceNoticeCollectionV112(db, workspaceId) {
+  return db.collection("workspaces").doc(workspaceId).collection("notices");
+}
+
+async function workspaceNoticeRuntimeV112() {
+  if (!window.PMFirebaseRuntime?.hasConfig?.()) throw new Error("firebase-config-missing");
+  const runtime = await window.PMFirebaseRuntime.init();
+  if (!runtime?.db) throw new Error("firebase-db-missing");
+  return runtime;
+}
+
+async function getWorkspaceNoticeServerSnapshotV112(workspaceId) {
+  const runtime = await workspaceNoticeRuntimeV112();
+  return workspaceNoticeCollectionV112(runtime.db, workspaceId).get({ source: "server" });
+}
+
+async function getWorkspaceNoticeServerCountV112(workspaceId) {
+  const snapshot = await getWorkspaceNoticeServerSnapshotV112(workspaceId);
+  return snapshot.size;
+}
+
+async function verifyWorkspaceNoticeDeletedV112(workspaceId, noticeId) {
+  const runtime = await workspaceNoticeRuntimeV112();
+  const snapshot = await workspaceNoticeCollectionV112(runtime.db, workspaceId).doc(String(noticeId)).get({ source: "server" });
+  return !snapshot.exists;
+}
+
+function pruneNoticeLocalAfterConfirmedDeleteV112(ids) {
+  const targets = new Set((ids || []).map((id) => String(id)));
+  if (!targets.size) return 0;
+  const before = Array.isArray(store.notices) ? store.notices.length : 0;
+  store.notices = (store.notices || []).filter((row) => !targets.has(String(row?.id)));
+  targets.forEach((id) => {
+    noticeDeleteSelectedIdsV112.delete(id);
+    window.PMWorkspaceDataService?.discardPendingRow?.("notices", id);
+  });
+  saveStore({ skipRemote: true, syncReason: "notice-delete-confirmed" });
+  if (currentPage === "notices") renderPage("notices");
+  return before - store.notices.length;
+}
+
+function noticeTitleForDeleteV112(row) {
+  return String(row?.title || row?.name || row?.content || "공지").trim();
+}
+
+async function deleteWorkspaceNoticeRemoteV112(row, triggerButton = null) {
+  const workspaceId = currentWorkspaceIdV52();
+  const noticeId = row?.id;
+  if (!workspaceId) return showMessage("삭제 실패", "현재 워크스페이스가 연결되어 있지 않습니다.");
+  if (noticeId === undefined || noticeId === null || noticeId === "") return showMessage("삭제 실패", "삭제할 공지 문서 ID를 찾지 못했습니다.");
+  const title = noticeTitleForDeleteV112(row);
+  if (!confirm(`'${title}' 공지를 삭제할까요?\n서버 삭제가 확인된 뒤 화면에서 제거됩니다.`)) return;
+  const id = String(noticeId);
+  if (noticeDeleteBusyIdsV112.has(id)) return;
+  noticeDeleteBusyIdsV112.add(id);
+  if (triggerButton) triggerButton.disabled = true;
+  incrementNoticeDeleteDiagnosticV112("noticeDeleteRequestedCount", 1);
+  recordNoticeDeleteDiagnosticV112({ lastNoticeDeleteReason: "single-delete-requested" });
+  try {
+    const runtime = await workspaceNoticeRuntimeV112();
+    await workspaceNoticeCollectionV112(runtime.db, workspaceId).doc(id).delete();
+    const deleted = await verifyWorkspaceNoticeDeletedV112(workspaceId, id);
+    if (!deleted) {
+      const error = new Error("server-delete-not-confirmed");
+      error.code = "server-confirmation-failed";
+      throw error;
+    }
+    const serverCount = await getWorkspaceNoticeServerCountV112(workspaceId);
+    pruneNoticeLocalAfterConfirmedDeleteV112([id]);
+    incrementNoticeDeleteDiagnosticV112("noticeDeleteConfirmedCount", 1);
+    recordNoticeDeleteDiagnosticV112({
+      noticeServerCountAfterDelete: serverCount,
+      lastNoticeDeleteFailureCode: "",
+      lastNoticeDeleteReason: "single-delete-confirmed"
+    });
+    devNoticeLogV114("info", "[notice:delete:confirmed]", {
+      workspaceId,
+      noticeId: id,
+      serverCount
+    });
+    showMessage("삭제 완료", "공지 문서가 서버에서 삭제되었습니다.");
+  } catch (error) {
+    const code = classifyNoticeDeleteErrorV112(error);
+    incrementNoticeDeleteDiagnosticV112("noticeDeleteFailedCount", 1);
+    recordNoticeDeleteDiagnosticV112({
+      lastNoticeDeleteFailureCode: code,
+      lastNoticeDeleteReason: "single-delete-failed"
+    });
+    devNoticeLogV114("error", "[notice:delete:failed]", {
+      workspaceId,
+      noticeId: id,
+      role: currentNoticeDeleteRoleV112(),
+      code,
+      message: error?.message || String(error)
+    });
+    showMessage("삭제 실패", noticeDeleteErrorMessageV112(code));
+  } finally {
+    noticeDeleteBusyIdsV112.delete(id);
+    if (triggerButton) triggerButton.disabled = false;
+  }
+}
+
+function chunkNoticeIdsV112(ids) {
+  const chunks = [];
+  for (let index = 0; index < ids.length; index += NOTICE_BULK_DELETE_CHUNK_SIZE_V112) {
+    chunks.push(ids.slice(index, index + NOTICE_BULK_DELETE_CHUNK_SIZE_V112));
+  }
+  return chunks;
+}
+
+async function deleteWorkspaceNoticeIdsRemoteV112(ids, options = {}) {
+  const workspaceId = currentWorkspaceIdV52();
+  const uniqueIds = [...new Set((ids || []).map((id) => String(id)).filter(Boolean))];
+  if (!workspaceId) return showMessage("삭제 실패", "현재 워크스페이스가 연결되어 있지 않습니다.");
+  if (!canBulkDeleteWorkspaceNoticesV112()) return showMessage("권한 없음", "현재 워크스페이스 공지 전체 삭제는 시스템 오너 또는 최고 관리자만 사용할 수 있습니다.");
+  if (!uniqueIds.length) return showMessage("삭제 대상 없음", "삭제할 공지가 없습니다.");
+  const workspaceName = currentWorkspaceDisplayNameV112();
+  const label = options.mode === "all" ? "현재 워크스페이스 공지 전체" : `선택한 공지 ${uniqueIds.length}개`;
+  const typed = prompt(`${label}를 삭제합니다.\n삭제 대상: ${uniqueIds.length}개\n이 작업은 되돌릴 수 없습니다.\n계속하려면 워크스페이스 이름을 입력하세요:\n${workspaceName}`);
+  if (typed !== workspaceName) return showMessage("삭제 취소", "워크스페이스 이름이 일치하지 않아 삭제하지 않았습니다.");
+  if (!confirm(`${label}를 최종 삭제할까요?`)) return;
+  const triggerButton = options.triggerButton || null;
+  if (triggerButton) triggerButton.disabled = true;
+  let successIds = [];
+  let failedCount = 0;
+  let serverCount = null;
+  incrementNoticeDeleteDiagnosticV112("noticeDeleteRequestedCount", uniqueIds.length);
+  recordNoticeDeleteDiagnosticV112({ lastNoticeDeleteReason: `${options.mode || "selected"}-delete-requested` });
+  try {
+    const runtime = await workspaceNoticeRuntimeV112();
+    const ref = workspaceNoticeCollectionV112(runtime.db, workspaceId);
+    for (const chunk of chunkNoticeIdsV112(uniqueIds)) {
+      const batch = runtime.db.batch();
+      chunk.forEach((id) => batch.delete(ref.doc(id)));
+      try {
+        await batch.commit();
+        successIds = successIds.concat(chunk);
+        incrementNoticeDeleteDiagnosticV112("noticeBulkDeleteBatchCount", 1);
+      } catch (error) {
+        failedCount += chunk.length;
+        const code = classifyNoticeDeleteErrorV112(error);
+        incrementNoticeDeleteDiagnosticV112("noticeDeleteFailedCount", chunk.length);
+        recordNoticeDeleteDiagnosticV112({
+          lastNoticeDeleteFailureCode: code,
+          lastNoticeDeleteReason: "bulk-delete-batch-failed"
+        });
+        devNoticeLogV114("error", "[notice:bulk-delete:batch-failed]", {
+          workspaceId,
+          count: chunk.length,
+          code,
+          message: error?.message || String(error)
+        });
+      }
+    }
+    serverCount = await getWorkspaceNoticeServerCountV112(workspaceId);
+    if (successIds.length) {
+      pruneNoticeLocalAfterConfirmedDeleteV112(successIds);
+      incrementNoticeDeleteDiagnosticV112("noticeDeleteConfirmedCount", successIds.length);
+    }
+    recordNoticeDeleteDiagnosticV112({
+      noticeServerCountAfterDelete: serverCount,
+      lastNoticeDeleteReason: failedCount ? "bulk-delete-partial" : "bulk-delete-confirmed"
+    });
+    if (failedCount) {
+      showMessage("공지 삭제 일부 실패", `성공 ${successIds.length}개, 실패 ${failedCount}개입니다.\n서버에 남은 공지: ${serverCount}개`);
+    } else {
+      showMessage("공지 삭제 완료", `성공 ${successIds.length}개입니다.\n서버에 남은 공지: ${serverCount}개`);
+    }
+  } catch (error) {
+    const code = classifyNoticeDeleteErrorV112(error);
+    incrementNoticeDeleteDiagnosticV112("noticeDeleteFailedCount", uniqueIds.length);
+    recordNoticeDeleteDiagnosticV112({
+      lastNoticeDeleteFailureCode: code,
+      lastNoticeDeleteReason: "bulk-delete-failed"
+    });
+    devNoticeLogV114("error", "[notice:bulk-delete:failed]", {
+      workspaceId,
+      role: currentNoticeDeleteRoleV112(),
+      code,
+      message: error?.message || String(error)
+    });
+    showMessage("공지 삭제 실패", noticeDeleteErrorMessageV112(code));
+  } finally {
+    if (triggerButton) triggerButton.disabled = false;
+  }
+}
+
+async function deleteAllWorkspaceNoticesRemoteV112(triggerButton = null) {
+  const workspaceId = currentWorkspaceIdV52();
+  if (!workspaceId) return showMessage("삭제 실패", "현재 워크스페이스가 연결되어 있지 않습니다.");
+  if (!canBulkDeleteWorkspaceNoticesV112()) return showMessage("권한 없음", "현재 워크스페이스 공지 전체 삭제는 시스템 오너 또는 최고 관리자만 사용할 수 있습니다.");
+  try {
+    const snapshot = await getWorkspaceNoticeServerSnapshotV112(workspaceId);
+    const ids = snapshot.docs.map((doc) => doc.id);
+    return deleteWorkspaceNoticeIdsRemoteV112(ids, { mode: "all", triggerButton });
+  } catch (error) {
+    const code = classifyNoticeDeleteErrorV112(error);
+    recordNoticeDeleteDiagnosticV112({
+      lastNoticeDeleteFailureCode: code,
+      lastNoticeDeleteReason: "bulk-delete-server-read-failed"
+    });
+    showMessage("공지 조회 실패", noticeDeleteErrorMessageV112(code));
+  }
+}
+
+function updateNoticeSelectionV112(rows, selected) {
+  (rows || []).forEach((row) => {
+    const id = String(row?.id || "");
+    if (!id) return;
+    if (selected) noticeDeleteSelectedIdsV112.add(id);
+    else noticeDeleteSelectedIdsV112.delete(id);
+  });
+}
+
+function renderNoticeBulkActionsV112(rows) {
+  const actions = el("div", "row-actions notice-bulk-actions-v112");
+  if (!canBulkDeleteWorkspaceNoticesV112()) return actions;
+  const selectAll = button("전체 선택", "ghost");
+  selectAll.addEventListener("click", () => {
+    const visibleRows = rows.filter((row) => row?.id !== undefined && row?.id !== null);
+    const allSelected = visibleRows.length > 0 && visibleRows.every((row) => noticeDeleteSelectedIdsV112.has(String(row.id)));
+    updateNoticeSelectionV112(visibleRows, !allSelected);
+    renderPage("notices");
+  });
+  const selectedDelete = button("선택 삭제", "danger");
+  selectedDelete.addEventListener("click", () => deleteWorkspaceNoticeIdsRemoteV112([...noticeDeleteSelectedIdsV112], { mode: "selected", triggerButton: selectedDelete }));
+  const allDelete = button("현재 워크스페이스 공지 전체 삭제", "danger");
+  allDelete.addEventListener("click", () => deleteAllWorkspaceNoticesRemoteV112(allDelete));
+  actions.append(selectAll, selectedDelete, allDelete);
+  return actions;
+}
+
+const renderNoticeCardsBeforeV112 = renderNoticeCardsV81;
+renderNoticeCardsV81 = function renderNoticeCardsV112(key, rows) {
+  const wrap = el("div", "notice-card-list-v81");
+  if (!rows.length) {
+    wrap.append(el("div", "empty", "표시할 공지가 없습니다."));
+    return wrap;
+  }
+  rows.forEach((row) => {
+    const id = String(row?.id || "");
+    const card = el("article", "notice-card-v81");
+    if (canBulkDeleteWorkspaceNoticesV112() && id) {
+      const check = document.createElement("input");
+      check.type = "checkbox";
+      check.checked = noticeDeleteSelectedIdsV112.has(id);
+      check.addEventListener("change", () => {
+        if (check.checked) noticeDeleteSelectedIdsV112.add(id);
+        else noticeDeleteSelectedIdsV112.delete(id);
+      });
+      const label = el("label", "notice-select-v112");
+      label.append(check, document.createTextNode(" 선택"));
+      card.append(label);
+    }
+    card.append(
+      el("strong", "", row.title || row.name || "제목 없음"),
+      el("p", "muted", [row.date, row.notice_date, row.subject, row.source || row.category].filter(Boolean).join(" · ")),
+      el("p", "", row.content || row.memo || row.description || "")
+    );
+    const actions = el("div", "row-actions");
+    const view = button("보기", "ghost");
+    view.addEventListener("click", () => showViewerV5(pageLabel(key), row));
+    actions.append(view);
+    const edit = button(can("edit", key) ? "수정" : "수정 요청", "ghost");
+    edit.addEventListener("click", () => can("edit", key) ? openEditorV7(key, row.id) : requestEdit(key, row.id));
+    actions.append(edit);
+    if (can("del", key)) {
+      const del = button("삭제", "danger");
+      del.disabled = id && noticeDeleteBusyIdsV112.has(id);
+      del.addEventListener("click", () => deleteWorkspaceNoticeRemoteV112(row, del));
+      actions.append(del);
+    }
+    card.append(actions);
+    wrap.append(card);
+  });
+  return wrap;
+};
+
+const renderNoticesSplitBeforeV112 = renderNoticesSplitV81;
+renderNoticesSplitV81 = function renderNoticesSplitV112() {
+  content.replaceChildren();
+  const rows = filteredRowsV7("notices");
+  const section = panel("공지 관리");
+  const head = section.querySelector(".panel-head");
+  const actions = el("div", "row-actions");
+  const download = button("보고서 다운로드", "ghost");
+  download.addEventListener("click", () => downloadReportV5("notices", rows));
+  const add = button("공지 추가");
+  add.disabled = !can("create", "notices");
+  add.addEventListener("click", () => openEditorV7("notices", null, "notices"));
+  actions.append(download, add);
+  head?.append(actions);
+  section.append(renderNoticeBulkActionsV112(rows));
+  const split = el("div", "notice-split-grid-v81");
+  const general = el("section", "notice-split-panel-v81");
+  general.append(el("h3", "", "일반 공지"), renderNoticeCardsV81("notices", rows.filter((row) => !isSystemNoticeV81(row))));
+  const system = el("section", "notice-split-panel-v81");
+  system.append(el("h3", "", "시스템 공지"), renderNoticeCardsV81("notices", rows.filter(isSystemNoticeV81)));
+  split.append(general, system);
+  section.append(filterBarV7("notices"), split);
+  content.append(section);
+};
+
+window.PMNoticeDeleteDiagnosticsV112 = {
+  ...(window.PMNoticeDeleteDiagnosticsV112 || {}),
+  noticeDeleteRequestedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeDeleteRequestedCount || 0,
+  noticeDeleteConfirmedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeDeleteConfirmedCount || 0,
+  noticeDeleteFailedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeDeleteFailedCount || 0,
+  noticeBulkDeleteBatchCount: window.PMNoticeDeleteDiagnosticsV112?.noticeBulkDeleteBatchCount || 0,
+  noticeServerCountAfterDelete: window.PMNoticeDeleteDiagnosticsV112?.noticeServerCountAfterDelete ?? null,
+  noticeBootstrapCreateBlockedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeBootstrapCreateBlockedCount || 0,
+  lastNoticeDeleteFailureCode: window.PMNoticeDeleteDiagnosticsV112?.lastNoticeDeleteFailureCode || "",
+  lastNoticeDeleteReason: window.PMNoticeDeleteDiagnosticsV112?.lastNoticeDeleteReason || ""
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V112;
+
+// Workspace notice refresh V113: use server-confirmed notice snapshots after
+// create/delete so the visible list matches Firestore instead of a local draft.
+const APP_PATCH_VERSION_V113 = "v113.0 - 2026-07-22";
+let noticeServerRefreshInFlightV113 = false;
+let noticeLastPageRefreshWorkspaceV113 = "";
+let noticeLastPageRefreshAtV113 = 0;
+
+function mapWorkspaceNoticeSnapshotV113(snapshot) {
+  return snapshot.docs.map((doc) => {
+    const data = doc.data() || {};
+    return {
+      id: doc.id,
+      ...data
+    };
+  });
+}
+
+async function refreshWorkspaceNoticesFromServerV113(reason = "manual", options = {}) {
+  const workspaceId = currentWorkspaceIdV52();
+  if (!workspaceId) return { ok: false, count: 0, reason: "missing-workspace-id" };
+  if (noticeServerRefreshInFlightV113 && !options.force) return { ok: false, count: 0, reason: "refresh-in-flight" };
+  noticeServerRefreshInFlightV113 = true;
+  try {
+    const snapshot = await getWorkspaceNoticeServerSnapshotV112(workspaceId);
+    const rows = mapWorkspaceNoticeSnapshotV113(snapshot);
+    store.notices = rows;
+    const serverIds = new Set(rows.map((row) => String(row.id)));
+    noticeDeleteSelectedIdsV112.forEach((id) => {
+      if (!serverIds.has(String(id))) noticeDeleteSelectedIdsV112.delete(id);
+    });
+    saveStore({ skipRemote: true, syncReason: `notice-server-refresh:${reason}` });
+    recordNoticeDeleteDiagnosticV112({
+      noticeServerCountAfterDelete: snapshot.size,
+      lastNoticeDeleteReason: `notice-server-refresh:${reason}`
+    });
+    devNoticeLogV114("info", "[notice:server-refresh]", {
+      reason,
+      workspaceId,
+      count: snapshot.size
+    });
+    if (options.render !== false && currentPage === "notices") renderPage("notices");
+    return { ok: true, count: snapshot.size, reason };
+  } catch (error) {
+    const code = classifyNoticeDeleteErrorV112(error);
+    recordNoticeDeleteDiagnosticV112({
+      lastNoticeDeleteFailureCode: code,
+      lastNoticeDeleteReason: `notice-server-refresh-failed:${reason}`
+    });
+    devNoticeLogV114("error", "[notice:server-refresh:failed]", {
+      reason,
+      workspaceId,
+      code,
+      message: error?.message || String(error)
+    });
+    return { ok: false, count: 0, reason: code };
+  } finally {
+    noticeServerRefreshInFlightV113 = false;
+  }
+}
+
+const saveNoticeDirectToFirestoreBeforeV113 = saveNoticeDirectToFirestoreV52;
+saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV113(row) {
+  if (!row || !window.PMFirebaseRuntime?.hasConfig?.()) return { saved: false, refreshed: false };
+  const workspaceId = row.workspaceId || row.workspace_id || currentWorkspaceIdV52();
+  if (!workspaceId || !row.id) return { saved: false, refreshed: false };
+  try {
+    const runtime = await workspaceNoticeRuntimeV112();
+    const FieldValue = firebase.firestore.FieldValue;
+    const docId = String(row.id);
+    devNoticeLogV114("info", "[notice:add:start]", {
+      workspaceId,
+      uidPresent: Boolean(currentUser?.uid || currentUser?.id),
+      role: currentNoticeDeleteRoleV112(),
+      titleLength: String(row.title || row.name || "").length
+    });
+    const payload = cleanFirestoreObjectV52({
+      ...row,
+      id: docId,
+      workspaceId,
+      workspace_id: workspaceId,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    if (!row.createdAt) payload.createdAt = FieldValue.serverTimestamp();
+    await workspaceNoticeCollectionV112(runtime.db, workspaceId).doc(docId).set(payload, { merge: true });
+    devNoticeLogV114("info", "[notice:add:success]", {
+      workspaceId,
+      docId
+    });
+    window.PMWorkspaceDataService?.discardPendingRow?.("notices", docId);
+    const refreshResult = await refreshWorkspaceNoticesFromServerV113("notice-add", { force: true, render: false });
+    if (!refreshResult.ok) {
+      showMessage("저장 완료", "공지 저장은 완료되었지만 목록 갱신에 실패했습니다. 새로고침 또는 서버 재조회를 다시 시도해 주세요.");
+      return { saved: true, refreshed: false };
+    }
+    return { saved: true, refreshed: true };
+  } catch (error) {
+    devNoticeLogV114("error", "[notice:add:error]", {
+      workspaceId,
+      uidPresent: Boolean(currentUser?.uid || currentUser?.id),
+      role: currentNoticeDeleteRoleV112(),
+      code: classifyNoticeDeleteErrorV112(error),
+      message: error?.message || String(error)
+    });
+    throw error;
+  }
+};
+
+async function saveEditorWithNoticeServerRefreshV113(event) {
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  if (!editing) return;
+  const payload = Object.fromEntries(new FormData(editorForm).entries());
+  if (editing.id && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
+    editorError.textContent = passwordApprovalMessageV78();
+    return;
+  }
+  delete payload._confirm_password;
+  const origin = editing.origin;
+  const rows = store[editing.key] || (store[editing.key] = []);
+  let savedRow = null;
+  if (editing.id) {
+    const index = rows.findIndex((row) => row.id === editing.id);
+    if (index < 0) return;
+    rows[index] = editing.key === "notices"
+      ? decorateNoticeRowV52({ ...payload, id: editing.id }, rows[index])
+      : { ...rows[index], ...payload };
+    savedRow = rows[index];
+  } else if (Object.values(payload).some((value) => String(value || "").trim())) {
+    const id = Date.now();
+    const row = editing.key === "notices"
+      ? decorateNoticeRowV52({ id, ...payload })
+      : { id, ...payload, created_by: currentUser.email };
+    rows.unshift(row);
+    savedRow = row;
+  }
+  if (editing.key !== "notices") {
+    saveStore();
+    closeEditor();
+    renderPage(origin || currentPage);
+    return;
+  }
+  saveStore({ skipRemote: true, syncReason: "notice-editor-local-draft" });
+  try {
+    if (savedRow) {
+      const result = await saveNoticeDirectToFirestoreV52(savedRow);
+      closeEditor();
+      if (result?.refreshed) {
+        renderPage(origin || currentPage);
+        showMessage("저장 완료", "공지 저장 및 목록 갱신이 완료되었습니다.");
+      } else {
+        renderPage(origin || currentPage);
+      }
+      return;
+    }
+    closeEditor();
+    renderPage(origin || currentPage);
+  } catch (error) {
+    editorError.textContent = noticeDeleteErrorMessageV112(classifyNoticeDeleteErrorV112(error));
+  }
+}
+
+try {
+  const editorFormElV113 = document.getElementById("editorForm");
+  if (editorFormElV113 && editorFormElV113.dataset.noticeServerRefreshV113 !== "true") {
+    editorFormElV113.dataset.noticeServerRefreshV113 = "true";
+    editorFormElV113.removeEventListener("submit", saveEditorWithPasswordV78, true);
+    editorFormElV113.addEventListener("submit", saveEditorWithNoticeServerRefreshV113, true);
+  }
+} catch (error) {
+  console.info("[notice editor refresh binding skipped]", error?.message || String(error));
+}
+
+deleteWorkspaceNoticeRemoteV112 = async function deleteWorkspaceNoticeRemoteV113(row, triggerButton = null) {
+  const workspaceId = currentWorkspaceIdV52();
+  const noticeId = row?.id;
+  if (!workspaceId) return showMessage("삭제 실패", "현재 워크스페이스가 연결되어 있지 않습니다.");
+  if (noticeId === undefined || noticeId === null || noticeId === "") return showMessage("삭제 실패", "삭제할 공지 문서 ID를 찾지 못했습니다.");
+  const title = noticeTitleForDeleteV112(row);
+  if (!confirm(`'${title}' 공지를 삭제할까요?\n서버 삭제가 확인된 뒤 목록을 다시 불러옵니다.`)) return;
+  const id = String(noticeId);
+  if (noticeDeleteBusyIdsV112.has(id)) return;
+  noticeDeleteBusyIdsV112.add(id);
+  if (triggerButton) triggerButton.disabled = true;
+  incrementNoticeDeleteDiagnosticV112("noticeDeleteRequestedCount", 1);
+  recordNoticeDeleteDiagnosticV112({ lastNoticeDeleteReason: "single-delete-requested" });
+  try {
+    const runtime = await workspaceNoticeRuntimeV112();
+    await workspaceNoticeCollectionV112(runtime.db, workspaceId).doc(id).delete();
+    const deleted = await verifyWorkspaceNoticeDeletedV112(workspaceId, id);
+    if (!deleted) {
+      const error = new Error("server-delete-not-confirmed");
+      error.code = "server-confirmation-failed";
+      throw error;
+    }
+    window.PMWorkspaceDataService?.discardPendingRow?.("notices", id);
+    const refreshResult = await refreshWorkspaceNoticesFromServerV113("notice-delete", { force: true });
+    incrementNoticeDeleteDiagnosticV112("noticeDeleteConfirmedCount", 1);
+    recordNoticeDeleteDiagnosticV112({
+      noticeServerCountAfterDelete: refreshResult.count,
+      lastNoticeDeleteFailureCode: "",
+      lastNoticeDeleteReason: refreshResult.ok ? "single-delete-confirmed" : "single-delete-confirmed-refresh-failed"
+    });
+    devNoticeLogV114("info", "[notice:delete:confirmed]", {
+      workspaceId,
+      noticeId: id,
+      serverCount: refreshResult.count
+    });
+    showMessage(
+      refreshResult.ok ? "삭제 완료" : "삭제 완료",
+      refreshResult.ok
+        ? "공지 문서가 서버에서 삭제되었고 목록을 다시 불러왔습니다."
+        : "공지 문서는 서버에서 삭제되었지만 목록 갱신에 실패했습니다. 서버 재조회를 다시 시도해 주세요."
+    );
+  } catch (error) {
+    const code = classifyNoticeDeleteErrorV112(error);
+    incrementNoticeDeleteDiagnosticV112("noticeDeleteFailedCount", 1);
+    recordNoticeDeleteDiagnosticV112({
+      lastNoticeDeleteFailureCode: code,
+      lastNoticeDeleteReason: "single-delete-failed"
+    });
+    devNoticeLogV114("error", "[notice:delete:failed]", {
+      workspaceId,
+      noticeId: id,
+      role: currentNoticeDeleteRoleV112(),
+      code,
+      message: error?.message || String(error)
+    });
+    showMessage("삭제 실패", noticeDeleteErrorMessageV112(code));
+  } finally {
+    noticeDeleteBusyIdsV112.delete(id);
+    if (triggerButton) triggerButton.disabled = false;
+  }
+};
+
+deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemoteV113(ids, options = {}) {
+  const workspaceId = currentWorkspaceIdV52();
+  const uniqueIds = [...new Set((ids || []).map((id) => String(id)).filter(Boolean))];
+  if (!workspaceId) return showMessage("삭제 실패", "현재 워크스페이스가 연결되어 있지 않습니다.");
+  if (!canBulkDeleteWorkspaceNoticesV112()) return showMessage("권한 없음", "현재 워크스페이스 공지 전체 삭제는 시스템 오너 또는 최고 관리자만 사용할 수 있습니다.");
+  if (!uniqueIds.length) return showMessage("삭제 대상 없음", "삭제할 공지가 없습니다.");
+  const workspaceName = currentWorkspaceDisplayNameV112();
+  const label = options.mode === "all" ? "현재 워크스페이스 공지 전체" : `선택한 공지 ${uniqueIds.length}개`;
+  const typed = prompt(`${label}를 삭제합니다.\n삭제 대상: ${uniqueIds.length}개\n이 작업은 되돌릴 수 없습니다.\n계속하려면 워크스페이스 이름을 입력하세요:\n${workspaceName}`);
+  if (typed !== workspaceName) return showMessage("삭제 취소", "워크스페이스 이름이 일치하지 않아 삭제하지 않았습니다.");
+  if (!confirm(`${label}를 최종 삭제할까요?`)) return;
+  const triggerButton = options.triggerButton || null;
+  if (triggerButton) triggerButton.disabled = true;
+  let successIds = [];
+  let failedCount = 0;
+  incrementNoticeDeleteDiagnosticV112("noticeDeleteRequestedCount", uniqueIds.length);
+  recordNoticeDeleteDiagnosticV112({ lastNoticeDeleteReason: `${options.mode || "selected"}-delete-requested` });
+  try {
+    const runtime = await workspaceNoticeRuntimeV112();
+    const ref = workspaceNoticeCollectionV112(runtime.db, workspaceId);
+    for (const chunk of chunkNoticeIdsV112(uniqueIds)) {
+      const batch = runtime.db.batch();
+      chunk.forEach((id) => batch.delete(ref.doc(id)));
+      try {
+        await batch.commit();
+        successIds = successIds.concat(chunk);
+        incrementNoticeDeleteDiagnosticV112("noticeBulkDeleteBatchCount", 1);
+      } catch (error) {
+        failedCount += chunk.length;
+        const code = classifyNoticeDeleteErrorV112(error);
+        incrementNoticeDeleteDiagnosticV112("noticeDeleteFailedCount", chunk.length);
+        recordNoticeDeleteDiagnosticV112({
+          lastNoticeDeleteFailureCode: code,
+          lastNoticeDeleteReason: "bulk-delete-batch-failed"
+        });
+        devNoticeLogV114("error", "[notice:bulk-delete:batch-failed]", {
+          workspaceId,
+          count: chunk.length,
+          code,
+          message: error?.message || String(error)
+        });
+      }
+    }
+    successIds.forEach((id) => window.PMWorkspaceDataService?.discardPendingRow?.("notices", id));
+    const refreshResult = await refreshWorkspaceNoticesFromServerV113("notice-bulk-delete", { force: true });
+    if (successIds.length) incrementNoticeDeleteDiagnosticV112("noticeDeleteConfirmedCount", successIds.length);
+    recordNoticeDeleteDiagnosticV112({
+      noticeServerCountAfterDelete: refreshResult.count,
+      lastNoticeDeleteReason: failedCount ? "bulk-delete-partial" : "bulk-delete-confirmed"
+    });
+    if (failedCount) {
+      showMessage("공지 삭제 일부 실패", `성공 ${successIds.length}개, 실패 ${failedCount}개입니다.\n서버에 남은 공지: ${refreshResult.count}개`);
+    } else {
+      showMessage("공지 삭제 완료", `성공 ${successIds.length}개입니다.\n서버에 남은 공지: ${refreshResult.count}개`);
+    }
+  } catch (error) {
+    const code = classifyNoticeDeleteErrorV112(error);
+    incrementNoticeDeleteDiagnosticV112("noticeDeleteFailedCount", uniqueIds.length);
+    recordNoticeDeleteDiagnosticV112({
+      lastNoticeDeleteFailureCode: code,
+      lastNoticeDeleteReason: "bulk-delete-failed"
+    });
+    devNoticeLogV114("error", "[notice:bulk-delete:failed]", {
+      workspaceId,
+      role: currentNoticeDeleteRoleV112(),
+      code,
+      message: error?.message || String(error)
+    });
+    showMessage("공지 삭제 실패", noticeDeleteErrorMessageV112(code));
+  } finally {
+    if (triggerButton) triggerButton.disabled = false;
+  }
+};
+
+const renderNoticesSplitBeforeV113 = renderNoticesSplitV81;
+renderNoticesSplitV81 = function renderNoticesSplitV113() {
+  const workspaceId = currentWorkspaceIdV52();
+  if (
+    workspaceId
+    && isFirebaseBackedSessionV45()
+    && !noticeServerRefreshInFlightV113
+    && (
+      noticeLastPageRefreshWorkspaceV113 !== workspaceId
+      || Date.now() - noticeLastPageRefreshAtV113 > 15000
+    )
+  ) {
+    noticeLastPageRefreshWorkspaceV113 = workspaceId;
+    noticeLastPageRefreshAtV113 = Date.now();
+    store.notices = [];
+    void refreshWorkspaceNoticesFromServerV113("notice-page-enter", { render: true });
+  }
+  return renderNoticesSplitBeforeV113();
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V113;
+
+// App/auth notice diagnostics V114: keep notice/auth diagnostics development-only
+// and mask identifiers while preserving V113 server-refresh behavior.
+const APP_PATCH_VERSION_V114 = "v114.0 - 2026-07-22";
+store.settings.appVersion = APP_PATCH_VERSION_V114;
+
+// Workspace notice create confirmation V115: workspace notices must be written
+// to the canonical session workspace and confirmed with a server read before
+// the operational UI treats the save as successful.
+const APP_PATCH_VERSION_V115 = "v115.0 - 2026-07-22";
+store.settings.appVersion = APP_PATCH_VERSION_V115;
+
+const noticeCreateDiagnosticsV115 = {
+  noticeCreateRequestedCount: 0,
+  noticeCreateFirestoreSucceededCount: 0,
+  noticeCreateServerConfirmedCount: 0,
+  noticeCreateServerConfirmFailedCount: 0,
+  serverCountBeforeCreate: null,
+  serverCountAfterCreate: null,
+  createdDocumentFoundOnServer: false,
+  sessionWorkspaceFingerprint: "-",
+  selectedWorkspaceFingerprint: "-",
+  writeTargetWorkspaceFingerprint: "-",
+  readBackWorkspaceFingerprint: "-",
+  workspaceFingerprintsMatch: false,
+  writeTargetCollection: "workspace-notices",
+  writeTargetPathKind: "workspaces/{workspace}/notices",
+  lastNoticeCreateErrorKind: "none",
+  lastNoticeCreateReason: "idle"
+};
+
+function updateNoticeCreateDiagnosticsV115(patch = {}) {
+  Object.assign(noticeCreateDiagnosticsV115, patch || {});
+}
+
+function incrementNoticeCreateDiagnosticV115(key, amount = 1) {
+  noticeCreateDiagnosticsV115[key] = Number(noticeCreateDiagnosticsV115[key] || 0) + amount;
+}
+
+function noticeWorkspaceFingerprintV115(value) {
+  return maskIdentifierV114(value || "");
+}
+
+async function stableNoticeWorkspaceFingerprintV115(value) {
+  const text = String(value || "").trim();
+  if (!text) return "-";
+  try {
+    const cryptoApi = globalThis.crypto;
+    if (!cryptoApi?.subtle || typeof TextEncoder === "undefined") return noticeWorkspaceFingerprintV115(text);
+    const encoded = new TextEncoder().encode(text);
+    const digest = await cryptoApi.subtle.digest("SHA-256", encoded);
+    return Array.from(new Uint8Array(digest))
+      .slice(0, 4)
+      .map((item) => item.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return noticeWorkspaceFingerprintV115(text);
+  }
+}
+
+function currentSessionNoticeWorkspaceIdV115() {
+  const authUser = (typeof authCurrentUserV31 === "function" ? authCurrentUserV31() : null) || currentUser || {};
+  return authUser.currentWorkspaceId
+    || authWorkspaceStateV36?.currentWorkspaceId
+    || authUser.pmWorkspaceId
+    || authUser.workspaceId
+    || authUser.workspace_id
+    || "";
+}
+
+function fallbackNoticeWorkspaceIdV115() {
+  return currentSessionNoticeWorkspaceIdV115()
+    || store?.workspace_id
+    || window.PMDataService?.currentWorkspaceId?.()
+    || "";
+}
+
+async function recordNoticeWorkspaceDiagnosticsV115({ sessionWorkspaceId = "", selectedWorkspaceId = "", writeWorkspaceId = "", readWorkspaceId = "" } = {}) {
+  const sessionFingerprint = await stableNoticeWorkspaceFingerprintV115(sessionWorkspaceId);
+  const selectedFingerprint = await stableNoticeWorkspaceFingerprintV115(selectedWorkspaceId);
+  const writeFingerprint = await stableNoticeWorkspaceFingerprintV115(writeWorkspaceId);
+  const readFingerprint = await stableNoticeWorkspaceFingerprintV115(readWorkspaceId);
+  updateNoticeCreateDiagnosticsV115({
+    sessionWorkspaceFingerprint: sessionFingerprint || "-",
+    selectedWorkspaceFingerprint: selectedFingerprint || "-",
+    writeTargetWorkspaceFingerprint: writeFingerprint || "-",
+    readBackWorkspaceFingerprint: readFingerprint || "-",
+    workspaceFingerprintsMatch: Boolean(
+      sessionWorkspaceId
+      && writeWorkspaceId
+      && readWorkspaceId
+      && sessionWorkspaceId === writeWorkspaceId
+      && writeWorkspaceId === readWorkspaceId
+    )
+  });
+}
+
+function noticeCreateErrorMessageV115(code) {
+  if (code === "workspace-mismatch") return "공지 저장 대상 워크스페이스가 현재 세션과 일치하지 않습니다. 새로고침 후 다시 시도해 주세요.";
+  if (code === "missing-workspace-id") return "현재 워크스페이스가 연결되지 않아 공지를 저장할 수 없습니다.";
+  if (code === "missing-canonical-workspace-id") return "현재 계정의 currentWorkspaceId가 없어 워크스페이스 공지를 저장할 수 없습니다.";
+  if (code === "server-confirmation-failed") return "공지 저장 후 서버 확인에 실패했습니다. 목록을 새로고침한 뒤 다시 확인해 주세요.";
+  return noticeDeleteErrorMessageV112(code);
+}
+
+function mapWorkspaceNoticeSnapshotForWorkspaceV115(snapshot, workspaceId) {
+  return snapshot.docs.map((doc) => {
+    const data = doc.data() || {};
+    return {
+      id: doc.id,
+      ...data,
+      workspaceId: data.workspaceId || workspaceId,
+      workspace_id: data.workspace_id || data.workspaceId || workspaceId
+    };
+  });
+}
+
+const refreshWorkspaceNoticesFromServerBeforeV115 = refreshWorkspaceNoticesFromServerV113;
+refreshWorkspaceNoticesFromServerV113 = async function refreshWorkspaceNoticesFromServerV115(reason = "manual", options = {}) {
+  const workspaceId = options.workspaceId || fallbackNoticeWorkspaceIdV115();
+  if (!workspaceId) return { ok: false, count: 0, reason: "missing-workspace-id", rows: [] };
+  if (noticeServerRefreshInFlightV113 && !options.force) return { ok: false, count: 0, reason: "refresh-in-flight", rows: [] };
+  noticeServerRefreshInFlightV113 = true;
+  try {
+    const snapshot = await getWorkspaceNoticeServerSnapshotV112(workspaceId);
+    const rows = mapWorkspaceNoticeSnapshotForWorkspaceV115(snapshot, workspaceId);
+    store.notices = rows;
+    const serverIds = new Set(rows.map((row) => String(row.id)));
+    noticeDeleteSelectedIdsV112.forEach((id) => {
+      if (!serverIds.has(String(id))) noticeDeleteSelectedIdsV112.delete(id);
+    });
+    saveStore({ skipRemote: true, syncReason: `notice-server-refresh:${reason}` });
+    recordNoticeDeleteDiagnosticV112({
+      noticeServerCountAfterDelete: snapshot.size,
+      lastNoticeDeleteReason: `notice-server-refresh:${reason}`
+    });
+    await recordNoticeWorkspaceDiagnosticsV115({
+      sessionWorkspaceId: currentSessionNoticeWorkspaceIdV115(),
+      selectedWorkspaceId: store?.workspace_id || "",
+      writeWorkspaceId: workspaceId,
+      readWorkspaceId: workspaceId
+    });
+    devNoticeLogV114("info", "[notice:server-refresh]", {
+      reason,
+      workspaceId,
+      count: snapshot.size
+    });
+    if (options.render !== false && currentPage === "notices") renderPage("notices");
+    return { ok: true, count: snapshot.size, reason, rows, workspaceId };
+  } catch (error) {
+    const code = classifyNoticeDeleteErrorV112(error);
+    recordNoticeDeleteDiagnosticV112({
+      lastNoticeDeleteFailureCode: code,
+      lastNoticeDeleteReason: `notice-server-refresh-failed:${reason}`
+    });
+    devNoticeLogV114("error", "[notice:server-refresh:failed]", {
+      reason,
+      workspaceId,
+      code,
+      message: error?.message || String(error)
+    });
+    return { ok: false, count: 0, reason: code, rows: [], workspaceId };
+  } finally {
+    noticeServerRefreshInFlightV113 = false;
+  }
+};
+
+const saveNoticeDirectToFirestoreBeforeV115 = saveNoticeDirectToFirestoreV52;
+saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV115(row) {
+  if (!row || !window.PMFirebaseRuntime?.hasConfig?.()) return { saved: false, refreshed: false, confirmed: false };
+  const sessionWorkspaceId = currentSessionNoticeWorkspaceIdV115();
+  const rowWorkspaceId = row.workspaceId || row.workspace_id || "";
+  const writeWorkspaceId = sessionWorkspaceId;
+  incrementNoticeCreateDiagnosticV115("noticeCreateRequestedCount", 1);
+  updateNoticeCreateDiagnosticsV115({
+    writeTargetCollection: "workspace-notices",
+    writeTargetPathKind: "workspaces/{workspace}/notices",
+    lastNoticeCreateErrorKind: "none",
+    lastNoticeCreateReason: "create-requested"
+  });
+  await recordNoticeWorkspaceDiagnosticsV115({
+    sessionWorkspaceId,
+    selectedWorkspaceId: store?.workspace_id || "",
+    writeWorkspaceId,
+    readWorkspaceId: ""
+  });
+  if (!writeWorkspaceId) {
+    updateNoticeCreateDiagnosticsV115({ lastNoticeCreateErrorKind: "missing-workspace-id", lastNoticeCreateReason: "create-blocked" });
+    return { saved: false, refreshed: false, confirmed: false, reason: "missing-workspace-id" };
+  }
+  if (rowWorkspaceId && rowWorkspaceId !== writeWorkspaceId) {
+    updateNoticeCreateDiagnosticsV115({ lastNoticeCreateErrorKind: "workspace-mismatch", lastNoticeCreateReason: "create-blocked" });
+    await recordNoticeWorkspaceDiagnosticsV115({
+      sessionWorkspaceId,
+      selectedWorkspaceId: rowWorkspaceId,
+      writeWorkspaceId,
+      readWorkspaceId: writeWorkspaceId
+    });
+    const error = new Error("workspace-mismatch");
+    error.code = "workspace-mismatch";
+    throw error;
+  }
+  if (!row.id) return { saved: false, refreshed: false, confirmed: false, reason: "missing-notice-id" };
+  try {
+    const runtime = await workspaceNoticeRuntimeV112();
+    const FieldValue = firebase.firestore.FieldValue;
+    const docId = String(row.id);
+    const beforeSnapshot = await getWorkspaceNoticeServerSnapshotV112(writeWorkspaceId);
+    const existedBefore = beforeSnapshot.docs.some((doc) => String(doc.id) === docId);
+    updateNoticeCreateDiagnosticsV115({
+      serverCountBeforeCreate: beforeSnapshot.size,
+      lastNoticeCreateReason: "server-count-before-read"
+    });
+    devNoticeLogV114("info", "[notice:add:start]", {
+      workspaceId: writeWorkspaceId,
+      uidPresent: Boolean(currentUser?.uid || currentUser?.id),
+      role: currentNoticeDeleteRoleV112(),
+      titleLength: String(row.title || row.name || "").length
+    });
+    const payload = cleanFirestoreObjectV52({
+      ...row,
+      id: docId,
+      workspaceId: writeWorkspaceId,
+      workspace_id: writeWorkspaceId,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    if (!row.createdAt) payload.createdAt = FieldValue.serverTimestamp();
+    await workspaceNoticeCollectionV112(runtime.db, writeWorkspaceId).doc(docId).set(payload, { merge: true });
+    incrementNoticeCreateDiagnosticV115("noticeCreateFirestoreSucceededCount", 1);
+    updateNoticeCreateDiagnosticsV115({ lastNoticeCreateReason: "firestore-set-succeeded" });
+
+    const afterSnapshot = await getWorkspaceNoticeServerSnapshotV112(writeWorkspaceId);
+    const rows = mapWorkspaceNoticeSnapshotForWorkspaceV115(afterSnapshot, writeWorkspaceId);
+    const createdDocumentFoundOnServer = afterSnapshot.docs.some((doc) => String(doc.id) === docId);
+    const countIncreased = existedBefore || afterSnapshot.size > beforeSnapshot.size;
+    updateNoticeCreateDiagnosticsV115({
+      serverCountAfterCreate: afterSnapshot.size,
+      createdDocumentFoundOnServer,
+      lastNoticeCreateReason: createdDocumentFoundOnServer && countIncreased ? "server-confirmed" : "server-confirm-failed"
+    });
+    await recordNoticeWorkspaceDiagnosticsV115({
+      sessionWorkspaceId,
+      selectedWorkspaceId: store?.workspace_id || rowWorkspaceId || "",
+      writeWorkspaceId,
+      readWorkspaceId: writeWorkspaceId
+    });
+    if (!createdDocumentFoundOnServer || !countIncreased) {
+      incrementNoticeCreateDiagnosticV115("noticeCreateServerConfirmFailedCount", 1);
+      updateNoticeCreateDiagnosticsV115({ lastNoticeCreateErrorKind: "server-confirmation-failed" });
+      const error = new Error("server-confirmation-failed");
+      error.code = "server-confirmation-failed";
+      error.noticeCreateConfirmCountedV115 = true;
+      throw error;
+    }
+    store.notices = rows;
+    noticeDeleteSelectedIdsV112.forEach((id) => {
+      if (!rows.some((notice) => String(notice.id) === String(id))) noticeDeleteSelectedIdsV112.delete(id);
+    });
+    saveStore({ skipRemote: true, syncReason: "notice-create-server-confirmed" });
+    window.PMWorkspaceDataService?.discardPendingRow?.("notices", docId);
+    incrementNoticeCreateDiagnosticV115("noticeCreateServerConfirmedCount", 1);
+    updateNoticeCreateDiagnosticsV115({
+      lastNoticeCreateErrorKind: "none",
+      lastNoticeCreateReason: "server-confirmed"
+    });
+    recordNoticeDeleteDiagnosticV112({
+      noticeServerCountAfterDelete: afterSnapshot.size,
+      lastNoticeDeleteReason: "notice-create-server-confirmed"
+    });
+    devNoticeLogV114("info", "[notice:add:server-confirmed]", {
+      workspaceId: writeWorkspaceId,
+      noticeId: docId,
+      serverCount: afterSnapshot.size
+    });
+    if (currentPage === "notices") renderPage("notices");
+    return {
+      saved: true,
+      refreshed: true,
+      confirmed: true,
+      serverCountBeforeCreate: beforeSnapshot.size,
+      serverCountAfterCreate: afterSnapshot.size,
+      createdDocumentFoundOnServer
+    };
+  } catch (error) {
+    const code = classifyNoticeDeleteErrorV112(error);
+    updateNoticeCreateDiagnosticsV115({
+      lastNoticeCreateErrorKind: error?.code === "workspace-mismatch" || error?.code === "server-confirmation-failed" ? error.code : code,
+      lastNoticeCreateReason: "create-failed"
+    });
+    if (error?.code === "server-confirmation-failed" && !error.noticeCreateConfirmCountedV115) {
+      incrementNoticeCreateDiagnosticV115("noticeCreateServerConfirmFailedCount", 1);
+    }
+    devNoticeLogV114("error", "[notice:add:error]", {
+      workspaceId: writeWorkspaceId,
+      uidPresent: Boolean(currentUser?.uid || currentUser?.id),
+      role: currentNoticeDeleteRoleV112(),
+      code: error?.code || code,
+      message: error?.message || String(error)
+    });
+    throw error;
+  }
+};
+
+async function saveEditorWithNoticeServerRefreshV115(event) {
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  if (!editing) return;
+  const payload = Object.fromEntries(new FormData(editorForm).entries());
+  if (editing.id && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
+    editorError.textContent = passwordApprovalMessageV78();
+    return;
+  }
+  delete payload._confirm_password;
+  const origin = editing.origin;
+  if (editing.key !== "notices") {
+    return saveEditorWithNoticeServerRefreshV113(event);
+  }
+  const workspaceId = currentSessionNoticeWorkspaceIdV115();
+  if (!workspaceId) {
+    editorError.textContent = noticeCreateErrorMessageV115("missing-workspace-id");
+    return;
+  }
+  const rows = store[editing.key] || (store[editing.key] = []);
+  let savedRow = null;
+  if (editing.id) {
+    const existing = rows.find((row) => row.id === editing.id);
+    if (!existing) return;
+    savedRow = decorateNoticeRowV52({ ...existing, ...payload, id: editing.id, workspaceId, workspace_id: workspaceId }, existing);
+  } else if (Object.values(payload).some((value) => String(value || "").trim())) {
+    const id = Date.now();
+    savedRow = decorateNoticeRowV52({ id, ...payload, workspaceId, workspace_id: workspaceId });
+  }
+  if (!savedRow) {
+    closeEditor();
+    renderPage(origin || currentPage);
+    return;
+  }
+  try {
+    const result = await saveNoticeDirectToFirestoreV52(savedRow);
+    if (!result?.confirmed) {
+      editorError.textContent = noticeCreateErrorMessageV115(result?.reason || "server-confirmation-failed");
+      return;
+    }
+    closeEditor();
+    renderPage(origin || currentPage);
+    showMessage("저장 완료", "공지 저장이 서버에서 확인되었고 목록을 다시 불러왔습니다.");
+  } catch (error) {
+    const code = error?.code === "workspace-mismatch" || error?.code === "server-confirmation-failed"
+      ? error.code
+      : classifyNoticeDeleteErrorV112(error);
+    editorError.textContent = noticeCreateErrorMessageV115(code);
+  }
+}
+
+try {
+  const editorFormElV115 = document.getElementById("editorForm");
+  if (editorFormElV115 && editorFormElV115.dataset.noticeServerConfirmV115 !== "true") {
+    editorFormElV115.dataset.noticeServerConfirmV115 = "true";
+    editorFormElV115.removeEventListener("submit", saveEditorWithNoticeServerRefreshV113, true);
+    editorFormElV115.addEventListener("submit", saveEditorWithNoticeServerRefreshV115, true);
+  }
+} catch (error) {
+  console.info("[notice editor V115 binding skipped]", error?.message || String(error));
+}
+
+const renderNoticesSplitBeforeV115 = renderNoticesSplitV81;
+renderNoticesSplitV81 = function renderNoticesSplitV115() {
+  return renderNoticesSplitBeforeV115();
+};
+
+if (typeof window !== "undefined") {
+  window.PMNoticeCreateDiagnosticsV115 = {
+    snapshot: () => ({ ...noticeCreateDiagnosticsV115 }),
+    reset: () => {
+      Object.assign(noticeCreateDiagnosticsV115, {
+        noticeCreateRequestedCount: 0,
+        noticeCreateFirestoreSucceededCount: 0,
+        noticeCreateServerConfirmedCount: 0,
+        noticeCreateServerConfirmFailedCount: 0,
+        serverCountBeforeCreate: null,
+        serverCountAfterCreate: null,
+        createdDocumentFoundOnServer: false,
+        lastNoticeCreateErrorKind: "none",
+        lastNoticeCreateReason: "reset"
+      });
+      return { ...noticeCreateDiagnosticsV115 };
+    }
+  };
+}
+
+// Canonical workspace alignment V116: operational workspace notice flows must
+// use the same currentWorkspaceId source as app-next AppSession.
+const APP_PATCH_VERSION_V116 = "v116.0 - 2026-07-22";
+store.settings.appVersion = APP_PATCH_VERSION_V116;
+
+const canonicalWorkspaceDiagnosticsV116 = {
+  authUserPresent: false,
+  authUserFingerprint: "-",
+  firebaseProjectFingerprint: "-",
+  appSessionWorkspaceFingerprint: "-",
+  usersCurrentWorkspaceFingerprint: "-",
+  usersLegacyWorkspaceFingerprint: "-",
+  membershipResolvedWorkspaceFingerprint: "-",
+  localStorageWorkspaceFingerprint: "-",
+  storeWorkspaceFingerprint: "-",
+  selectedWorkspaceFingerprint: "-",
+  writeTargetWorkspaceFingerprint: "-",
+  canonicalSource: "unresolved",
+  ignoredLegacySourceCount: 0,
+  workspaceMismatchDetected: false,
+  authUserSameAsCurrentUser: false,
+  firebaseProjectPresent: false,
+  lastResolvedAt: "",
+  lastResolveErrorKind: "none"
+};
+
+const canonicalWorkspaceCacheV116 = {
+  uid: "",
+  workspaceId: "",
+  source: "unresolved",
+  resolvedAt: 0,
+  promise: null
+};
+
+function canonicalWorkspaceFallbackCandidatesV116() {
+  const authUser = (typeof authCurrentUserV31 === "function" ? authCurrentUserV31() : null) || currentUser || {};
+  return [
+    { name: "currentUser.pmWorkspaceId", value: authUser.pmWorkspaceId },
+    { name: "currentUser.workspaceId", value: authUser.workspaceId },
+    { name: "currentUser.workspace_id", value: authUser.workspace_id },
+    { name: "authWorkspaceState.currentWorkspaceId", value: authWorkspaceStateV36?.currentWorkspaceId },
+    { name: "store.workspace_id", value: store?.workspace_id },
+    { name: "dataService.currentWorkspaceId", value: window.PMDataService?.currentWorkspaceId?.() }
+  ].filter((item) => String(item.value || "").trim());
+}
+
+function firstLocalStorageWorkspaceCandidateV116() {
+  try {
+    const candidates = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index) || "";
+      if (!/workspace/i.test(key)) continue;
+      const value = String(localStorage.getItem(key) || "").trim();
+      if (value && value.length < 200) candidates.push(value);
+    }
+    return candidates[0] || "";
+  } catch {
+    return "";
+  }
+}
+
+async function updateCanonicalWorkspaceDiagnosticsV116(fields = {}) {
+  Object.assign(canonicalWorkspaceDiagnosticsV116, fields || {});
+}
+
+async function recordCanonicalWorkspaceDiagnosticsV116({
+  runtime = null,
+  firebaseUser = null,
+  userData = {},
+  canonicalWorkspaceId = "",
+  canonicalSource = "unresolved",
+  writeWorkspaceId = "",
+  selectedWorkspaceId = ""
+} = {}) {
+  const authUid = firebaseUser?.uid || "";
+  const currentUid = currentUser?.uid || currentUser?.id || "";
+  const legacyWorkspace = userData.workspaceId || userData.workspace_id || "";
+  const localCandidate = firstLocalStorageWorkspaceCandidateV116();
+  const storeCandidate = store?.workspace_id || "";
+  const fallbackCandidates = canonicalWorkspaceFallbackCandidatesV116();
+  const ignoredLegacySourceCount = fallbackCandidates
+    .filter((item) => canonicalWorkspaceId && item.value && item.value !== canonicalWorkspaceId)
+    .length + (legacyWorkspace && canonicalWorkspaceId && legacyWorkspace !== canonicalWorkspaceId ? 1 : 0);
+  await updateCanonicalWorkspaceDiagnosticsV116({
+    authUserPresent: Boolean(authUid),
+    authUserFingerprint: await stableNoticeWorkspaceFingerprintV115(authUid),
+    firebaseProjectFingerprint: await stableNoticeWorkspaceFingerprintV115(
+      runtime?.app?.options?.projectId
+      || runtime?.firebaseApp?.options?.projectId
+      || window.PM_FIREBASE_CONFIG?.projectId
+      || window.PM_FIREBASE_CONFIG?.projectID
+      || ""
+    ),
+    appSessionWorkspaceFingerprint: await stableNoticeWorkspaceFingerprintV115(canonicalWorkspaceId),
+    usersCurrentWorkspaceFingerprint: await stableNoticeWorkspaceFingerprintV115(userData.currentWorkspaceId || ""),
+    usersLegacyWorkspaceFingerprint: await stableNoticeWorkspaceFingerprintV115(legacyWorkspace),
+    membershipResolvedWorkspaceFingerprint: await stableNoticeWorkspaceFingerprintV115(""),
+    localStorageWorkspaceFingerprint: await stableNoticeWorkspaceFingerprintV115(localCandidate),
+    storeWorkspaceFingerprint: await stableNoticeWorkspaceFingerprintV115(storeCandidate),
+    selectedWorkspaceFingerprint: await stableNoticeWorkspaceFingerprintV115(selectedWorkspaceId || storeCandidate),
+    writeTargetWorkspaceFingerprint: await stableNoticeWorkspaceFingerprintV115(writeWorkspaceId || canonicalWorkspaceId),
+    canonicalSource,
+    ignoredLegacySourceCount,
+    workspaceMismatchDetected: ignoredLegacySourceCount > 0,
+    authUserSameAsCurrentUser: Boolean(authUid && currentUid && authUid === currentUid),
+    firebaseProjectPresent: Boolean(runtime?.app?.options?.projectId || runtime?.firebaseApp?.options?.projectId || window.PM_FIREBASE_CONFIG?.projectId),
+    lastResolvedAt: new Date().toISOString(),
+    lastResolveErrorKind: "none"
+  });
+}
+
+function classifyCanonicalWorkspaceErrorV116(error) {
+  const code = String(error?.code || "").replace(/^firestore\//, "");
+  if (code.includes("permission-denied")) return "permission-denied";
+  if (code.includes("resource-exhausted")) return "resource-exhausted";
+  if (code.includes("unavailable") || code.includes("network")) return "unavailable";
+  if (code.includes("not-found")) return "not-found";
+  return "unknown";
+}
+
+async function resolveCanonicalCurrentWorkspaceIdV116(reason = "manual", options = {}) {
+  const ttlMs = Number(options.ttlMs || 15000);
+  const runtime = await workspaceNoticeRuntimeV112();
+  const firebaseUser = runtime.auth?.currentUser || null;
+  const uid = firebaseUser?.uid || currentUser?.uid || currentUser?.id || "";
+  if (!uid) {
+    canonicalWorkspaceCacheV116.uid = "";
+    canonicalWorkspaceCacheV116.workspaceId = "";
+    canonicalWorkspaceCacheV116.source = "missing-auth-user";
+    await recordCanonicalWorkspaceDiagnosticsV116({ runtime, firebaseUser, canonicalSource: "missing-auth-user" });
+    return "";
+  }
+  if (
+    !options.force
+    && canonicalWorkspaceCacheV116.uid === uid
+    && Date.now() - canonicalWorkspaceCacheV116.resolvedAt < ttlMs
+  ) {
+    return canonicalWorkspaceCacheV116.workspaceId || "";
+  }
+  if (canonicalWorkspaceCacheV116.promise && canonicalWorkspaceCacheV116.uid === uid && !options.force) {
+    return canonicalWorkspaceCacheV116.promise;
+  }
+  canonicalWorkspaceCacheV116.uid = uid;
+  canonicalWorkspaceCacheV116.promise = (async () => {
+    try {
+      const userSnap = await runtime.db.collection("users").doc(uid).get();
+      const userData = userSnap.exists ? (userSnap.data() || {}) : {};
+      const currentWorkspaceId = String(userData.currentWorkspaceId || "").trim();
+      const canonicalSource = currentWorkspaceId ? "users.currentWorkspaceId" : "users.currentWorkspaceId:null";
+      canonicalWorkspaceCacheV116.workspaceId = currentWorkspaceId;
+      canonicalWorkspaceCacheV116.source = canonicalSource;
+      canonicalWorkspaceCacheV116.resolvedAt = Date.now();
+      await recordCanonicalWorkspaceDiagnosticsV116({
+        runtime,
+        firebaseUser,
+        userData,
+        canonicalWorkspaceId: currentWorkspaceId,
+        canonicalSource,
+        writeWorkspaceId: options.writeWorkspaceId || currentWorkspaceId,
+        selectedWorkspaceId: options.selectedWorkspaceId || ""
+      });
+      devNoticeLogV114("info", "[canonical-workspace:resolved]", {
+        reason,
+        workspaceId: currentWorkspaceId || "",
+        source: canonicalSource
+      });
+      return currentWorkspaceId;
+    } catch (error) {
+      const kind = classifyCanonicalWorkspaceErrorV116(error);
+      canonicalWorkspaceCacheV116.workspaceId = "";
+      canonicalWorkspaceCacheV116.source = `error:${kind}`;
+      canonicalWorkspaceCacheV116.resolvedAt = Date.now();
+      await updateCanonicalWorkspaceDiagnosticsV116({
+        lastResolveErrorKind: kind,
+        canonicalSource: `error:${kind}`,
+        lastResolvedAt: new Date().toISOString()
+      });
+      devNoticeLogV114("error", "[canonical-workspace:failed]", {
+        reason,
+        code: kind,
+        uidPresent: Boolean(uid),
+        message: error?.message || String(error)
+      });
+      return "";
+    } finally {
+      canonicalWorkspaceCacheV116.promise = null;
+    }
+  })();
+  return canonicalWorkspaceCacheV116.promise;
+}
+
+const currentSessionNoticeWorkspaceIdBeforeV116 = currentSessionNoticeWorkspaceIdV115;
+currentSessionNoticeWorkspaceIdV115 = function currentSessionNoticeWorkspaceIdV116() {
+  return canonicalWorkspaceCacheV116.workspaceId || "";
+};
+
+fallbackNoticeWorkspaceIdV115 = function fallbackNoticeWorkspaceIdV116() {
+  return canonicalWorkspaceCacheV116.workspaceId || "";
+};
+
+const refreshWorkspaceNoticesFromServerBeforeV116 = refreshWorkspaceNoticesFromServerV113;
+refreshWorkspaceNoticesFromServerV113 = async function refreshWorkspaceNoticesFromServerV116(reason = "manual", options = {}) {
+  const canonicalWorkspaceId = options.workspaceId || await resolveCanonicalCurrentWorkspaceIdV116(`notice-refresh:${reason}`, {
+    force: options.forceCanonical === true
+  });
+  if (!canonicalWorkspaceId) {
+    return { ok: false, count: 0, reason: "missing-canonical-workspace-id", rows: [] };
+  }
+  await recordCanonicalWorkspaceDiagnosticsV116({
+    canonicalWorkspaceId,
+    canonicalSource: canonicalWorkspaceCacheV116.source,
+    writeWorkspaceId: canonicalWorkspaceId,
+    selectedWorkspaceId: store?.workspace_id || ""
+  });
+  return refreshWorkspaceNoticesFromServerBeforeV116(reason, {
+    ...options,
+    workspaceId: canonicalWorkspaceId
+  });
+};
+
+const saveNoticeDirectToFirestoreBeforeV116 = saveNoticeDirectToFirestoreV52;
+saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV116(row) {
+  const canonicalWorkspaceId = await resolveCanonicalCurrentWorkspaceIdV116("notice-create", { force: true });
+  if (!canonicalWorkspaceId) {
+    updateNoticeCreateDiagnosticsV115({
+      lastNoticeCreateErrorKind: "missing-canonical-workspace-id",
+      lastNoticeCreateReason: "create-blocked"
+    });
+    return { saved: false, refreshed: false, confirmed: false, reason: "missing-canonical-workspace-id" };
+  }
+  const rowWorkspaceId = row?.workspaceId || row?.workspace_id || "";
+  if (rowWorkspaceId && rowWorkspaceId !== canonicalWorkspaceId) {
+    await recordCanonicalWorkspaceDiagnosticsV116({
+      canonicalWorkspaceId,
+      canonicalSource: canonicalWorkspaceCacheV116.source,
+      writeWorkspaceId: canonicalWorkspaceId,
+      selectedWorkspaceId: rowWorkspaceId
+    });
+    updateNoticeCreateDiagnosticsV115({
+      lastNoticeCreateErrorKind: "workspace-mismatch",
+      lastNoticeCreateReason: "create-blocked"
+    });
+    const error = new Error("workspace-mismatch");
+    error.code = "workspace-mismatch";
+    throw error;
+  }
+  const canonicalRow = {
+    ...row,
+    workspaceId: canonicalWorkspaceId,
+    workspace_id: canonicalWorkspaceId
+  };
+  await recordCanonicalWorkspaceDiagnosticsV116({
+    canonicalWorkspaceId,
+    canonicalSource: canonicalWorkspaceCacheV116.source,
+    writeWorkspaceId: canonicalWorkspaceId,
+    selectedWorkspaceId: store?.workspace_id || ""
+  });
+  return saveNoticeDirectToFirestoreBeforeV116(canonicalRow);
+};
+
+async function saveEditorWithNoticeServerRefreshV116(event) {
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  if (!editing) return;
+  if (editing.key !== "notices") {
+    return saveEditorWithNoticeServerRefreshV113(event);
+  }
+  const payload = Object.fromEntries(new FormData(editorForm).entries());
+  if (editing.id && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
+    editorError.textContent = passwordApprovalMessageV78();
+    return;
+  }
+  delete payload._confirm_password;
+  const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116("notice-editor-submit", { force: true });
+  if (!workspaceId) {
+    editorError.textContent = noticeCreateErrorMessageV115("missing-workspace-id");
+    return;
+  }
+  const origin = editing.origin;
+  const rows = store[editing.key] || (store[editing.key] = []);
+  let savedRow = null;
+  if (editing.id) {
+    const existing = rows.find((row) => row.id === editing.id);
+    if (!existing) return;
+    savedRow = decorateNoticeRowV52({ ...existing, ...payload, id: editing.id, workspaceId, workspace_id: workspaceId }, existing);
+  } else if (Object.values(payload).some((value) => String(value || "").trim())) {
+    const id = Date.now();
+    savedRow = decorateNoticeRowV52({ id, ...payload, workspaceId, workspace_id: workspaceId });
+  }
+  if (!savedRow) {
+    closeEditor();
+    renderPage(origin || currentPage);
+    return;
+  }
+  try {
+    const result = await saveNoticeDirectToFirestoreV52(savedRow);
+    if (!result?.confirmed) {
+      editorError.textContent = noticeCreateErrorMessageV115(result?.reason || "server-confirmation-failed");
+      return;
+    }
+    closeEditor();
+    renderPage(origin || currentPage);
+    showMessage("저장 완료", "공지 저장이 현재 워크스페이스 서버에서 확인되었습니다.");
+  } catch (error) {
+    const code = error?.code === "workspace-mismatch" || error?.code === "server-confirmation-failed"
+      ? error.code
+      : classifyNoticeDeleteErrorV112(error);
+    editorError.textContent = noticeCreateErrorMessageV115(code);
+  }
+}
+
+try {
+  const editorFormElV116 = document.getElementById("editorForm");
+  if (editorFormElV116 && editorFormElV116.dataset.noticeCanonicalWorkspaceV116 !== "true") {
+    editorFormElV116.dataset.noticeCanonicalWorkspaceV116 = "true";
+    editorFormElV116.removeEventListener("submit", saveEditorWithNoticeServerRefreshV115, true);
+    editorFormElV116.addEventListener("submit", saveEditorWithNoticeServerRefreshV116, true);
+  }
+} catch (error) {
+  console.info("[notice editor V116 binding skipped]", error?.message || String(error));
+}
+
+const renderNoticesSplitBeforeV116 = typeof renderNoticesSplitBeforeV113 === "function"
+  ? renderNoticesSplitBeforeV113
+  : renderNoticesSplitV81;
+renderNoticesSplitV81 = function renderNoticesSplitV116() {
+  const cachedWorkspaceId = canonicalWorkspaceCacheV116.workspaceId || "";
+  if (!cachedWorkspaceId) {
+    store.notices = [];
+  }
+  void resolveCanonicalCurrentWorkspaceIdV116("notice-page-enter").then((workspaceId) => {
+    if (
+      workspaceId
+      && isFirebaseBackedSessionV45()
+      && !noticeServerRefreshInFlightV113
+      && (
+        noticeLastPageRefreshWorkspaceV113 !== workspaceId
+        || Date.now() - noticeLastPageRefreshAtV113 > 15000
+      )
+    ) {
+      noticeLastPageRefreshWorkspaceV113 = workspaceId;
+      noticeLastPageRefreshAtV113 = Date.now();
+      store.notices = [];
+      void refreshWorkspaceNoticesFromServerV113("notice-page-enter", {
+        render: true,
+        workspaceId
+      });
+    }
+  });
+  return renderNoticesSplitBeforeV116();
+};
+
+if (typeof window !== "undefined") {
+  window.PMCanonicalWorkspaceDiagnostics = {
+    snapshot: () => ({ ...canonicalWorkspaceDiagnosticsV116 }),
+    refresh: async () => {
+      await resolveCanonicalCurrentWorkspaceIdV116("diagnostic-refresh", { force: true });
+      return { ...canonicalWorkspaceDiagnosticsV116 };
+    }
+  };
+}
+
+// Canonical diagnostic fingerprints V117: keep operational and app-next
+// comparable without exposing raw Firebase identifiers.
+const APP_PATCH_VERSION_V117 = "v117.0 - 2026-07-22";
+store.settings.appVersion = APP_PATCH_VERSION_V117;
+
+async function diagnosticFingerprintV117(namespace, value) {
+  const text = String(value || "").trim();
+  if (!text) return "-";
+  try {
+    const cryptoApi = globalThis.crypto;
+    if (!cryptoApi?.subtle || typeof TextEncoder === "undefined") return "unavailable";
+    const normalized = `${namespace}:v1:${text}`;
+    const encoded = new TextEncoder().encode(normalized);
+    const digest = await cryptoApi.subtle.digest("SHA-256", encoded);
+    return Array.from(new Uint8Array(digest))
+      .slice(0, 4)
+      .map((item) => item.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return "unavailable";
+  }
+}
+
+function sameDiagnosticValueV117(left, right) {
+  if (!left || !right || left === "-" || right === "-" || left === "unavailable" || right === "unavailable") {
+    return "unknown";
+  }
+  return left === right ? "true" : "false";
+}
+
+function appCountV117() {
+  try {
+    return window.firebase?.apps?.length || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function firebaseAppNameV117(runtime = null) {
+  try {
+    return runtime?.app?.name || runtime?.firebaseApp?.name || window.firebase?.app?.()?.name || "";
+  } catch {
+    return "";
+  }
+}
+
+function databaseIdKindV117(runtime = null) {
+  try {
+    const databaseId = runtime?.db?._databaseId?.database || runtime?.db?._delegate?._databaseId?.database || "(default)";
+    return !databaseId || databaseId === "(default)" ? "default" : "non-default";
+  } catch {
+    return "unknown";
+  }
+}
+
+function safeStoreDiagnosticContextV117(key, payload) {
+  if (!isDevelopmentDiagnosticsV114()) return;
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      ...payload,
+      updatedAt: new Date().toISOString()
+    }));
+  } catch {
+    // Diagnostics only.
+  }
+}
+
+function safeReadDiagnosticContextV117(key) {
+  if (!isDevelopmentDiagnosticsV114()) return null;
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null");
+  } catch {
+    return null;
+  }
+}
+
+async function sanitizeDiagnosticPayloadV117(payload = {}) {
+  const safe = {};
+  for (const [key, value] of Object.entries(payload || {})) {
+    if (/email|token|password/i.test(key)) continue;
+    if (/uid/i.test(key)) {
+      safe[`${key}Fingerprint`] = await diagnosticFingerprintV117("auth-user", value);
+      continue;
+    }
+    if (/projectId/i.test(key)) {
+      safe[`${key}Fingerprint`] = await diagnosticFingerprintV117("firebase-project", value);
+      continue;
+    }
+    if (/workspaceId|workspace/i.test(key) && typeof value === "string") {
+      safe[`${key}Fingerprint`] = await diagnosticFingerprintV117("workspace", value);
+      continue;
+    }
+    if (/docId|documentId|path/i.test(key)) {
+      safe[key] = "redacted";
+      continue;
+    }
+    if (value && typeof value === "object") {
+      safe[key] = "[object]";
+      continue;
+    }
+    safe[key] = value;
+  }
+  return safe;
+}
+
+devNoticeLogV114 = function devNoticeLogV117(level, label, payload = {}) {
+  if (!isDevelopmentDiagnosticsV114()) return;
+  const logger = level === "error" ? console.error : level === "warn" ? console.warn : console.info;
+  void sanitizeDiagnosticPayloadV117(payload)
+    .then((safe) => logger(label, safe))
+    .catch(() => logger(label, { diagnosticSanitizeError: true }));
+};
+
+noticeWorkspaceFingerprintV115 = function noticeWorkspaceFingerprintV117(value) {
+  return String(value || "").trim() ? "unavailable" : "-";
+};
+
+stableNoticeWorkspaceFingerprintV115 = async function stableNoticeWorkspaceFingerprintV117(value) {
+  return diagnosticFingerprintV117("workspace", value);
+};
+
+recordCanonicalWorkspaceDiagnosticsV116 = async function recordCanonicalWorkspaceDiagnosticsV117({
+  runtime = null,
+  firebaseUser = null,
+  userData = {},
+  canonicalWorkspaceId = "",
+  canonicalSource = "unresolved",
+  writeWorkspaceId = "",
+  selectedWorkspaceId = ""
+} = {}) {
+  const authUid = firebaseUser?.uid || "";
+  const currentUid = currentUser?.uid || currentUser?.id || "";
+  const projectId = runtime?.app?.options?.projectId
+    || runtime?.firebaseApp?.options?.projectId
+    || window.PM_FIREBASE_CONFIG?.projectId
+    || window.PM_FIREBASE_CONFIG?.projectID
+    || "";
+  let serverUsersDocumentFound = false;
+  let serverUserData = null;
+  let serverReadErrorKind = "none";
+  try {
+    if (runtime?.db && authUid) {
+      const serverSnap = await runtime.db.collection("users").doc(authUid).get({ source: "server" });
+      serverUsersDocumentFound = Boolean(serverSnap?.exists);
+      serverUserData = serverSnap?.exists ? (serverSnap.data() || {}) : {};
+    }
+  } catch (error) {
+    serverReadErrorKind = classifyCanonicalWorkspaceErrorV116(error);
+  }
+
+  const legacyWorkspace = userData.workspaceId || userData.workspace_id || "";
+  const serverLegacyWorkspace = serverUserData?.workspaceId || serverUserData?.workspace_id || "";
+  const serverCurrentWorkspaceId = serverUserData?.currentWorkspaceId || "";
+  const localCandidate = firstLocalStorageWorkspaceCandidateV116();
+  const storeCandidate = store?.workspace_id || "";
+  const fallbackCandidates = canonicalWorkspaceFallbackCandidatesV116();
+  const ignoredLegacySourceCount = fallbackCandidates
+    .filter((item) => canonicalWorkspaceId && item.value && item.value !== canonicalWorkspaceId)
+    .length + (legacyWorkspace && canonicalWorkspaceId && legacyWorkspace !== canonicalWorkspaceId ? 1 : 0);
+
+  const authUserFingerprint = await diagnosticFingerprintV117("auth-user", authUid);
+  const firebaseProjectFingerprint = await diagnosticFingerprintV117("firebase-project", projectId);
+  const appSessionWorkspaceFingerprint = await diagnosticFingerprintV117("workspace", canonicalWorkspaceId);
+  const usersCurrentWorkspaceFingerprint = await diagnosticFingerprintV117("workspace", userData.currentWorkspaceId || "");
+  const serverUsersCurrentWorkspaceFingerprint = await diagnosticFingerprintV117("workspace", serverCurrentWorkspaceId);
+  const writeTargetWorkspaceFingerprint = await diagnosticFingerprintV117("workspace", writeWorkspaceId || canonicalWorkspaceId);
+
+  const appNextContext = safeReadDiagnosticContextV117("pm:diag:app-next-context-v1");
+  const comparison = {
+    sameFirebaseProject: appNextContext
+      ? sameDiagnosticValueV117(firebaseProjectFingerprint, appNextContext.firebaseProjectFingerprint)
+      : "unknown",
+    sameAuthUser: appNextContext
+      ? sameDiagnosticValueV117(authUserFingerprint, appNextContext.authUserFingerprint)
+      : "unknown",
+    sameServerUsersCurrentWorkspace: appNextContext
+      ? sameDiagnosticValueV117(serverUsersCurrentWorkspaceFingerprint, appNextContext.serverUsersCurrentWorkspaceFingerprint)
+      : "unknown",
+    sameResolvedWorkspace: appNextContext
+      ? sameDiagnosticValueV117(appSessionWorkspaceFingerprint, appNextContext.resolvedWorkspaceFingerprint)
+      : "unknown"
+  };
+
+  const contextPayload = {
+    firebaseProjectFingerprint,
+    authUserFingerprint,
+    serverUsersCurrentWorkspaceFingerprint,
+    resolvedWorkspaceFingerprint: appSessionWorkspaceFingerprint
+  };
+  safeStoreDiagnosticContextV117("pm:diag:operational-context-v1", contextPayload);
+
+  await updateCanonicalWorkspaceDiagnosticsV116({
+    authUserPresent: Boolean(authUid),
+    authUserFingerprint,
+    firebaseProjectFingerprint,
+    appSessionWorkspaceFingerprint,
+    resolvedAppSessionWorkspaceFingerprint: appSessionWorkspaceFingerprint,
+    usersCurrentWorkspaceFingerprint,
+    usersLegacyWorkspaceFingerprint: await diagnosticFingerprintV117("workspace", legacyWorkspace),
+    serverUsersDocumentFound,
+    serverUsersReadErrorKind: serverReadErrorKind,
+    serverUsersCurrentWorkspaceFingerprint,
+    serverUsersLegacyWorkspaceFingerprint: await diagnosticFingerprintV117("workspace", serverLegacyWorkspace),
+    membershipResolvedWorkspaceFingerprint: await diagnosticFingerprintV117("workspace", ""),
+    localStorageWorkspaceFingerprint: await diagnosticFingerprintV117("workspace", localCandidate),
+    storeWorkspaceFingerprint: await diagnosticFingerprintV117("workspace", storeCandidate),
+    selectedWorkspaceFingerprint: await diagnosticFingerprintV117("workspace", selectedWorkspaceId || storeCandidate),
+    writeTargetWorkspaceFingerprint,
+    noticeReadWriteTargetWorkspaceFingerprint: writeTargetWorkspaceFingerprint,
+    canonicalSource,
+    ignoredLegacySourceCount,
+    workspaceMismatchDetected: ignoredLegacySourceCount > 0,
+    authUserSameAsCurrentUser: Boolean(authUid && currentUid && authUid === currentUid),
+    firebaseProjectPresent: Boolean(projectId),
+    firebaseAppName: firebaseAppNameV117(runtime),
+    firebaseAppCount: appCountV117(),
+    currentOrigin: window.location.origin,
+    databaseIdKind: databaseIdKindV117(runtime),
+    noticeCollectionKind: "workspace-notices",
+    ...comparison,
+    lastResolvedAt: new Date().toISOString(),
+    lastResolveErrorKind: serverReadErrorKind === "none" ? "none" : serverReadErrorKind
+  });
+};
+
+// Final V118: app-next server-user workspace session alignment diagnostics and
+// operational Google popup completion counters.
+const APP_PATCH_VERSION_V118 = "v118.0 - 2026-07-22";
+store.settings.appVersion = APP_PATCH_VERSION_V118;
+
+if (typeof completeLoginV34 === "function" && !completeLoginV34.__googleDiagnosticsWrappedV118) {
+  const completeLoginBeforeV118 = completeLoginV34;
+  completeLoginV34 = function completeLoginV118(user) {
+    const result = completeLoginBeforeV118.apply(this, arguments);
+    window.PMAuthService?.recordOperationalGoogleSessionResolved?.(
+      Boolean(currentUser?.provider === "firebase" && (currentUser?.uid || currentUser?.id))
+    );
+    return result;
+  };
+  completeLoginV34.__googleDiagnosticsWrappedV118 = true;
+}
+
+// Firestore transport diagnostics V119: distinguish confirmed writes from
+// later WebChannel/listener transport failures without changing data behavior.
+const APP_PATCH_VERSION_V119 = "v119.0 - 2026-07-22";
+store.settings.appVersion = APP_PATCH_VERSION_V119;
+
+const firestoreTransportDiagnosticsV119 = {
+  writeRequestedCount: 0,
+  writeServerConfirmedCount: 0,
+  serverReadSucceededAfterTransportError: false,
+  firestoreRecoveredAfterTransportError: false,
+  transportErrorCount: 0,
+  lastTransportErrorKind: "none",
+  lastErrorAt: "",
+  lastWriteReason: "none",
+  lastServerReadReason: "none",
+  lastTransportContext: "none"
+};
+
+function firestoreTransportMessageV119(value) {
+  try {
+    if (typeof value === "string") return value;
+    if (value instanceof Error) return `${value.code || ""} ${value.message || ""}`;
+    if (value && typeof value === "object") return `${value.code || ""} ${value.message || ""} ${value.name || ""}`;
+    return String(value || "");
+  } catch {
+    return "";
+  }
+}
+
+function classifyFirestoreTransportErrorV119(errorOrMessage) {
+  const text = firestoreTransportMessageV119(errorOrMessage).toLowerCase();
+  const code = String(errorOrMessage?.code || "").toLowerCase();
+  if (code.includes("permission-denied") || text.includes("permission-denied")) return "permission-denied";
+  if (code.includes("unauthenticated") || text.includes("unauthenticated")) return "unauthenticated";
+  if (code.includes("resource-exhausted") || text.includes("resource-exhausted") || text.includes("quota")) return "resource-exhausted";
+  if (code.includes("unavailable") || text.includes("unavailable") || text.includes("network")) return "unavailable";
+  if (code.includes("invalid-argument") || text.includes("invalid-argument")) return "invalid-argument";
+  if (code.includes("failed-precondition") || text.includes("failed-precondition")) return "failed-precondition";
+  if (code.includes("aborted") || text.includes("aborted")) return "aborted";
+  if (
+    text.includes("webchannel")
+    || text.includes("transport")
+    || text.includes("listen/channel")
+    || text.includes("write/channel")
+    || text.includes("bad request")
+    || /\b400\b/.test(text)
+  ) {
+    return "webchannel-transport-400";
+  }
+  return "unknown";
+}
+
+function isFirestoreTransportErrorMessageV119(value) {
+  const text = firestoreTransportMessageV119(value).toLowerCase();
+  return (
+    text.includes("webchannel")
+    || text.includes("listen/channel")
+    || text.includes("write/channel")
+    || text.includes("transport")
+    || (text.includes("firestore") && /\b400\b/.test(text))
+  );
+}
+
+function recordFirestoreTransportErrorV119(error, context = "unknown") {
+  const kind = classifyFirestoreTransportErrorV119(error);
+  firestoreTransportDiagnosticsV119.transportErrorCount += 1;
+  firestoreTransportDiagnosticsV119.lastTransportErrorKind = kind;
+  firestoreTransportDiagnosticsV119.lastErrorAt = new Date().toISOString();
+  firestoreTransportDiagnosticsV119.lastTransportContext = String(context || "unknown").slice(0, 80);
+  if (firestoreTransportDiagnosticsV119.writeServerConfirmedCount > 0) {
+    firestoreTransportDiagnosticsV119.firestoreRecoveredAfterTransportError = false;
+  }
+  return kind;
+}
+
+function recordFirestoreWriteRequestedV119(reason = "unknown") {
+  firestoreTransportDiagnosticsV119.writeRequestedCount += 1;
+  firestoreTransportDiagnosticsV119.lastWriteReason = String(reason || "unknown").slice(0, 80);
+}
+
+function recordFirestoreWriteServerConfirmedV119(reason = "unknown") {
+  firestoreTransportDiagnosticsV119.writeServerConfirmedCount += 1;
+  firestoreTransportDiagnosticsV119.lastWriteReason = String(reason || "unknown").slice(0, 80);
+}
+
+function recordFirestoreServerReadSucceededV119(reason = "unknown") {
+  firestoreTransportDiagnosticsV119.lastServerReadReason = String(reason || "unknown").slice(0, 80);
+  if (firestoreTransportDiagnosticsV119.transportErrorCount > 0) {
+    firestoreTransportDiagnosticsV119.serverReadSucceededAfterTransportError = true;
+    firestoreTransportDiagnosticsV119.firestoreRecoveredAfterTransportError = true;
+  }
+}
+
+function modularFirestoreLoadedV119() {
+  try {
+    return Boolean(
+      document.querySelector('script[type="module"][src*="app-next"]')
+      || window.__PM_APP_NEXT_MOUNTED
+      || window.__pmAppNextMounted
+    );
+  } catch {
+    return false;
+  }
+}
+
+function firestoreTransportSnapshotV119() {
+  const workspaceSync = window.PMWorkspaceDataService?.diagnostics?.() || {};
+  const runtimeDiag = window.PMFirebaseRuntimeDiagnostics?.snapshot?.() || {};
+  const authDiag = window.PMAuthBootstrapDiagnostics?.snapshot?.() || {};
+  const canonicalDiag = window.PMCanonicalWorkspaceDiagnostics?.snapshot?.() || {};
+  const compatFirestoreLoaded = Boolean(window.firebase?.firestore);
+  const modularFirestoreLoaded = modularFirestoreLoadedV119();
+  let authUserPresent = false;
+  try {
+    authUserPresent = Boolean(window.__pmFirebaseRuntime?.auth?.currentUser || window.firebase?.apps?.length && window.firebase?.auth?.().currentUser);
+  } catch {
+    authUserPresent = false;
+  }
+  const activeListenerPaths = Array.isArray(workspaceSync.activeListenerPaths) ? workspaceSync.activeListenerPaths : [];
+  return {
+    firebaseAppCount: runtimeDiag.firebaseAppCount ?? window.firebase?.apps?.length ?? 0,
+    firestoreInstanceCount: runtimeDiag.firestoreInstanceCreatedCount || (window.__pmFirebaseRuntime?.db ? 1 : 0),
+    compatFirestoreLoaded,
+    modularFirestoreLoaded,
+    mixedFirestoreSdkDetected: compatFirestoreLoaded && modularFirestoreLoaded,
+    listenerCount: workspaceSync.listenerCount || 0,
+    activeListenerFingerprintCount: activeListenerPaths.length,
+    writeRequestedCount: firestoreTransportDiagnosticsV119.writeRequestedCount,
+    writeServerConfirmedCount: firestoreTransportDiagnosticsV119.writeServerConfirmedCount,
+    transportErrorCount: firestoreTransportDiagnosticsV119.transportErrorCount,
+    lastTransportErrorKind: firestoreTransportDiagnosticsV119.lastTransportErrorKind,
+    firestoreRecoveredAfterTransportError: firestoreTransportDiagnosticsV119.firestoreRecoveredAfterTransportError,
+    serverReadSucceededAfterTransportError: firestoreTransportDiagnosticsV119.serverReadSucceededAfterTransportError,
+    authUserPresent,
+    authStateChangeCount: authDiag.authStateEventCount || 0,
+    currentWorkspaceFingerprint: canonicalDiag.appSessionWorkspaceFingerprint || maskIdentifierV114(store?.workspace_id || ""),
+    resourceExhausted: Boolean(workspaceSync.quotaBackoffActive || workspaceSync.resourceExhausted || firestoreTransportDiagnosticsV119.lastTransportErrorKind === "resource-exhausted"),
+    lastErrorAt: firestoreTransportDiagnosticsV119.lastErrorAt || workspaceSync.lastErrorAt || "",
+    lastWriteReason: firestoreTransportDiagnosticsV119.lastWriteReason,
+    lastServerReadReason: firestoreTransportDiagnosticsV119.lastServerReadReason,
+    lastTransportContext: firestoreTransportDiagnosticsV119.lastTransportContext
+  };
+}
+
+if (typeof window !== "undefined") {
+  window.PMFirestoreTransportDiagnostics = {
+    snapshot: firestoreTransportSnapshotV119,
+    recordError: recordFirestoreTransportErrorV119,
+    recordWriteRequested: recordFirestoreWriteRequestedV119,
+    recordWriteServerConfirmed: recordFirestoreWriteServerConfirmedV119,
+    recordServerReadSucceeded: recordFirestoreServerReadSucceededV119,
+    reset() {
+      Object.assign(firestoreTransportDiagnosticsV119, {
+        writeRequestedCount: 0,
+        writeServerConfirmedCount: 0,
+        serverReadSucceededAfterTransportError: false,
+        firestoreRecoveredAfterTransportError: false,
+        transportErrorCount: 0,
+        lastTransportErrorKind: "none",
+        lastErrorAt: "",
+        lastWriteReason: "none",
+        lastServerReadReason: "none",
+        lastTransportContext: "reset"
+      });
+      return firestoreTransportSnapshotV119();
+    }
+  };
+
+  if (isDevelopmentDiagnosticsV114() && !console.__pmFirestoreTransportWrappedV119) {
+    const originalError = console.error.bind(console);
+    const originalWarn = console.warn.bind(console);
+    console.error = function consoleErrorV119(...args) {
+      if (args.some(isFirestoreTransportErrorMessageV119)) recordFirestoreTransportErrorV119(args[0], "console.error");
+      return originalError(...args);
+    };
+    console.warn = function consoleWarnV119(...args) {
+      if (args.some(isFirestoreTransportErrorMessageV119)) recordFirestoreTransportErrorV119(args[0], "console.warn");
+      return originalWarn(...args);
+    };
+    console.__pmFirestoreTransportWrappedV119 = true;
+  }
+
+  if (isDevelopmentDiagnosticsV114() && !window.__pmFirestoreTransportEventsV119) {
+    window.addEventListener("unhandledrejection", (event) => {
+      const reason = event?.reason;
+      if (isFirestoreTransportErrorMessageV119(reason)) recordFirestoreTransportErrorV119(reason, "unhandledrejection");
+    });
+    window.addEventListener("error", (event) => {
+      const message = event?.message || event?.error;
+      if (isFirestoreTransportErrorMessageV119(message)) recordFirestoreTransportErrorV119(message, "window.error");
+    });
+    window.__pmFirestoreTransportEventsV119 = true;
+  }
+}
+
+if (typeof saveNoticeDirectToFirestoreV52 === "function" && !saveNoticeDirectToFirestoreV52.__transportWrappedV119) {
+  const saveNoticeDirectToFirestoreBeforeV119 = saveNoticeDirectToFirestoreV52;
+  saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV119(row) {
+    recordFirestoreWriteRequestedV119("notice-save");
+    try {
+      const result = await saveNoticeDirectToFirestoreBeforeV119.apply(this, arguments);
+      if (result?.confirmed) recordFirestoreWriteServerConfirmedV119("notice-save-server-confirmed");
+      return result;
+    } catch (error) {
+      recordFirestoreTransportErrorV119(error, "notice-save");
+      throw error;
+    }
+  };
+  saveNoticeDirectToFirestoreV52.__transportWrappedV119 = true;
+}
+
+if (typeof refreshWorkspaceNoticesFromServerV113 === "function" && !refreshWorkspaceNoticesFromServerV113.__transportWrappedV119) {
+  const refreshWorkspaceNoticesFromServerBeforeV119 = refreshWorkspaceNoticesFromServerV113;
+  refreshWorkspaceNoticesFromServerV113 = async function refreshWorkspaceNoticesFromServerV119(reason = "manual", options = {}) {
+    const result = await refreshWorkspaceNoticesFromServerBeforeV119.apply(this, arguments);
+    if (result?.ok) recordFirestoreServerReadSucceededV119(`notice-server-read:${reason}`);
+    if (!result?.ok && result?.reason) recordFirestoreTransportErrorV119({ code: result.reason, message: result.reason }, `notice-server-read:${reason}`);
+    return result;
+  };
+  refreshWorkspaceNoticesFromServerV113.__transportWrappedV119 = true;
+}

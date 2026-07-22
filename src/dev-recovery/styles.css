@@ -1,0 +1,211 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f4f7fb;
+  color: #0f172a;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button {
+  min-height: 42px;
+  border: 1px solid #cbd8ef;
+  border-radius: 8px;
+  background: #155dfc;
+  color: white;
+  font-weight: 700;
+  padding: 0 16px;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: #d8e0ee;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  background: white;
+  color: #18345f;
+}
+
+button.danger {
+  background: #be123c;
+}
+
+.recovery-shell {
+  width: min(1180px, calc(100% - 32px));
+  margin: 32px auto;
+}
+
+.recovery-header {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.recovery-header p {
+  margin: 0;
+  color: #5a6d94;
+  font-weight: 700;
+}
+
+.recovery-header h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.recovery-badge {
+  justify-self: start;
+  border: 1px solid #b7c7e6;
+  border-radius: 999px;
+  background: white;
+  color: #18345f;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.recovery-card {
+  background: white;
+  border: 1px solid #cfdbef;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(30, 64, 175, 0.08);
+  margin-bottom: 16px;
+  padding: 22px;
+}
+
+.recovery-card h1,
+.recovery-card h2 {
+  margin: 0 0 12px;
+}
+
+.recovery-card dl {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.recovery-card dt {
+  color: #627394;
+  font-weight: 800;
+}
+
+.recovery-card dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.recovery-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.recovery-form-grid label,
+.recovery-check {
+  display: grid;
+  gap: 6px;
+  color: #526789;
+  font-weight: 800;
+}
+
+.recovery-form-wide {
+  grid-column: 1 / -1;
+}
+
+.recovery-form-grid input {
+  min-height: 42px;
+  border: 1px solid #cbd8ef;
+  border-radius: 8px;
+  color: #0f172a;
+  font: inherit;
+  padding: 0 12px;
+}
+
+.recovery-check {
+  align-items: center;
+  display: flex;
+  margin: 8px 0 16px;
+}
+
+.recovery-check input {
+  height: 18px;
+  width: 18px;
+}
+
+.recovery-message {
+  border: 1px solid #cbd8ef;
+  border-radius: 8px;
+  color: #334155;
+  margin: 14px 0 0;
+  padding: 12px;
+}
+
+.recovery-pre {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #d8e3f3;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #18345f;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
+.recovery-count-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.recovery-count {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #d8e3f3;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.recovery-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.recovery-table th,
+.recovery-table td {
+  border-bottom: 1px solid #d8e3f3;
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.recovery-table th {
+  color: #526789;
+}
+
+.recovery-muted {
+  color: #64748b;
+}
+
+.recovery-ok {
+  color: #067647;
+}
+
+.recovery-error {
+  border-color: #f3a5ad;
+  color: #be123c;
+}
