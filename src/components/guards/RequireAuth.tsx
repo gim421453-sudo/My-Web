@@ -13,6 +13,7 @@ import {
 } from "../../auth/legacy/guards/NewAuthRequireAuthBridge";
 import {
   currentSearchFromDocument,
+  recordRequireAuthBridgeSnapshot,
   requireAuthModeForFlag,
   resolveNewAuthRequireAuthFlag,
   type RequireAuthBridgeSnapshot,
@@ -25,6 +26,7 @@ interface RequireAuthProps {
   children: ReactNode;
   previewMode?: boolean;
   onSnapshot?: (snapshot: RequireAuthBridgeSnapshot) => void;
+  useExistingAuthProvider?: boolean;
 }
 
 function legacyDecisionForSnapshot({
@@ -75,7 +77,7 @@ function LegacyRequireAuthBranch({
   });
 
   useEffect(() => {
-    onSnapshot?.({
+    const snapshot: RequireAuthBridgeSnapshot = {
       mode: "legacy",
       phase: "legacy",
       loading,
@@ -89,7 +91,11 @@ function LegacyRequireAuthBranch({
       expectedDestination: decision.expectedDestination,
       redirectAttempted: Boolean(!previewMode && !loading && !session),
       automaticSignOutOccurred: false,
-    });
+      authListenerCount: 0,
+    };
+
+    recordRequireAuthBridgeSnapshot(snapshot);
+    onSnapshot?.(snapshot);
   }, [
     decision,
     loading,
@@ -122,6 +128,7 @@ export default function RequireAuth({
   children,
   previewMode,
   onSnapshot,
+  useExistingAuthProvider = false,
 }: RequireAuthProps) {
   const mode = requireAuthModeForFlag(resolveNewAuthRequireAuthFlag({
     search: currentSearchFromDocument(),
@@ -134,9 +141,18 @@ export default function RequireAuth({
       <NewAuthRequireAuthBridge
         previewMode={previewMode}
         onSnapshot={onSnapshot}
+        wrapProviders={!useExistingAuthProvider}
       >
         {children}
       </NewAuthRequireAuthBridge>
+    );
+  }
+
+  if (useExistingAuthProvider) {
+    return (
+      <div>
+        RequireAuth rollback mode is disabled in this app-next entry.
+      </div>
     );
   }
 

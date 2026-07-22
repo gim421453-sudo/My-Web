@@ -44,6 +44,21 @@ import {
 import {
   AppNextWorkspaceNotices,
 } from "./AppNextWorkspaceNotices";
+import RequireAuth from "../components/guards/RequireAuth";
+import {
+  currentSearchFromDocument,
+  resolveNewAuthRequireAuthFlag,
+  type RequireAuthBridgeSnapshot,
+} from "../auth/legacy/guards/requireAuthBridgeUtils";
+import {
+  getAppNextRouteDiagnostics,
+  recordAppNextRouteDiagnostics,
+} from "./appNextDiagnostics";
+import {
+  appNextRouteHash,
+  resolveAppNextRoute,
+  type AppNextRoute,
+} from "./appNextRouteUtils";
 
 function ValueRow({
   label,
@@ -273,6 +288,21 @@ type AppNextTab =
   | "notifications"
   | "workspace-notices";
 
+function AppNextRouteOnlyPanel({
+  title,
+  body,
+}: {
+  title: string;
+  body: string;
+}) {
+  return (
+    <section className="app-next-panel">
+      <h2>{title}</h2>
+      <p>{body}</p>
+    </section>
+  );
+}
+
 export function AppNext({
   featureSource = "default",
 }: {
@@ -289,7 +319,9 @@ export function AppNext({
   const [sendBusy, setSendBusy] = useState(false);
   const [reloadBusy, setReloadBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [activeTab, setActiveTab] = useState<AppNextTab>("account");
+  const [hashRoute, setHashRoute] = useState(() => (
+    typeof window === "undefined" ? "#/dashboard" : window.location.hash
+  ));
 
   const emailVerified = session?.emailVerified ?? firebaseUser?.emailVerified;
   const state = appNextAccountState({
@@ -301,11 +333,36 @@ export function AppNext({
   const stateMessage = appNextStateMessage(state);
   const maskedEmail = maskAppNextEmail(session?.email ?? firebaseUser?.email);
   const isLoading = state === "loading";
-  const shouldShowLoginSurface =
-    state === "signed_out" ||
-    state === "loading" ||
-    state === "error" ||
-    state === "quota_exceeded";
+  const routeDecision = useMemo(
+    () => resolveAppNextRoute({
+      hash: hashRoute,
+      state,
+    }),
+    [
+      hashRoute,
+      state,
+    ],
+  );
+  const activeTab: AppNextTab =
+    routeDecision.currentRoute === "devices"
+      ? "devices"
+      : routeDecision.currentRoute === "notifications"
+        ? "notifications"
+        : routeDecision.currentRoute === "notices"
+          ? "workspace-notices"
+          : "account";
+  const showMainNavigation = ![
+    "login",
+    "pending",
+    "rejected",
+    "disabled",
+    "error",
+  ].includes(routeDecision.currentRoute);
+  const requireAuthEnabled = resolveNewAuthRequireAuthFlag({
+    search: currentSearchFromDocument(),
+    envValue: import.meta.env.VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH,
+    isDev: import.meta.env.DEV,
+  });
 
   const warningCount = useMemo(
     () => session?.warnings.length ?? 0,
@@ -337,6 +394,62 @@ export function AppNext({
     phase,
     session,
     state,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    recordAppNextRouteDiagnostics({
+      routeRestoreAttemptCount: 1,
+      routeRestoreSuccessCount: 1,
+    });
+    const handleHashChange = () => {
+      setHashRoute(window.location.hash);
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => {
+      window.removeEventListener("hashchange", handleHashChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    recordAppNextRouteDiagnostics({
+      requestedRoute: routeDecision.requestedRoute,
+      currentRoute: routeDecision.currentRoute,
+      fallbackReason: routeDecision.fallbackReason,
+      routeRenderDelta: 1,
+      requireAuthConsumerMounted: routeDecision.currentRoute === "notices" && requireAuthEnabled,
+      lastBlockedReason: routeDecision.currentRoute === "notices" && !requireAuthEnabled
+        ? "require-auth-flag-off"
+        : "none",
+    });
+  }, [
+    requireAuthEnabled,
+    routeDecision.currentRoute,
+    routeDecision.fallbackReason,
+    routeDecision.requestedRoute,
+  ]);
+
+  const handleRoute = useCallback((route: AppNextRoute) => {
+    if (typeof window === "undefined") return;
+    const nextHash = appNextRouteHash(route);
+    if (window.location.hash === nextHash) {
+      setHashRoute(nextHash);
+      return;
+    }
+    window.location.hash = nextHash;
+  }, []);
+
+  const handleRequireAuthSnapshot = useCallback((snapshot: RequireAuthBridgeSnapshot) => {
+    recordAppNextRouteDiagnostics({
+      requestedRoute: routeDecision.requestedRoute,
+      currentRoute: routeDecision.currentRoute,
+      protectedRouteRenderDelta: 1,
+      requireAuthConsumerMounted: true,
+      lastBlockedReason: snapshot.childrenRendered ? "none" : snapshot.decision.reason,
+    });
+  }, [
+    routeDecision.currentRoute,
+    routeDecision.requestedRoute,
   ]);
 
   const handleSendVerification = useCallback(async () => {
@@ -394,33 +507,33 @@ export function AppNext({
         </span>
       </header>
 
-      {!shouldShowLoginSurface ? (
+      {showMainNavigation ? (
         <nav className="app-next-tabs" aria-label="App Next 화면">
           <button
             type="button"
             className={activeTab === "account" ? "active" : "secondary"}
-            onClick={() => setActiveTab("account")}
+            onClick={() => handleRoute("dashboard")}
           >
             계정 상태
           </button>
           <button
             type="button"
             className={activeTab === "devices" ? "active" : "secondary"}
-            onClick={() => setActiveTab("devices")}
+            onClick={() => handleRoute("devices")}
           >
             로그인 기기
           </button>
           <button
             type="button"
             className={activeTab === "notifications" ? "active" : "secondary"}
-            onClick={() => setActiveTab("notifications")}
+            onClick={() => handleRoute("notifications")}
           >
             알림
           </button>
           <button
             type="button"
             className={activeTab === "workspace-notices" ? "active" : "secondary"}
-            onClick={() => setActiveTab("workspace-notices")}
+            onClick={() => handleRoute("notices")}
           >
             워크스페이스 공지
           </button>
@@ -432,8 +545,17 @@ export function AppNext({
         <p>{stateMessage.body}</p>
       </section>
 
-      {shouldShowLoginSurface ? (
-        <AppNextLogin />
+      {routeDecision.currentRoute === "login" ? (
+        state === "loading" ? (
+          <AppNextRouteOnlyPanel title={stateMessage.title} body={stateMessage.body} />
+        ) : (
+          <AppNextLogin />
+        )
+      ) : routeDecision.currentRoute === "pending" ||
+        routeDecision.currentRoute === "rejected" ||
+        routeDecision.currentRoute === "disabled" ||
+        routeDecision.currentRoute === "error" ? (
+        <AppNextRouteOnlyPanel title={stateMessage.title} body={stateMessage.body} />
       ) : activeTab === "account" ? (
         <>
           <section className="app-next-panel">
@@ -478,9 +600,33 @@ export function AppNext({
         <AppNextLoginDevices />
       ) : activeTab === "notifications" ? (
         <AppNextNotifications />
+      ) : requireAuthEnabled ? (
+        <RequireAuth
+          previewMode
+          useExistingAuthProvider
+          onSnapshot={handleRequireAuthSnapshot}
+        >
+          <AppNextWorkspaceNotices />
+        </RequireAuth>
       ) : (
-        <AppNextWorkspaceNotices />
+        <AppNextRouteOnlyPanel
+          title="RequireAuth rollback mode"
+          body="The protected workspace notices pilot is disabled by VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH or ?newAuthRequireAuth=off."
+        />
       )}
+
+      {import.meta.env.DEV ? (
+        <section className="app-next-panel app-next-diagnostics">
+          <h2>App Next Route Diagnostics</h2>
+          <dl>
+            <ValueRow label="currentRoute" value={getAppNextRouteDiagnostics().currentRoute} />
+            <ValueRow label="requestedRoute" value={getAppNextRouteDiagnostics().requestedRoute} />
+            <ValueRow label="fallbackReason" value={getAppNextRouteDiagnostics().fallbackReason} />
+            <ValueRow label="requireAuthConsumerMounted" value={booleanLabel(getAppNextRouteDiagnostics().requireAuthConsumerMounted)} />
+            <ValueRow label="protectedRouteRenderCount" value={String(getAppNextRouteDiagnostics().protectedRouteRenderCount)} />
+          </dl>
+        </section>
+      ) : null}
 
       <AppNextDiagnosticsDrawer
         adapterPresent={Boolean(legacyAdapter)}

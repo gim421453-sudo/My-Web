@@ -3,6 +3,9 @@ import {
   createRoot,
 } from "react-dom/client";
 import {
+  BrowserRouter,
+} from "react-router-dom";
+import {
   AuthProvider,
 } from "../auth/AuthProvider";
 import {
@@ -48,13 +51,15 @@ const mode = appNextModeForFlag(resolvedAuthFlag.enabled);
 createRoot(root).render(
   <React.StrictMode>
     {mode === "enabled" ? (
-      <AuthProvider>
-        <LegacyAuthAdapterProvider>
-          <AppNextErrorBoundary>
-            <AppNext featureSource={resolvedAuthFlag.source} />
-          </AppNextErrorBoundary>
-        </LegacyAuthAdapterProvider>
-      </AuthProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <LegacyAuthAdapterProvider>
+            <AppNextErrorBoundary>
+              <AppNext featureSource={resolvedAuthFlag.source} />
+            </AppNextErrorBoundary>
+          </LegacyAuthAdapterProvider>
+        </AuthProvider>
+      </BrowserRouter>
     ) : (
       <AppNextDisabled />
     )}

@@ -25,7 +25,102 @@ export interface RequireAuthBridgeSnapshot {
   expectedDestination: GuardExpectedDestination;
   redirectAttempted: boolean;
   automaticSignOutOccurred: false;
+  authListenerCount: number;
 }
+
+export interface RequireAuthDiagnosticsSnapshot {
+  providerMode: RequireAuthBridgeMode | "unknown";
+  sessionPhase: AuthPhase | "legacy" | null;
+  isAuthenticated: boolean;
+  accountStatus: string | null;
+  decision: string | null;
+  redirectCount: number;
+  renderAllowedCount: number;
+  blockedCount: number;
+  lastBlockReason: string | null;
+  authListenerCount: number;
+  restoreConflictDetected: boolean;
+}
+
+let latestRequireAuthSnapshot: RequireAuthBridgeSnapshot | null = null;
+let redirectCount = 0;
+let renderAllowedCount = 0;
+let blockedCount = 0;
+let lastRedirectKey: string | null = null;
+let lastRenderAllowedKey: string | null = null;
+let lastBlockedKey: string | null = null;
+
+function snapshotDecisionKey(snapshot: RequireAuthBridgeSnapshot): string {
+  return JSON.stringify({
+    mode: snapshot.mode,
+    phase: snapshot.phase,
+    status: snapshot.status,
+    state: snapshot.decision.state,
+    reason: snapshot.decision.reason,
+    destination: snapshot.expectedDestination,
+    redirectAttempted: snapshot.redirectAttempted,
+    childrenRendered: snapshot.childrenRendered,
+  });
+}
+
+export function recordRequireAuthBridgeSnapshot(
+  snapshot: RequireAuthBridgeSnapshot,
+): void {
+  latestRequireAuthSnapshot = snapshot;
+  const key = snapshotDecisionKey(snapshot);
+
+  if (snapshot.redirectAttempted && key !== lastRedirectKey) {
+    redirectCount += 1;
+    lastRedirectKey = key;
+  }
+
+  if (snapshot.childrenRendered && key !== lastRenderAllowedKey) {
+    renderAllowedCount += 1;
+    lastRenderAllowedKey = key;
+  }
+
+  if (
+    !snapshot.loading &&
+    !snapshot.childrenRendered &&
+    snapshot.decision.state !== "loading" &&
+    key !== lastBlockedKey
+  ) {
+    blockedCount += 1;
+    lastBlockedKey = key;
+  }
+}
+
+export function getRequireAuthDiagnosticsSnapshot(): RequireAuthDiagnosticsSnapshot {
+  return {
+    providerMode: latestRequireAuthSnapshot?.mode ?? "unknown",
+    sessionPhase: latestRequireAuthSnapshot?.phase ?? null,
+    isAuthenticated: latestRequireAuthSnapshot?.isAuthenticated ?? false,
+    accountStatus: latestRequireAuthSnapshot?.status ?? null,
+    decision: latestRequireAuthSnapshot?.decision.reason ?? null,
+    redirectCount,
+    renderAllowedCount,
+    blockedCount,
+    lastBlockReason: latestRequireAuthSnapshot && !latestRequireAuthSnapshot.childrenRendered
+      ? latestRequireAuthSnapshot.decision.reason
+      : null,
+    authListenerCount: latestRequireAuthSnapshot?.authListenerCount ?? 0,
+    restoreConflictDetected: false,
+  };
+}
+
+function installRequireAuthDiagnostics(): void {
+  if (typeof window === "undefined") return;
+
+  (window as typeof window & {
+    PMRequireAuthDiagnostics?: {
+      snapshot(): RequireAuthDiagnosticsSnapshot;
+    };
+  }).PMRequireAuthDiagnostics = {
+    snapshot: getRequireAuthDiagnosticsSnapshot,
+  };
+}
+
+installRequireAuthDiagnostics();
 
 function parseBooleanSwitch(value: unknown): boolean | null {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -72,12 +167,15 @@ export function resolveNewAuthRequireAuthFlag({
   envValue,
   isDev = false,
 }: ResolveLegacyAuthGuardPreviewFlagInput = {}): boolean {
-  return resolveDevAuthFeatureFlag({
-    search,
-    envValue,
-    isDev,
-    queryKey: "newAuthRequireAuth",
-  });
+  if (isDev) {
+    const querySwitch = parseBooleanSwitch(queryValue(search, "newAuthRequireAuth"));
+    if (querySwitch !== null) return querySwitch;
+  }
+
+  const envSwitch = parseBooleanSwitch(envValue);
+  if (envSwitch !== null) return envSwitch;
+
+  return true;
 }
 
 export function requireAuthModeForFlag(

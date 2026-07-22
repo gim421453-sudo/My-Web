@@ -93,6 +93,37 @@ export interface AppNextNoticeDiagnosticsSnapshot {
   automaticSignOut: string;
 }
 
+export interface AppNextNoticeRouteDiagnosticsSnapshot {
+  loading: boolean;
+  errorCode: string;
+  fetchedCount: number;
+  visibleCount: number;
+  filteredCount: number;
+  listenerStartCount: number;
+  listenerStopCount: number;
+  activeListenerCount: number;
+  duplicateNoticeCount: number;
+  workspaceMasked: string;
+  lastLoadSource: string;
+  writeAttemptCount: number;
+}
+
+export interface AppNextRouteDiagnosticsSnapshot {
+  currentRoute: string;
+  requestedRoute: string;
+  fallbackCount: number;
+  fallbackReason: string;
+  routeRenderCount: number;
+  protectedRouteRenderCount: number;
+  blockedRouteCount: number;
+  lastBlockedReason: string;
+  routeRestoreAttemptCount: number;
+  routeRestoreSuccessCount: number;
+  routeRedirectCount: number;
+  requireAuthConsumerMounted: boolean;
+  requireAuthConsumerMountCount: number;
+}
+
 const MAX_APP_NEXT_DIAGNOSTIC_EVENTS = 30;
 const diagnosticEvents: AppNextDiagnosticEvent[] = [];
 const APP_NEXT_LAST_STATE_KEY = "pm-app-next-last-state-v1";
@@ -135,6 +166,23 @@ let persistenceRestoreResult = "unknown";
 let crossTabAuthChangeCount = 0;
 let crossTabSignedOutCount = 0;
 let lastCrossTabAuthReason = "none";
+let routeDiagnostics: AppNextRouteDiagnosticsSnapshot = {
+  currentRoute: "dashboard",
+  requestedRoute: "dashboard",
+  fallbackCount: 0,
+  fallbackReason: "none",
+  routeRenderCount: 0,
+  protectedRouteRenderCount: 0,
+  blockedRouteCount: 0,
+  lastBlockedReason: "none",
+  routeRestoreAttemptCount: 0,
+  routeRestoreSuccessCount: 0,
+  routeRedirectCount: 0,
+  requireAuthConsumerMounted: false,
+  requireAuthConsumerMountCount: 0,
+};
+let lastRouteFallbackKey = "none";
+let lastRequireAuthConsumerMounted = false;
 let noticeDiagnostics: AppNextNoticeDiagnosticsSnapshot = {
   screen: "workspace-notices",
   phase: "unknown",
@@ -194,6 +242,32 @@ let noticeDiagnostics: AppNextNoticeDiagnosticsSnapshot = {
   writeApiImported: false,
   automaticSignOut: "none",
 };
+
+function installAppNextDiagnosticsWindows(): void {
+  if (typeof window === "undefined") return;
+
+  (window as typeof window & {
+    PMAppNextRouteDiagnostics?: {
+      snapshot(): AppNextRouteDiagnosticsSnapshot;
+    };
+    PMAppNextNoticeDiagnostics?: {
+      snapshot(): AppNextNoticeRouteDiagnosticsSnapshot;
+    };
+  }).PMAppNextRouteDiagnostics = {
+    snapshot: getAppNextRouteDiagnostics,
+  };
+
+  (window as typeof window & {
+    PMAppNextRouteDiagnostics?: {
+      snapshot(): AppNextRouteDiagnosticsSnapshot;
+    };
+    PMAppNextNoticeDiagnostics?: {
+      snapshot(): AppNextNoticeRouteDiagnosticsSnapshot;
+    };
+  }).PMAppNextNoticeDiagnostics = {
+    snapshot: getAppNextNoticeRouteDiagnostics,
+  };
+}
 
 export type AppNextDiagnosticFingerprintNamespace = DiagnosticFingerprintNamespace;
 
@@ -575,6 +649,68 @@ export function getAppNextNoticeDiagnostics(): AppNextNoticeDiagnosticsSnapshot 
   return { ...noticeDiagnostics };
 }
 
+export function recordAppNextRouteDiagnostics(
+  next: Partial<AppNextRouteDiagnosticsSnapshot> & {
+    protectedRouteRenderDelta?: number;
+    routeRenderDelta?: number;
+  },
+): void {
+  const fallbackReason = next.fallbackReason ?? routeDiagnostics.fallbackReason;
+  const fallbackKey = `${next.requestedRoute ?? routeDiagnostics.requestedRoute}:${next.currentRoute ?? routeDiagnostics.currentRoute}:${fallbackReason}`;
+  const fallbackCount = fallbackReason !== "none" && fallbackKey !== lastRouteFallbackKey
+    ? routeDiagnostics.fallbackCount + 1
+    : routeDiagnostics.fallbackCount;
+
+  if (fallbackReason !== "none") {
+    lastRouteFallbackKey = fallbackKey;
+  }
+
+  const requireAuthConsumerMounted = next.requireAuthConsumerMounted
+    ?? routeDiagnostics.requireAuthConsumerMounted;
+  const requireAuthConsumerMountCount =
+    requireAuthConsumerMounted && !lastRequireAuthConsumerMounted
+      ? routeDiagnostics.requireAuthConsumerMountCount + 1
+      : routeDiagnostics.requireAuthConsumerMountCount;
+  lastRequireAuthConsumerMounted = requireAuthConsumerMounted;
+
+  routeDiagnostics = {
+    ...routeDiagnostics,
+    ...next,
+    fallbackCount,
+    routeRenderCount: routeDiagnostics.routeRenderCount + (next.routeRenderDelta ?? 0),
+    protectedRouteRenderCount: routeDiagnostics.protectedRouteRenderCount + (next.protectedRouteRenderDelta ?? 0),
+    requireAuthConsumerMounted,
+    requireAuthConsumerMountCount,
+  };
+
+  if (next.lastBlockedReason && next.lastBlockedReason !== "none") {
+    routeDiagnostics.blockedRouteCount += 1;
+  }
+}
+
+export function getAppNextRouteDiagnostics(): AppNextRouteDiagnosticsSnapshot {
+  return { ...routeDiagnostics };
+}
+
+export function getAppNextNoticeRouteDiagnostics(): AppNextNoticeRouteDiagnosticsSnapshot {
+  return {
+    loading: noticeDiagnostics.lastRequestedReadMode !== "none"
+      && noticeDiagnostics.lastCompletedReadMode === "none"
+      && noticeDiagnostics.lastErrorKind === "none",
+    errorCode: noticeDiagnostics.lastErrorKind,
+    fetchedCount: noticeDiagnostics.rawReadCount,
+    visibleCount: noticeDiagnostics.displayedCount,
+    filteredCount: noticeDiagnostics.filteredCount,
+    listenerStartCount: 0,
+    listenerStopCount: 0,
+    activeListenerCount: noticeDiagnostics.listenerCount,
+    duplicateNoticeCount: 0,
+    workspaceMasked: noticeDiagnostics.currentWorkspaceFingerprint,
+    lastLoadSource: noticeDiagnostics.lastCompletedReadMode,
+    writeAttemptCount: 0,
+  };
+}
+
 export function appNextAuthDiagnosticsText(extra: Record<string, unknown> = {}): string {
   return JSON.stringify({
     channel: "appNextAuthDiagnostics",
@@ -615,3 +751,5 @@ export function getAppNextDiagnosticEvents(): AppNextDiagnosticEvent[] {
 export function appNextDiagnosticsText(): string {
   return JSON.stringify(getAppNextDiagnosticEvents(), null, 2);
 }
+
+installAppNextDiagnosticsWindows();

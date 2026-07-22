@@ -9,6 +9,7 @@ import {
 
 import {
   AuthProvider,
+  getAuthProviderDiagnosticsSnapshot,
 } from "../../AuthProvider";
 import {
   LegacyAuthAdapterProvider,
@@ -21,6 +22,7 @@ import {
 } from "./legacyGuardDecisionUtils";
 import {
   redirectDestinationForRequireAuthDecision,
+  recordRequireAuthBridgeSnapshot,
   requireAuthBridgeMessage,
   shouldRenderRequireAuthChildren,
   type RequireAuthBridgeSnapshot,
@@ -30,6 +32,7 @@ interface NewAuthRequireAuthBridgeProps {
   children: ReactNode;
   previewMode?: boolean;
   onSnapshot?: (snapshot: RequireAuthBridgeSnapshot) => void;
+  wrapProviders?: boolean;
 }
 
 function NewAuthRequireAuthInner({
@@ -57,7 +60,8 @@ function NewAuthRequireAuthInner({
   const childrenRendered = shouldRenderRequireAuthChildren(decision);
 
   useEffect(() => {
-    onSnapshot?.({
+    const authProviderDiagnostics = getAuthProviderDiagnosticsSnapshot();
+    const snapshot: RequireAuthBridgeSnapshot = {
       mode: "new",
       phase: legacy.phase,
       loading: legacy.loading,
@@ -71,7 +75,11 @@ function NewAuthRequireAuthInner({
       expectedDestination: decision.expectedDestination,
       redirectAttempted: Boolean(destination && !previewMode),
       automaticSignOutOccurred: false,
-    });
+      authListenerCount: authProviderDiagnostics.authStateListenerCount,
+    };
+
+    recordRequireAuthBridgeSnapshot(snapshot);
+    onSnapshot?.(snapshot);
   }, [
     childrenRendered,
     decision,
@@ -120,7 +128,19 @@ export function NewAuthRequireAuthBridge({
   children,
   previewMode,
   onSnapshot,
+  wrapProviders = true,
 }: NewAuthRequireAuthBridgeProps) {
+  if (!wrapProviders) {
+    return (
+      <NewAuthRequireAuthInner
+        previewMode={previewMode}
+        onSnapshot={onSnapshot}
+      >
+        {children}
+      </NewAuthRequireAuthInner>
+    );
+  }
+
   return (
     <AuthProvider>
       <LegacyAuthAdapterProvider>

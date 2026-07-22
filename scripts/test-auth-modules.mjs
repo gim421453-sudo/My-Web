@@ -160,6 +160,7 @@ const protectedRouteBridgeUtils = loadTsModule("src/auth/legacy/guards/protected
 const workspaceRoleBridgeUtils = loadTsModule("src/auth/legacy/guards/workspaceRoleBridgeUtils.ts");
 const loginBridgeUtils = loadTsModule("src/pages/loginBridgeUtils.ts");
 const appNextUtils = loadTsModule("src/app-next/appNextUtils.ts");
+const appNextRouteUtils = loadTsModule("src/app-next/appNextRouteUtils.ts");
 const appNextLoginDevicesUtils = loadTsModule("src/app-next/appNextLoginDevicesUtils.ts");
 const appNextNotificationsUtils = loadTsModule("src/app-next/appNextNotificationsUtils.ts");
 const appNextWorkspaceNoticesUtils = loadTsModule("src/app-next/appNextWorkspaceNoticesUtils.ts");
@@ -3088,19 +3089,23 @@ const tests = [
     assert.equal(existsSync(path.resolve(projectRoot, "legacy-auth-guard-preview.html")), true);
     assert.equal(readFileSync(path.resolve(projectRoot, "index.html"), "utf8").includes("legacy-auth-guard-preview"), false);
   }],
-  ["require auth bridge feature flag defaults false", () => {
+  ["require auth bridge defaults to new auth", () => {
     assert.equal(requireAuthBridgeUtils.resolveNewAuthRequireAuthFlag({
       isDev: true,
-    }), false);
-    assert.equal(requireAuthBridgeUtils.requireAuthModeForFlag(false), "legacy");
+    }), true);
+    assert.equal(requireAuthBridgeUtils.resolveNewAuthRequireAuthFlag({
+      isDev: false,
+    }), true);
+    assert.equal(requireAuthBridgeUtils.requireAuthModeForFlag(true), "new");
   }],
-  ["require auth bridge env false stays legacy", () => {
+  ["require auth bridge env false is rollback to legacy", () => {
     assert.equal(requireAuthBridgeUtils.resolveNewAuthRequireAuthFlag({
       envValue: "false",
       isDev: true,
     }), false);
+    assert.equal(requireAuthBridgeUtils.requireAuthModeForFlag(false), "legacy");
   }],
-  ["require auth bridge env true enables new in dev", () => {
+  ["require auth bridge env true keeps new auth", () => {
     assert.equal(requireAuthBridgeUtils.resolveNewAuthRequireAuthFlag({
       envValue: "true",
       isDev: true,
@@ -3133,10 +3138,20 @@ const tests = [
       isDev: true,
     }), false);
   }],
-  ["require auth bridge production is blocked", () => {
+  ["require auth bridge production ignores query but keeps default new", () => {
     assert.equal(requireAuthBridgeUtils.resolveNewAuthRequireAuthFlag({
       search: "?newAuthRequireAuth=on",
-      envValue: "true",
+      isDev: false,
+    }), true);
+    assert.equal(requireAuthBridgeUtils.resolveNewAuthRequireAuthFlag({
+      search: "?newAuthRequireAuth=off",
+      isDev: false,
+    }), true);
+  }],
+  ["require auth bridge production env false rollback is explicit", () => {
+    assert.equal(requireAuthBridgeUtils.resolveNewAuthRequireAuthFlag({
+      search: "?newAuthRequireAuth=on",
+      envValue: "false",
       isDev: false,
     }), false);
   }],
@@ -3240,6 +3255,50 @@ const tests = [
     }));
     assert.equal(requireAuthBridgeUtils.shouldRenderRequireAuthChildren(decision), false);
     assert.ok(requireAuthBridgeUtils.requireAuthBridgeMessage(decision));
+  }],
+  ["require auth bridge records safe diagnostics snapshot", () => {
+    const decision = legacyGuardDecisionUtils.decideLegacyRequireAuth(legacyGuardDecisionUtils.createLegacyGuardInput({
+      phase: "authenticated",
+      session: legacyAuthAdapterUtils.toLegacyAuthAdapterSession(makeSession({
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      })),
+      isAuthenticated: true,
+    }));
+    requireAuthBridgeUtils.recordRequireAuthBridgeSnapshot({
+      mode: "new",
+      phase: "authenticated",
+      loading: false,
+      isAuthenticated: true,
+      status: "active",
+      globalRole: "system_owner",
+      isSystemOwner: true,
+      hasCurrentWorkspaceId: false,
+      decision,
+      childrenRendered: true,
+      expectedDestination: null,
+      redirectAttempted: false,
+      automaticSignOutOccurred: false,
+      authListenerCount: 1,
+    });
+    const snapshot = requireAuthBridgeUtils.getRequireAuthDiagnosticsSnapshot();
+    assert.equal(snapshot.providerMode, "new");
+    assert.equal(snapshot.sessionPhase, "authenticated");
+    assert.equal(snapshot.isAuthenticated, true);
+    assert.equal(snapshot.accountStatus, "active");
+    assert.equal(snapshot.decision, "AUTHENTICATED_WITHOUT_WORKSPACE");
+    assert.equal(snapshot.authListenerCount, 1);
+    assert.equal(Object.hasOwn(snapshot, "uid"), false);
+    assert.equal(Object.hasOwn(snapshot, "email"), false);
+    assert.equal(Object.hasOwn(snapshot, "workspaceId"), false);
+  }],
+  ["require auth bridge installs diagnostics API without sensitive fields", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/auth/legacy/guards/requireAuthBridgeUtils.ts"), "utf8");
+    assert.match(source, /PMRequireAuthDiagnostics/);
+    assert.match(source, /getRequireAuthDiagnosticsSnapshot/);
+    assert.equal(source.includes("uid:"), false);
+    assert.equal(source.includes("email:"), false);
+    assert.equal(source.includes("workspaceId:"), false);
   }],
   ["require auth bridge session error does not render children", () => {
     const session = legacyAuthAdapterUtils.toLegacyAuthAdapterSession(makeSession());
@@ -5986,14 +6045,84 @@ const tests = [
     assert.match(source, /rulesWillChange:\s*false/);
     assert.match(source, /writeExecuted:\s*false/);
   }],
-  ["app-next tabs expose account devices notifications and workspace notices without router", () => {
+  ["app-next routes expose account devices notifications and protected workspace notices", () => {
     const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    const mainSource = readFileSync(path.resolve(projectRoot, "src/app-next/main.tsx"), "utf8");
     assert.match(source, /AppNextLoginDevices/);
     assert.match(source, /AppNextNotifications/);
     assert.match(source, /AppNextWorkspaceNotices/);
-    assert.match(source, /activeTab/);
-    assert.equal(source.includes("BrowserRouter"), false);
+    assert.match(source, /<RequireAuth/);
+    assert.match(source, /useExistingAuthProvider/);
+    assert.match(source, /resolveAppNextRoute/);
+    assert.match(mainSource, /BrowserRouter/);
     assert.equal(source.includes("createBrowserRouter"), false);
+  }],
+  ["app-next route resolver handles auth states without redirect loops", () => {
+    const activeNotices = appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/notices",
+      state: "active",
+    });
+    assert.equal(activeNotices.requestedRoute, "notices");
+    assert.equal(activeNotices.currentRoute, "notices");
+    assert.equal(activeNotices.fallbackReason, "none");
+    assert.equal(activeNotices.isProtectedRoute, true);
+    assert.equal(appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/notices",
+      state: "signed_out",
+    }).currentRoute, "login");
+    assert.equal(appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/notices",
+      state: "pending",
+    }).currentRoute, "pending");
+    assert.equal(appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/notices",
+      state: "rejected",
+    }).currentRoute, "rejected");
+    assert.equal(appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/notices",
+      state: "disabled",
+    }).currentRoute, "disabled");
+    assert.equal(appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/missing",
+      state: "active",
+    }).fallbackReason, "unknown-route");
+  }],
+  ["RequireAuth can consume an existing app-next AuthProvider without duplicate providers", () => {
+    const requireAuthSource = readFileSync(path.resolve(projectRoot, "src/components/guards/RequireAuth.tsx"), "utf8");
+    const bridgeSource = readFileSync(path.resolve(projectRoot, "src/auth/legacy/guards/NewAuthRequireAuthBridge.tsx"), "utf8");
+    assert.match(requireAuthSource, /useExistingAuthProvider/);
+    assert.match(requireAuthSource, /wrapProviders=\{!useExistingAuthProvider\}/);
+    assert.match(bridgeSource, /wrapProviders = true/);
+    assert.match(bridgeSource, /if \(!wrapProviders\)/);
+  }],
+  ["app-next exposes route and notice diagnostics without sensitive identifiers", () => {
+    const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
+    assert.match(diagnosticsSource, /PMAppNextRouteDiagnostics/);
+    assert.match(diagnosticsSource, /PMAppNextNoticeDiagnostics/);
+    assert.match(diagnosticsSource, /fetchedCount/);
+    assert.match(diagnosticsSource, /visibleCount/);
+    assert.match(diagnosticsSource, /writeAttemptCount:\s*0/);
+    assert.match(diagnosticsSource, /workspaceMasked/);
+  }],
+  ["app-next protected notices pilot keeps operational route storage untouched", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    const routeSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextRouteUtils.ts"), "utf8");
+    assert.equal(source.includes("pm-current-page-v1"), false);
+    assert.equal(routeSource.includes("pm-current-page-v1"), false);
+    assert.equal(appNextRouteUtils.appNextRouteHash("notices"), "#/notices");
+  }],
+  ["app-next workspace notices remain one-time read-only with no listener or write API", () => {
+    const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextWorkspaceNotices.tsx"), "utf8");
+    const serviceSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextWorkspaceNoticesService.ts"), "utf8");
+    assert.match(serviceSource, /getDocs/);
+    assert.match(serviceSource, /getDocsFromServer/);
+    assert.equal(serviceSource.includes("onSnapshot"), false);
+    assert.equal(serviceSource.includes("addDoc"), false);
+    assert.equal(serviceSource.includes("setDoc"), false);
+    assert.equal(serviceSource.includes("updateDoc"), false);
+    assert.equal(serviceSource.includes("deleteDoc"), false);
+    assert.match(componentSource, /listenerCount:\s*0/);
+    assert.match(componentSource, /writeApiImported:\s*false/);
   }],
 ];
 
