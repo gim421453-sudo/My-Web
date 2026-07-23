@@ -93,7 +93,7 @@ function DashboardValue({
 export function AppNextDashboardReadOnly({
   onNavigate,
 }: {
-  onNavigate(route: "notices" | "admin-preview" | "workspace-preview"): void;
+  onNavigate(route: "notices" | "admin-preview" | "workspace-preview" | "timetable-readonly"): void;
 }) {
   const {
     phase,
@@ -398,6 +398,24 @@ export function AppNextDashboardReadOnly({
           {!policy.hasWorkspace ? (
             <p className="app-next-message">워크스페이스가 선택되지 않았습니다. 대시보드는 유지하고 workspace 기반 카드만 비활성화합니다.</p>
           ) : null}
+        </section>
+
+        <section className="app-next-panel">
+          <div className="app-next-section-head">
+            <div>
+              <h2>시간표 요약</h2>
+              <p>이번 단계에서는 dashboard에서 별도 시간표 조회를 만들지 않고, 조회 전용 화면으로 이동합니다.</p>
+            </div>
+            <button type="button" className="secondary" onClick={() => onNavigate("timetable-readonly")}>
+              시간표 보기
+            </button>
+          </div>
+          <dl>
+            <DashboardValue label="오늘 수업 수" value="시간표 조회 화면에서 확인" />
+            <DashboardValue label="조회 상태" value="route 이동 후 확인" />
+            <DashboardValue label="중복 셀 경고" value="시간표 조회 화면에서 확인" />
+            <DashboardValue label="dashboard 추가 read" value="0" />
+          </dl>
         </section>
 
         <section className="app-next-panel">

@@ -13,6 +13,7 @@ export type AppNextRoute =
   | "dashboard"
   | "account"
   | "settings-readonly"
+  | "timetable-readonly"
   | "devices"
   | "notifications"
   | "notices"
@@ -80,6 +81,7 @@ const APP_NEXT_ROUTES = new Set<AppNextRoute>([
   "dashboard",
   "account",
   "settings-readonly",
+  "timetable-readonly",
   "devices",
   "notifications",
   "notices",
@@ -98,6 +100,7 @@ const PROTECTED_ROUTES = new Set<AppNextRoute>([
   "dashboard",
   "account",
   "settings-readonly",
+  "timetable-readonly",
   "devices",
   "notifications",
   "notices",
@@ -394,7 +397,7 @@ export function appNextAuthRouteMatrixSnapshot({
     ? adminMenuVisible
     : currentRoute === "workspace-preview"
       ? workspaceMenuVisible
-      : ["dashboard", "account", "settings-readonly", "devices", "notifications", "notices"].includes(currentRoute) && active;
+      : ["dashboard", "account", "settings-readonly", "timetable-readonly", "devices", "notifications", "notices"].includes(currentRoute) && active;
 
   let finalDecision = "ALLOW_ROUTE";
   if (state === "loading") {
@@ -417,7 +420,10 @@ export function appNextAuthRouteMatrixSnapshot({
         : workspacePolicy.accessAllowed
           ? "ALLOW_ROUTE"
           : workspacePolicy.decision;
-  } else if (currentRoute === "notices" && !session?.currentWorkspaceId) {
+  } else if (
+    (currentRoute === "notices" || currentRoute === "timetable-readonly") &&
+    !session?.currentWorkspaceId
+  ) {
     finalDecision = "ALLOW_ROUTE_WITH_DATA_BLOCKED";
   }
 
@@ -447,7 +453,7 @@ export function appNextAuthRouteMatrixSnapshot({
     requiresAuth,
     requiresProtectedRoute,
     requiresWorkspaceRole,
-    workspaceRequired: currentRoute === "workspace-preview",
+    workspaceRequired: currentRoute === "workspace-preview" || currentRoute === "timetable-readonly",
     allowSystemOwner: currentRoute === "workspace-preview",
     requiredWorkspaceRoles: currentRoute === "workspace-preview"
       ? Array.from(APP_NEXT_WORKSPACE_PREVIEW_ROLES)

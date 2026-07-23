@@ -166,6 +166,7 @@ const appNextNotificationsUtils = loadTsModule("src/app-next/appNextNotification
 const appNextWorkspaceNoticesUtils = loadTsModule("src/app-next/appNextWorkspaceNoticesUtils.ts");
 const appNextDashboardUtils = loadTsModule("src/app-next/appNextDashboardUtils.ts");
 const appNextAccountSettingsUtils = loadTsModule("src/app-next/appNextAccountSettingsUtils.ts");
+const appNextTimetableReadonlyUtils = loadTsModule("src/app-next/appNextTimetableReadonlyUtils.ts");
 const workspaceParentRecoveryUtils = loadTsModule("src/dev-recovery/workspaceParentRecoveryUtils.ts");
 
 function makeSession(overrides = {}) {
@@ -5931,6 +5932,352 @@ const tests = [
     assert.match(diagnosticsSource, /workspace-document-missing/);
     assert.match(diagnosticsSource, /membership-inaccessible/);
     assert.match(diagnosticsSource, /system-owner-validation-error/);
+  }],
+  ["app-next timetable route is a RequireAuth read-only consumer", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    const routeSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextRouteUtils.ts"), "utf8");
+    const dashboardSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextDashboardReadOnly.tsx"), "utf8");
+    assert.match(appSource, /AppNextTimetableReadOnly/);
+    assert.match(appSource, /activeTab === "timetable-readonly"/);
+    assert.match(appSource, /<RequireAuth[\s\S]*?<AppNextTimetableReadOnly/);
+    assert.match(routeSource, /"timetable-readonly"/);
+    assert.match(dashboardSource, /onNavigate\("timetable-readonly"\)/);
+  }],
+  ["app-next timetable read policy allows route but blocks data without workspace", () => {
+    const policy = appNextTimetableReadonlyUtils.appNextTimetableReadPolicy({
+      phase: "authenticated",
+      session: makeSession({
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+    });
+    assert.equal(policy.routeAllowed, true);
+    assert.equal(policy.canRead, false);
+    assert.equal(policy.reason, "workspace-missing");
+    assert.equal(policy.hasWorkspace, false);
+  }],
+  ["app-next timetable read policy allows active workspace users only", () => {
+    const active = appNextTimetableReadonlyUtils.appNextTimetableReadPolicy({
+      phase: "authenticated",
+      session: makeSession({
+        currentWorkspaceId: "workspace-1",
+        currentWorkspaceRole: "viewer",
+      }),
+    });
+    assert.equal(active.routeAllowed, true);
+    assert.equal(active.canRead, true);
+    assert.equal(active.workspaceRoleCategory, "viewer");
+
+    for (const status of ["pending", "rejected", "disabled"]) {
+      const inactive = appNextTimetableReadonlyUtils.appNextTimetableReadPolicy({
+        phase: "account_action_required",
+        session: makeSession({
+          status,
+          currentWorkspaceId: "workspace-1",
+          currentWorkspaceRole: "normal",
+        }),
+      });
+      assert.equal(inactive.routeAllowed, false);
+      assert.equal(inactive.canRead, false);
+      assert.equal(inactive.reason, status);
+    }
+  }],
+  ["app-next timetable preserves system owner as global role", () => {
+    const policy = appNextTimetableReadonlyUtils.appNextTimetableReadPolicy({
+      phase: "authenticated",
+      session: makeSession({
+        globalRole: "system_owner",
+        isSystemOwner: true,
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+    });
+    assert.equal(policy.globalRoleCategory, "system_owner");
+    assert.equal(policy.workspaceRoleCategory, "none");
+    assert.equal(policy.routeAllowed, true);
+    assert.equal(policy.canRead, false);
+  }],
+  ["app-next timetable normalizes rows with duplicates and orphan exclusion", () => {
+    const normalized = appNextTimetableReadonlyUtils.normalizeAppNextTimetableStore({
+      timetableSets: [
+        {
+          id: "regular-set",
+          name: "정규 시간표",
+          kind: "regular",
+          visiblePeriodCount: 2,
+        },
+        {
+          id: "after-set",
+          name: "방과후 시간표",
+          kind: "afterschool",
+        },
+      ],
+      periodTimes: [
+        {
+          id: "common-1",
+          period: "1교시",
+          startTime: "08:40",
+          endTime: "09:25",
+        },
+        {
+          id: "set-1",
+          setId: "regular-set",
+          period: "1교시",
+          startTime: "09:00",
+          endTime: "09:50",
+        },
+        {
+          id: "common-2",
+          period: "2교시",
+          startTime: "10:00",
+          endTime: "10:50",
+        },
+      ],
+      timetable: [
+        {
+          id: "row-2",
+          setId: "regular-set",
+          day: "월요일",
+          period: "2교시",
+          subject: "수학",
+        },
+        {
+          id: "row-1",
+          setId: "regular-set",
+          day: "월",
+          period: "1교시",
+          subject: "국어",
+          teacher: "김선생",
+          room: "101",
+        },
+        {
+          id: "row-dup",
+          setId: "regular-set",
+          day: "월",
+          period: "01교시",
+          subject: "사회",
+        },
+        {
+          id: "after-row",
+          setId: "after-set",
+          day: "화",
+          period: "1교시",
+          subject: "방과후",
+        },
+        {
+          id: "orphan-row",
+          setId: "deleted-set",
+          day: "월",
+          period: "1교시",
+          subject: "삭제된 시간표",
+        },
+      ],
+    }, {
+      requestedSetId: "regular-set",
+      now: new Date("2026-07-20T00:00:00+09:00"),
+    });
+
+    assert.equal(normalized.activeSetId, "regular-set");
+    assert.equal(normalized.regularCells.length, 3);
+    assert.equal(normalized.afterschoolCells.length, 1);
+    assert.equal(normalized.orphanRowsExcluded, 1);
+    assert.equal(normalized.periods[0].time, "09:00-09:50");
+    assert.equal(normalized.periods[1].time, "10:00-10:50");
+    assert.equal(normalized.duplicateGroups.length, 1);
+    assert.equal(normalized.duplicateCellItemCount, 2);
+    assert.equal(normalized.todayWeekday, "월");
+    assert.equal(normalized.todayCells.length, 3);
+  }],
+  ["app-next timetable defaults weekly table to regular set before afterschool set", () => {
+    const normalized = appNextTimetableReadonlyUtils.normalizeAppNextTimetableStore({
+      timetableSets: [
+        {
+          id: "after-set",
+          name: "방과후 시간표",
+          type: "방과후",
+        },
+        {
+          id: "school",
+          name: "학교수업 시간표",
+          type: "학교수업",
+        },
+      ],
+      timetable: [
+        {
+          id: "after-row",
+          setId: "after-set",
+          day: "월",
+          period: "1교시",
+          subject: "방과후",
+        },
+        {
+          id: "school-row",
+          setId: "school",
+          day: "월",
+          period: "1교시",
+          subject: "국어",
+          teacher: "김선생",
+          room: "101",
+        },
+      ],
+      periodTimes: [],
+    });
+    assert.equal(normalized.activeSetId, "school");
+    assert.equal(normalized.regularCells.length, 1);
+    assert.equal(normalized.regularCells[0].subject, "국어");
+    assert.equal(normalized.afterschoolCells.length, 1);
+  }],
+  ["app-next timetable supports operational school rows without explicit set id", () => {
+    const normalized = appNextTimetableReadonlyUtils.normalizeAppNextTimetableStore({
+      timetableSets: [
+        {
+          id: "school",
+          name: "학교수업",
+          type: "학교수업",
+        },
+      ],
+      timetable: [
+        {
+          id: "legacy-school-row",
+          day: "화",
+          period: "3교시",
+          subject: "과학",
+          teacher: "이선생",
+          room: "과학실",
+        },
+      ],
+      periodTimes: [
+        {
+          period: "3교시",
+          time: "10:40-11:25",
+        },
+      ],
+    });
+    assert.equal(normalized.activeSetId, "school");
+    assert.equal(normalized.missingSetRowsIncluded, 1);
+    assert.equal(normalized.orphanRowsExcluded, 0);
+    assert.equal(normalized.regularCells.length, 1);
+    assert.equal(normalized.regularCells[0].day, "화");
+    assert.equal(normalized.regularCells[0].period, "3교시");
+    assert.equal(normalized.regularCells[0].subject, "과학");
+    assert.equal(normalized.regularCells[0].teacher, "이선생");
+    assert.equal(normalized.regularCells[0].room, "과학실");
+    assert.equal(normalized.afterschoolCells.length, 0);
+  }],
+  ["app-next timetable invalid selection does not mutate fallback set", () => {
+    const normalized = appNextTimetableReadonlyUtils.normalizeAppNextTimetableStore({
+      timetableSets: [
+        {
+          id: "set-a",
+          name: "A 시간표",
+        },
+      ],
+      timetable: [
+        {
+          id: "row-a",
+          setId: "set-a",
+          day: "월",
+          period: "1교시",
+          subject: "국어",
+        },
+      ],
+      periodTimes: [],
+    }, {
+      requestedSetId: "deleted-set",
+    });
+    assert.equal(normalized.activeSetId, "");
+    assert.equal(normalized.activeSetMissing, true);
+    assert.equal(normalized.regularCells.length, 0);
+  }],
+  ["app-next timetable row without set id is excluded unless school compatibility applies", () => {
+    const normalized = appNextTimetableReadonlyUtils.normalizeAppNextTimetableStore({
+      timetableSets: [
+        {
+          id: "set-a",
+          name: "A 시간표",
+        },
+      ],
+      timetable: [
+        {
+          id: "legacy-row",
+          day: "월",
+          period: "1교시",
+          subject: "레거시",
+        },
+      ],
+      periodTimes: [],
+    }, {
+      requestedSetId: "set-a",
+    });
+    assert.equal(normalized.orphanRowsExcluded, 1);
+    assert.equal(normalized.regularCells.length, 0);
+  }],
+  ["app-next timetable service is one-time read-only and canonical workspace scoped", () => {
+    const serviceSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextTimetableReadonlyService.ts"), "utf8");
+    const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextTimetableReadOnly.tsx"), "utf8");
+    const forbidden = /\b(addDoc|setDoc|updateDoc|deleteDoc|writeBatch|runTransaction|onSnapshot|getDocsFromServer)\b/;
+    assert.match(serviceSource, /collection\(getFirebaseDb\(\), collections\.workspaces, workspaceId, key\)/);
+    assert.match(serviceSource, /getDocs\(/);
+    assert.match(serviceSource, /"timetable"/);
+    assert.match(serviceSource, /"timetableSets"/);
+    assert.match(serviceSource, /"periodTimes"/);
+    assert.match(componentSource, /sessionStorage\.getItem\("pm-timetable-set"\)/);
+    assert.match(componentSource, /requestedSetId/);
+    assert.equal(forbidden.test(serviceSource), false);
+    assert.equal(forbidden.test(componentSource), false);
+    assert.equal(/\bsignOut\s*\(/.test(componentSource), false);
+  }],
+  ["app-next timetable diagnostics are privacy-safe zero-write counters", () => {
+    const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
+    const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextTimetableReadOnly.tsx"), "utf8");
+    assert.match(diagnosticsSource, /AppNextTimetableDiagnosticsSnapshot/);
+    assert.match(diagnosticsSource, /PMAppNextTimetableDiagnostics/);
+    assert.match(diagnosticsSource, /recordAppNextTimetableDiagnostics/);
+    assert.match(componentSource, /timetableWriteAttemptCount:\s*0/);
+    assert.match(componentSource, /timetableListenerStartCount:\s*0/);
+    assert.match(componentSource, /timetableActiveListenerCount:\s*0/);
+    const interfaceBlock = diagnosticsSource.match(/AppNextTimetableDiagnosticsSnapshot[\s\S]*?}\n/)?.[0] || "";
+    assert.equal(/\b(uid|email|workspaceId|documentId|path|token)\b/i.test(interfaceBlock), false);
+  }],
+  ["app-next timetable in-flight reuse is not reported as duplicate loader execution", () => {
+    const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextTimetableReadOnly.tsx"), "utf8");
+    const inFlightReuseBlock = componentSource.match(/if \(\(existingRequest \|\| inFlightRef\.current\)[\s\S]*?return;\n    }/)?.[0] || "";
+    assert.match(inFlightReuseBlock, /existingRequest/);
+    assert.equal(/setDuplicateLoadDetected\(true\)/.test(inFlightReuseBlock), false);
+    assert.equal(/duplicateLoadDetected:\s*true/.test(inFlightReuseBlock), false);
+    assert.match(componentSource, /timetableLoadCount \+= 1/);
+    assert.match(componentSource, /timetableReadCount \+= 3/);
+  }],
+  ["app-next timetable route matrix is workspace-null safe", () => {
+    const result = appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/timetable-readonly",
+      state: "active",
+    });
+    assert.equal(result.currentRoute, "timetable-readonly");
+    assert.equal(result.isProtectedRoute, true);
+
+    const matrix = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "timetable-readonly",
+      currentRoute: "timetable-readonly",
+      state: "active",
+      session: makeSession({
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+      requireAuthEnabled: true,
+      protectedRouteEnabled: true,
+      requireWorkspaceRoleEnabled: true,
+    });
+    assert.equal(matrix.finalDecision, "ALLOW_ROUTE_WITH_DATA_BLOCKED");
+    assert.equal(matrix.directUrlAllowed, true);
+    assert.equal(matrix.workspaceRequired, true);
+  }],
+  ["app-next timetable does not modify operational static app files", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const htmlSource = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    assert.equal(appSource.includes("AppNextTimetableReadOnly"), false);
+    assert.equal(appSource.includes("#/timetable-readonly"), false);
+    assert.equal(htmlSource.includes("AppNextTimetableReadOnly"), false);
   }],
   ["workspace parent recovery dry-run page is standalone and development gated", () => {
     const html = readFileSync(path.resolve(projectRoot, "workspace-parent-recovery.html"), "utf8");

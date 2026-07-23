@@ -148,6 +148,110 @@ button.secondary {
   margin-bottom: 0;
 }
 
+.app-next-timetable-panel {
+  overflow: hidden;
+}
+
+.app-next-timetable-scroll {
+  overflow-x: auto;
+}
+
+.app-next-timetable-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 760px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.app-next-timetable-table th,
+.app-next-timetable-table td {
+  border-bottom: 1px solid #dbe5f3;
+  border-right: 1px solid #dbe5f3;
+  min-width: 116px;
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.app-next-timetable-table th:first-child,
+.app-next-timetable-table td:first-child {
+  border-left: 1px solid #dbe5f3;
+}
+
+.app-next-timetable-table thead th {
+  background: #eef5ff;
+  border-top: 1px solid #dbe5f3;
+  color: #18345f;
+}
+
+.app-next-timetable-table th.today,
+.app-next-timetable-table td.today {
+  background: #f0fdf4;
+}
+
+.app-next-timetable-table tbody th {
+  background: #f8fbff;
+}
+
+.app-next-timetable-table tbody th span,
+.app-next-timetable-table tbody th small {
+  display: block;
+}
+
+.app-next-timetable-table tbody th small {
+  color: #627394;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.app-next-timetable-cell-list {
+  display: grid;
+  gap: 8px;
+}
+
+.app-next-timetable-class {
+  background: white;
+  border: 1px solid #cbd8ef;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-height: 64px;
+  padding: 9px;
+}
+
+.app-next-timetable-class.invalid {
+  border-color: #f3a5ad;
+}
+
+.app-next-timetable-class strong,
+.app-next-timetable-card strong {
+  overflow-wrap: anywhere;
+}
+
+.app-next-timetable-class span,
+.app-next-timetable-card small {
+  color: #405477;
+  overflow-wrap: anywhere;
+}
+
+.app-next-timetable-empty {
+  color: #8a9ab5;
+}
+
+.app-next-timetable-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.app-next-timetable-card {
+  border: 1px solid #dbe5f3;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+}
+
 .app-next-login-form {
   display: grid;
   gap: 14px;

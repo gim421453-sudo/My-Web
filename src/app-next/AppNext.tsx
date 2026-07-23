@@ -24,6 +24,7 @@ import {
   getAppNextDashboardDiagnostics,
   getAppNextAccountDiagnostics,
   getAppNextSettingsReadOnlyDiagnostics,
+  getAppNextTimetableDiagnostics,
   recordAppNextAuthRouteMatrixDiagnostics,
 } from "./appNextDiagnostics";
 import {
@@ -46,6 +47,9 @@ import {
 import {
   AppNextDashboardReadOnly,
 } from "./AppNextDashboardReadOnly";
+import {
+  AppNextTimetableReadOnly,
+} from "./AppNextTimetableReadOnly";
 import {
   AppNextAccountReadOnly,
 } from "./AppNextAccountReadOnly";
@@ -144,6 +148,7 @@ function AppNextDiagnostics({
   const dashboardDiagnostics = getAppNextDashboardDiagnostics();
   const accountDiagnostics = getAppNextAccountDiagnostics();
   const settingsDiagnostics = getAppNextSettingsReadOnlyDiagnostics();
+  const timetableDiagnostics = getAppNextTimetableDiagnostics();
   const recentEvents = getAppNextDiagnosticEvents();
 
   return (
@@ -238,6 +243,11 @@ function AppNextDiagnostics({
         <ValueRow label="settings.writeControlCount" value={String(settingsDiagnostics.writeControlCount)} />
         <ValueRow label="settings.writeAttemptCount" value={String(settingsDiagnostics.writeAttemptCount)} />
         <ValueRow label="settings.sensitiveValueDetected" value={booleanLabel(settingsDiagnostics.sensitiveValueDetected)} />
+        <ValueRow label="timetable.timetableReadCount" value={String(timetableDiagnostics.timetableReadCount)} />
+        <ValueRow label="timetable.timetableWriteAttemptCount" value={String(timetableDiagnostics.timetableWriteAttemptCount)} />
+        <ValueRow label="timetable.timetableActiveListenerCount" value={String(timetableDiagnostics.timetableActiveListenerCount)} />
+        <ValueRow label="timetable.duplicateCellGroupCount" value={String(timetableDiagnostics.duplicateCellGroupCount)} />
+        <ValueRow label="timetable.sensitiveValueDetected" value={booleanLabel(timetableDiagnostics.sensitiveValueDetected)} />
         <ValueRow label="notice.lastRequestedReadMode" value={noticeDiagnostics.lastRequestedReadMode} />
         <ValueRow label="notice.lastCompletedReadMode" value={noticeDiagnostics.lastCompletedReadMode} />
         <ValueRow label="notice.lastErrorKind" value={noticeDiagnostics.lastErrorKind} />
@@ -356,6 +366,7 @@ type AppNextTab =
   | "dashboard"
   | "account"
   | "settings-readonly"
+  | "timetable-readonly"
   | "devices"
   | "notifications"
   | "workspace-notices"
@@ -418,8 +429,10 @@ export function AppNext({
       ? "dashboard"
       : routeDecision.currentRoute === "account"
         ? "account"
-        : routeDecision.currentRoute === "settings-readonly"
-          ? "settings-readonly"
+      : routeDecision.currentRoute === "settings-readonly"
+        ? "settings-readonly"
+        : routeDecision.currentRoute === "timetable-readonly"
+          ? "timetable-readonly"
         : routeDecision.currentRoute === "devices"
       ? "devices"
       : routeDecision.currentRoute === "notifications"
@@ -442,6 +455,11 @@ export function AppNext({
     "disabled",
     "error",
   ].includes(routeDecision.currentRoute);
+  const pageTitle = activeTab === "dashboard"
+    ? "메인 대시보드"
+    : activeTab === "timetable-readonly"
+      ? "시간표 조회"
+      : "계정·설정";
   const requireAuthEnabled = resolveNewAuthRequireAuthFlag({
     search: currentSearchFromDocument(),
     envValue: import.meta.env.VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH,
@@ -534,6 +552,7 @@ export function AppNext({
         (routeDecision.currentRoute === "dashboard" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "account" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "settings-readonly" && requireAuthEnabled) ||
+        (routeDecision.currentRoute === "timetable-readonly" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "notices" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "admin-preview" && protectedRouteEnabled) ||
         (routeDecision.currentRoute === "workspace-preview" && protectedRouteEnabled && requireWorkspaceRoleEnabled)
@@ -545,6 +564,8 @@ export function AppNext({
         : routeDecision.currentRoute === "account" && !requireAuthEnabled
           ? "require-auth-flag-off"
         : routeDecision.currentRoute === "settings-readonly" && !requireAuthEnabled
+          ? "require-auth-flag-off"
+        : routeDecision.currentRoute === "timetable-readonly" && !requireAuthEnabled
           ? "require-auth-flag-off"
         : routeDecision.currentRoute === "admin-preview" && !protectedRouteEnabled
           ? "protected-route-flag-off"
@@ -634,7 +655,7 @@ export function AppNext({
     <main className="app-next-shell">
       <header className="app-next-header">
         <p>App Next 읽기 전용</p>
-        <h1>{activeTab === "dashboard" ? "메인 대시보드" : "계정·설정"}</h1>
+        <h1>{pageTitle}</h1>
         <span className={`app-next-badge app-next-${stateMessage.tone}`}>
           {stateMessage.title}
         </span>
@@ -662,6 +683,13 @@ export function AppNext({
             onClick={() => handleRoute("settings-readonly")}
           >
             설정 요약
+          </button>
+          <button
+            type="button"
+            className={activeTab === "timetable-readonly" ? "active" : "secondary"}
+            onClick={() => handleRoute("timetable-readonly")}
+          >
+            시간표 조회
           </button>
           <button
             type="button"
@@ -780,6 +808,25 @@ export function AppNext({
           <AppNextRouteOnlyPanel
             title="RequireAuth rollback mode"
             body="The app-next settings read-only pilot is disabled by VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH or ?newAuthRequireAuth=off."
+          />
+        )
+      ) : activeTab === "timetable-readonly" ? (
+        requireAuthEnabled ? (
+          <RequireAuth
+            previewMode
+            useExistingAuthProvider
+            onSnapshot={handleRequireAuthSnapshot}
+          >
+            <AppNextTimetableReadOnly
+              currentRoute={routeDecision.currentRoute}
+              requestedRoute={routeDecision.requestedRoute}
+              onNavigate={(route) => handleRoute(route)}
+            />
+          </RequireAuth>
+        ) : (
+          <AppNextRouteOnlyPanel
+            title="RequireAuth rollback mode"
+            body="The app-next timetable read-only pilot is disabled by VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH or ?newAuthRequireAuth=off."
           />
         )
       ) : activeTab === "devices" ? (

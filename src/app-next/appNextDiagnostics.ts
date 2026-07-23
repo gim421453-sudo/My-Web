@@ -213,6 +213,43 @@ export interface AppNextSettingsReadOnlyDiagnosticsSnapshot {
   requireWorkspaceRoleMode: string;
 }
 
+export interface AppNextTimetableDiagnosticsSnapshot {
+  loading: boolean;
+  errorCode: string;
+  timetableRenderCount: number;
+  timetableReadCount: number;
+  timetableWriteAttemptCount: number;
+  timetableListenerStartCount: number;
+  timetableActiveListenerCount: number;
+  timetableLoadCount: number;
+  timetableCacheHitCount: number;
+  duplicateLoadDetected: boolean;
+  hasWorkspace: boolean;
+  globalRoleCategory: string;
+  workspaceRoleCategory: string;
+  isSystemOwner: boolean;
+  timetableCellCount: number;
+  regularCellCount: number;
+  afterschoolCellCount: number;
+  visibleCellCount: number;
+  emptyCellCount: number;
+  invalidCellCount: number;
+  duplicateCellDetected: boolean;
+  duplicateCellGroupCount: number;
+  duplicateCellItemCount: number;
+  duplicateCellMutationAttemptCount: number;
+  todayWeekday: string;
+  todayClassCount: number;
+  firestoreReadCount: number;
+  firestoreWriteAttemptCount: number;
+  authListenerCount: number;
+  workspaceListenerCount: number;
+  currentRoute: string;
+  requestedRoute: string;
+  restoreConflictDetected: boolean;
+  sensitiveValueDetected: boolean;
+}
+
 const MAX_APP_NEXT_DIAGNOSTIC_EVENTS = 30;
 const diagnosticEvents: AppNextDiagnosticEvent[] = [];
 const APP_NEXT_LAST_STATE_KEY = "pm-app-next-last-state-v1";
@@ -355,6 +392,42 @@ let settingsReadOnlyDiagnostics: AppNextSettingsReadOnlyDiagnosticsSnapshot = {
   protectedRouteMode: "unknown",
   requireWorkspaceRoleMode: "unknown",
 };
+let timetableDiagnostics: AppNextTimetableDiagnosticsSnapshot = {
+  loading: false,
+  errorCode: "none",
+  timetableRenderCount: 0,
+  timetableReadCount: 0,
+  timetableWriteAttemptCount: 0,
+  timetableListenerStartCount: 0,
+  timetableActiveListenerCount: 0,
+  timetableLoadCount: 0,
+  timetableCacheHitCount: 0,
+  duplicateLoadDetected: false,
+  hasWorkspace: false,
+  globalRoleCategory: "none",
+  workspaceRoleCategory: "none",
+  isSystemOwner: false,
+  timetableCellCount: 0,
+  regularCellCount: 0,
+  afterschoolCellCount: 0,
+  visibleCellCount: 0,
+  emptyCellCount: 0,
+  invalidCellCount: 0,
+  duplicateCellDetected: false,
+  duplicateCellGroupCount: 0,
+  duplicateCellItemCount: 0,
+  duplicateCellMutationAttemptCount: 0,
+  todayWeekday: "-",
+  todayClassCount: 0,
+  firestoreReadCount: 0,
+  firestoreWriteAttemptCount: 0,
+  authListenerCount: 0,
+  workspaceListenerCount: 0,
+  currentRoute: "timetable-readonly",
+  requestedRoute: "timetable-readonly",
+  restoreConflictDetected: false,
+  sensitiveValueDetected: false,
+};
 let lastRouteFallbackKey = "none";
 let lastRequireAuthConsumerMounted = false;
 let noticeDiagnostics: AppNextNoticeDiagnosticsSnapshot = {
@@ -439,6 +512,9 @@ function installAppNextDiagnosticsWindows(): void {
     PMAppNextSettingsReadOnlyDiagnostics?: {
       snapshot(): AppNextSettingsReadOnlyDiagnosticsSnapshot;
     };
+    PMAppNextTimetableDiagnostics?: {
+      snapshot(): AppNextTimetableDiagnosticsSnapshot;
+    };
   }).PMAppNextRouteDiagnostics = {
     snapshot: getAppNextRouteDiagnostics,
   };
@@ -484,6 +560,14 @@ function installAppNextDiagnosticsWindows(): void {
     };
   }).PMAppNextSettingsReadOnlyDiagnostics = {
     snapshot: getAppNextSettingsReadOnlyDiagnostics,
+  };
+
+  (window as typeof window & {
+    PMAppNextTimetableDiagnostics?: {
+      snapshot(): AppNextTimetableDiagnosticsSnapshot;
+    };
+  }).PMAppNextTimetableDiagnostics = {
+    snapshot: getAppNextTimetableDiagnostics,
   };
 }
 
@@ -978,6 +1062,25 @@ export function recordAppNextSettingsReadOnlyDiagnostics(
 
 export function getAppNextSettingsReadOnlyDiagnostics(): AppNextSettingsReadOnlyDiagnosticsSnapshot {
   return { ...settingsReadOnlyDiagnostics };
+}
+
+export function recordAppNextTimetableDiagnostics(
+  next: Partial<AppNextTimetableDiagnosticsSnapshot>,
+): void {
+  timetableDiagnostics = {
+    ...timetableDiagnostics,
+    ...next,
+    timetableWriteAttemptCount: next.timetableWriteAttemptCount ?? 0,
+    timetableListenerStartCount: next.timetableListenerStartCount ?? 0,
+    timetableActiveListenerCount: next.timetableActiveListenerCount ?? 0,
+    duplicateCellMutationAttemptCount: next.duplicateCellMutationAttemptCount ?? 0,
+    firestoreWriteAttemptCount: next.firestoreWriteAttemptCount ?? 0,
+    workspaceListenerCount: next.workspaceListenerCount ?? 0,
+  };
+}
+
+export function getAppNextTimetableDiagnostics(): AppNextTimetableDiagnosticsSnapshot {
+  return { ...timetableDiagnostics };
 }
 
 export function getAppNextNoticeRouteDiagnostics(): AppNextNoticeRouteDiagnosticsSnapshot {
