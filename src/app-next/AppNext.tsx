@@ -24,6 +24,7 @@ import {
   appNextWorkspaceNoticeDiagnosticsText,
   getAppNextDiagnosticEvents,
   getAppNextAuthRouteMatrixDiagnostics,
+  getAppNextDashboardDiagnostics,
   recordAppNextAuthRouteMatrixDiagnostics,
 } from "./appNextDiagnostics";
 import {
@@ -46,6 +47,9 @@ import {
 import {
   AppNextWorkspaceNotices,
 } from "./AppNextWorkspaceNotices";
+import {
+  AppNextDashboardReadOnly,
+} from "./AppNextDashboardReadOnly";
 import {
   AppNextWorkspaceAccessPreview,
 } from "./AppNextWorkspaceAccessPreview";
@@ -138,6 +142,7 @@ function AppNextDiagnostics({
   const appNextAuthDiagnostics = getAppNextAuthDiagnostics();
   const noticeDiagnostics = getAppNextNoticeDiagnostics();
   const authRouteMatrixDiagnostics = getAppNextAuthRouteMatrixDiagnostics();
+  const dashboardDiagnostics = getAppNextDashboardDiagnostics();
   const recentEvents = getAppNextDiagnosticEvents();
 
   return (
@@ -211,6 +216,17 @@ function AppNextDiagnostics({
         <ValueRow label="routeMatrix.firestoreReadCount" value={String(authRouteMatrixDiagnostics.firestoreReadCount)} />
         <ValueRow label="routeMatrix.firestoreWriteAttemptCount" value={String(authRouteMatrixDiagnostics.firestoreWriteAttemptCount)} />
         <ValueRow label="routeMatrix.workspaceListenerCount" value={String(authRouteMatrixDiagnostics.workspaceListenerCount)} />
+        <ValueRow label="dashboard.loading" value={booleanLabel(dashboardDiagnostics.loading)} />
+        <ValueRow label="dashboard.errorCode" value={dashboardDiagnostics.errorCode} />
+        <ValueRow label="dashboard.renderCount" value={String(dashboardDiagnostics.dashboardRenderCount)} />
+        <ValueRow label="dashboard.readCount" value={String(dashboardDiagnostics.dashboardReadCount)} />
+        <ValueRow label="dashboard.writeAttemptCount" value={String(dashboardDiagnostics.dashboardWriteAttemptCount)} />
+        <ValueRow label="dashboard.activeListenerCount" value={String(dashboardDiagnostics.dashboardActiveListenerCount)} />
+        <ValueRow label="dashboard.noticeSummaryLoadCount" value={String(dashboardDiagnostics.noticeSummaryLoadCount)} />
+        <ValueRow label="dashboard.noticeFetchedCount" value={String(dashboardDiagnostics.noticeFetchedCount)} />
+        <ValueRow label="dashboard.noticeVisibleCount" value={String(dashboardDiagnostics.noticeVisibleCount)} />
+        <ValueRow label="dashboard.noticeSummaryCount" value={String(dashboardDiagnostics.noticeSummaryCount)} />
+        <ValueRow label="dashboard.duplicateNoticeLoadDetected" value={booleanLabel(dashboardDiagnostics.duplicateNoticeLoadDetected)} />
         <ValueRow label="notice.lastRequestedReadMode" value={noticeDiagnostics.lastRequestedReadMode} />
         <ValueRow label="notice.lastCompletedReadMode" value={noticeDiagnostics.lastCompletedReadMode} />
         <ValueRow label="notice.lastErrorKind" value={noticeDiagnostics.lastErrorKind} />
@@ -326,6 +342,7 @@ function AppNextDiagnosticsDrawer({
 }
 
 type AppNextTab =
+  | "dashboard"
   | "account"
   | "devices"
   | "notifications"
@@ -392,7 +409,11 @@ export function AppNext({
     ],
   );
   const activeTab: AppNextTab =
-    routeDecision.currentRoute === "devices"
+    routeDecision.currentRoute === "dashboard"
+      ? "dashboard"
+      : routeDecision.currentRoute === "account"
+        ? "account"
+        : routeDecision.currentRoute === "devices"
       ? "devices"
       : routeDecision.currentRoute === "notifications"
         ? "notifications"
@@ -508,12 +529,15 @@ export function AppNext({
       fallbackReason: routeDecision.fallbackReason,
       routeRenderDelta: 1,
       requireAuthConsumerMounted: (
+        (routeDecision.currentRoute === "dashboard" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "notices" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "admin-preview" && protectedRouteEnabled) ||
         (routeDecision.currentRoute === "workspace-preview" && protectedRouteEnabled && requireWorkspaceRoleEnabled)
       ),
       lastBlockedReason: routeDecision.currentRoute === "notices" && !requireAuthEnabled
         ? "require-auth-flag-off"
+        : routeDecision.currentRoute === "dashboard" && !requireAuthEnabled
+          ? "require-auth-flag-off"
         : routeDecision.currentRoute === "admin-preview" && !protectedRouteEnabled
           ? "protected-route-flag-off"
           : routeDecision.currentRoute === "workspace-preview" && !requireWorkspaceRoleEnabled
@@ -647,7 +671,7 @@ export function AppNext({
     <main className="app-next-shell">
       <header className="app-next-header">
         <p>App Next 읽기 전용</p>
-        <h1>계정 상태 및 이메일 인증</h1>
+        <h1>{activeTab === "dashboard" ? "메인 대시보드" : "계정 상태 및 이메일 인증"}</h1>
         <span className={`app-next-badge app-next-${stateMessage.tone}`}>
           {stateMessage.title}
         </span>
@@ -657,8 +681,15 @@ export function AppNext({
         <nav className="app-next-tabs" aria-label="App Next 화면">
           <button
             type="button"
-            className={activeTab === "account" ? "active" : "secondary"}
+            className={activeTab === "dashboard" ? "active" : "secondary"}
             onClick={() => handleRoute("dashboard")}
+          >
+            대시보드
+          </button>
+          <button
+            type="button"
+            className={activeTab === "account" ? "active" : "secondary"}
+            onClick={() => handleRoute("account")}
           >
             계정 상태
           </button>
@@ -720,6 +751,21 @@ export function AppNext({
         routeDecision.currentRoute === "disabled" ||
         routeDecision.currentRoute === "error" ? (
         <AppNextRouteOnlyPanel title={stateMessage.title} body={stateMessage.body} />
+      ) : activeTab === "dashboard" ? (
+        requireAuthEnabled ? (
+          <RequireAuth
+            previewMode
+            useExistingAuthProvider
+            onSnapshot={handleRequireAuthSnapshot}
+          >
+            <AppNextDashboardReadOnly onNavigate={handleRoute} />
+          </RequireAuth>
+        ) : (
+          <AppNextRouteOnlyPanel
+            title="RequireAuth rollback mode"
+            body="The app-next dashboard pilot is disabled by VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH or ?newAuthRequireAuth=off."
+          />
+        )
       ) : activeTab === "account" ? (
         <>
           <section className="app-next-panel">

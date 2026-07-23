@@ -11,6 +11,7 @@ import {
 
 export type AppNextRoute =
   | "dashboard"
+  | "account"
   | "devices"
   | "notifications"
   | "notices"
@@ -76,6 +77,7 @@ export interface AppNextAuthRouteMatrixSnapshot {
 
 const APP_NEXT_ROUTES = new Set<AppNextRoute>([
   "dashboard",
+  "account",
   "devices",
   "notifications",
   "notices",
@@ -385,7 +387,7 @@ export function appNextAuthRouteMatrixSnapshot({
     ? adminMenuVisible
     : currentRoute === "workspace-preview"
       ? workspaceMenuVisible
-      : ["dashboard", "devices", "notifications", "notices"].includes(currentRoute) && active;
+      : ["dashboard", "account", "devices", "notifications", "notices"].includes(currentRoute) && active;
 
   let finalDecision = "ALLOW_ROUTE";
   if (state === "loading") {

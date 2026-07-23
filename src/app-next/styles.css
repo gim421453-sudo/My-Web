@@ -124,6 +124,30 @@ button.secondary {
   padding: 12px;
 }
 
+.app-next-muted-label {
+  color: #5a6d94;
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 6px !important;
+}
+
+.app-next-dashboard-hero {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.app-next-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.app-next-dashboard-grid .app-next-panel {
+  margin-bottom: 0;
+}
+
 .app-next-login-form {
   display: grid;
   gap: 14px;
@@ -440,11 +464,13 @@ button.secondary {
   }
 
   .app-next-section-head,
-  .app-next-device-head {
+  .app-next-device-head,
+  .app-next-dashboard-hero {
     display: grid;
   }
 
-  .app-next-device-list {
+  .app-next-device-list,
+  .app-next-dashboard-grid {
     grid-template-columns: 1fr;
   }
 

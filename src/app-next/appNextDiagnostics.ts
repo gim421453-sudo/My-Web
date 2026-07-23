@@ -147,6 +147,32 @@ export interface AppNextAuthRouteMatrixDiagnosticsSnapshot {
   restoreConflictDetected: boolean;
 }
 
+export interface AppNextDashboardDiagnosticsSnapshot {
+  loading: boolean;
+  errorCode: string;
+  dashboardRenderCount: number;
+  dashboardReadCount: number;
+  dashboardWriteAttemptCount: number;
+  dashboardListenerStartCount: number;
+  dashboardActiveListenerCount: number;
+  noticeSummaryLoadCount: number;
+  noticeFetchedCount: number;
+  noticeVisibleCount: number;
+  noticeSummaryCount: number;
+  duplicateNoticeLoadDetected: boolean;
+  hasWorkspace: boolean;
+  globalRoleCategory: string;
+  workspaceRoleCategory: string;
+  isSystemOwner: boolean;
+  currentRoute: string;
+  requestedRoute: string;
+  firestoreReadCount: number;
+  firestoreWriteAttemptCount: number;
+  authListenerCount: number;
+  workspaceListenerCount: number;
+  restoreConflictDetected: boolean;
+}
+
 const MAX_APP_NEXT_DIAGNOSTIC_EVENTS = 30;
 const diagnosticEvents: AppNextDiagnosticEvent[] = [];
 const APP_NEXT_LAST_STATE_KEY = "pm-app-next-last-state-v1";
@@ -220,6 +246,31 @@ let authRouteMatrixDiagnostics: AppNextAuthRouteMatrixDiagnosticsSnapshot = {
   redirectCount: 0,
   protectedChildRenderCount: 0,
   policyMismatchDetected: false,
+  firestoreReadCount: 0,
+  firestoreWriteAttemptCount: 0,
+  authListenerCount: 0,
+  workspaceListenerCount: 0,
+  restoreConflictDetected: false,
+};
+let dashboardDiagnostics: AppNextDashboardDiagnosticsSnapshot = {
+  loading: false,
+  errorCode: "none",
+  dashboardRenderCount: 0,
+  dashboardReadCount: 0,
+  dashboardWriteAttemptCount: 0,
+  dashboardListenerStartCount: 0,
+  dashboardActiveListenerCount: 0,
+  noticeSummaryLoadCount: 0,
+  noticeFetchedCount: 0,
+  noticeVisibleCount: 0,
+  noticeSummaryCount: 0,
+  duplicateNoticeLoadDetected: false,
+  hasWorkspace: false,
+  globalRoleCategory: "none",
+  workspaceRoleCategory: "none",
+  isSystemOwner: false,
+  currentRoute: "dashboard",
+  requestedRoute: "dashboard",
   firestoreReadCount: 0,
   firestoreWriteAttemptCount: 0,
   authListenerCount: 0,
@@ -301,6 +352,9 @@ function installAppNextDiagnosticsWindows(): void {
     PMAppNextAuthRouteMatrixDiagnostics?: {
       snapshot(): AppNextAuthRouteMatrixDiagnosticsSnapshot;
     };
+    PMAppNextDashboardDiagnostics?: {
+      snapshot(): AppNextDashboardDiagnosticsSnapshot;
+    };
   }).PMAppNextRouteDiagnostics = {
     snapshot: getAppNextRouteDiagnostics,
   };
@@ -322,6 +376,14 @@ function installAppNextDiagnosticsWindows(): void {
     };
   }).PMAppNextAuthRouteMatrixDiagnostics = {
     snapshot: getAppNextAuthRouteMatrixDiagnostics,
+  };
+
+  (window as typeof window & {
+    PMAppNextDashboardDiagnostics?: {
+      snapshot(): AppNextDashboardDiagnosticsSnapshot;
+    };
+  }).PMAppNextDashboardDiagnostics = {
+    snapshot: getAppNextDashboardDiagnostics,
   };
 }
 
@@ -763,6 +825,24 @@ export function recordAppNextAuthRouteMatrixDiagnostics(
 
 export function getAppNextAuthRouteMatrixDiagnostics(): AppNextAuthRouteMatrixDiagnosticsSnapshot {
   return { ...authRouteMatrixDiagnostics };
+}
+
+export function recordAppNextDashboardDiagnostics(
+  next: Partial<AppNextDashboardDiagnosticsSnapshot>,
+): void {
+  dashboardDiagnostics = {
+    ...dashboardDiagnostics,
+    ...next,
+    dashboardWriteAttemptCount: next.dashboardWriteAttemptCount ?? 0,
+    dashboardListenerStartCount: next.dashboardListenerStartCount ?? 0,
+    dashboardActiveListenerCount: next.dashboardActiveListenerCount ?? 0,
+    firestoreWriteAttemptCount: next.firestoreWriteAttemptCount ?? 0,
+    workspaceListenerCount: next.workspaceListenerCount ?? 0,
+  };
+}
+
+export function getAppNextDashboardDiagnostics(): AppNextDashboardDiagnosticsSnapshot {
+  return { ...dashboardDiagnostics };
 }
 
 export function getAppNextNoticeRouteDiagnostics(): AppNextNoticeRouteDiagnosticsSnapshot {

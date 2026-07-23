@@ -164,6 +164,7 @@ const appNextRouteUtils = loadTsModule("src/app-next/appNextRouteUtils.ts");
 const appNextLoginDevicesUtils = loadTsModule("src/app-next/appNextLoginDevicesUtils.ts");
 const appNextNotificationsUtils = loadTsModule("src/app-next/appNextNotificationsUtils.ts");
 const appNextWorkspaceNoticesUtils = loadTsModule("src/app-next/appNextWorkspaceNoticesUtils.ts");
+const appNextDashboardUtils = loadTsModule("src/app-next/appNextDashboardUtils.ts");
 const workspaceParentRecoveryUtils = loadTsModule("src/dev-recovery/workspaceParentRecoveryUtils.ts");
 
 function makeSession(overrides = {}) {
@@ -6660,6 +6661,136 @@ const tests = [
     assert.equal(serviceSource.includes("deleteDoc"), false);
     assert.match(componentSource, /listenerCount:\s*0/);
     assert.match(componentSource, /writeApiImported:\s*false/);
+  }],
+  ["app-next dashboard is an actual RequireAuth consumer", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    assert.match(source, /AppNextDashboardReadOnly/);
+    assert.match(source, /routeDecision\.currentRoute === "dashboard"/);
+    assert.match(source, /activeTab === "dashboard"/);
+    assert.match(source, /<RequireAuth[\s\S]*?<AppNextDashboardReadOnly/);
+    assert.match(source, /handleRoute\("account"\)/);
+  }],
+  ["app-next dashboard policy allows active null workspace without notice read", () => {
+    const policy = appNextDashboardUtils.appNextDashboardPolicy({
+      phase: "authenticated",
+      session: makeSession({
+        status: "active",
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+    });
+    assert.equal(policy.routeAllowed, true);
+    assert.equal(policy.noticeSummaryAllowed, false);
+    assert.equal(policy.hasWorkspace, false);
+    assert.equal(policy.reason, "active");
+  }],
+  ["app-next dashboard policy blocks inactive states before child data read", () => {
+    for (const status of ["pending", "rejected", "disabled"]) {
+      const policy = appNextDashboardUtils.appNextDashboardPolicy({
+        phase: "account_action_required",
+        session: makeSession({
+          status,
+          currentWorkspaceId: "workspace-1",
+          currentWorkspaceRole: "normal",
+        }),
+      });
+      assert.equal(policy.routeAllowed, false);
+      assert.equal(policy.noticeSummaryAllowed, false);
+      assert.equal(policy.reason, status);
+    }
+  }],
+  ["app-next dashboard keeps system owner global role separate", () => {
+    const policy = appNextDashboardUtils.appNextDashboardPolicy({
+      phase: "authenticated",
+      session: makeSession({
+        status: "active",
+        globalRole: "system_owner",
+        isSystemOwner: true,
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+    });
+    assert.equal(policy.routeAllowed, true);
+    assert.equal(policy.globalRoleCategory, "system_owner");
+    assert.equal(policy.workspaceRoleCategory, "none");
+    assert.equal(policy.isSystemOwner, true);
+  }],
+  ["app-next dashboard notice summary uses first three normalized notices", () => {
+    const normalized = appNextWorkspaceNoticesUtils.normalizeAppNextWorkspaceNoticeRecords([
+      {
+        id: "newest",
+        workspaceId: "workspace-1",
+        title: "Newest",
+        createdAt: "2026-06-18T09:00:00.000Z",
+      },
+      {
+        id: "pinned-old",
+        workspaceId: "workspace-1",
+        title: "Pinned old",
+        pinned: true,
+        createdAt: "2026-06-01T09:00:00.000Z",
+      },
+      {
+        id: "middle",
+        workspaceId: "workspace-1",
+        title: "Middle",
+        createdAt: "2026-06-17T09:00:00.000Z",
+      },
+      {
+        id: "hidden",
+        workspaceId: "workspace-1",
+        title: "Hidden",
+        status: "hidden",
+      },
+      {
+        id: "old",
+        workspaceId: "workspace-1",
+        title: "Old",
+        createdAt: "2026-06-16T09:00:00.000Z",
+      },
+    ], {
+      workspaceId: "workspace-1",
+    });
+    const summary = appNextDashboardUtils.summarizeAppNextDashboardNotices(normalized.records, 3);
+    assert.equal(summary.visibleCount, 4);
+    assert.equal(summary.summaryCount, 3);
+    assert.equal(JSON.stringify(summary.recent.map((notice) => notice.title)), JSON.stringify([
+      "Pinned old",
+      "Newest",
+      "Middle",
+    ]));
+  }],
+  ["app-next dashboard files are read-only and listener-free", () => {
+    const files = [
+      "src/app-next/AppNextDashboardReadOnly.tsx",
+      "src/app-next/appNextDashboardUtils.ts",
+    ];
+    const forbidden = /\b(addDoc|setDoc|updateDoc|deleteDoc|writeBatch|runTransaction|onSnapshot|serverTimestamp)\b/;
+    for (const file of files) {
+      assert.equal(forbidden.test(readFileSync(path.resolve(projectRoot, file), "utf8")), false, file);
+    }
+  }],
+  ["app-next dashboard diagnostics expose zero-write counters without sensitive fields", () => {
+    const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
+    const dashboardSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextDashboardReadOnly.tsx"), "utf8");
+    assert.match(diagnosticsSource, /AppNextDashboardDiagnosticsSnapshot/);
+    assert.match(diagnosticsSource, /PMAppNextDashboardDiagnostics/);
+    assert.match(diagnosticsSource, /recordAppNextDashboardDiagnostics/);
+    assert.match(dashboardSource, /dashboardWriteAttemptCount:\s*0/);
+    assert.match(dashboardSource, /dashboardActiveListenerCount:\s*0/);
+    assert.match(dashboardSource, /workspaceListenerCount:\s*0/);
+    assert.equal(/uid|email|workspaceId|documentId|token/i.test(
+      diagnosticsSource.match(/AppNextDashboardDiagnosticsSnapshot[\s\S]*?}\n/)?.[0] || "",
+    ), false);
+  }],
+  ["app-next dashboard does not modify operational static app files", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const htmlSource = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    assert.match(appSource, /function renderDashboardV8\(\)/);
+    assert.match(appSource, /function visibleNotices\(\)/);
+    assert.match(htmlSource, /app\.js\?v=120/);
+    assert.equal(appSource.includes("AppNextDashboardReadOnly"), false);
+    assert.equal(htmlSource.includes("AppNextDashboardReadOnly"), false);
   }],
 ];
 
