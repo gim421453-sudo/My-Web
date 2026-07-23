@@ -173,6 +173,46 @@ export interface AppNextDashboardDiagnosticsSnapshot {
   restoreConflictDetected: boolean;
 }
 
+export interface AppNextAccountDiagnosticsSnapshot {
+  loading: boolean;
+  errorCode: string;
+  accountRenderCount: number;
+  accountReadCount: number;
+  accountWriteAttemptCount: number;
+  accountListenerStartCount: number;
+  accountActiveListenerCount: number;
+  isAuthenticated: boolean;
+  accountStatus: string;
+  emailVerified: boolean;
+  providerCategory: string;
+  providerCount: number;
+  persistenceMode: string;
+  globalRoleCategory: string;
+  workspaceRoleCategory: string;
+  hasWorkspace: boolean;
+  isSystemOwner: boolean;
+  warningCount: number;
+  maskedEmailPresent: boolean;
+  sensitiveValueDetected: boolean;
+  authListenerCount: number;
+  workspaceListenerCount: number;
+  currentRoute: string;
+  requestedRoute: string;
+  restoreConflictDetected: boolean;
+}
+
+export interface AppNextSettingsReadOnlyDiagnosticsSnapshot {
+  currentRoute: string;
+  readOnlyMode: boolean;
+  settingControlCount: number;
+  writeControlCount: number;
+  writeAttemptCount: number;
+  sensitiveValueDetected: boolean;
+  requireAuthMode: string;
+  protectedRouteMode: string;
+  requireWorkspaceRoleMode: string;
+}
+
 const MAX_APP_NEXT_DIAGNOSTIC_EVENTS = 30;
 const diagnosticEvents: AppNextDiagnosticEvent[] = [];
 const APP_NEXT_LAST_STATE_KEY = "pm-app-next-last-state-v1";
@@ -277,6 +317,44 @@ let dashboardDiagnostics: AppNextDashboardDiagnosticsSnapshot = {
   workspaceListenerCount: 0,
   restoreConflictDetected: false,
 };
+let accountDiagnostics: AppNextAccountDiagnosticsSnapshot = {
+  loading: false,
+  errorCode: "none",
+  accountRenderCount: 0,
+  accountReadCount: 0,
+  accountWriteAttemptCount: 0,
+  accountListenerStartCount: 0,
+  accountActiveListenerCount: 0,
+  isAuthenticated: false,
+  accountStatus: "unknown",
+  emailVerified: false,
+  providerCategory: "알 수 없음",
+  providerCount: 0,
+  persistenceMode: "unknown",
+  globalRoleCategory: "none",
+  workspaceRoleCategory: "none",
+  hasWorkspace: false,
+  isSystemOwner: false,
+  warningCount: 0,
+  maskedEmailPresent: false,
+  sensitiveValueDetected: false,
+  authListenerCount: 0,
+  workspaceListenerCount: 0,
+  currentRoute: "account",
+  requestedRoute: "account",
+  restoreConflictDetected: false,
+};
+let settingsReadOnlyDiagnostics: AppNextSettingsReadOnlyDiagnosticsSnapshot = {
+  currentRoute: "settings-readonly",
+  readOnlyMode: true,
+  settingControlCount: 0,
+  writeControlCount: 0,
+  writeAttemptCount: 0,
+  sensitiveValueDetected: false,
+  requireAuthMode: "unknown",
+  protectedRouteMode: "unknown",
+  requireWorkspaceRoleMode: "unknown",
+};
 let lastRouteFallbackKey = "none";
 let lastRequireAuthConsumerMounted = false;
 let noticeDiagnostics: AppNextNoticeDiagnosticsSnapshot = {
@@ -355,6 +433,12 @@ function installAppNextDiagnosticsWindows(): void {
     PMAppNextDashboardDiagnostics?: {
       snapshot(): AppNextDashboardDiagnosticsSnapshot;
     };
+    PMAppNextAccountDiagnostics?: {
+      snapshot(): AppNextAccountDiagnosticsSnapshot;
+    };
+    PMAppNextSettingsReadOnlyDiagnostics?: {
+      snapshot(): AppNextSettingsReadOnlyDiagnosticsSnapshot;
+    };
   }).PMAppNextRouteDiagnostics = {
     snapshot: getAppNextRouteDiagnostics,
   };
@@ -384,6 +468,22 @@ function installAppNextDiagnosticsWindows(): void {
     };
   }).PMAppNextDashboardDiagnostics = {
     snapshot: getAppNextDashboardDiagnostics,
+  };
+
+  (window as typeof window & {
+    PMAppNextAccountDiagnostics?: {
+      snapshot(): AppNextAccountDiagnosticsSnapshot;
+    };
+  }).PMAppNextAccountDiagnostics = {
+    snapshot: getAppNextAccountDiagnostics,
+  };
+
+  (window as typeof window & {
+    PMAppNextSettingsReadOnlyDiagnostics?: {
+      snapshot(): AppNextSettingsReadOnlyDiagnosticsSnapshot;
+    };
+  }).PMAppNextSettingsReadOnlyDiagnostics = {
+    snapshot: getAppNextSettingsReadOnlyDiagnostics,
   };
 }
 
@@ -843,6 +943,41 @@ export function recordAppNextDashboardDiagnostics(
 
 export function getAppNextDashboardDiagnostics(): AppNextDashboardDiagnosticsSnapshot {
   return { ...dashboardDiagnostics };
+}
+
+export function recordAppNextAccountDiagnostics(
+  next: Partial<AppNextAccountDiagnosticsSnapshot>,
+): void {
+  accountDiagnostics = {
+    ...accountDiagnostics,
+    ...next,
+    accountReadCount: next.accountReadCount ?? 0,
+    accountWriteAttemptCount: next.accountWriteAttemptCount ?? 0,
+    accountListenerStartCount: next.accountListenerStartCount ?? 0,
+    accountActiveListenerCount: next.accountActiveListenerCount ?? 0,
+    workspaceListenerCount: next.workspaceListenerCount ?? 0,
+  };
+}
+
+export function getAppNextAccountDiagnostics(): AppNextAccountDiagnosticsSnapshot {
+  return { ...accountDiagnostics };
+}
+
+export function recordAppNextSettingsReadOnlyDiagnostics(
+  next: Partial<AppNextSettingsReadOnlyDiagnosticsSnapshot>,
+): void {
+  settingsReadOnlyDiagnostics = {
+    ...settingsReadOnlyDiagnostics,
+    ...next,
+    readOnlyMode: next.readOnlyMode ?? true,
+    settingControlCount: next.settingControlCount ?? 0,
+    writeControlCount: next.writeControlCount ?? 0,
+    writeAttemptCount: next.writeAttemptCount ?? 0,
+  };
+}
+
+export function getAppNextSettingsReadOnlyDiagnostics(): AppNextSettingsReadOnlyDiagnosticsSnapshot {
+  return { ...settingsReadOnlyDiagnostics };
 }
 
 export function getAppNextNoticeRouteDiagnostics(): AppNextNoticeRouteDiagnosticsSnapshot {

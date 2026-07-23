@@ -5,9 +5,6 @@ import {
   useState,
 } from "react";
 import {
-  sendEmailVerification,
-} from "firebase/auth";
-import {
   useAuth,
 } from "../auth/useAuth";
 import {
@@ -25,15 +22,14 @@ import {
   getAppNextDiagnosticEvents,
   getAppNextAuthRouteMatrixDiagnostics,
   getAppNextDashboardDiagnostics,
+  getAppNextAccountDiagnostics,
+  getAppNextSettingsReadOnlyDiagnostics,
   recordAppNextAuthRouteMatrixDiagnostics,
 } from "./appNextDiagnostics";
 import {
   appNextAccountState,
   appNextStateMessage,
-  maskAppNextEmail,
   type ResolvedAppNextAuthFlag,
-  safeEmailVerificationErrorMessage,
-  verificationStatusLabel,
 } from "./appNextUtils";
 import {
   AppNextLogin,
@@ -50,6 +46,9 @@ import {
 import {
   AppNextDashboardReadOnly,
 } from "./AppNextDashboardReadOnly";
+import {
+  AppNextAccountReadOnly,
+} from "./AppNextAccountReadOnly";
 import {
   AppNextWorkspaceAccessPreview,
 } from "./AppNextWorkspaceAccessPreview";
@@ -143,6 +142,8 @@ function AppNextDiagnostics({
   const noticeDiagnostics = getAppNextNoticeDiagnostics();
   const authRouteMatrixDiagnostics = getAppNextAuthRouteMatrixDiagnostics();
   const dashboardDiagnostics = getAppNextDashboardDiagnostics();
+  const accountDiagnostics = getAppNextAccountDiagnostics();
+  const settingsDiagnostics = getAppNextSettingsReadOnlyDiagnostics();
   const recentEvents = getAppNextDiagnosticEvents();
 
   return (
@@ -227,6 +228,16 @@ function AppNextDiagnostics({
         <ValueRow label="dashboard.noticeVisibleCount" value={String(dashboardDiagnostics.noticeVisibleCount)} />
         <ValueRow label="dashboard.noticeSummaryCount" value={String(dashboardDiagnostics.noticeSummaryCount)} />
         <ValueRow label="dashboard.duplicateNoticeLoadDetected" value={booleanLabel(dashboardDiagnostics.duplicateNoticeLoadDetected)} />
+        <ValueRow label="account.accountReadCount" value={String(accountDiagnostics.accountReadCount)} />
+        <ValueRow label="account.accountWriteAttemptCount" value={String(accountDiagnostics.accountWriteAttemptCount)} />
+        <ValueRow label="account.accountActiveListenerCount" value={String(accountDiagnostics.accountActiveListenerCount)} />
+        <ValueRow label="account.providerCategory" value={accountDiagnostics.providerCategory} />
+        <ValueRow label="account.persistenceMode" value={accountDiagnostics.persistenceMode} />
+        <ValueRow label="account.sensitiveValueDetected" value={booleanLabel(accountDiagnostics.sensitiveValueDetected)} />
+        <ValueRow label="settings.readOnlyMode" value={booleanLabel(settingsDiagnostics.readOnlyMode)} />
+        <ValueRow label="settings.writeControlCount" value={String(settingsDiagnostics.writeControlCount)} />
+        <ValueRow label="settings.writeAttemptCount" value={String(settingsDiagnostics.writeAttemptCount)} />
+        <ValueRow label="settings.sensitiveValueDetected" value={booleanLabel(settingsDiagnostics.sensitiveValueDetected)} />
         <ValueRow label="notice.lastRequestedReadMode" value={noticeDiagnostics.lastRequestedReadMode} />
         <ValueRow label="notice.lastCompletedReadMode" value={noticeDiagnostics.lastCompletedReadMode} />
         <ValueRow label="notice.lastErrorKind" value={noticeDiagnostics.lastErrorKind} />
@@ -344,6 +355,7 @@ function AppNextDiagnosticsDrawer({
 type AppNextTab =
   | "dashboard"
   | "account"
+  | "settings-readonly"
   | "devices"
   | "notifications"
   | "workspace-notices"
@@ -377,18 +389,13 @@ export function AppNext({
     firebaseUser,
     session,
     error,
-    reloadSession,
   } = useAuth();
   const legacyAdapter = useLegacyAuthAdapter();
-  const [sendBusy, setSendBusy] = useState(false);
-  const [reloadBusy, setReloadBusy] = useState(false);
-  const [message, setMessage] = useState("");
   const [hashRoute, setHashRoute] = useState(() => (
     typeof window === "undefined" ? "#/dashboard" : window.location.hash
   ));
   const [routeDiagnosticsView, setRouteDiagnosticsView] = useState(() => getAppNextRouteDiagnostics());
 
-  const emailVerified = session?.emailVerified ?? firebaseUser?.emailVerified;
   const state = appNextAccountState({
     phase,
     session,
@@ -396,8 +403,6 @@ export function AppNext({
     errorCode: error?.code ?? null,
   });
   const stateMessage = appNextStateMessage(state);
-  const maskedEmail = maskAppNextEmail(session?.email ?? firebaseUser?.email);
-  const isLoading = state === "loading";
   const routeDecision = useMemo(
     () => resolveAppNextRoute({
       hash: hashRoute,
@@ -413,6 +418,8 @@ export function AppNext({
       ? "dashboard"
       : routeDecision.currentRoute === "account"
         ? "account"
+        : routeDecision.currentRoute === "settings-readonly"
+          ? "settings-readonly"
         : routeDecision.currentRoute === "devices"
       ? "devices"
       : routeDecision.currentRoute === "notifications"
@@ -475,11 +482,6 @@ export function AppNext({
     ],
   );
 
-  const warningCount = useMemo(
-    () => session?.warnings.length ?? 0,
-    [session],
-  );
-
   useEffect(() => {
     const authDiagnostics = getAuthProviderDiagnosticsSnapshot();
     addAppNextDiagnosticEvent({
@@ -530,6 +532,8 @@ export function AppNext({
       routeRenderDelta: 1,
       requireAuthConsumerMounted: (
         (routeDecision.currentRoute === "dashboard" && requireAuthEnabled) ||
+        (routeDecision.currentRoute === "account" && requireAuthEnabled) ||
+        (routeDecision.currentRoute === "settings-readonly" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "notices" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "admin-preview" && protectedRouteEnabled) ||
         (routeDecision.currentRoute === "workspace-preview" && protectedRouteEnabled && requireWorkspaceRoleEnabled)
@@ -537,6 +541,10 @@ export function AppNext({
       lastBlockedReason: routeDecision.currentRoute === "notices" && !requireAuthEnabled
         ? "require-auth-flag-off"
         : routeDecision.currentRoute === "dashboard" && !requireAuthEnabled
+          ? "require-auth-flag-off"
+        : routeDecision.currentRoute === "account" && !requireAuthEnabled
+          ? "require-auth-flag-off"
+        : routeDecision.currentRoute === "settings-readonly" && !requireAuthEnabled
           ? "require-auth-flag-off"
         : routeDecision.currentRoute === "admin-preview" && !protectedRouteEnabled
           ? "protected-route-flag-off"
@@ -622,56 +630,11 @@ export function AppNext({
     setRouteDiagnosticsView(getAppNextRouteDiagnostics());
   }, []);
 
-  const handleSendVerification = useCallback(async () => {
-    if (sendBusy || !firebaseUser) return;
-
-    if (firebaseUser.emailVerified) {
-      setMessage("이미 이메일 인증이 완료된 계정입니다.");
-      return;
-    }
-
-    setSendBusy(true);
-    setMessage("");
-
-    try {
-      await sendEmailVerification(firebaseUser);
-      setMessage("인증 메일을 보냈습니다. 메일함을 확인해 주세요.");
-    } catch (sendError) {
-      setMessage(safeEmailVerificationErrorMessage(sendError));
-    } finally {
-      setSendBusy(false);
-    }
-  }, [
-    firebaseUser,
-    sendBusy,
-  ]);
-
-  const handleReload = useCallback(async () => {
-    if (reloadBusy) return;
-
-    setReloadBusy(true);
-    setMessage("");
-
-    try {
-      await firebaseUser?.reload();
-      await reloadSession();
-      setMessage("계정 상태를 다시 확인했습니다.");
-    } catch {
-      setMessage("계정 상태를 다시 확인하지 못했습니다. 로그인 세션은 유지됩니다.");
-    } finally {
-      setReloadBusy(false);
-    }
-  }, [
-    firebaseUser,
-    reloadBusy,
-    reloadSession,
-  ]);
-
   return (
     <main className="app-next-shell">
       <header className="app-next-header">
         <p>App Next 읽기 전용</p>
-        <h1>{activeTab === "dashboard" ? "메인 대시보드" : "계정 상태 및 이메일 인증"}</h1>
+        <h1>{activeTab === "dashboard" ? "메인 대시보드" : "계정·설정"}</h1>
         <span className={`app-next-badge app-next-${stateMessage.tone}`}>
           {stateMessage.title}
         </span>
@@ -692,6 +655,13 @@ export function AppNext({
             onClick={() => handleRoute("account")}
           >
             계정 상태
+          </button>
+          <button
+            type="button"
+            className={activeTab === "settings-readonly" ? "active" : "secondary"}
+            onClick={() => handleRoute("settings-readonly")}
+          >
+            설정 요약
           </button>
           <button
             type="button"
@@ -767,45 +737,51 @@ export function AppNext({
           />
         )
       ) : activeTab === "account" ? (
-        <>
-          <section className="app-next-panel">
-            <h2>계정 상태</h2>
-            <dl>
-              <ValueRow label="phase" value={phase} />
-              <ValueRow label="status" value={valueOrDash(session?.status)} />
-              <ValueRow label="globalRole" value={valueOrDash(session?.globalRole)} />
-              <ValueRow label="isSystemOwner" value={booleanLabel(session?.isSystemOwner)} />
-              <ValueRow label="workspace 존재 여부" value={booleanLabel(Boolean(session?.currentWorkspaceId))} />
-              <ValueRow label="currentWorkspaceRole" value={valueOrDash(session?.currentWorkspaceRole)} />
-              <ValueRow label="warnings 개수" value={String(warningCount)} />
-              <ValueRow label="emailVerified" value={verificationStatusLabel(emailVerified)} />
-              <ValueRow label="이메일" value={maskedEmail} />
-              <ValueRow label="error" value={valueOrDash(error?.code)} />
-            </dl>
-          </section>
-
-          <section className="app-next-panel">
-            <h2>이메일 인증</h2>
-            <p>이 화면은 명시적으로 버튼을 누를 때만 Firebase Auth 인증 메일 발송과 현재 사용자 reload를 실행합니다.</p>
-            <div className="app-next-actions">
-              <button
-                type="button"
-                onClick={handleSendVerification}
-                disabled={sendBusy || isLoading || !firebaseUser || emailVerified === true}
-              >
-                {sendBusy ? "발송 중" : "인증 메일 발송"}
-              </button>
-              <button
-                type="button"
-                onClick={handleReload}
-                disabled={reloadBusy || isLoading || !firebaseUser}
-              >
-                {reloadBusy ? "확인 중" : "인증 상태 다시 확인"}
-              </button>
-            </div>
-            {message ? <p className="app-next-message">{message}</p> : null}
-          </section>
-        </>
+        requireAuthEnabled ? (
+          <RequireAuth
+            previewMode
+            useExistingAuthProvider
+            onSnapshot={handleRequireAuthSnapshot}
+          >
+            <AppNextAccountReadOnly
+              screen="account"
+              currentRoute={routeDecision.currentRoute}
+              requestedRoute={routeDecision.requestedRoute}
+              requireAuthMode="new"
+              protectedRouteMode={protectedRouteEnabled ? "new" : "legacy"}
+              requireWorkspaceRoleMode={requireWorkspaceRoleEnabled ? "new" : "legacy"}
+              onNavigate={(route) => handleRoute(route)}
+            />
+          </RequireAuth>
+        ) : (
+          <AppNextRouteOnlyPanel
+            title="RequireAuth rollback mode"
+            body="The app-next account pilot is disabled by VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH or ?newAuthRequireAuth=off."
+          />
+        )
+      ) : activeTab === "settings-readonly" ? (
+        requireAuthEnabled ? (
+          <RequireAuth
+            previewMode
+            useExistingAuthProvider
+            onSnapshot={handleRequireAuthSnapshot}
+          >
+            <AppNextAccountReadOnly
+              screen="settings-readonly"
+              currentRoute={routeDecision.currentRoute}
+              requestedRoute={routeDecision.requestedRoute}
+              requireAuthMode="new"
+              protectedRouteMode={protectedRouteEnabled ? "new" : "legacy"}
+              requireWorkspaceRoleMode={requireWorkspaceRoleEnabled ? "new" : "legacy"}
+              onNavigate={(route) => handleRoute(route)}
+            />
+          </RequireAuth>
+        ) : (
+          <AppNextRouteOnlyPanel
+            title="RequireAuth rollback mode"
+            body="The app-next settings read-only pilot is disabled by VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH or ?newAuthRequireAuth=off."
+          />
+        )
       ) : activeTab === "devices" ? (
         <AppNextLoginDevices />
       ) : activeTab === "notifications" ? (

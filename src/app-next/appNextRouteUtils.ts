@@ -12,6 +12,7 @@ import {
 export type AppNextRoute =
   | "dashboard"
   | "account"
+  | "settings-readonly"
   | "devices"
   | "notifications"
   | "notices"
@@ -78,6 +79,7 @@ export interface AppNextAuthRouteMatrixSnapshot {
 const APP_NEXT_ROUTES = new Set<AppNextRoute>([
   "dashboard",
   "account",
+  "settings-readonly",
   "devices",
   "notifications",
   "notices",
@@ -93,6 +95,11 @@ const APP_NEXT_ROUTES = new Set<AppNextRoute>([
 ]);
 
 const PROTECTED_ROUTES = new Set<AppNextRoute>([
+  "dashboard",
+  "account",
+  "settings-readonly",
+  "devices",
+  "notifications",
   "notices",
   "admin-preview",
   "workspace-preview",
@@ -387,7 +394,7 @@ export function appNextAuthRouteMatrixSnapshot({
     ? adminMenuVisible
     : currentRoute === "workspace-preview"
       ? workspaceMenuVisible
-      : ["dashboard", "account", "devices", "notifications", "notices"].includes(currentRoute) && active;
+      : ["dashboard", "account", "settings-readonly", "devices", "notifications", "notices"].includes(currentRoute) && active;
 
   let finalDecision = "ALLOW_ROUTE";
   if (state === "loading") {

@@ -165,6 +165,7 @@ const appNextLoginDevicesUtils = loadTsModule("src/app-next/appNextLoginDevicesU
 const appNextNotificationsUtils = loadTsModule("src/app-next/appNextNotificationsUtils.ts");
 const appNextWorkspaceNoticesUtils = loadTsModule("src/app-next/appNextWorkspaceNoticesUtils.ts");
 const appNextDashboardUtils = loadTsModule("src/app-next/appNextDashboardUtils.ts");
+const appNextAccountSettingsUtils = loadTsModule("src/app-next/appNextAccountSettingsUtils.ts");
 const workspaceParentRecoveryUtils = loadTsModule("src/dev-recovery/workspaceParentRecoveryUtils.ts");
 
 function makeSession(overrides = {}) {
@@ -4451,6 +4452,7 @@ const tests = [
     const files = [
       "src/app-next/main.tsx",
       "src/app-next/AppNext.tsx",
+      "src/app-next/AppNextAccountReadOnly.tsx",
       "src/app-next/AppNextLogin.tsx",
       "src/app-next/appNextUtils.ts",
     ];
@@ -4482,6 +4484,7 @@ const tests = [
     const files = [
       "src/app-next/main.tsx",
       "src/app-next/AppNext.tsx",
+      "src/app-next/AppNextAccountReadOnly.tsx",
       "src/app-next/AppNextLogin.tsx",
       "src/app-next/appNextUtils.ts",
     ];
@@ -4502,12 +4505,87 @@ const tests = [
       assert.equal(forbidden.test(readFileSync(path.resolve(projectRoot, file), "utf8")), false, file);
     }
   }],
-  ["app-next verify email actions are explicit only", () => {
-    const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
-    assert.match(source, /sendEmailVerification\(firebaseUser\)/);
-    assert.match(source, /firebaseUser/);
-    assert.match(source, /onClick=\{handleSendVerification\}/);
-    assert.match(source, /disabled=\{sendBusy/);
+  ["app-next account and settings pilot is read-only", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    const accountSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextAccountReadOnly.tsx"), "utf8");
+    assert.match(appSource, /<AppNextAccountReadOnly/);
+    assert.match(appSource, /screen="account"/);
+    assert.match(appSource, /screen="settings-readonly"/);
+    assert.match(appSource, /<RequireAuth/);
+    assert.equal(/\bsendEmailVerification\b/.test(appSource), false);
+    assert.equal(/\b(sendEmailVerification|updateEmail|updatePassword|sendPasswordResetEmail|deleteUser|linkWithCredential|unlink|reauthenticateWithCredential|setPersistence|signOut)\b/.test(accountSource), false);
+    assert.equal(/\b(addDoc|setDoc|updateDoc|deleteDoc|writeBatch|runTransaction|onSnapshot|getDoc|getDocs)\b/.test(accountSource), false);
+    assert.match(accountSource, /Auth write" value="0"/);
+    assert.match(accountSource, /Firestore read\/write\/listener" value="0 \/ 0 \/ 0"/);
+  }],
+  ["app-next account read-only policy allows active workspace null", () => {
+    const policy = appNextAccountSettingsUtils.appNextAccountReadOnlyPolicy({
+      phase: "authenticated",
+      session: makeSession({
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+    });
+    assert.equal(policy.canRender, true);
+    assert.equal(policy.reason, "active");
+    assert.equal(policy.hasWorkspace, false);
+    assert.equal(policy.workspaceRoleCategory, "none");
+  }],
+  ["app-next account read-only policy blocks account action states", () => {
+    for (const status of ["pending", "rejected", "disabled"]) {
+      const policy = appNextAccountSettingsUtils.appNextAccountReadOnlyPolicy({
+        phase: "account_action_required",
+        session: makeSession({
+          status,
+        }),
+      });
+      assert.equal(policy.canRender, false);
+      assert.equal(policy.reason, status);
+    }
+  }],
+  ["app-next account read-only policy keeps system owner as global role", () => {
+    const policy = appNextAccountSettingsUtils.appNextAccountReadOnlyPolicy({
+      phase: "authenticated",
+      session: makeSession({
+        globalRole: "system_owner",
+        isSystemOwner: true,
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+    });
+    assert.equal(policy.canRender, true);
+    assert.equal(policy.isSystemOwner, true);
+    assert.equal(policy.globalRoleCategory, "system_owner");
+    assert.equal(policy.workspaceRoleCategory, "none");
+  }],
+  ["app-next account provider and persistence categories are privacy safe", () => {
+    assert.equal(appNextAccountSettingsUtils.providerCategoryFromIds(["google.com"]), "Google");
+    assert.equal(appNextAccountSettingsUtils.providerCategoryFromIds(["password"]), "이메일/비밀번호");
+    assert.equal(appNextAccountSettingsUtils.providerCategoryFromIds(["password", "google.com"]), "복수 제공자");
+    assert.equal(appNextAccountSettingsUtils.providerCategoryFromIds([]), "알 수 없음");
+    assert.equal(appNextAccountSettingsUtils.normalizePersistenceMode("local"), "local");
+    assert.equal(appNextAccountSettingsUtils.normalizePersistenceMode("session"), "session");
+    assert.equal(appNextAccountSettingsUtils.normalizePersistenceMode("none"), "none");
+    assert.equal(appNextAccountSettingsUtils.normalizePersistenceMode("indexeddbLocalPersistence"), "unknown");
+  }],
+  ["app-next account warnings expose codes only", () => {
+    const warnings = appNextAccountSettingsUtils.safeWarningCodes([
+      {
+        code: "WORKSPACE_NOT_FOUND",
+        message: "raw@example.test workspace_123",
+      },
+      {
+        code: "WORKSPACE_NOT_FOUND",
+        message: "duplicate",
+      },
+      {
+        code: "GLOBAL_ROLE_MISMATCH",
+        message: "sensitive",
+      },
+    ]);
+    assert.equal(JSON.stringify(warnings), JSON.stringify(["GLOBAL_ROLE_MISMATCH", "WORKSPACE_NOT_FOUND"]));
+    assert.equal(appNextAccountSettingsUtils.detectSensitiveAccountText(warnings), false);
+    assert.equal(appNextAccountSettingsUtils.detectSensitiveAccountText(["raw@example.test"]), true);
   }],
   ["app-next login form is gated by dedicated feature flag", () => {
     const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
@@ -4583,6 +4661,22 @@ const tests = [
     assert.ok(source);
     assert.match(styles, /app-next-diagnostics-toggle/);
     assert.match(styles, /position: fixed/);
+  }],
+  ["app-next account and settings diagnostics are separated and privacy safe", () => {
+    const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
+    const appSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    assert.match(diagnosticsSource, /PMAppNextAccountDiagnostics/);
+    assert.match(diagnosticsSource, /PMAppNextSettingsReadOnlyDiagnostics/);
+    assert.match(diagnosticsSource, /AppNextAccountDiagnosticsSnapshot/);
+    assert.match(diagnosticsSource, /AppNextSettingsReadOnlyDiagnosticsSnapshot/);
+    assert.match(appSource, /account\.accountReadCount/);
+    assert.match(appSource, /settings\.writeAttemptCount/);
+    assert.equal(/uid|workspaceId|documentId|apiKey|token/i.test(
+      diagnosticsSource.slice(
+        diagnosticsSource.indexOf("export interface AppNextAccountDiagnosticsSnapshot"),
+        diagnosticsSource.indexOf("const MAX_APP_NEXT_DIAGNOSTIC_EVENTS"),
+      ),
+    ), false);
   }],
   ["app-next diagnostics drawer includes workspace notice read state", () => {
     const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
@@ -6155,6 +6249,13 @@ const tests = [
     assert.equal(activeNotices.currentRoute, "notices");
     assert.equal(activeNotices.fallbackReason, "none");
     assert.equal(activeNotices.isProtectedRoute, true);
+    const activeSettings = appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/settings-readonly",
+      state: "active",
+    });
+    assert.equal(activeSettings.requestedRoute, "settings-readonly");
+    assert.equal(activeSettings.currentRoute, "settings-readonly");
+    assert.equal(activeSettings.isProtectedRoute, true);
     assert.equal(appNextRouteUtils.resolveAppNextRoute({
       hash: "#/notices",
       state: "signed_out",
