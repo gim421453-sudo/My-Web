@@ -675,6 +675,16 @@ function fieldsFor(key) {
   return common[key] || [];
 }
 
+const CONFIRM_PASSWORD_REQUIRED_COLLECTIONS_V122 = new Set([]);
+
+function shouldShowEditorConfirmPasswordV122(key, id) {
+  return Boolean(id) && CONFIRM_PASSWORD_REQUIRED_COLLECTIONS_V122.has(String(key || ""));
+}
+
+function shouldValidateEditorConfirmPasswordV122(key, id) {
+  return shouldShowEditorConfirmPasswordV122(key, id);
+}
+
 function openEditor(key, id = null, origin = key) {
   if (id && !can("edit", key)) return requestEdit(key, id);
   if (!id && !can("create", key)) return;
@@ -682,7 +692,7 @@ function openEditor(key, id = null, origin = key) {
   editing = { key, id, origin };
   dialogTitle.textContent = id ? `${pageLabel(key)} 수정` : `${pageLabel(key)} 추가`;
   editorFields.innerHTML = fieldsFor(key).map(([name, label, type, requiredOrOptions]) => inputHtml(name, label, type, requiredOrOptions, row[name])).join("");
-  if (id) {
+  if (shouldShowEditorConfirmPasswordV122(key, id)) {
     editorFields.insertAdjacentHTML("beforeend", `<label class="wide">현재 비밀번호<input name="_confirm_password" type="password" required placeholder="수정 저장 전 비밀번호 확인" /></label>`);
   }
   editorError.textContent = "";
@@ -713,7 +723,7 @@ function saveEditor(event) {
   event.preventDefault();
   if (!editing) return;
   const payload = Object.fromEntries(new FormData(editorForm).entries());
-  if (editing.id && payload._confirm_password !== currentUser.password) {
+  if (shouldValidateEditorConfirmPasswordV122(editing.key, editing.id) && payload._confirm_password !== currentUser.password) {
     editorError.textContent = "비밀번호가 올바르지 않습니다.";
     return;
   }
@@ -1688,7 +1698,7 @@ function openEditorV4(key, id = null) {
   fieldsForV4(key).forEach(([name, label, type, requiredOrOptions]) => {
     editorFields.append(inputNodeV4(name, label, type, requiredOrOptions, row?.[name] || ""));
   });
-  if (id) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
+  if (shouldShowEditorConfirmPasswordV122(key, id)) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
   if (key === "notices") bindNoticeSourceV4();
   editorError.textContent = "";
   editorDialog.showModal();
@@ -1698,7 +1708,7 @@ function saveEditor(event) {
   event.preventDefault();
   if (!editing) return;
   const payload = Object.fromEntries(new FormData(editorForm).entries());
-  if (editing.id && payload._confirm_password !== currentUser.password) {
+  if (shouldValidateEditorConfirmPasswordV122(editing.key, editing.id) && payload._confirm_password !== currentUser.password) {
     editorError.textContent = "비밀번호가 올바르지 않습니다.";
     return;
   }
@@ -2300,7 +2310,7 @@ function openEditorV5(key, id = null) {
   dialogTitle.textContent = `${pageLabel(key)} ${id ? "수정" : "추가"}`;
   editorFields.replaceChildren();
   fieldsForV5(key).forEach(([name, label, type, requiredOrOptions]) => editorFields.append(inputNodeV4(name, label, type, requiredOrOptions, row?.[name] || "")));
-  if (id) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
+  if (shouldShowEditorConfirmPasswordV122(key, id)) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
   if (key === "notices") bindNoticeEditorV5();
   editorError.textContent = "";
   editorDialog.showModal();
@@ -3130,7 +3140,7 @@ function openEditorV12(key, id = null) {
   dialogTitle.textContent = `${pageLabel(key)} ${id ? "수정" : "추가"}`;
   editorFields.replaceChildren();
   fieldsForV12(key).forEach(([name, label, type, requiredOrOptions]) => editorFields.append(inputNodeV4(name, label, type, requiredOrOptions, row?.[name] || "")));
-  if (id) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
+  if (shouldShowEditorConfirmPasswordV122(key, id)) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
   editorError.textContent = "";
   editorDialog.showModal();
 }
@@ -3455,7 +3465,7 @@ function openEditorV11(key, id = null) {
   dialogTitle.textContent = `${pageLabel(key)} ${id ? "수정" : "추가"}`;
   editorFields.replaceChildren();
   fieldsForV11(key).forEach(([name, label, type, requiredOrOptions]) => editorFields.append(inputNodeV4(name, label, type, requiredOrOptions, row?.[name] || "")));
-  if (id) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
+  if (shouldShowEditorConfirmPasswordV122(key, id)) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
   editorError.textContent = "";
   editorDialog.showModal();
 }
@@ -3890,7 +3900,7 @@ function openEditorV6(key, id = null, origin = key) {
   dialogTitle.textContent = `${pageLabel(key)} ${id ? "수정" : "추가"}`;
   editorFields.replaceChildren();
   fieldsForV6(key).forEach(([name, label, type, requiredOrOptions]) => editorFields.append(inputNodeV4(name, label, type, requiredOrOptions, row?.[name] || "")));
-  if (id) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
+  if (shouldShowEditorConfirmPasswordV122(key, id)) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
   if (key === "notices") bindNoticeEditorV5();
   editorError.textContent = "";
   editorDialog.showModal();
@@ -4459,7 +4469,7 @@ function openEditorV7(key, id = null, origin = key) {
   dialogTitle.textContent = `${pageLabel(key)} ${id ? "수정" : "추가"}`;
   editorFields.replaceChildren();
   fieldsForV7(key).forEach(([name, label, type, requiredOrOptions]) => editorFields.append(inputNodeV4(name, label, type, requiredOrOptions, row?.[name] || "")));
-  if (id) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
+  if (shouldShowEditorConfirmPasswordV122(key, id)) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
   if (key === "notices") bindNoticeEditorV5();
   editorError.textContent = "";
   editorDialog.showModal();
@@ -4577,7 +4587,7 @@ function saveEditor(event) {
   event.preventDefault();
   if (!editing) return;
   const payload = Object.fromEntries(new FormData(editorForm).entries());
-  if (editing.id && payload._confirm_password !== currentUser.password) {
+  if (shouldValidateEditorConfirmPasswordV122(editing.key, editing.id) && payload._confirm_password !== currentUser.password) {
     editorError.textContent = "비밀번호가 올바르지 않습니다.";
     return;
   }
@@ -5290,7 +5300,7 @@ function openEditorV10(key, id = null) {
   dialogTitle.textContent = `${pageLabel(key)} ${id ? "수정" : "추가"}`;
   editorFields.replaceChildren();
   fieldsForV10(key).forEach(([name, label, type, requiredOrOptions]) => editorFields.append(inputNodeV4(name, label, type, requiredOrOptions, row?.[name] || "")));
-  if (id) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
+  if (shouldShowEditorConfirmPasswordV122(key, id)) editorFields.append(inputNodeV4("_confirm_password", "현재 비밀번호", "password", true, ""));
   editorError.textContent = "";
   editorDialog.showModal();
 }
@@ -13155,7 +13165,7 @@ async function saveEditorWithPasswordV78(event) {
   event?.stopImmediatePropagation?.();
   if (!editing) return;
   const payload = Object.fromEntries(new FormData(editorForm).entries());
-  if (editing.id && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
+  if (shouldValidateEditorConfirmPasswordV122(editing.key, editing.id) && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
     editorError.textContent = passwordApprovalMessageV78();
     return;
   }
@@ -25348,7 +25358,7 @@ async function saveEditorWithNoticeServerRefreshV113(event) {
   event?.stopImmediatePropagation?.();
   if (!editing) return;
   const payload = Object.fromEntries(new FormData(editorForm).entries());
-  if (editing.id && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
+  if (shouldValidateEditorConfirmPasswordV122(editing.key, editing.id) && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
     editorError.textContent = passwordApprovalMessageV78();
     return;
   }
@@ -25874,7 +25884,7 @@ async function saveEditorWithNoticeServerRefreshV115(event) {
   event?.stopImmediatePropagation?.();
   if (!editing) return;
   const payload = Object.fromEntries(new FormData(editorForm).entries());
-  if (editing.id && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
+  if (shouldValidateEditorConfirmPasswordV122(editing.key, editing.id) && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
     editorError.textContent = passwordApprovalMessageV78();
     return;
   }
@@ -26216,18 +26226,266 @@ saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV116(
   return saveNoticeDirectToFirestoreBeforeV116(canonicalRow);
 };
 
+function recordScheduleSaveDiagnosticV121(patch = {}) {
+  window.PMWorkspaceDataService?.recordScheduleDiagnostic?.(patch);
+}
+
+function incrementScheduleSaveDiagnosticV121(key, amount = 1) {
+  window.PMWorkspaceDataService?.incrementScheduleDiagnostic?.(key, amount);
+}
+
+let scheduleEditorSaveInFlightV121 = false;
+
+function scheduleEditorSubmitButtonV121() {
+  return editorForm?.querySelector?.('button[type="submit"]') || null;
+}
+
+function setScheduleEditorSaveUiV121(inFlight, phase = "") {
+  scheduleEditorSaveInFlightV121 = Boolean(inFlight);
+  recordScheduleSaveDiagnosticV121({
+    scheduleEditorSaveInFlight: scheduleEditorSaveInFlightV121,
+    ...(phase ? { lastScheduleEditorSavePhase: phase } : {})
+  });
+  const button = scheduleEditorSubmitButtonV121();
+  if (!button) return;
+  if (!button.dataset.pmOriginalText) button.dataset.pmOriginalText = button.textContent || "저장";
+  button.disabled = scheduleEditorSaveInFlightV121;
+  button.textContent = scheduleEditorSaveInFlightV121 ? "저장 중" : button.dataset.pmOriginalText;
+}
+
+function finishScheduleEditorSaveFailureV121(code, message = "") {
+  incrementScheduleSaveDiagnosticV121("scheduleEditorSaveFailureCount", 1);
+  recordScheduleSaveDiagnosticV121({
+    lastScheduleEditorErrorCode: code || "unknown",
+    lastScheduleEditorSavePhase: "failed"
+  });
+  if (editorError) editorError.textContent = message || scheduleSaveErrorMessageV121(code || "unknown");
+}
+
+function scheduleSaveErrorMessageV121(code) {
+  if (code === "schedule-auth-unavailable") return "로그인 세션을 확인할 수 없어 일정을 서버에 저장하지 못했습니다. 다시 로그인 후 시도해 주세요.";
+  if (code === "schedule-workspace-unresolved") return "현재 워크스페이스를 확인할 수 없어 일정을 서버에 저장하지 못했습니다.";
+  if (code === "schedule-sync-not-started") return "워크스페이스 동기화가 아직 준비되지 않아 일정이 저장되지 않았습니다. 잠시 후 다시 시도해 주세요.";
+  if (code === "schedule-workspace-mismatch") return "현재 워크스페이스와 저장 대상이 일치하지 않아 일정 저장을 중단했습니다.";
+  if (code === "schedule-save-skipped") return "일정 서버 저장 요청이 건너뛰어졌습니다. 동기화 상태를 확인해 주세요.";
+  if (code === "schedule-server-confirm-failed") return "일정 저장 후 서버 확인에 실패했습니다. 목록을 새로고침한 뒤 다시 확인해 주세요.";
+  if (code === "permission-denied") return "일정 저장 권한이 없습니다. 관리자 권한과 Firestore 규칙을 확인해 주세요.";
+  if (code === "resource-exhausted") return "Firestore 사용량 한도에 도달해 일정을 저장하지 못했습니다.";
+  if (code === "unavailable") return "네트워크 또는 Firestore 연결 문제로 일정을 저장하지 못했습니다.";
+  return "일정 서버 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+}
+
+function classifyScheduleSaveErrorV121(error) {
+  const code = String(error?.code || error?.message || "").replace(/^firestore\//, "");
+  if (code.includes("schedule-")) return code;
+  if (code.includes("permission-denied")) return "permission-denied";
+  if (code.includes("resource-exhausted")) return "resource-exhausted";
+  if (code.includes("unavailable") || code.includes("network")) return "unavailable";
+  if (code.includes("firebase-config") || code.includes("firebase-db")) return "schedule-auth-unavailable";
+  return "unknown";
+}
+
+function scheduleCollectionV121(db, workspaceId) {
+  return db.collection("workspaces").doc(workspaceId).collection("schedules");
+}
+
+async function prepareScheduleServerSaveV121(rowWorkspaceId = "") {
+  incrementScheduleSaveDiagnosticV121("scheduleSaveAttemptCount", 1);
+  recordScheduleSaveDiagnosticV121({
+    lastScheduleSaveResult: "preflight",
+    lastScheduleErrorCode: "",
+    lastScheduleWorkspaceResolved: false,
+    lastScheduleWorkspaceMatchesCanonical: false
+  });
+  if (!window.PMFirebaseRuntime?.hasConfig?.()) {
+    return { ok: false, code: "schedule-auth-unavailable" };
+  }
+  let runtime = null;
+  try {
+    runtime = await workspaceNoticeRuntimeV112();
+  } catch (error) {
+    return { ok: false, code: classifyScheduleSaveErrorV121(error) };
+  }
+  const firebaseUser = runtime.auth?.currentUser || window.firebase?.auth?.().currentUser || null;
+  if (!firebaseUser?.uid) {
+    recordScheduleSaveDiagnosticV121({ lastScheduleSaveResult: "blocked-auth", lastScheduleErrorCode: "schedule-auth-unavailable" });
+    return { ok: false, code: "schedule-auth-unavailable" };
+  }
+  const canonicalWorkspaceId = await resolveCanonicalCurrentWorkspaceIdV116("schedule-save", { force: true });
+  if (!canonicalWorkspaceId) {
+    recordScheduleSaveDiagnosticV121({ lastScheduleSaveResult: "blocked-workspace", lastScheduleErrorCode: "schedule-workspace-unresolved" });
+    return { ok: false, code: "schedule-workspace-unresolved" };
+  }
+  const sync = window.PMWorkspaceDataService?.diagnostics?.() || {};
+  const syncStarted = Number(sync.startedAt || 0) > 0 && Number(sync.listenerCount || 0) > 0 && Boolean(sync.workspaceId);
+  if (!syncStarted) {
+    recordScheduleSaveDiagnosticV121({
+      lastScheduleSaveResult: "blocked-sync-not-started",
+      lastScheduleErrorCode: "schedule-sync-not-started",
+      lastScheduleWorkspaceResolved: true,
+      lastScheduleWorkspaceMatchesCanonical: false
+    });
+    incrementScheduleSaveDiagnosticV121("scheduleSaveBlockedCount", 1);
+    return { ok: false, code: "schedule-sync-not-started" };
+  }
+  if (sync.workspaceId !== canonicalWorkspaceId || (rowWorkspaceId && rowWorkspaceId !== canonicalWorkspaceId)) {
+    recordScheduleSaveDiagnosticV121({
+      lastScheduleSaveResult: "blocked-workspace-mismatch",
+      lastScheduleErrorCode: "schedule-workspace-mismatch",
+      lastScheduleWorkspaceResolved: true,
+      lastScheduleWorkspaceMatchesCanonical: false
+    });
+    incrementScheduleSaveDiagnosticV121("scheduleSaveBlockedCount", 1);
+    return { ok: false, code: "schedule-workspace-mismatch" };
+  }
+  recordScheduleSaveDiagnosticV121({
+    lastScheduleWorkspaceResolved: true,
+    lastScheduleWorkspaceMatchesCanonical: true,
+    lastScheduleSaveResult: "preflight-ok",
+    lastScheduleErrorCode: ""
+  });
+  return { ok: true, runtime, workspaceId: canonicalWorkspaceId };
+}
+
+async function saveScheduleDirectToFirestoreV121(row) {
+  const preflight = await prepareScheduleServerSaveV121(row?.workspaceId || row?.workspace_id || "");
+  if (!preflight.ok) return { confirmed: false, code: preflight.code };
+  const runtime = preflight.runtime;
+  const workspaceId = preflight.workspaceId;
+  const FieldValue = firebase.firestore.FieldValue;
+  const docId = String(row.id || Date.now());
+  const payload = cleanFirestoreObjectV52({
+    ...row,
+    id: docId,
+    workspaceId,
+    workspace_id: workspaceId,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  if (!row.createdAt) payload.createdAt = FieldValue.serverTimestamp();
+  try {
+    incrementScheduleSaveDiagnosticV121("scheduleSaveQueuedCount", 1);
+    recordScheduleSaveDiagnosticV121({ lastScheduleSaveResult: "server-write-started", lastScheduleErrorCode: "" });
+    const ref = scheduleCollectionV121(runtime.db, workspaceId).doc(docId);
+    await ref.set(payload, { merge: true });
+    incrementScheduleSaveDiagnosticV121("scheduleFlushCount", 1);
+    incrementScheduleSaveDiagnosticV121("scheduleServerConfirmAttemptCount", 1);
+    const snapshot = await ref.get({ source: "server" });
+    const data = snapshot.exists ? (snapshot.data() || {}) : {};
+    const titleMatches = String(data.title || "") === String(row.title || "");
+    const dateMatches = String(data.date || "") === String(row.date || "");
+    const pending = Boolean(snapshot.metadata?.hasPendingWrites);
+    if (!snapshot.exists || pending || !titleMatches || !dateMatches) {
+      incrementScheduleSaveDiagnosticV121("scheduleServerConfirmFailureCount", 1);
+      recordScheduleSaveDiagnosticV121({
+        lastScheduleSaveResult: "server-confirm-failed",
+        lastScheduleErrorCode: "schedule-server-confirm-failed"
+      });
+      return { confirmed: false, code: "schedule-server-confirm-failed" };
+    }
+    incrementScheduleSaveDiagnosticV121("scheduleServerConfirmSuccessCount", 1);
+    recordScheduleSaveDiagnosticV121({
+      lastScheduleSaveResult: "server-confirmed",
+      lastScheduleErrorCode: "",
+      lastScheduleWorkspaceResolved: true,
+      lastScheduleWorkspaceMatchesCanonical: true
+    });
+    window.PMWorkspaceDataService?.discardPendingRow?.("schedules", docId);
+    return { confirmed: true, row: { ...row, id: docId, workspaceId, workspace_id: workspaceId } };
+  } catch (error) {
+    const code = classifyScheduleSaveErrorV121(error);
+    incrementScheduleSaveDiagnosticV121("scheduleServerConfirmFailureCount", 1);
+    recordScheduleSaveDiagnosticV121({
+      lastScheduleSaveResult: "server-save-failed",
+      lastScheduleErrorCode: code
+    });
+    return { confirmed: false, code };
+  }
+}
+
+async function saveScheduleEditorWithServerConfirmV121(event) {
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  if (!editing || editing.key !== "schedules") return;
+  incrementScheduleSaveDiagnosticV121("scheduleEditorSaveClickCount", 1);
+  if (scheduleEditorSaveInFlightV121) {
+    incrementScheduleSaveDiagnosticV121("scheduleEditorSaveDuplicateClickBlockedCount", 1);
+    recordScheduleSaveDiagnosticV121({ lastScheduleEditorSavePhase: "duplicate-click-blocked" });
+    return;
+  }
+  incrementScheduleSaveDiagnosticV121("scheduleEditorSaveAcceptedCount", 1);
+  const editorSnapshot = {
+    key: editing.key,
+    id: editing.id ?? null,
+    origin: editing.origin || currentPage
+  };
+  const isUpdate = editorSnapshot.id !== null && editorSnapshot.id !== undefined && editorSnapshot.id !== "";
+  const payload = Object.fromEntries(new FormData(editorForm).entries());
+  setScheduleEditorSaveUiV121(true, "validating");
+  try {
+    if (shouldValidateEditorConfirmPasswordV122(editorSnapshot.key, editorSnapshot.id) && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
+      finishScheduleEditorSaveFailureV121("password-verification-failed", passwordApprovalMessageV78());
+      return;
+    }
+    delete payload._confirm_password;
+    const rows = store.schedules || (store.schedules = []);
+    const existing = isUpdate ? rows.find((row) => String(row.id) === String(editorSnapshot.id)) : null;
+    if (isUpdate && !existing) {
+      finishScheduleEditorSaveFailureV121("schedule-row-missing", "수정할 일정을 찾을 수 없습니다.");
+      return;
+    }
+    if (!isUpdate && !Object.values(payload).some((value) => String(value || "").trim())) {
+      closeEditor();
+      renderPage(editorSnapshot.origin || currentPage);
+      return;
+    }
+    const rowId = isUpdate ? editorSnapshot.id : Date.now();
+    const row = isUpdate
+      ? { ...existing, ...payload, id: rowId }
+      : { id: rowId, ...payload, created_by: currentUser?.email || "" };
+    recordScheduleSaveDiagnosticV121({ lastScheduleEditorSavePhase: "server-confirming", lastScheduleEditorErrorCode: "" });
+    const result = await saveScheduleDirectToFirestoreV121(row);
+    if (!result?.confirmed) {
+      finishScheduleEditorSaveFailureV121(result?.code || "schedule-server-confirm-failed");
+      return;
+    }
+    try {
+      const confirmedRows = store.schedules || (store.schedules = []);
+      if (isUpdate) {
+        const index = confirmedRows.findIndex((item) => String(item.id) === String(rowId));
+        if (index >= 0) confirmedRows[index] = result.row;
+        else confirmedRows.unshift(result.row);
+      } else if (!confirmedRows.some((item) => String(item.id) === String(result.row.id))) {
+        confirmedRows.unshift(result.row);
+      }
+      saveStore({ skipRemote: true, syncReason: "schedule-server-confirmed" });
+      incrementScheduleSaveDiagnosticV121("scheduleEditorSaveSuccessCount", 1);
+      recordScheduleSaveDiagnosticV121({
+        lastScheduleEditorSavePhase: "completed",
+        lastScheduleEditorErrorCode: ""
+      });
+      closeEditor();
+      renderPage(editorSnapshot.origin || currentPage);
+      showMessage("일정 저장 완료", "일정이 현재 워크스페이스 서버에서 확인되었습니다.");
+    } catch (postConfirmError) {
+      incrementScheduleSaveDiagnosticV121("scheduleEditorPostConfirmFailureCount", 1);
+      finishScheduleEditorSaveFailureV121(classifyScheduleSaveErrorV121(postConfirmError), "서버 저장은 확인했지만 화면 갱신 중 문제가 발생했습니다. 목록을 새로고침해 주세요.");
+    }
+  } catch (error) {
+    finishScheduleEditorSaveFailureV121(classifyScheduleSaveErrorV121(error));
+  } finally {
+    setScheduleEditorSaveUiV121(false);
+  }
+}
+
 async function saveEditorWithNoticeServerRefreshV116(event) {
   event?.preventDefault?.();
   event?.stopImmediatePropagation?.();
   if (!editing) return;
   if (editing.key !== "notices") {
+    if (editing.key === "schedules") return saveScheduleEditorWithServerConfirmV121(event);
     return saveEditorWithNoticeServerRefreshV113(event);
   }
   const payload = Object.fromEntries(new FormData(editorForm).entries());
-  if (editing.id && !(await verifyCurrentPasswordV78(payload._confirm_password))) {
-    editorError.textContent = passwordApprovalMessageV78();
-    return;
-  }
   delete payload._confirm_password;
   const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116("notice-editor-submit", { force: true });
   if (!workspaceId) {
@@ -27018,6 +27276,209 @@ if (typeof window !== "undefined") {
     clear: clearNavigationPageV120,
     restore: restoreNavigationPageV120
   };
+}
+
+// Final V121: start operational workspace sync from the resolved canonical
+// workspace after login/session restoration, before schedule saves are allowed.
+const APP_PATCH_VERSION_V121 = "v121.0 - 2026-07-23";
+store.settings.appVersion = APP_PATCH_VERSION_V121;
+
+const operationalWorkspaceSyncStartDiagnosticsV121 = {
+  startRequestCount: 0,
+  startBlockedCount: 0,
+  startSuccessRequestCount: 0,
+  duplicateStartPreventedCount: 0,
+  lastStartReason: "none",
+  lastStartResult: "none",
+  lastStartErrorCode: "",
+  canonicalWorkspaceResolved: false,
+  workspaceMatchesCanonical: false,
+  lastStartedAt: "",
+  lastScheduledAt: ""
+};
+
+let operationalWorkspaceSyncStartInFlightV121 = false;
+let operationalWorkspaceSyncStartTimerV121 = null;
+let operationalWorkspaceSyncStartedWorkspaceV121 = "";
+
+function activeAccountForWorkspaceSyncV121() {
+  if (!currentUser) return false;
+  if (currentUser.disabled === true || currentUser.active === false) return false;
+  const status = String(currentUser.status || (currentUser.active === false ? "disabled" : "active")).toLowerCase();
+  return !["pending", "rejected", "disabled", "suspended"].includes(status);
+}
+
+function applyCanonicalWorkspaceToOperationalStoreV121(canonicalWorkspaceId) {
+  const workspaceId = String(canonicalWorkspaceId || "").trim();
+  if (!workspaceId) return false;
+  if (currentUser) {
+    currentUser.workspace_id = workspaceId;
+    currentUser.workspaceId = workspaceId;
+    currentUser.currentWorkspaceId = workspaceId;
+  }
+  authWorkspaceStateV36 = {
+    ...(authWorkspaceStateV36 || {}),
+    loading: false,
+    error: "",
+    currentWorkspaceId: workspaceId,
+    currentRole: currentUser?.role || authWorkspaceStateV36?.currentRole || "",
+    workspaceRole: currentUser?.workspaceRole || authWorkspaceStateV36?.workspaceRole || ""
+  };
+  window.PMDataService?.setWorkspaceId?.(workspaceId);
+  if (!store || store.workspace_id !== workspaceId) {
+    store = loadWorkspaceStoreV36(workspaceId);
+  }
+  store.workspace_id = workspaceId;
+  return true;
+}
+
+function startCanonicalWorkspaceDataSyncV121(workspaceId, reason = "canonical-workspace-ready") {
+  const sync = window.PMWorkspaceDataService?.diagnostics?.() || {};
+  if (
+    sync.workspaceId === workspaceId
+    && Number(sync.startedAt || 0) > 0
+    && Number(sync.listenerCount || 0) > 0
+  ) {
+    operationalWorkspaceSyncStartDiagnosticsV121.duplicateStartPreventedCount += 1;
+    operationalWorkspaceSyncStartDiagnosticsV121.lastStartResult = "already-started";
+    return false;
+  }
+  window.PMWorkspaceDataService?.start?.({
+    workspaceId,
+    canonicalWorkspaceId: workspaceId,
+    reason,
+    uid: currentUser?.uid || currentUser?.id || "",
+    role: currentUser?.role || "",
+    status: currentUser?.status || "",
+    pendingWorkspaceId: currentUser?.pendingWorkspaceId || "",
+    store,
+    onRemoteChange(change = {}) {
+      if (!store || store.workspace_id !== workspaceId) return;
+      saveStore({ skipRemote: true, syncReason: `canonical-sync-remote:${change?.key || "unknown"}` });
+      applySettings();
+      if (["timetable", "timetableSets", "periodTimes"].includes(change?.key || "")) {
+        window.PMTimetableQuickViewService?.refreshAfterRemoteChange?.(change);
+      }
+      clearTimeout(workspaceDataRenderTimerV45);
+      workspaceDataRenderTimerV45 = setTimeout(() => {
+        if (!currentUser || app?.classList.contains("hidden")) return;
+        try {
+          buildNav();
+          renderPage(currentPage || "dashboard");
+        } catch (error) {
+          console.warn("[PM workspace sync] render after canonical remote update failed", error?.message || String(error));
+        }
+      }, 150);
+    }
+  });
+  operationalWorkspaceSyncStartedWorkspaceV121 = workspaceId;
+  operationalWorkspaceSyncStartDiagnosticsV121.startSuccessRequestCount += 1;
+  operationalWorkspaceSyncStartDiagnosticsV121.lastStartResult = "start-requested";
+  operationalWorkspaceSyncStartDiagnosticsV121.lastStartedAt = new Date().toISOString();
+  return true;
+}
+
+async function ensureCanonicalWorkspaceDataSyncV121(reason = "session-ready", options = {}) {
+  if (operationalWorkspaceSyncStartInFlightV121 && !options.force) return false;
+  operationalWorkspaceSyncStartInFlightV121 = true;
+  operationalWorkspaceSyncStartDiagnosticsV121.startRequestCount += 1;
+  operationalWorkspaceSyncStartDiagnosticsV121.lastStartReason = reason;
+  operationalWorkspaceSyncStartDiagnosticsV121.lastScheduledAt = new Date().toISOString();
+  try {
+    if (!window.PMFirebaseRuntime?.hasConfig?.() || !window.firebase?.apps?.length) {
+      operationalWorkspaceSyncStartDiagnosticsV121.startBlockedCount += 1;
+      operationalWorkspaceSyncStartDiagnosticsV121.lastStartResult = "blocked-missing-firebase";
+      operationalWorkspaceSyncStartDiagnosticsV121.lastStartErrorCode = "missing-firebase";
+      return false;
+    }
+    const runtime = await workspaceNoticeRuntimeV112();
+    if (!runtime?.auth?.currentUser) {
+      operationalWorkspaceSyncStartDiagnosticsV121.startBlockedCount += 1;
+      operationalWorkspaceSyncStartDiagnosticsV121.lastStartResult = "blocked-missing-auth-user";
+      operationalWorkspaceSyncStartDiagnosticsV121.lastStartErrorCode = "missing-auth-user";
+      return false;
+    }
+    if (!activeAccountForWorkspaceSyncV121()) {
+      operationalWorkspaceSyncStartDiagnosticsV121.startBlockedCount += 1;
+      operationalWorkspaceSyncStartDiagnosticsV121.lastStartResult = "blocked-inactive-account";
+      operationalWorkspaceSyncStartDiagnosticsV121.lastStartErrorCode = "inactive-account";
+      return false;
+    }
+    const canonicalWorkspaceId = await resolveCanonicalCurrentWorkspaceIdV116(`workspace-sync:${reason}`, {
+      force: options.forceCanonical === true
+    });
+    operationalWorkspaceSyncStartDiagnosticsV121.canonicalWorkspaceResolved = Boolean(canonicalWorkspaceId);
+    if (!canonicalWorkspaceId) {
+      operationalWorkspaceSyncStartDiagnosticsV121.startBlockedCount += 1;
+      operationalWorkspaceSyncStartDiagnosticsV121.lastStartResult = "blocked-missing-canonical-workspace";
+      operationalWorkspaceSyncStartDiagnosticsV121.lastStartErrorCode = "missing-canonical-workspace";
+      return false;
+    }
+    applyCanonicalWorkspaceToOperationalStoreV121(canonicalWorkspaceId);
+    operationalWorkspaceSyncStartDiagnosticsV121.workspaceMatchesCanonical = store?.workspace_id === canonicalWorkspaceId;
+    if (!operationalWorkspaceSyncStartDiagnosticsV121.workspaceMatchesCanonical) {
+      operationalWorkspaceSyncStartDiagnosticsV121.startBlockedCount += 1;
+      operationalWorkspaceSyncStartDiagnosticsV121.lastStartResult = "blocked-workspace-mismatch";
+      operationalWorkspaceSyncStartDiagnosticsV121.lastStartErrorCode = "workspace-mismatch";
+      return false;
+    }
+    if (operationalWorkspaceSyncStartedWorkspaceV121 === canonicalWorkspaceId && !options.force) {
+      const sync = window.PMWorkspaceDataService?.diagnostics?.() || {};
+      if (sync.workspaceId === canonicalWorkspaceId && Number(sync.listenerCount || 0) > 0) {
+        operationalWorkspaceSyncStartDiagnosticsV121.duplicateStartPreventedCount += 1;
+        operationalWorkspaceSyncStartDiagnosticsV121.lastStartResult = "duplicate-prevented";
+        operationalWorkspaceSyncStartDiagnosticsV121.lastStartErrorCode = "";
+        return false;
+      }
+    }
+    operationalWorkspaceSyncStartDiagnosticsV121.lastStartErrorCode = "";
+    return startCanonicalWorkspaceDataSyncV121(canonicalWorkspaceId, reason);
+  } catch (error) {
+    const code = classifyScheduleSaveErrorV121(error);
+    operationalWorkspaceSyncStartDiagnosticsV121.startBlockedCount += 1;
+    operationalWorkspaceSyncStartDiagnosticsV121.lastStartResult = "start-failed";
+    operationalWorkspaceSyncStartDiagnosticsV121.lastStartErrorCode = code;
+    return false;
+  } finally {
+    operationalWorkspaceSyncStartInFlightV121 = false;
+  }
+}
+
+function scheduleCanonicalWorkspaceDataSyncStartV121(reason = "session-ready", delayMs = 0) {
+  clearTimeout(operationalWorkspaceSyncStartTimerV121);
+  operationalWorkspaceSyncStartTimerV121 = setTimeout(() => {
+    void ensureCanonicalWorkspaceDataSyncV121(reason);
+  }, Math.max(0, Number(delayMs) || 0));
+}
+
+const completeLoginBeforeV121 = completeLoginV34;
+completeLoginV34 = function completeLoginV121(user) {
+  const result = completeLoginBeforeV121.apply(this, arguments);
+  scheduleCanonicalWorkspaceDataSyncStartV121("complete-login", 0);
+  return result;
+};
+
+const clearSessionStateBeforeV121 = clearSessionStateV36;
+clearSessionStateV36 = function clearSessionStateV121() {
+  operationalWorkspaceSyncStartedWorkspaceV121 = "";
+  operationalWorkspaceSyncStartInFlightV121 = false;
+  clearTimeout(operationalWorkspaceSyncStartTimerV121);
+  return clearSessionStateBeforeV121.apply(this, arguments);
+};
+
+if (typeof window !== "undefined") {
+  window.PMOperationalWorkspaceSyncDiagnostics = {
+    snapshot() {
+      return {
+        ...operationalWorkspaceSyncStartDiagnosticsV121,
+        workspaceSync: window.PMWorkspaceDataService?.diagnostics?.() || {}
+      };
+    }
+  };
+  setTimeout(() => {
+    const hasRestoredUser = Boolean(currentUser || (window.firebase?.apps?.length && window.firebase?.auth?.().currentUser));
+    if (hasRestoredUser) scheduleCanonicalWorkspaceDataSyncStartV121("boot-ready", 0);
+  }, 0);
 }
 
 setTimeout(() => restoreNavigationPageV120("script-ready"), 0);

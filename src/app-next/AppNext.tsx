@@ -25,6 +25,7 @@ import {
   getAppNextAccountDiagnostics,
   getAppNextSettingsReadOnlyDiagnostics,
   getAppNextTimetableDiagnostics,
+  getAppNextSchedulesDiagnostics,
   recordAppNextAuthRouteMatrixDiagnostics,
 } from "./appNextDiagnostics";
 import {
@@ -50,6 +51,9 @@ import {
 import {
   AppNextTimetableReadOnly,
 } from "./AppNextTimetableReadOnly";
+import {
+  AppNextSchedulesReadOnly,
+} from "./AppNextSchedulesReadOnly";
 import {
   AppNextAccountReadOnly,
 } from "./AppNextAccountReadOnly";
@@ -149,6 +153,7 @@ function AppNextDiagnostics({
   const accountDiagnostics = getAppNextAccountDiagnostics();
   const settingsDiagnostics = getAppNextSettingsReadOnlyDiagnostics();
   const timetableDiagnostics = getAppNextTimetableDiagnostics();
+  const schedulesDiagnostics = getAppNextSchedulesDiagnostics();
   const recentEvents = getAppNextDiagnosticEvents();
 
   return (
@@ -248,6 +253,12 @@ function AppNextDiagnostics({
         <ValueRow label="timetable.timetableActiveListenerCount" value={String(timetableDiagnostics.timetableActiveListenerCount)} />
         <ValueRow label="timetable.duplicateCellGroupCount" value={String(timetableDiagnostics.duplicateCellGroupCount)} />
         <ValueRow label="timetable.sensitiveValueDetected" value={booleanLabel(timetableDiagnostics.sensitiveValueDetected)} />
+        <ValueRow label="schedules.scheduleReadCount" value={String(schedulesDiagnostics.scheduleReadCount)} />
+        <ValueRow label="schedules.scheduleWriteAttemptCount" value={String(schedulesDiagnostics.scheduleWriteAttemptCount)} />
+        <ValueRow label="schedules.scheduleActiveListenerCount" value={String(schedulesDiagnostics.scheduleActiveListenerCount)} />
+        <ValueRow label="schedules.visibleScheduleCount" value={String(schedulesDiagnostics.visibleScheduleCount)} />
+        <ValueRow label="schedules.duplicateLoadDetected" value={booleanLabel(schedulesDiagnostics.duplicateLoadDetected)} />
+        <ValueRow label="schedules.sensitiveValueDetected" value={booleanLabel(schedulesDiagnostics.sensitiveValueDetected)} />
         <ValueRow label="notice.lastRequestedReadMode" value={noticeDiagnostics.lastRequestedReadMode} />
         <ValueRow label="notice.lastCompletedReadMode" value={noticeDiagnostics.lastCompletedReadMode} />
         <ValueRow label="notice.lastErrorKind" value={noticeDiagnostics.lastErrorKind} />
@@ -367,6 +378,7 @@ type AppNextTab =
   | "account"
   | "settings-readonly"
   | "timetable-readonly"
+  | "schedules-readonly"
   | "devices"
   | "notifications"
   | "workspace-notices"
@@ -433,6 +445,8 @@ export function AppNext({
         ? "settings-readonly"
         : routeDecision.currentRoute === "timetable-readonly"
           ? "timetable-readonly"
+          : routeDecision.currentRoute === "schedules-readonly"
+            ? "schedules-readonly"
         : routeDecision.currentRoute === "devices"
       ? "devices"
       : routeDecision.currentRoute === "notifications"
@@ -455,7 +469,9 @@ export function AppNext({
     "disabled",
     "error",
   ].includes(routeDecision.currentRoute);
-  const pageTitle = activeTab === "dashboard"
+  const pageTitle = activeTab === "schedules-readonly"
+    ? "일정 조회"
+    : activeTab === "dashboard"
     ? "메인 대시보드"
     : activeTab === "timetable-readonly"
       ? "시간표 조회"
@@ -553,6 +569,7 @@ export function AppNext({
         (routeDecision.currentRoute === "account" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "settings-readonly" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "timetable-readonly" && requireAuthEnabled) ||
+        (routeDecision.currentRoute === "schedules-readonly" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "notices" && requireAuthEnabled) ||
         (routeDecision.currentRoute === "admin-preview" && protectedRouteEnabled) ||
         (routeDecision.currentRoute === "workspace-preview" && protectedRouteEnabled && requireWorkspaceRoleEnabled)
@@ -566,6 +583,8 @@ export function AppNext({
         : routeDecision.currentRoute === "settings-readonly" && !requireAuthEnabled
           ? "require-auth-flag-off"
         : routeDecision.currentRoute === "timetable-readonly" && !requireAuthEnabled
+          ? "require-auth-flag-off"
+        : routeDecision.currentRoute === "schedules-readonly" && !requireAuthEnabled
           ? "require-auth-flag-off"
         : routeDecision.currentRoute === "admin-preview" && !protectedRouteEnabled
           ? "protected-route-flag-off"
@@ -690,6 +709,13 @@ export function AppNext({
             onClick={() => handleRoute("timetable-readonly")}
           >
             시간표 조회
+          </button>
+          <button
+            type="button"
+            className={activeTab === "schedules-readonly" ? "active" : "secondary"}
+            onClick={() => handleRoute("schedules-readonly")}
+          >
+            일정 조회
           </button>
           <button
             type="button"
@@ -827,6 +853,25 @@ export function AppNext({
           <AppNextRouteOnlyPanel
             title="RequireAuth rollback mode"
             body="The app-next timetable read-only pilot is disabled by VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH or ?newAuthRequireAuth=off."
+          />
+        )
+      ) : activeTab === "schedules-readonly" ? (
+        requireAuthEnabled ? (
+          <RequireAuth
+            previewMode
+            useExistingAuthProvider
+            onSnapshot={handleRequireAuthSnapshot}
+          >
+            <AppNextSchedulesReadOnly
+              currentRoute={routeDecision.currentRoute}
+              requestedRoute={routeDecision.requestedRoute}
+              onNavigate={(route) => handleRoute(route)}
+            />
+          </RequireAuth>
+        ) : (
+          <AppNextRouteOnlyPanel
+            title="RequireAuth rollback mode"
+            body="The app-next schedules read-only pilot is disabled by VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH or ?newAuthRequireAuth=off."
           />
         )
       ) : activeTab === "devices" ? (

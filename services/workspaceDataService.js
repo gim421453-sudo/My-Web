@@ -82,6 +82,38 @@
   let lastSyncedSettingsSignature = "";
   let lastSyncedRowsByKey = {};
   const recentScheduleCalls = [];
+  const startDiagnostics = {
+    startAttemptCount: 0,
+    startSuccessCount: 0,
+    startBlockedCount: 0,
+    lastStartReason: "none",
+    lastStartResult: "none",
+    lastStartErrorCode: "",
+    canonicalWorkspaceResolved: false,
+    workspaceMatchesCanonical: false
+  };
+  const scheduleDiagnostics = {
+    scheduleSaveAttemptCount: 0,
+    scheduleSaveBlockedCount: 0,
+    scheduleSaveQueuedCount: 0,
+    scheduleFlushCount: 0,
+    scheduleServerConfirmAttemptCount: 0,
+    scheduleServerConfirmSuccessCount: 0,
+    scheduleServerConfirmFailureCount: 0,
+    lastScheduleSaveResult: "none",
+    lastScheduleErrorCode: "",
+    lastScheduleWorkspaceResolved: false,
+    lastScheduleWorkspaceMatchesCanonical: false,
+    scheduleEditorSaveClickCount: 0,
+    scheduleEditorSaveAcceptedCount: 0,
+    scheduleEditorSaveDuplicateClickBlockedCount: 0,
+    scheduleEditorSaveInFlight: false,
+    scheduleEditorSaveSuccessCount: 0,
+    scheduleEditorSaveFailureCount: 0,
+    scheduleEditorPostConfirmFailureCount: 0,
+    lastScheduleEditorSavePhase: "none",
+    lastScheduleEditorErrorCode: ""
+  };
   const noticeDiagnostics = {
     noticeDeleteRequestedCount: 0,
     noticeDeleteConfirmedCount: 0,
@@ -290,6 +322,10 @@
     return [...new Set(keys.filter((key) => COLLECTION_KEYS.includes(key)))];
   }
 
+  function saveIncludesCollection(options = {}, key = "") {
+    return normalizeScheduleKeys(options.keys).includes(key);
+  }
+
   function rememberListenerPath(path) {
     if (!path) return;
     if (activeListenerPaths.has(path)) {
@@ -348,9 +384,20 @@
 
   function start(options) {
     const workspaceId = normalizeWorkspaceId(options?.workspaceId);
-    if (!workspaceId || !options?.store || !hasFirebase()) return;
+    startDiagnostics.startAttemptCount += 1;
+    startDiagnostics.lastStartReason = options?.reason || "unspecified";
+    startDiagnostics.canonicalWorkspaceResolved = Boolean(options?.canonicalWorkspaceId || workspaceId);
+    startDiagnostics.workspaceMatchesCanonical = !options?.canonicalWorkspaceId || options.canonicalWorkspaceId === workspaceId;
+    if (!workspaceId || !options?.store || !hasFirebase()) {
+      startDiagnostics.startBlockedCount += 1;
+      startDiagnostics.lastStartResult = !workspaceId ? "blocked-missing-workspace" : !options?.store ? "blocked-missing-store" : "blocked-missing-firebase";
+      startDiagnostics.lastStartErrorCode = startDiagnostics.lastStartResult;
+      return;
+    }
     if (workspaceId === currentWorkspaceId && currentStore === options.store) {
       duplicateStartAttempts += 1;
+      startDiagnostics.lastStartResult = "duplicate-blocked";
+      startDiagnostics.lastStartErrorCode = "";
       return;
     }
     stop();
@@ -368,9 +415,17 @@
         if (!rt || workspaceId !== currentWorkspaceId) return;
         subscribeSettings(rt, workspaceId, options.store, options.onRemoteChange);
         COLLECTION_KEYS.forEach((key) => subscribeCollection(rt, workspaceId, key, options.store, options.onRemoteChange, currentContext));
+        startDiagnostics.startSuccessCount += 1;
+        startDiagnostics.lastStartResult = "started";
+        startDiagnostics.lastStartErrorCode = "";
         debugLog(`[PM workspace sync] realtime listeners started workspaceId=${maskId(workspaceId)} collections=${COLLECTION_KEYS.length}`);
       })
-      .catch((error) => logFirestorePermissionError("start", { path: `workspaces/${workspaceId}`, workspaceId, uid: currentContext.uid, role: currentContext.role }, error));
+      .catch((error) => {
+        startDiagnostics.startBlockedCount += 1;
+        startDiagnostics.lastStartResult = "start-failed";
+        startDiagnostics.lastStartErrorCode = error?.code || "unknown";
+        logFirestorePermissionError("start", { path: `workspaces/${workspaceId}`, workspaceId, uid: currentContext.uid, role: currentContext.role }, error);
+      });
   }
 
   function subscribeSettings(rt, workspaceId, store, onRemoteChange) {
@@ -503,10 +558,21 @@
     const targetWorkspaceId = normalizeWorkspaceId(workspaceId || currentWorkspaceId);
     if (!targetWorkspaceId || !store) return;
     rememberScheduleCall(targetWorkspaceId, options);
+    const includesSchedules = saveIncludesCollection(options, "schedules");
+    if (includesSchedules) {
+      scheduleDiagnostics.scheduleSaveAttemptCount += 1;
+      scheduleDiagnostics.lastScheduleWorkspaceResolved = Boolean(targetWorkspaceId);
+      scheduleDiagnostics.lastScheduleWorkspaceMatchesCanonical = !options.canonicalWorkspaceId || options.canonicalWorkspaceId === targetWorkspaceId;
+    }
     if (targetWorkspaceId !== currentWorkspaceId || !unsubscribers.length) {
       saveSkippedCount += 1;
       cancelledCount += 1;
       lastScheduleSkipReason = targetWorkspaceId !== currentWorkspaceId ? "workspace-sync-not-started" : "no-active-listeners";
+      if (includesSchedules) {
+        scheduleDiagnostics.scheduleSaveBlockedCount += 1;
+        scheduleDiagnostics.lastScheduleSaveResult = lastScheduleSkipReason;
+        scheduleDiagnostics.lastScheduleErrorCode = lastScheduleSkipReason;
+      }
       return;
     }
     rememberPendingLocalChanges(store, options);
@@ -514,9 +580,19 @@
       saveSkippedCount += 1;
       cancelledCount += 1;
       lastScheduleSkipReason = "quota-backoff";
+      if (includesSchedules) {
+        scheduleDiagnostics.scheduleSaveBlockedCount += 1;
+        scheduleDiagnostics.lastScheduleSaveResult = "quota-backoff";
+        scheduleDiagnostics.lastScheduleErrorCode = "resource-exhausted";
+      }
       return;
     }
     saveScheduledCount += 1;
+    if (includesSchedules) {
+      scheduleDiagnostics.scheduleSaveQueuedCount += 1;
+      scheduleDiagnostics.lastScheduleSaveResult = "queued";
+      scheduleDiagnostics.lastScheduleErrorCode = "";
+    }
     lastScheduledAt = Date.now();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => flush(targetWorkspaceId, store), 650);
@@ -594,6 +670,7 @@
     }
     saveInFlight = true;
     lastSaveInFlightStartedAt = Date.now();
+    let flushHadSchedules = false;
     try {
       const rt = await runtime();
       if (!rt) return;
@@ -624,6 +701,7 @@
         ...Object.keys(pendingLocalRowsByKey).filter((key) => Object.keys(pendingLocalRowsByKey[key] || {}).length),
         ...Object.keys(pendingDeletedIdsByKey).filter((key) => Object.keys(pendingDeletedIdsByKey[key] || {}).length)
       ].filter((key) => COLLECTION_KEYS.includes(key)));
+      flushHadSchedules = keysToFlush.has("schedules");
       for (const key of keysToFlush) {
         const pendingRows = pendingLocalRowsByKey[key] || {};
         for (const [id, pending] of Object.entries(pendingRows)) {
@@ -653,6 +731,11 @@
       }
 
       await commitBatch(rt, batch, operationCount);
+      if (flushHadSchedules) {
+        scheduleDiagnostics.scheduleFlushCount += 1;
+        scheduleDiagnostics.lastScheduleSaveResult = "flushed";
+        scheduleDiagnostics.lastScheduleErrorCode = "";
+      }
       if (pendingSettingsSnapshot) {
         lastSyncedSettingsSignature = stableSignature(pendingSettingsSnapshot);
         pendingSettingsSnapshot = null;
@@ -681,6 +764,10 @@
         quotaBackoffUntil = Date.now() + QUOTA_BACKOFF_MS;
         pendingSave = false;
         lastScheduleSkipReason = "quota-backoff";
+      }
+      if (flushHadSchedules) {
+        scheduleDiagnostics.lastScheduleSaveResult = "flush-failed";
+        scheduleDiagnostics.lastScheduleErrorCode = error?.code || "unknown";
       }
     } finally {
       saveInFlight = false;
@@ -720,6 +807,15 @@
       if (!Object.prototype.hasOwnProperty.call(noticeDiagnostics, key)) return;
       noticeDiagnostics[key] = Number(noticeDiagnostics[key] || 0) + Number(amount || 0);
     },
+    recordScheduleDiagnostic(patch = {}) {
+      Object.entries(patch || {}).forEach(([key, value]) => {
+        if (Object.prototype.hasOwnProperty.call(scheduleDiagnostics, key)) scheduleDiagnostics[key] = value;
+      });
+    },
+    incrementScheduleDiagnostic(key, amount = 1) {
+      if (!Object.prototype.hasOwnProperty.call(scheduleDiagnostics, key)) return;
+      scheduleDiagnostics[key] = Number(scheduleDiagnostics[key] || 0) + Number(amount || 0);
+    },
     isApplyingRemote: () => applyingRemote
     ,
     diagnostics() {
@@ -727,6 +823,7 @@
         workspaceId: currentWorkspaceId,
         currentWorkspaceMasked: maskId(currentWorkspaceId),
         listenerCount: unsubscribers.length,
+        activeListenerPathCount: activeListenerPaths.size,
         activeListenerPaths: [...activeListenerPaths].map(maskPath),
         saveScheduledCount,
         scheduledCount: saveScheduledCount,
@@ -742,6 +839,7 @@
           key,
           Object.keys(pendingLocalRowsByKey[key] || {}).length + Object.keys(pendingDeletedIdsByKey[key] || {}).length
         ]).filter((entry) => entry[1] > 0)),
+        pendingScheduleCount: Object.keys(pendingLocalRowsByKey.schedules || {}).length + Object.keys(pendingDeletedIdsByKey.schedules || {}).length,
         pendingSettings: !!pendingSettingsSnapshot,
         lastFlushOperationCount,
         lastFlushKeys,
@@ -760,6 +858,8 @@
         lastErrorPhase: lastError?.phase || "",
         lastErrorPath: lastError?.path || "",
         lastErrorAt,
+        ...startDiagnostics,
+        ...scheduleDiagnostics,
         ...noticeDiagnostics
       };
     }

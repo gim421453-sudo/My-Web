@@ -252,6 +252,87 @@ button.secondary {
   padding: 12px;
 }
 
+.app-next-schedule-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.app-next-schedule-filter-grid label {
+  display: grid;
+  gap: 6px;
+  color: #627394;
+  font-weight: 800;
+}
+
+.app-next-schedule-filter-grid select,
+.app-next-schedule-filter-grid input {
+  min-height: 42px;
+  border: 1px solid #cbd8ef;
+  border-radius: 8px;
+  color: #0f172a;
+  font: inherit;
+  padding: 0 10px;
+}
+
+.app-next-schedule-list {
+  display: grid;
+  gap: 12px;
+}
+
+.app-next-schedule-card {
+  border: 1px solid #d7e0ee;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.app-next-schedule-card.invalid {
+  border-color: #f3a5ad;
+}
+
+.app-next-schedule-head {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.app-next-schedule-head div {
+  display: grid;
+  gap: 5px;
+}
+
+.app-next-schedule-head strong {
+  overflow-wrap: anywhere;
+}
+
+.app-next-schedule-head span {
+  color: #405477;
+}
+
+.app-next-schedule-head em {
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #18345f;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+.app-next-schedule-detail strong {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.app-next-schedule-detail.inline {
+  background: #f8fbff;
+  margin-top: 4px;
+}
+
 .app-next-login-form {
   display: grid;
   gap: 14px;
@@ -575,6 +656,10 @@ button.secondary {
 
   .app-next-device-list,
   .app-next-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-next-schedule-filter-grid {
     grid-template-columns: 1fr;
   }
 

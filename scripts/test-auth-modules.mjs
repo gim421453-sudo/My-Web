@@ -167,6 +167,7 @@ const appNextWorkspaceNoticesUtils = loadTsModule("src/app-next/appNextWorkspace
 const appNextDashboardUtils = loadTsModule("src/app-next/appNextDashboardUtils.ts");
 const appNextAccountSettingsUtils = loadTsModule("src/app-next/appNextAccountSettingsUtils.ts");
 const appNextTimetableReadonlyUtils = loadTsModule("src/app-next/appNextTimetableReadonlyUtils.ts");
+const appNextSchedulesReadonlyUtils = loadTsModule("src/app-next/appNextSchedulesReadonlyUtils.ts");
 const workspaceParentRecoveryUtils = loadTsModule("src/dev-recovery/workspaceParentRecoveryUtils.ts");
 
 function makeSession(overrides = {}) {
@@ -6278,6 +6279,417 @@ const tests = [
     assert.equal(appSource.includes("AppNextTimetableReadOnly"), false);
     assert.equal(appSource.includes("#/timetable-readonly"), false);
     assert.equal(htmlSource.includes("AppNextTimetableReadOnly"), false);
+  }],
+  ["app-next schedules route is a RequireAuth read-only consumer", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");
+    const routeSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextRouteUtils.ts"), "utf8");
+    const dashboardSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextDashboardReadOnly.tsx"), "utf8");
+    assert.match(appSource, /AppNextSchedulesReadOnly/);
+    assert.match(appSource, /activeTab === "schedules-readonly"/);
+    assert.match(appSource, /<RequireAuth[\s\S]*?<AppNextSchedulesReadOnly/);
+    assert.match(routeSource, /"schedules-readonly"/);
+    assert.match(dashboardSource, /onNavigate\("schedules-readonly"\)/);
+  }],
+  ["app-next schedules read policy allows route but blocks data without workspace", () => {
+    const policy = appNextSchedulesReadonlyUtils.appNextScheduleReadPolicy({
+      phase: "authenticated",
+      session: makeSession({
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+    });
+    assert.equal(policy.routeAllowed, true);
+    assert.equal(policy.canRead, false);
+    assert.equal(policy.reason, "workspace-missing");
+    assert.equal(policy.hasWorkspace, false);
+  }],
+  ["app-next schedules preserves system owner as global role", () => {
+    const policy = appNextSchedulesReadonlyUtils.appNextScheduleReadPolicy({
+      phase: "authenticated",
+      session: makeSession({
+        globalRole: "system_owner",
+        isSystemOwner: true,
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+    });
+    assert.equal(policy.globalRoleCategory, "system_owner");
+    assert.equal(policy.workspaceRoleCategory, "none");
+    assert.equal(policy.routeAllowed, true);
+    assert.equal(policy.canRead, false);
+  }],
+  ["app-next schedules normalizes operational fields into today upcoming past completed buckets", () => {
+    const normalized = appNextSchedulesReadonlyUtils.normalizeAppNextSchedulesStore({
+      schedules: [
+        {
+          id: "today-1",
+          title: "오늘 수업",
+          date: "2026-07-23",
+          start_time: "09:00",
+          end_time: "10:00",
+          type: "수업",
+          importance: "높음",
+          status: "예정",
+        },
+        {
+          id: "future-1",
+          title: "다음 시험",
+          date: "2026-07-24",
+          type: "시험",
+          status: "예정",
+        },
+        {
+          id: "done-1",
+          title: "완료 과제",
+          date: "2026-07-20",
+          status: "완료",
+        },
+        {
+          id: "past-1",
+          title: "지난 일정",
+          date: "2026-07-21",
+          status: "예정",
+        },
+        {
+          id: "hidden-1",
+          title: "삭제 일정",
+          date: "2026-07-23",
+          deleted: true,
+        },
+        {
+          id: "invalid-1",
+          title: "날짜 오류",
+          date: "not-a-date",
+        },
+      ],
+    }, {
+      now: new Date("2026-07-23T08:00:00+09:00"),
+    });
+    assert.equal(normalized.records.length, 6);
+    assert.equal(normalized.visibleRecords.length, 5);
+    assert.equal(normalized.todayRecords.length, 1);
+    assert.equal(normalized.upcomingRecords.length, 1);
+    assert.equal(normalized.completedRecords.length, 1);
+    assert.equal(normalized.pastRecords.length, 1);
+    assert.equal(normalized.hiddenRecords.length, 1);
+    assert.equal(normalized.invalidRecords.length, 1);
+    assert.equal(normalized.allDayRecords.length, 4);
+    assert.equal(normalized.timedRecords.length, 1);
+    assert.equal(normalized.todayRecords[0].timeLabel, "09:00~10:00");
+  }],
+  ["app-next schedules filters are client-side and preserve normalized records", () => {
+    const normalized = appNextSchedulesReadonlyUtils.normalizeAppNextSchedulesStore({
+      schedules: [
+        { title: "A", date: "2026-07-23", type: "학교", importance: "높음" },
+        { title: "B", date: "2026-07-24", type: "학원", importance: "보통" },
+        { title: "C", date: "2026-07-25", type: "학교", importance: "낮음" },
+      ],
+    }, {
+      now: new Date("2026-07-23T00:00:00+09:00"),
+    });
+    const filtered = appNextSchedulesReadonlyUtils.applyAppNextScheduleFilters(normalized, {
+      bucket: "upcoming",
+      type: "학교",
+      importance: "",
+      fromDate: "2026-07-24",
+      toDate: "2026-07-26",
+    });
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0].title, "C");
+    assert.equal(normalized.visibleRecords.length, 3);
+    assert.ok(normalized.typeOptions.includes("학교"));
+    assert.ok(normalized.typeOptions.includes("시험"));
+    assert.ok(normalized.typeOptions.includes("학원"));
+    assert.ok(normalized.importanceOptions.includes("높음"));
+    assert.ok(normalized.importanceOptions.includes("보통"));
+    assert.ok(normalized.importanceOptions.includes("낮음"));
+    assert.equal(appNextSchedulesReadonlyUtils.appNextScheduleFilterSignature({
+      bucket: "upcoming",
+      type: "학교",
+      importance: "",
+      fromDate: "2026-07-24",
+      toDate: "2026-07-26",
+    }), "upcoming|학교|all-importance|2026-07-24|2026-07-26");
+  }],
+  ["app-next schedules service is one-time read-only and workspace scoped", () => {
+    const serviceSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextSchedulesReadonlyService.ts"), "utf8");
+    const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextSchedulesReadOnly.tsx"), "utf8");
+    const forbidden = /\b(addDoc|setDoc|updateDoc|deleteDoc|writeBatch|runTransaction|onSnapshot)\b/;
+    assert.match(serviceSource, /collection\(getFirebaseDb\(\), collections\.workspaces, workspaceId, "schedules"\)/);
+    assert.match(serviceSource, /getDocs\(/);
+    assert.match(serviceSource, /getDocsFromServer\(/);
+    assert.match(serviceSource, /readMode\??:\s*"default"\s*\|\s*"server"/);
+    assert.equal(forbidden.test(serviceSource), false);
+    assert.equal(forbidden.test(componentSource), false);
+    assert.equal(/\bsignOut\s*\(/.test(componentSource), false);
+    assert.match(componentSource, /scheduleReadCount \+= 1/);
+  }],
+  ["app-next schedules diagnostics are privacy-safe zero-write counters", () => {
+    const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
+    const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextSchedulesReadOnly.tsx"), "utf8");
+    assert.match(diagnosticsSource, /AppNextSchedulesDiagnosticsSnapshot/);
+    assert.match(diagnosticsSource, /PMAppNextSchedulesDiagnostics/);
+    assert.match(diagnosticsSource, /recordAppNextSchedulesDiagnostics/);
+    assert.match(componentSource, /scheduleWriteAttemptCount:\s*0/);
+    assert.match(componentSource, /scheduleListenerStartCount:\s*0/);
+    assert.match(componentSource, /scheduleActiveListenerCount:\s*0/);
+    assert.match(diagnosticsSource, /detailPanelOpen/);
+    assert.match(diagnosticsSource, /selectedSchedulePresent/);
+    assert.match(diagnosticsSource, /manualRefreshCount/);
+    assert.match(diagnosticsSource, /cacheInvalidationCount/);
+    assert.match(diagnosticsSource, /forceReloadCount/);
+    assert.match(diagnosticsSource, /selectedScheduleMatchCount/);
+    assert.match(diagnosticsSource, /detailSelectionMismatchDetected/);
+    assert.match(diagnosticsSource, /scheduleRawReadCount/);
+    assert.match(diagnosticsSource, /lastScheduleReadMode/);
+    assert.match(diagnosticsSource, /lastScheduleSourceCollection/);
+    assert.match(diagnosticsSource, /lastScheduleFromCache/);
+    assert.match(diagnosticsSource, /lastSchedulePendingWrites/);
+    assert.match(diagnosticsSource, /filterStatusOptionCount/);
+    assert.match(diagnosticsSource, /filterTypeOptionCount/);
+    assert.match(diagnosticsSource, /filterImportanceOptionCount/);
+    const interfaceBlock = diagnosticsSource.match(/AppNextSchedulesDiagnosticsSnapshot[\s\S]*?}\n/)?.[0] || "";
+    assert.equal(/\b(uid|email|workspaceId|documentId|path|token)\b/i.test(interfaceBlock), false);
+  }],
+  ["app-next schedules in-flight reuse is not reported as duplicate loader execution", () => {
+    const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextSchedulesReadOnly.tsx"), "utf8");
+    assert.match(componentSource, /const existingRequest = schedulesInFlight\.get\(cacheKey\)/);
+    assert.match(componentSource, /if \(existingRequest \|\| inFlightRef\.current\)/);
+    assert.match(componentSource, /duplicateLoadDetected:\s*false/);
+    assert.equal(/setDuplicateLoadDetected\(true\)/.test(componentSource), false);
+    assert.match(componentSource, /scheduleLoadCount \+= 1/);
+    assert.match(componentSource, /scheduleReadCount \+= 1/);
+  }],
+  ["app-next schedules manual refresh invalidates cache and uses server read without listener", () => {
+    const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextSchedulesReadOnly.tsx"), "utf8");
+    assert.match(componentSource, /manualRefreshCount \+= 1/);
+    assert.match(componentSource, /cacheInvalidationCount \+= schedulesCache\.has\(cacheKey\) \? 1 : 0/);
+    assert.match(componentSource, /forceReloadCount \+= 1/);
+    assert.match(componentSource, /schedulesCache\.delete\(cacheKey\)/);
+    assert.match(componentSource, /readMode: forceRefresh \? "server" : "default"/);
+    assert.equal(/\bonSnapshot\s*\(/.test(componentSource), false);
+  }],
+  ["app-next schedules detail view is opened inline without exposing ids", () => {
+    const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextSchedulesReadOnly.tsx"), "utf8");
+    assert.match(componentSource, /selectedSchedule/);
+    assert.match(componentSource, /detailPanelOpen: Boolean\(selectedSchedule\)/);
+    assert.match(componentSource, /selectedSchedulePresent: Boolean\(selectedSchedule\)/);
+    assert.match(componentSource, /selectedScheduleMatchCount/);
+    assert.match(componentSource, /detailSelectionMismatchDetected/);
+    assert.match(componentSource, /className="app-next-schedule-detail inline"/);
+    assert.match(componentSource, /event\.preventDefault\(\)/);
+    assert.match(componentSource, /event\.stopPropagation\(\)/);
+    assert.match(componentSource, /data-schedule-card=\{cardKey\}/);
+    assert.equal(/href="#"/.test(componentSource), false);
+    assert.equal(/scrollIntoView/.test(componentSource), false);
+    assert.equal(/window\.location\.hash/.test(componentSource), false);
+    assert.equal(/<section className="app-next-panel app-next-schedule-detail">/.test(componentSource), false);
+    assert.equal(/selectedSchedule\.(id|documentId|workspaceId|uid)/.test(componentSource), false);
+  }],
+  ["app-next schedules stable detail selection survives duplicate titles and filtering", () => {
+    const normalized = appNextSchedulesReadonlyUtils.normalizeAppNextSchedulesStore({
+      schedules: [
+        {
+          id: "doc-secret-a",
+          title: "같은 제목",
+          date: "2026-07-23",
+          start_time: "09:00",
+          type: "학교",
+        },
+        {
+          id: "doc-secret-b",
+          title: "같은 제목",
+          date: "2026-07-23",
+          start_time: "10:00",
+          type: "학교",
+        },
+        {
+          title: "같은 제목",
+          date: "2026-07-24",
+          start_time: "09:00",
+          type: "학원",
+        },
+      ],
+    }, {
+      now: new Date("2026-07-23T00:00:00+09:00"),
+    });
+    assert.equal(new Set(normalized.visibleRecords.map((row) => row.stableKey)).size, 3);
+    assert.equal(normalized.visibleRecords.some((row) => row.stableKey.includes("doc-secret")), false);
+    const schoolRows = appNextSchedulesReadonlyUtils.applyAppNextScheduleFilters(normalized, {
+      ...appNextSchedulesReadonlyUtils.APP_NEXT_EMPTY_SCHEDULE_FILTER,
+      type: "학교",
+    });
+    assert.equal(schoolRows.length, 2);
+    assert.equal(schoolRows.every((row) => row.title === "같은 제목"), true);
+  }],
+  ["app-next schedules operational fixture remains visible after server refresh normalization", () => {
+    const normalized = appNextSchedulesReadonlyUtils.normalizeAppNextSchedulesStore({
+      schedules: [
+        {
+          id: 123,
+          title: "운영 새 일정",
+          date: "2026-07-23",
+          start_time: "18:30",
+          end_time: "19:30",
+          type: "기타",
+          importance: "보통",
+          status: "예정",
+          memo: "운영 화면 saveEditor fixture",
+          created_by: "masked@example.com",
+        },
+      ],
+    }, {
+      now: new Date("2026-07-23T00:00:00+09:00"),
+    });
+    assert.equal(normalized.records.length, 1);
+    assert.equal(normalized.visibleRecords.length, 1);
+    assert.equal(normalized.hiddenRecords.length, 0);
+    assert.equal(normalized.invalidRecords.length, 0);
+    assert.equal(normalized.todayRecords.length, 1);
+  }],
+  ["operational collection editor only creates confirm password fields through an explicit allowlist", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    assert.match(appSource, /CONFIRM_PASSWORD_REQUIRED_COLLECTIONS_V122 = new Set\(\[\]\)/);
+    assert.match(appSource, /shouldShowEditorConfirmPasswordV122/);
+    assert.match(appSource, /shouldValidateEditorConfirmPasswordV122/);
+    assert.equal(/if \(id\) editorFields\.append\(inputNodeV4\("_confirm_password"/.test(appSource), false);
+    assert.equal(/if \(id\) \{\s*editorFields\.insertAdjacentHTML\("beforeend", `[^`]*_confirm_password/.test(appSource), false);
+    assert.equal(/removeNoticeEditorPasswordFieldV122/.test(appSource), false);
+    assert.equal(/openEditorV7NoticePasswordV122/.test(appSource), false);
+    assert.match(appSource, /if \(shouldShowEditorConfirmPasswordV122\(key, id\)\) editorFields\.append\(inputNodeV4\("_confirm_password"/);
+    const noticeSubmitSource = appSource.slice(
+      appSource.indexOf("async function saveEditorWithNoticeServerRefreshV116"),
+      appSource.indexOf("try {\n  const editorFormElV116")
+    );
+    assert.notEqual(noticeSubmitSource.length, 0);
+    const noticeBranchStart = noticeSubmitSource.indexOf('if (editing.key !== "notices")');
+    const noticeBranchEnd = noticeSubmitSource.indexOf('const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116("notice-editor-submit"');
+    const noticeBranchSource = noticeSubmitSource.slice(noticeBranchStart, noticeBranchEnd);
+    assert.notEqual(noticeBranchSource.length, 0);
+    assert.equal(/verifyCurrentPasswordV78/.test(noticeBranchSource), false);
+    assert.match(noticeSubmitSource, /delete payload\._confirm_password/);
+    const scheduleSaveFunctionSource = appSource.slice(
+      appSource.indexOf("async function saveScheduleEditorWithServerConfirmV121"),
+      appSource.indexOf("async function saveEditorWithNoticeServerRefreshV116")
+    );
+    assert.notEqual(scheduleSaveFunctionSource.length, 0);
+    assert.match(scheduleSaveFunctionSource, /shouldValidateEditorConfirmPasswordV122\(editorSnapshot\.key, editorSnapshot\.id\)/);
+  }],
+  ["operational schedules use canonical server-confirmed save instead of optimistic success", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const serviceSource = readFileSync(path.resolve(projectRoot, "services/workspaceDataService.js"), "utf8");
+    assert.match(appSource, /saveScheduleEditorWithServerConfirmV121/);
+    assert.match(appSource, /prepareScheduleServerSaveV121/);
+    assert.match(appSource, /resolveCanonicalCurrentWorkspaceIdV116\("schedule-save"/);
+    assert.match(appSource, /scheduleCollectionV121\(runtime\.db, workspaceId\)\.doc\(docId\)/);
+    assert.match(appSource, /ref\.get\(\{ source: "server" \}\)/);
+    assert.match(appSource, /if \(!result\?\.confirmed\)/);
+    assert.match(appSource, /confirmedRows\.unshift\(result\.row\)/);
+    assert.match(appSource, /saveStore\(\{ skipRemote: true, syncReason: "schedule-server-confirmed" \}\)/);
+    assert.match(appSource, /editing\.key === "schedules"/);
+    assert.match(appSource, /schedule-sync-not-started/);
+    assert.match(appSource, /schedule-workspace-mismatch/);
+    assert.match(serviceSource, /scheduleSaveAttemptCount/);
+    assert.match(serviceSource, /scheduleSaveBlockedCount/);
+    assert.match(serviceSource, /scheduleServerConfirmSuccessCount/);
+    assert.match(serviceSource, /lastScheduleWorkspaceMatchesCanonical/);
+    assert.match(serviceSource, /pendingScheduleCount/);
+  }],
+  ["operational schedule editor save blocks duplicate clicks and avoids stale editing state", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const serviceSource = readFileSync(path.resolve(projectRoot, "services/workspaceDataService.js"), "utf8");
+    const scheduleSaveFunctionSource = appSource.slice(
+      appSource.indexOf("async function saveScheduleEditorWithServerConfirmV121"),
+      appSource.indexOf("async function saveEditorWithNoticeServerRefreshV116")
+    );
+    assert.notEqual(scheduleSaveFunctionSource.length, 0);
+    assert.match(appSource, /let scheduleEditorSaveInFlightV121 = false/);
+    assert.match(appSource, /scheduleEditorSubmitButtonV121/);
+    assert.match(appSource, /setScheduleEditorSaveUiV121\(true, "validating"\)/);
+    assert.match(appSource, /setScheduleEditorSaveUiV121\(false\)/);
+    assert.match(scheduleSaveFunctionSource, /scheduleEditorSaveClickCount/);
+    assert.match(scheduleSaveFunctionSource, /scheduleEditorSaveDuplicateClickBlockedCount/);
+    assert.match(scheduleSaveFunctionSource, /scheduleEditorSaveAcceptedCount/);
+    assert.match(scheduleSaveFunctionSource, /const editorSnapshot = \{/);
+    assert.match(scheduleSaveFunctionSource, /id: editing\.id \?\? null/);
+    assert.match(scheduleSaveFunctionSource, /const isUpdate = editorSnapshot\.id !== null/);
+    assert.match(scheduleSaveFunctionSource, /const rowId = isUpdate \? editorSnapshot\.id : Date\.now\(\)/);
+    assert.match(scheduleSaveFunctionSource, /String\(item\.id\) === String\(rowId\)/);
+    assert.equal(/if \(editing\.id\)/.test(scheduleSaveFunctionSource), false);
+    assert.equal(/rows\.unshift\(\{ id: Date\.now\(\)/.test(scheduleSaveFunctionSource), false);
+    assert.match(serviceSource, /scheduleEditorSaveClickCount/);
+    assert.match(serviceSource, /scheduleEditorSaveAcceptedCount/);
+    assert.match(serviceSource, /scheduleEditorSaveDuplicateClickBlockedCount/);
+    assert.match(serviceSource, /scheduleEditorSaveInFlight/);
+    assert.match(serviceSource, /scheduleEditorPostConfirmFailureCount/);
+    assert.match(serviceSource, /lastScheduleEditorErrorCode/);
+  }],
+  ["operational workspace sync starts from canonical workspace after login only", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const serviceSource = readFileSync(path.resolve(projectRoot, "services/workspaceDataService.js"), "utf8");
+    assert.match(appSource, /APP_PATCH_VERSION_V121/);
+    assert.match(appSource, /ensureCanonicalWorkspaceDataSyncV121/);
+    assert.match(appSource, /resolveCanonicalCurrentWorkspaceIdV116\(`workspace-sync:\$\{reason\}`/);
+    assert.match(appSource, /applyCanonicalWorkspaceToOperationalStoreV121/);
+    assert.match(appSource, /window\.PMWorkspaceDataService\?\.start\?\.\(\{/);
+    assert.match(appSource, /canonicalWorkspaceId:\s*workspaceId/);
+    assert.match(appSource, /reason,\s*\n\s*uid:/);
+    assert.match(appSource, /completeLoginV34 = function completeLoginV121/);
+    assert.match(appSource, /scheduleCanonicalWorkspaceDataSyncStartV121\("complete-login"/);
+    assert.match(appSource, /operationalWorkspaceSyncStartedWorkspaceV121 === canonicalWorkspaceId/);
+    assert.match(appSource, /duplicateStartPreventedCount/);
+    assert.match(appSource, /clearSessionStateV36 = function clearSessionStateV121/);
+    assert.match(appSource, /PMOperationalWorkspaceSyncDiagnostics/);
+    const scheduleSaveFunctionSource = appSource.slice(
+      appSource.indexOf("async function saveScheduleEditorWithServerConfirmV121"),
+      appSource.indexOf("async function saveEditorWithNoticeServerRefreshV116")
+    );
+    assert.notEqual(scheduleSaveFunctionSource.length, 0);
+    assert.equal(/PMWorkspaceDataService\?\.start/.test(scheduleSaveFunctionSource), false);
+    assert.match(serviceSource, /startAttemptCount/);
+    assert.match(serviceSource, /startSuccessCount/);
+    assert.match(serviceSource, /startBlockedCount/);
+    assert.match(serviceSource, /activeListenerPathCount/);
+    assert.match(serviceSource, /workspaceMatchesCanonical/);
+  }],
+  ["app-next schedules filter options include canonical and actual data values", () => {
+    const utilsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextSchedulesReadonlyUtils.ts"), "utf8");
+    const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextSchedulesReadOnly.tsx"), "utf8");
+    assert.match(utilsSource, /CANONICAL_SCHEDULE_TYPES/);
+    assert.match(utilsSource, /CANONICAL_SCHEDULE_IMPORTANCE/);
+    assert.match(componentSource, /SCHEDULE_STATUS_OPTIONS/);
+    assert.match(componentSource, /dateRangeInvalid/);
+    assert.match(componentSource, /시작일이 종료일보다 늦습니다/);
+  }],
+  ["app-next schedules route matrix is workspace-null safe", () => {
+    const result = appNextRouteUtils.resolveAppNextRoute({
+      hash: "#/schedules-readonly",
+      state: "active",
+    });
+    assert.equal(result.currentRoute, "schedules-readonly");
+    assert.equal(result.isProtectedRoute, true);
+    const matrix = appNextRouteUtils.appNextAuthRouteMatrixSnapshot({
+      requestedRoute: "schedules-readonly",
+      currentRoute: "schedules-readonly",
+      state: "active",
+      session: makeSession({
+        currentWorkspaceId: null,
+        currentWorkspaceRole: null,
+      }),
+      requireAuthEnabled: true,
+      protectedRouteEnabled: true,
+      requireWorkspaceRoleEnabled: true,
+    });
+    assert.equal(matrix.finalDecision, "ALLOW_ROUTE_WITH_DATA_BLOCKED");
+    assert.equal(matrix.directUrlAllowed, true);
+    assert.equal(matrix.workspaceRequired, true);
+  }],
+  ["app-next schedules does not modify operational static app files", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const htmlSource = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    assert.equal(appSource.includes("AppNextSchedulesReadOnly"), false);
+    assert.equal(appSource.includes("#/schedules-readonly"), false);
+    assert.equal(htmlSource.includes("AppNextSchedulesReadOnly"), false);
   }],
   ["workspace parent recovery dry-run page is standalone and development gated", () => {
     const html = readFileSync(path.resolve(projectRoot, "workspace-parent-recovery.html"), "utf8");

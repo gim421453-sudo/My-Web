@@ -93,7 +93,7 @@ function DashboardValue({
 export function AppNextDashboardReadOnly({
   onNavigate,
 }: {
-  onNavigate(route: "notices" | "admin-preview" | "workspace-preview" | "timetable-readonly"): void;
+  onNavigate(route: "notices" | "admin-preview" | "workspace-preview" | "timetable-readonly" | "schedules-readonly"): void;
 }) {
   const {
     phase,
@@ -414,6 +414,23 @@ export function AppNextDashboardReadOnly({
             <DashboardValue label="오늘 수업 수" value="시간표 조회 화면에서 확인" />
             <DashboardValue label="조회 상태" value="route 이동 후 확인" />
             <DashboardValue label="중복 셀 경고" value="시간표 조회 화면에서 확인" />
+            <DashboardValue label="dashboard 추가 read" value="0" />
+          </dl>
+        </section>
+
+        <section className="app-next-panel">
+          <div className="app-next-section-head">
+            <div>
+              <h2>일정 요약</h2>
+              <p>대시보드에서는 추가 조회 없이 일정 조회 전용 화면으로만 이동합니다.</p>
+            </div>
+            <button type="button" className="secondary" onClick={() => onNavigate("schedules-readonly")}>
+              일정 보기
+            </button>
+          </div>
+          <dl>
+            <DashboardValue label="오늘 일정" value="일정 조회 화면에서 확인" />
+            <DashboardValue label="조회 방식" value="route 이동 후 1회 조회" />
             <DashboardValue label="dashboard 추가 read" value="0" />
           </dl>
         </section>

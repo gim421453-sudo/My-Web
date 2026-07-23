@@ -14,6 +14,7 @@ export type AppNextRoute =
   | "account"
   | "settings-readonly"
   | "timetable-readonly"
+  | "schedules-readonly"
   | "devices"
   | "notifications"
   | "notices"
@@ -82,6 +83,7 @@ const APP_NEXT_ROUTES = new Set<AppNextRoute>([
   "account",
   "settings-readonly",
   "timetable-readonly",
+  "schedules-readonly",
   "devices",
   "notifications",
   "notices",
@@ -101,6 +103,7 @@ const PROTECTED_ROUTES = new Set<AppNextRoute>([
   "account",
   "settings-readonly",
   "timetable-readonly",
+  "schedules-readonly",
   "devices",
   "notifications",
   "notices",
@@ -397,7 +400,7 @@ export function appNextAuthRouteMatrixSnapshot({
     ? adminMenuVisible
     : currentRoute === "workspace-preview"
       ? workspaceMenuVisible
-      : ["dashboard", "account", "settings-readonly", "timetable-readonly", "devices", "notifications", "notices"].includes(currentRoute) && active;
+      : ["dashboard", "account", "settings-readonly", "timetable-readonly", "schedules-readonly", "devices", "notifications", "notices"].includes(currentRoute) && active;
 
   let finalDecision = "ALLOW_ROUTE";
   if (state === "loading") {
@@ -421,7 +424,7 @@ export function appNextAuthRouteMatrixSnapshot({
           ? "ALLOW_ROUTE"
           : workspacePolicy.decision;
   } else if (
-    (currentRoute === "notices" || currentRoute === "timetable-readonly") &&
+    (currentRoute === "notices" || currentRoute === "timetable-readonly" || currentRoute === "schedules-readonly") &&
     !session?.currentWorkspaceId
   ) {
     finalDecision = "ALLOW_ROUTE_WITH_DATA_BLOCKED";
@@ -453,7 +456,7 @@ export function appNextAuthRouteMatrixSnapshot({
     requiresAuth,
     requiresProtectedRoute,
     requiresWorkspaceRole,
-    workspaceRequired: currentRoute === "workspace-preview" || currentRoute === "timetable-readonly",
+    workspaceRequired: currentRoute === "workspace-preview" || currentRoute === "timetable-readonly" || currentRoute === "schedules-readonly",
     allowSystemOwner: currentRoute === "workspace-preview",
     requiredWorkspaceRoles: currentRoute === "workspace-preview"
       ? Array.from(APP_NEXT_WORKSPACE_PREVIEW_ROLES)

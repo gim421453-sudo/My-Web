@@ -250,6 +250,57 @@ export interface AppNextTimetableDiagnosticsSnapshot {
   sensitiveValueDetected: boolean;
 }
 
+export interface AppNextSchedulesDiagnosticsSnapshot {
+  loading: boolean;
+  errorCode: string;
+  scheduleRenderCount: number;
+  scheduleLoadCount: number;
+  scheduleReadCount: number;
+  scheduleWriteAttemptCount: number;
+  scheduleListenerStartCount: number;
+  scheduleActiveListenerCount: number;
+  scheduleCacheHitCount: number;
+  duplicateLoadDetected: boolean;
+  manualRefreshCount: number;
+  cacheInvalidationCount: number;
+  forceReloadCount: number;
+  detailPanelOpen: boolean;
+  selectedSchedulePresent: boolean;
+  selectedScheduleMatchCount: number;
+  detailSelectionMismatchDetected: boolean;
+  filterStatusOptionCount: number;
+  filterTypeOptionCount: number;
+  filterImportanceOptionCount: number;
+  scheduleRawReadCount: number;
+  lastScheduleReadMode: string;
+  lastScheduleSourceCollection: string;
+  lastScheduleFromCache: boolean;
+  lastSchedulePendingWrites: boolean;
+  hasWorkspace: boolean;
+  globalRoleCategory: string;
+  workspaceRoleCategory: string;
+  isSystemOwner: boolean;
+  totalScheduleCount: number;
+  visibleScheduleCount: number;
+  todayScheduleCount: number;
+  upcomingScheduleCount: number;
+  completedScheduleCount: number;
+  pastScheduleCount: number;
+  hiddenScheduleCount: number;
+  invalidScheduleCount: number;
+  allDayScheduleCount: number;
+  timedScheduleCount: number;
+  selectedFilter: string;
+  firestoreReadCount: number;
+  firestoreWriteAttemptCount: number;
+  authListenerCount: number;
+  workspaceListenerCount: number;
+  currentRoute: string;
+  requestedRoute: string;
+  restoreConflictDetected: boolean;
+  sensitiveValueDetected: boolean;
+}
+
 const MAX_APP_NEXT_DIAGNOSTIC_EVENTS = 30;
 const diagnosticEvents: AppNextDiagnosticEvent[] = [];
 const APP_NEXT_LAST_STATE_KEY = "pm-app-next-last-state-v1";
@@ -428,6 +479,56 @@ let timetableDiagnostics: AppNextTimetableDiagnosticsSnapshot = {
   restoreConflictDetected: false,
   sensitiveValueDetected: false,
 };
+let schedulesDiagnostics: AppNextSchedulesDiagnosticsSnapshot = {
+  loading: false,
+  errorCode: "none",
+  scheduleRenderCount: 0,
+  scheduleLoadCount: 0,
+  scheduleReadCount: 0,
+  scheduleWriteAttemptCount: 0,
+  scheduleListenerStartCount: 0,
+  scheduleActiveListenerCount: 0,
+  scheduleCacheHitCount: 0,
+  duplicateLoadDetected: false,
+  manualRefreshCount: 0,
+  cacheInvalidationCount: 0,
+  forceReloadCount: 0,
+  detailPanelOpen: false,
+  selectedSchedulePresent: false,
+  selectedScheduleMatchCount: 0,
+  detailSelectionMismatchDetected: false,
+  filterStatusOptionCount: 6,
+  filterTypeOptionCount: 0,
+  filterImportanceOptionCount: 0,
+  scheduleRawReadCount: 0,
+  lastScheduleReadMode: "none",
+  lastScheduleSourceCollection: "workspaces/{workspace}/schedules",
+  lastScheduleFromCache: false,
+  lastSchedulePendingWrites: false,
+  hasWorkspace: false,
+  globalRoleCategory: "none",
+  workspaceRoleCategory: "none",
+  isSystemOwner: false,
+  totalScheduleCount: 0,
+  visibleScheduleCount: 0,
+  todayScheduleCount: 0,
+  upcomingScheduleCount: 0,
+  completedScheduleCount: 0,
+  pastScheduleCount: 0,
+  hiddenScheduleCount: 0,
+  invalidScheduleCount: 0,
+  allDayScheduleCount: 0,
+  timedScheduleCount: 0,
+  selectedFilter: "all|all-types|all-importance|no-from|no-to",
+  firestoreReadCount: 0,
+  firestoreWriteAttemptCount: 0,
+  authListenerCount: 0,
+  workspaceListenerCount: 0,
+  currentRoute: "schedules-readonly",
+  requestedRoute: "schedules-readonly",
+  restoreConflictDetected: false,
+  sensitiveValueDetected: false,
+};
 let lastRouteFallbackKey = "none";
 let lastRequireAuthConsumerMounted = false;
 let noticeDiagnostics: AppNextNoticeDiagnosticsSnapshot = {
@@ -515,6 +616,9 @@ function installAppNextDiagnosticsWindows(): void {
     PMAppNextTimetableDiagnostics?: {
       snapshot(): AppNextTimetableDiagnosticsSnapshot;
     };
+    PMAppNextSchedulesDiagnostics?: {
+      snapshot(): AppNextSchedulesDiagnosticsSnapshot;
+    };
   }).PMAppNextRouteDiagnostics = {
     snapshot: getAppNextRouteDiagnostics,
   };
@@ -568,6 +672,14 @@ function installAppNextDiagnosticsWindows(): void {
     };
   }).PMAppNextTimetableDiagnostics = {
     snapshot: getAppNextTimetableDiagnostics,
+  };
+
+  (window as typeof window & {
+    PMAppNextSchedulesDiagnostics?: {
+      snapshot(): AppNextSchedulesDiagnosticsSnapshot;
+    };
+  }).PMAppNextSchedulesDiagnostics = {
+    snapshot: getAppNextSchedulesDiagnostics,
   };
 }
 
@@ -1081,6 +1193,24 @@ export function recordAppNextTimetableDiagnostics(
 
 export function getAppNextTimetableDiagnostics(): AppNextTimetableDiagnosticsSnapshot {
   return { ...timetableDiagnostics };
+}
+
+export function recordAppNextSchedulesDiagnostics(
+  next: Partial<AppNextSchedulesDiagnosticsSnapshot>,
+): void {
+  schedulesDiagnostics = {
+    ...schedulesDiagnostics,
+    ...next,
+    scheduleWriteAttemptCount: next.scheduleWriteAttemptCount ?? 0,
+    scheduleListenerStartCount: next.scheduleListenerStartCount ?? 0,
+    scheduleActiveListenerCount: next.scheduleActiveListenerCount ?? 0,
+    firestoreWriteAttemptCount: next.firestoreWriteAttemptCount ?? 0,
+    workspaceListenerCount: next.workspaceListenerCount ?? 0,
+  };
+}
+
+export function getAppNextSchedulesDiagnostics(): AppNextSchedulesDiagnosticsSnapshot {
+  return { ...schedulesDiagnostics };
 }
 
 export function getAppNextNoticeRouteDiagnostics(): AppNextNoticeRouteDiagnosticsSnapshot {
