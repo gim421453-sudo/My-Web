@@ -27484,3 +27484,686 @@ if (typeof window !== "undefined") {
 setTimeout(() => restoreNavigationPageV120("script-ready"), 0);
 store.settings ??= {};
 store.settings.appVersion = APP_PATCH_VERSION_V120;
+
+// Final V122: owner-preview release manifest gating and privacy-safe diagnostics.
+const OWNER_PREVIEW_RELEASE_STAGE_VISIBLE_V122 = new Set(["stable", "beta"]);
+const ownerPreviewReleaseDiagnosticsV122 = {
+  manifestVersion: "unavailable",
+  releaseChannel: "owner-preview",
+  totalFeatureCount: 0,
+  stableCount: 0,
+  betaCount: 0,
+  internalCount: 0,
+  hiddenCount: 0,
+  plannedCount: 0,
+  blockedCount: 0,
+  currentFeatureId: "",
+  currentFeatureStage: "",
+  currentFeatureAllowed: false,
+  lastBlockedFeatureId: "",
+  lastBlockReasonCategory: "",
+  sensitiveValueDetected: false
+};
+
+function ownerPreviewManifestV122() {
+  return window.PM_OWNER_PREVIEW_RELEASE_MANIFEST_V1 || {
+    manifestVersion: "unavailable",
+    releaseChannel: "owner-preview",
+    features: []
+  };
+}
+
+function summarizeOwnerPreviewManifestV122() {
+  const manifest = ownerPreviewManifestV122();
+  const counts = {
+    totalFeatureCount: manifest.features.length,
+    stableCount: 0,
+    betaCount: 0,
+    internalCount: 0,
+    hiddenCount: 0,
+    plannedCount: 0,
+    blockedCount: 0
+  };
+  manifest.features.forEach((feature) => {
+    if (feature.releaseStage === "stable") counts.stableCount += 1;
+    if (feature.releaseStage === "beta") counts.betaCount += 1;
+    if (feature.releaseStage === "internal") counts.internalCount += 1;
+    if (feature.releaseStage === "hidden") counts.hiddenCount += 1;
+    if (feature.releaseStage === "planned") counts.plannedCount += 1;
+    if (feature.releaseStage === "blocked") counts.blockedCount += 1;
+  });
+  return counts;
+}
+
+function ownerPreviewFeatureByPageKeyV122(pageKey) {
+  const key = String(pageKey || "");
+  return ownerPreviewManifestV122().features.find((feature) => feature.system === "operational" && feature.pageKey === key) || null;
+}
+
+function ownerPreviewRoleAllowedV122(roles, role) {
+  const list = Array.isArray(roles) ? roles : [];
+  return list.includes("*") || (!!role && list.includes(role));
+}
+
+function ownerPreviewUserRoleV122(user) {
+  if (!user) return "";
+  if (typeof effectiveMenuRoleV59 === "function") return effectiveMenuRoleV59(user);
+  return user.role || user.currentRole || user.workspaceRole || "";
+}
+
+function ownerPreviewWorkspaceRoleV122(user, effectiveRole) {
+  if (!user) return "";
+  if (effectiveRole && effectiveRole !== "system_owner") return effectiveRole;
+  return user.workspaceRole || user.pmWorkspaceRole || "";
+}
+
+function ownerPreviewFeatureAccessV122(pageKey, user = authCurrentUserV31() || currentUser) {
+  const feature = ownerPreviewFeatureByPageKeyV122(pageKey);
+  if (!feature) {
+    return { allowed: false, feature: null, reasonCategory: "feature-not-found" };
+  }
+  if (!feature.enabled) {
+    return { allowed: false, feature, reasonCategory: feature.releaseStage || "disabled" };
+  }
+  if (!OWNER_PREVIEW_RELEASE_STAGE_VISIBLE_V122.has(feature.releaseStage)) {
+    return { allowed: false, feature, reasonCategory: feature.releaseStage || "hidden" };
+  }
+  const role = ownerPreviewUserRoleV122(user);
+  const globalRole = user?.globalRole === "system_owner" || role === "system_owner" || user?.currentRole === "system_owner"
+    ? "system_owner"
+    : user?.globalRole || "user";
+  const workspaceRole = ownerPreviewWorkspaceRoleV122(user, role);
+  const workspacePresent = !!(typeof userWorkspaceIdV54 === "function" ? userWorkspaceIdV54(user) : user?.workspaceId || user?.currentWorkspaceId);
+  if (feature.releaseStage === "beta" && globalRole !== "system_owner") {
+    return { allowed: false, feature, reasonCategory: "owner-preview-only" };
+  }
+  if (!ownerPreviewRoleAllowedV122(feature.requiredGlobalRoles || feature.globalRoles, globalRole) && !ownerPreviewRoleAllowedV122(feature.requiredGlobalRoles || feature.globalRoles, role)) {
+    return { allowed: false, feature, reasonCategory: "global-role-denied" };
+  }
+  if (feature.workspaceRequired && !workspacePresent && globalRole !== "system_owner") {
+    return { allowed: false, feature, reasonCategory: "workspace-required" };
+  }
+  if (Array.isArray(feature.requiredWorkspaceRoles) && feature.requiredWorkspaceRoles.length && globalRole !== "system_owner" && !ownerPreviewRoleAllowedV122(feature.requiredWorkspaceRoles, workspaceRole)) {
+    return { allowed: false, feature, reasonCategory: "workspace-role-denied" };
+  }
+  return { allowed: true, feature, reasonCategory: "allowed" };
+}
+
+function recordOwnerPreviewAccessV122(pageKey, decision) {
+  const manifest = ownerPreviewManifestV122();
+  const counts = summarizeOwnerPreviewManifestV122();
+  ownerPreviewReleaseDiagnosticsV122.manifestVersion = manifest.manifestVersion || "unavailable";
+  ownerPreviewReleaseDiagnosticsV122.releaseChannel = manifest.releaseChannel || "owner-preview";
+  Object.assign(ownerPreviewReleaseDiagnosticsV122, counts);
+  ownerPreviewReleaseDiagnosticsV122.currentFeatureId = decision.feature?.featureId || "";
+  ownerPreviewReleaseDiagnosticsV122.currentFeatureStage = decision.feature?.releaseStage || "";
+  ownerPreviewReleaseDiagnosticsV122.currentFeatureAllowed = !!decision.allowed;
+  if (!decision.allowed && decision.feature) {
+    ownerPreviewReleaseDiagnosticsV122.lastBlockedFeatureId = decision.feature.featureId;
+    ownerPreviewReleaseDiagnosticsV122.lastBlockReasonCategory = decision.reasonCategory;
+  }
+}
+
+function ownerPreviewFilterMenuKeysV122(keys, user) {
+  return (Array.isArray(keys) ? keys : []).filter((key) => {
+    const decision = ownerPreviewFeatureAccessV122(key, user);
+    recordOwnerPreviewAccessV122(key, decision);
+    return decision.allowed;
+  });
+}
+
+const authMenuKeysBeforeV122 = authMenuKeysV31;
+authMenuKeysV31 = function authMenuKeysV122(user = authCurrentUserV31()) {
+  return ownerPreviewFilterMenuKeysV122(authMenuKeysBeforeV122.apply(this, arguments), user || currentUser);
+};
+
+const canBeforeV122 = can;
+can = function canV122(action, key) {
+  if (key && !ownerPreviewFeatureAccessV122(key).allowed) return false;
+  return canBeforeV122.apply(this, arguments);
+};
+
+function ownerPreviewFallbackPageV122(user = authCurrentUserV31() || currentUser) {
+  const allowedKeys = ownerPreviewFilterMenuKeysV122(authMenuKeysBeforeV122(user), user);
+  if (allowedKeys.includes("systemOwner")) return "systemOwner";
+  return allowedKeys[0] || "dashboard";
+}
+
+function renderOwnerPreviewReleaseInfoV122() {
+  if (!content || currentUser?.role !== "system_owner") return;
+  const manifest = ownerPreviewManifestV122();
+  const counts = summarizeOwnerPreviewManifestV122();
+  const existing = document.getElementById("owner-preview-release-info-v122");
+  if (existing) existing.remove();
+  const panel = document.createElement("section");
+  panel.id = "owner-preview-release-info-v122";
+  panel.className = "card";
+  panel.innerHTML = `
+    <h3>Owner Preview Release</h3>
+    <p class="muted">channel: owner-preview / manifest: ${manifest.manifestVersion || "unavailable"}</p>
+    <div class="kv">
+      <span>app version</span><strong>${manifest.appVersion || "unavailable"}</strong>
+      <span>build date</span><strong>${manifest.buildDate || "unavailable"}</strong>
+      <span>git commit</span><strong>${manifest.gitCommit || "unavailable"}</strong>
+      <span>stable</span><strong>${counts.stableCount}</strong>
+      <span>beta</span><strong>${counts.betaCount}</strong>
+      <span>internal</span><strong>${counts.internalCount}</strong>
+      <span>hidden/planned/blocked</span><strong>${counts.hiddenCount + counts.plannedCount + counts.blockedCount}</strong>
+    </div>
+  `;
+  content.prepend(panel);
+}
+
+const renderPageBeforeV122 = renderPage;
+renderPage = function renderPageV122(key) {
+  const requestedKey = String(key || "");
+  const decision = ownerPreviewFeatureAccessV122(requestedKey);
+  recordOwnerPreviewAccessV122(requestedKey, decision);
+  if (requestedKey && !decision.allowed) {
+    const fallback = ownerPreviewFallbackPageV122();
+    if (fallback && fallback !== requestedKey) {
+      const result = renderPageBeforeV122.call(this, fallback);
+      renderOwnerPreviewReleaseInfoV122();
+      return result;
+    }
+  }
+  const result = renderPageBeforeV122.apply(this, arguments);
+  renderOwnerPreviewReleaseInfoV122();
+  return result;
+};
+
+if (typeof window !== "undefined") {
+  window.PMReleaseManifestDiagnostics = {
+    snapshot() {
+      const manifest = ownerPreviewManifestV122();
+      const counts = summarizeOwnerPreviewManifestV122();
+      return {
+        manifestVersion: manifest.manifestVersion || "unavailable",
+        releaseChannel: manifest.releaseChannel || "owner-preview",
+        ...counts,
+        currentFeatureId: ownerPreviewReleaseDiagnosticsV122.currentFeatureId,
+        currentFeatureStage: ownerPreviewReleaseDiagnosticsV122.currentFeatureStage,
+        currentFeatureAllowed: ownerPreviewReleaseDiagnosticsV122.currentFeatureAllowed,
+        lastBlockedFeatureId: ownerPreviewReleaseDiagnosticsV122.lastBlockedFeatureId,
+        lastBlockReasonCategory: ownerPreviewReleaseDiagnosticsV122.lastBlockReasonCategory,
+        sensitiveValueDetected: false
+      };
+    }
+  };
+}
+
+// Final V123: stabilize timetable period add/delete click flow without changing
+// timetable row, notice, schedule, app-next, or release manifest behavior.
+const timetablePeriodActionDiagnosticsV123 = {
+  periodAddClickCount: 0,
+  periodAddAcceptedCount: 0,
+  periodAddSuccessCount: 0,
+  periodAddFailureCount: 0,
+  periodDeleteClickCount: 0,
+  periodDeleteSuccessCount: 0,
+  periodDeleteFailureCount: 0,
+  periodEditorInFlight: false,
+  lastPeriodAction: "",
+  lastPeriodErrorCode: "",
+  periodScrollJumpDetected: false,
+  periodAddHandlerBoundCount: 0,
+  periodDeleteHandlerBoundCount: 0,
+  periodAddHandlerInvocationCount: 0,
+  periodDeleteHandlerInvocationCount: 0,
+  lastPeriodButtonAction: "",
+  lastPeriodSaveKeys: [],
+  duplicatePeriodHandlerDetected: false
+};
+
+function recordPeriodActionV123(action, updates = {}) {
+  timetablePeriodActionDiagnosticsV123.lastPeriodAction = action;
+  Object.assign(timetablePeriodActionDiagnosticsV123, updates);
+}
+
+function normalizedPeriodNumberV123(period) {
+  return periodNumberV111(period) || periodNumberV99(period, 0) || 0;
+}
+
+function periodRowsInUseV123(setId, period) {
+  const targetSetId = String(setId || "");
+  const targetPeriod = normalizedPeriodV111(period, 0);
+  return (Array.isArray(store.timetable) ? store.timetable : []).filter((row) => (
+    !isDeletedTimetableEntityV101(row)
+    && timetableRowSetIdV103(row) === targetSetId
+    && normalizedPeriodV111(row.period, 0) === targetPeriod
+  ));
+}
+
+function periodTimeRowsForExactSetPeriodV123(setId, period) {
+  const targetSetId = String(setId || "");
+  const targetPeriod = normalizedPeriodV111(period, 0);
+  return (Array.isArray(store.periodTimes) ? store.periodTimes : []).filter((row, index) => (
+    !isDeletedTimetableEntityV101(row)
+    && periodTimeScopeSetIdV111(row) === targetSetId
+    && normalizedPeriodV111(row.period || row.value || row.label, index) === targetPeriod
+  ));
+}
+
+function periodDraftMaxNumberV123(draft = []) {
+  return draft.reduce((max, row, index) => Math.max(max, normalizedPeriodNumberV123(row?.period || `${index + 1}교시`)), 0);
+}
+
+function savePeriodStructureV123(syncReason) {
+  timetablePeriodActionDiagnosticsV123.lastPeriodSaveKeys = ["periodTimes", "timetableSets"];
+  saveStore({ syncKeys: ["periodTimes", "timetableSets"], syncReason });
+  refreshOpenQuickTimetableV100({ key: "periodTimes" });
+}
+
+function addCurrentSetPeriodV123(event, setId, draft, renderGrid, status) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  timetablePeriodActionDiagnosticsV123.periodAddClickCount += 1;
+  if (timetablePeriodActionDiagnosticsV123.periodEditorInFlight) {
+    timetablePeriodActionDiagnosticsV123.periodAddFailureCount += 1;
+    recordPeriodActionV123("add-blocked", { lastPeriodErrorCode: "period-editor-in-flight" });
+    return;
+  }
+  const activeSet = String(setId || getActiveTimetableSetIdV111() || "");
+  if (!activeSet || !timetableSetByIdV103(activeSet)) {
+    timetablePeriodActionDiagnosticsV123.periodAddFailureCount += 1;
+    recordPeriodActionV123("add-failed", { lastPeriodErrorCode: "missing-active-set" });
+    showMessage("교시 추가 실패", "현재 시간표를 먼저 선택해 주세요.");
+    return;
+  }
+  timetablePeriodActionDiagnosticsV123.periodEditorInFlight = true;
+  try {
+    timetablePeriodActionDiagnosticsV123.periodAddAcceptedCount += 1;
+    const nextNumber = Math.max(visiblePeriodCountForSetV103(activeSet), periodDraftMaxNumberV123(draft)) + 1;
+    const period = `${nextNumber}교시`;
+    const row = {
+      id: periodTimeDocIdV111(activeSet, period),
+      timetableSetId: activeSet,
+      period,
+      start: "",
+      end: "",
+      time: "",
+      timeSource: "set-specific",
+      _dirty: true
+    };
+    const sameRows = periodTimeRowsForExactSetPeriodV123(activeSet, period);
+    if (!sameRows.length) {
+      store.periodTimes ??= [];
+      store.periodTimes.push({
+        id: row.id,
+        timetableSetId: activeSet,
+        period,
+        start: "",
+        end: "",
+        time: ""
+      });
+    }
+    setVisiblePeriodCountV103(activeSet, nextNumber);
+    draft.push(row);
+    savePeriodStructureV123("period-add-v123");
+    renderGrid();
+    status.textContent = `${period}가 추가되었습니다. 시간은 필요할 때 입력한 뒤 저장하세요.`;
+    status.classList.remove("dirty");
+    timetablePeriodActionDiagnosticsV123.periodAddSuccessCount += 1;
+    recordPeriodActionV123("add-success", { lastPeriodErrorCode: "" });
+  } catch (error) {
+    timetablePeriodActionDiagnosticsV123.periodAddFailureCount += 1;
+    recordPeriodActionV123("add-failed", { lastPeriodErrorCode: "period-add-exception" });
+    showMessage("교시 추가 실패", "교시를 추가하지 못했습니다. 다시 시도해 주세요.");
+  } finally {
+    timetablePeriodActionDiagnosticsV123.periodEditorInFlight = false;
+  }
+}
+
+function deleteCurrentSetPeriodV123(event, setId, targetRow, draft, renderGrid, status) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  timetablePeriodActionDiagnosticsV123.periodDeleteClickCount += 1;
+  if (timetablePeriodActionDiagnosticsV123.periodEditorInFlight) {
+    timetablePeriodActionDiagnosticsV123.periodDeleteFailureCount += 1;
+    recordPeriodActionV123("delete-blocked", { lastPeriodErrorCode: "period-editor-in-flight" });
+    return;
+  }
+  const activeSet = String(setId || getActiveTimetableSetIdV111() || "");
+  const period = normalizedPeriodV111(targetRow?.period, 0);
+  const periodNumber = normalizedPeriodNumberV123(period);
+  if (!activeSet || !period || !periodNumber) {
+    timetablePeriodActionDiagnosticsV123.periodDeleteFailureCount += 1;
+    recordPeriodActionV123("delete-failed", { lastPeriodErrorCode: "invalid-period-target" });
+    showMessage("교시 삭제 실패", "삭제할 교시를 다시 선택해 주세요.");
+    return;
+  }
+  const inUse = periodRowsInUseV123(activeSet, period);
+  if (inUse.length) {
+    timetablePeriodActionDiagnosticsV123.periodDeleteFailureCount += 1;
+    recordPeriodActionV123("delete-blocked", { lastPeriodErrorCode: "period-in-use" });
+    showMessage("교시 삭제 차단", "이 교시에 배정된 수업이 있어 삭제하지 않았습니다. 수업 배정을 먼저 정리해 주세요.");
+    return;
+  }
+  const maxNumber = periodDraftMaxNumberV123(draft);
+  if (periodNumber !== maxNumber) {
+    timetablePeriodActionDiagnosticsV123.periodDeleteFailureCount += 1;
+    recordPeriodActionV123("delete-blocked", { lastPeriodErrorCode: "delete-non-last-period-blocked" });
+    showMessage("교시 삭제 차단", "중간 교시를 삭제하면 다른 교시가 밀릴 수 있어 마지막 교시부터 삭제합니다.");
+    return;
+  }
+  if (!confirm(`${period}를 현재 시간표에서 삭제할까요? 다른 교시와 수업 배정은 유지됩니다.`)) return;
+  timetablePeriodActionDiagnosticsV123.periodEditorInFlight = true;
+  try {
+    const removedRows = periodTimeRowsForExactSetPeriodV123(activeSet, period);
+    if (removedRows.length) markWorkspaceDeletedRows("periodTimes", removedRows);
+    store.periodTimes = (Array.isArray(store.periodTimes) ? store.periodTimes : []).filter((row, index) => !(
+      periodTimeScopeSetIdV111(row) === activeSet
+      && normalizedPeriodV111(row.period || row.value || row.label, index) === period
+    ));
+    const targetIndex = draft.findIndex((row) => normalizedPeriodV111(row?.period, 0) === period);
+    if (targetIndex >= 0) draft.splice(targetIndex, 1);
+    setVisiblePeriodCountV103(activeSet, Math.max(1, periodDraftMaxNumberV123(draft)));
+    savePeriodStructureV123("period-delete-v123");
+    renderGrid();
+    status.textContent = `${period}를 삭제했습니다.`;
+    status.classList.remove("dirty");
+    timetablePeriodActionDiagnosticsV123.periodDeleteSuccessCount += 1;
+    recordPeriodActionV123("delete-success", { lastPeriodErrorCode: "" });
+  } catch (error) {
+    timetablePeriodActionDiagnosticsV123.periodDeleteFailureCount += 1;
+    recordPeriodActionV123("delete-failed", { lastPeriodErrorCode: "period-delete-exception" });
+    showMessage("교시 삭제 실패", "교시를 삭제하지 못했습니다. 기존 상태를 유지합니다.");
+  } finally {
+    timetablePeriodActionDiagnosticsV123.periodEditorInFlight = false;
+  }
+}
+
+periodEditorV29 = function periodEditorV123() {
+  const activeSet = getActiveTimetableSetIdV111();
+  const draft = activeSet ? periodsForTimetableSetV103(activeSet).map((row) => ({ ...row })) : [];
+  const box = el("section", "modern-period-editor modern-period-editor-v123");
+  const head = el("div", "period-editor-head-v81");
+  const actions = el("div", "row-actions");
+  const title = activeSetName => `시간표별 교시 시간 설정${activeSetName ? ` · ${activeSetName}` : ""}`;
+  head.append(el("h3", "", title(activeTimetableSetNameV104?.(activeSet) || "")));
+  const status = el("p", "muted period-save-status-v98", "현재 선택한 시간표 전용 교시 시간을 저장합니다. 비어 있는 교시는 공통 시간을 사용합니다.");
+  const grid = el("div", "period-card-grid");
+  const save = button("교시 시간 저장");
+  save.disabled = true;
+  let dirty = false;
+  let saving = false;
+  const markDirty = () => {
+    dirty = true;
+    save.disabled = false;
+    status.textContent = "저장되지 않은 현재 시간표 교시 시간 변경이 있습니다.";
+    status.classList.add("dirty");
+  };
+  const renderGrid = () => {
+    grid.replaceChildren();
+    draft.sort((a, b) => normalizedPeriodNumberV123(a.period) - normalizedPeriodNumberV123(b.period));
+    draft.forEach((row, index) => {
+      row.period = normalizedPeriodV111(row.period, index);
+      const card = el("article", "period-card");
+      const top = el("div", "period-card-top");
+      const sourceText = row.timeSource === "common" ? "공통값 사용 중" : row.timeSource === "set-specific" ? "현재 시간표 전용" : "시간 없음";
+      top.append(el("strong", "", `${row.period} 설정`), el("small", "muted", sourceText));
+      const remove = button("이 교시 삭제", "ghost small");
+      remove.dataset.action = "delete-current-set-period-time-v123";
+      remove.addEventListener("click", (event) => deleteCurrentSetPeriodV123(event, activeSet, row, draft, renderGrid, status));
+      top.append(remove);
+      const start = document.createElement("input");
+      start.type = "time";
+      start.value = row.start || "";
+      const end = document.createElement("input");
+      end.type = "time";
+      end.value = row.end || "";
+      const updateDraft = () => {
+        row.start = start.value;
+        row.end = end.value;
+        row.time = [row.start, row.end].filter(Boolean).join("-");
+        row._dirty = true;
+        markDirty();
+      };
+      start.addEventListener("input", updateDraft);
+      end.addEventListener("input", updateDraft);
+      card.append(top, makeField("시작 시간", `periodStartV123-${row.id || index}`, start), makeField("종료 시간", `periodEndV123-${row.id || index}`, end));
+      grid.append(card);
+    });
+    if (!grid.children.length) grid.append(el("div", "empty", "현재 시간표를 선택하면 교시 시간을 설정할 수 있습니다."));
+  };
+  const add = button("+ 현재 시간표 교시 추가", "ghost");
+  add.dataset.action = "add-current-set-period-time-v123";
+  add.addEventListener("click", (event) => addCurrentSetPeriodV123(event, activeSet, draft, renderGrid, status));
+  const clearSetTimes = button("현재 시간표 교시 시간 초기화", "ghost");
+  clearSetTimes.addEventListener("click", () => clearCurrentSetPeriodTimesV111(activeSet));
+  const clearCommon = button("공통 교시 시간 전체 삭제", "danger");
+  clearCommon.dataset.action = "clear-common-period-times";
+  clearCommon.addEventListener("click", clearCommonPeriodTimesV103);
+  save.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!dirty || saving) return;
+    saving = true;
+    save.disabled = true;
+    try {
+      if (!saveCurrentSetPeriodTimesV111(activeSet, draft)) {
+        save.disabled = false;
+        return;
+      }
+      status.textContent = "현재 시간표 교시 시간을 저장했습니다.";
+      status.classList.remove("dirty");
+      showMessage("저장 완료", "현재 시간표 교시 시간을 저장했습니다.");
+      renderGrid();
+    } catch (error) {
+      status.textContent = "교시 시간 저장에 실패했습니다.";
+      status.classList.add("dirty");
+      save.disabled = false;
+    } finally {
+      saving = false;
+    }
+  });
+  actions.append(add, clearSetTimes, clearCommon, save);
+  head.append(actions);
+  renderGrid();
+  box.append(head, status, grid);
+  return box;
+};
+
+const timetableDiagnosticsBeforeV123 = window.PMTimetableDiagnostics || {};
+window.PMTimetableDiagnostics = {
+  ...timetableDiagnosticsBeforeV123,
+  periodActions() {
+    return { ...timetablePeriodActionDiagnosticsV123 };
+  }
+};
+
+// Final V124: bind the actually rendered period editor buttons. Some legacy
+// render wrappers can leave V111 period buttons in the final DOM, so use one
+// capture-phase delegate to route both legacy and V123 buttons to the scoped
+// periodTimes save path.
+function periodEditorButtonsV124() {
+  const editors = Array.from(document.querySelectorAll(".modern-period-editor"));
+  const addButtons = [];
+  const deleteButtons = [];
+  editors.forEach((editor) => {
+    const actionGroup = editor.querySelector(".row-actions");
+    const buttons = Array.from(actionGroup?.querySelectorAll("button") || []);
+    if (buttons[0]) addButtons.push(buttons[0]);
+    deleteButtons.push(...Array.from(editor.querySelectorAll(
+      'button[data-action="remove-current-set-period"], button[data-action="delete-current-set-period-time-v123"]'
+    )));
+  });
+  timetablePeriodActionDiagnosticsV123.periodAddHandlerBoundCount = addButtons.length;
+  timetablePeriodActionDiagnosticsV123.periodDeleteHandlerBoundCount = deleteButtons.length;
+  timetablePeriodActionDiagnosticsV123.duplicatePeriodHandlerDetected = addButtons.length > 1;
+  return { addButtons, deleteButtons };
+}
+
+function isPeriodAddButtonV124(buttonEl) {
+  if (!buttonEl?.closest?.(".modern-period-editor")) return false;
+  if (buttonEl.dataset?.action === "add-current-set-period-time-v123") return true;
+  const group = buttonEl.closest(".modern-period-editor .row-actions");
+  if (!group) return false;
+  const buttons = Array.from(group.querySelectorAll("button"));
+  return buttons[0] === buttonEl && String(buttonEl.textContent || "").includes("+");
+}
+
+function isPeriodDeleteButtonV124(buttonEl) {
+  if (!buttonEl?.closest?.(".modern-period-editor")) return false;
+  return buttonEl.dataset?.action === "remove-current-set-period"
+    || buttonEl.dataset?.action === "delete-current-set-period-time-v123";
+}
+
+function periodFromEditorButtonV124(buttonEl) {
+  const text = buttonEl?.closest?.(".period-card")?.querySelector(".period-card-top strong")?.textContent || "";
+  return normalizedPeriodV111(text, 0);
+}
+
+function rerenderTimetableKeepingScrollV124(reason = "") {
+  const beforeY = typeof window !== "undefined" ? window.scrollY : 0;
+  renderTimetableV29();
+  requestAnimationFrame(() => {
+    const afterY = window.scrollY;
+    if (Math.abs(afterY - beforeY) > 8) {
+      timetablePeriodActionDiagnosticsV123.periodScrollJumpDetected = true;
+      window.scrollTo({ top: beforeY, left: window.scrollX || 0 });
+    }
+    recordPeriodActionV123(reason || "period-rerender", {});
+    periodEditorButtonsV124();
+  });
+}
+
+function savePeriodStructureFromDomV124(syncReason) {
+  timetablePeriodActionDiagnosticsV123.lastPeriodSaveKeys = ["periodTimes", "timetableSets"];
+  saveStore({ syncKeys: ["periodTimes", "timetableSets"], syncReason });
+  refreshOpenQuickTimetableV100({ key: "periodTimes" });
+}
+
+function addCurrentSetPeriodFromDomV124(event) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  event?.stopImmediatePropagation?.();
+  timetablePeriodActionDiagnosticsV123.periodAddClickCount += 1;
+  timetablePeriodActionDiagnosticsV123.periodAddHandlerInvocationCount += 1;
+  timetablePeriodActionDiagnosticsV123.lastPeriodButtonAction = "add-current-set-period-time";
+  if (timetablePeriodActionDiagnosticsV123.periodEditorInFlight) {
+    timetablePeriodActionDiagnosticsV123.periodAddFailureCount += 1;
+    recordPeriodActionV123("add-blocked", { lastPeriodErrorCode: "period-editor-in-flight" });
+    return;
+  }
+  const activeSet = String(getActiveTimetableSetIdV111() || "");
+  if (!activeSet || !timetableSetByIdV103(activeSet)) {
+    timetablePeriodActionDiagnosticsV123.periodAddFailureCount += 1;
+    recordPeriodActionV123("add-failed", { lastPeriodErrorCode: "missing-active-set" });
+    showMessage("교시 추가 실패", "현재 시간표를 먼저 선택해 주세요.");
+    return;
+  }
+  timetablePeriodActionDiagnosticsV123.periodEditorInFlight = true;
+  try {
+    timetablePeriodActionDiagnosticsV123.periodAddAcceptedCount += 1;
+    const nextNumber = periodDraftMaxNumberV123(periodsForTimetableSetV103(activeSet)) + 1;
+    const period = `${nextNumber}교시`;
+    const sameRows = periodTimeRowsForExactSetPeriodV123(activeSet, period);
+    if (!sameRows.length) {
+      store.periodTimes ??= [];
+      store.periodTimes.push({
+        id: periodTimeDocIdV111(activeSet, period),
+        timetableSetId: activeSet,
+        period,
+        start: "",
+        end: "",
+        time: ""
+      });
+    }
+    setVisiblePeriodCountV103(activeSet, nextNumber);
+    savePeriodStructureFromDomV124("period-add-v123");
+    timetablePeriodActionDiagnosticsV123.periodAddSuccessCount += 1;
+    recordPeriodActionV123("add-success", { lastPeriodErrorCode: "" });
+    rerenderTimetableKeepingScrollV124("add-rerender");
+  } catch (error) {
+    timetablePeriodActionDiagnosticsV123.periodAddFailureCount += 1;
+    recordPeriodActionV123("add-failed", { lastPeriodErrorCode: "period-add-exception" });
+    showMessage("교시 추가 실패", "교시를 추가하지 못했습니다. 다시 시도해 주세요.");
+  } finally {
+    timetablePeriodActionDiagnosticsV123.periodEditorInFlight = false;
+  }
+}
+
+function deleteCurrentSetPeriodFromDomV124(event, buttonEl) {
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  event?.stopImmediatePropagation?.();
+  timetablePeriodActionDiagnosticsV123.periodDeleteClickCount += 1;
+  timetablePeriodActionDiagnosticsV123.periodDeleteHandlerInvocationCount += 1;
+  timetablePeriodActionDiagnosticsV123.lastPeriodButtonAction = "delete-current-set-period-time";
+  if (timetablePeriodActionDiagnosticsV123.periodEditorInFlight) {
+    timetablePeriodActionDiagnosticsV123.periodDeleteFailureCount += 1;
+    recordPeriodActionV123("delete-blocked", { lastPeriodErrorCode: "period-editor-in-flight" });
+    return;
+  }
+  const activeSet = String(getActiveTimetableSetIdV111() || "");
+  const period = periodFromEditorButtonV124(buttonEl);
+  const periodNumber = normalizedPeriodNumberV123(period);
+  if (!activeSet || !period || !periodNumber) {
+    timetablePeriodActionDiagnosticsV123.periodDeleteFailureCount += 1;
+    recordPeriodActionV123("delete-failed", { lastPeriodErrorCode: "invalid-period-target" });
+    showMessage("교시 삭제 실패", "삭제할 교시를 다시 선택해 주세요.");
+    return;
+  }
+  const inUse = periodRowsInUseV123(activeSet, period);
+  if (inUse.length) {
+    timetablePeriodActionDiagnosticsV123.periodDeleteFailureCount += 1;
+    recordPeriodActionV123("delete-blocked", { lastPeriodErrorCode: "period-in-use" });
+    showMessage("교시 삭제 차단", "이 교시에 배정된 수업이 있어 삭제할 수 없습니다. 수업 배정을 먼저 정리해 주세요.");
+    return;
+  }
+  const maxNumber = periodDraftMaxNumberV123(periodsForTimetableSetV103(activeSet));
+  if (periodNumber !== maxNumber) {
+    timetablePeriodActionDiagnosticsV123.periodDeleteFailureCount += 1;
+    recordPeriodActionV123("delete-blocked", { lastPeriodErrorCode: "delete-non-last-period-blocked" });
+    showMessage("교시 삭제 차단", "중간 교시는 번호가 다시 생성될 수 있어 마지막 교시부터 삭제합니다.");
+    return;
+  }
+  if (!confirm(`${period}를 현재 시간표에서 삭제할까요? 다른 교시와 수업 배정은 유지됩니다.`)) return;
+  timetablePeriodActionDiagnosticsV123.periodEditorInFlight = true;
+  try {
+    const removedRows = periodTimeRowsForExactSetPeriodV123(activeSet, period);
+    if (removedRows.length) markWorkspaceDeletedRows("periodTimes", removedRows);
+    store.periodTimes = (Array.isArray(store.periodTimes) ? store.periodTimes : []).filter((row, index) => !(
+      periodTimeScopeSetIdV111(row) === activeSet
+      && normalizedPeriodV111(row.period || row.value || row.label, index) === period
+    ));
+    setVisiblePeriodCountV103(activeSet, Math.max(1, periodNumber - 1));
+    savePeriodStructureFromDomV124("period-delete-v123");
+    timetablePeriodActionDiagnosticsV123.periodDeleteSuccessCount += 1;
+    recordPeriodActionV123("delete-success", { lastPeriodErrorCode: "" });
+    rerenderTimetableKeepingScrollV124("delete-rerender");
+  } catch (error) {
+    timetablePeriodActionDiagnosticsV123.periodDeleteFailureCount += 1;
+    recordPeriodActionV123("delete-failed", { lastPeriodErrorCode: "period-delete-exception" });
+    showMessage("교시 삭제 실패", "교시를 삭제하지 못했습니다. 기존 상태를 유지합니다.");
+  } finally {
+    timetablePeriodActionDiagnosticsV123.periodEditorInFlight = false;
+  }
+}
+
+function handlePeriodEditorClickV124(event) {
+  const buttonEl = event.target?.closest?.("button");
+  if (!buttonEl) return;
+  if (isPeriodAddButtonV124(buttonEl)) {
+    addCurrentSetPeriodFromDomV124(event);
+    return;
+  }
+  if (isPeriodDeleteButtonV124(buttonEl)) {
+    deleteCurrentSetPeriodFromDomV124(event, buttonEl);
+  }
+}
+
+if (typeof document !== "undefined" && !window.__PM_PERIOD_EDITOR_CLICK_CAPTURE_V124__) {
+  window.__PM_PERIOD_EDITOR_CLICK_CAPTURE_V124__ = true;
+  document.addEventListener("click", handlePeriodEditorClickV124, true);
+}
+
+const renderTimetableBeforeV124 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV124() {
+  const result = renderTimetableBeforeV124.apply(this, arguments);
+  periodEditorButtonsV124();
+  return result;
+};
+
+setTimeout(() => periodEditorButtonsV124(), 0);

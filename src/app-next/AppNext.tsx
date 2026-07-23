@@ -96,6 +96,12 @@ import {
   resolveAppNextRoute,
   type AppNextRoute,
 } from "./appNextRouteUtils";
+import {
+  decideOwnerPreviewFeatureAccess,
+  getOwnerPreviewReleaseManifest,
+  recordOwnerPreviewManifestDecision,
+  summarizeOwnerPreviewManifest,
+} from "../release/ownerPreviewReleaseManifestAdapter";
 
 const APP_NEXT_WORKSPACE_PREVIEW_ALLOWED_ROLES = [
   WORKSPACE_ROLES.SUPER_MANAGER,
@@ -515,6 +521,44 @@ export function AppNext({
       state,
     ],
   );
+  const releaseAccess = useMemo(
+    () => decideOwnerPreviewFeatureAccess({
+      system: "app-next",
+      route: `#/${routeDecision.currentRoute}`,
+      globalRole: session?.globalRole ?? null,
+      workspaceRole: session?.currentWorkspaceRole ?? null,
+      workspacePresent: Boolean(session?.currentWorkspaceId),
+      isSystemOwner: Boolean(session?.isSystemOwner),
+    }),
+    [
+      routeDecision.currentRoute,
+      session?.currentWorkspaceId,
+      session?.currentWorkspaceRole,
+      session?.globalRole,
+      session?.isSystemOwner,
+    ],
+  );
+  const releaseSummary = useMemo(
+    () => summarizeOwnerPreviewManifest(),
+    [],
+  );
+  const releaseManifest = useMemo(
+    () => getOwnerPreviewReleaseManifest(),
+    [],
+  );
+  const isReleaseRouteAllowed = useCallback((route: AppNextRoute) => decideOwnerPreviewFeatureAccess({
+    system: "app-next",
+    route: `#/${route}`,
+    globalRole: session?.globalRole ?? null,
+    workspaceRole: session?.currentWorkspaceRole ?? null,
+    workspacePresent: Boolean(session?.currentWorkspaceId),
+    isSystemOwner: Boolean(session?.isSystemOwner),
+  }).allowed, [
+    session?.currentWorkspaceId,
+    session?.currentWorkspaceRole,
+    session?.globalRole,
+    session?.isSystemOwner,
+  ]);
 
   useEffect(() => {
     const authDiagnostics = getAuthProviderDiagnosticsSnapshot();
@@ -620,6 +664,12 @@ export function AppNext({
     routeMatrix,
   ]);
 
+  useEffect(() => {
+    recordOwnerPreviewManifestDecision(releaseAccess);
+  }, [
+    releaseAccess,
+  ]);
+
   const handleRoute = useCallback((route: AppNextRoute) => {
     if (typeof window === "undefined") return;
     const nextHash = appNextRouteHash(route);
@@ -684,6 +734,7 @@ export function AppNext({
         <nav className="app-next-tabs" aria-label="App Next 화면">
           <button
             type="button"
+            hidden={!isReleaseRouteAllowed("dashboard")}
             className={activeTab === "dashboard" ? "active" : "secondary"}
             onClick={() => handleRoute("dashboard")}
           >
@@ -691,6 +742,7 @@ export function AppNext({
           </button>
           <button
             type="button"
+            hidden={!isReleaseRouteAllowed("account")}
             className={activeTab === "account" ? "active" : "secondary"}
             onClick={() => handleRoute("account")}
           >
@@ -698,6 +750,7 @@ export function AppNext({
           </button>
           <button
             type="button"
+            hidden={!isReleaseRouteAllowed("settings-readonly")}
             className={activeTab === "settings-readonly" ? "active" : "secondary"}
             onClick={() => handleRoute("settings-readonly")}
           >
@@ -705,6 +758,7 @@ export function AppNext({
           </button>
           <button
             type="button"
+            hidden={!isReleaseRouteAllowed("timetable-readonly")}
             className={activeTab === "timetable-readonly" ? "active" : "secondary"}
             onClick={() => handleRoute("timetable-readonly")}
           >
@@ -712,6 +766,7 @@ export function AppNext({
           </button>
           <button
             type="button"
+            hidden={!isReleaseRouteAllowed("schedules-readonly")}
             className={activeTab === "schedules-readonly" ? "active" : "secondary"}
             onClick={() => handleRoute("schedules-readonly")}
           >
@@ -719,6 +774,7 @@ export function AppNext({
           </button>
           <button
             type="button"
+            hidden={!isReleaseRouteAllowed("devices")}
             className={activeTab === "devices" ? "active" : "secondary"}
             onClick={() => handleRoute("devices")}
           >
@@ -726,6 +782,7 @@ export function AppNext({
           </button>
           <button
             type="button"
+            hidden={!isReleaseRouteAllowed("notifications")}
             className={activeTab === "notifications" ? "active" : "secondary"}
             onClick={() => handleRoute("notifications")}
           >
@@ -733,12 +790,13 @@ export function AppNext({
           </button>
           <button
             type="button"
+            hidden={!isReleaseRouteAllowed("notices")}
             className={activeTab === "workspace-notices" ? "active" : "secondary"}
             onClick={() => handleRoute("notices")}
           >
             워크스페이스 공지
           </button>
-          {adminPreviewMenuVisible ? (
+          {adminPreviewMenuVisible && isReleaseRouteAllowed("admin-preview") ? (
             <button
               type="button"
               className={activeTab === "admin-preview" ? "active" : "secondary"}
@@ -747,7 +805,7 @@ export function AppNext({
               Admin Preview
             </button>
           ) : null}
-          {workspacePreviewMenuVisible ? (
+          {workspacePreviewMenuVisible && isReleaseRouteAllowed("workspace-preview") ? (
             <button
               type="button"
               className={activeTab === "workspace-preview" ? "active" : "secondary"}
@@ -764,7 +822,28 @@ export function AppNext({
         <p>{stateMessage.body}</p>
       </section>
 
-      {routeDecision.currentRoute === "login" ? (
+      {session?.isSystemOwner ? (
+        <section className="app-next-panel">
+          <h2>Owner Preview Release</h2>
+          <dl className="app-next-diagnostics-grid">
+            <ValueRow label="app version" value={releaseManifest.appVersion} />
+            <ValueRow label="release channel" value={releaseManifest.releaseChannel} />
+            <ValueRow label="build date" value={releaseManifest.buildDate} />
+            <ValueRow label="git commit" value={releaseManifest.gitCommit} />
+            <ValueRow label="manifest version" value={releaseManifest.manifestVersion} />
+            <ValueRow label="stable" value={String(releaseSummary.stableCount)} />
+            <ValueRow label="beta" value={String(releaseSummary.betaCount)} />
+            <ValueRow label="internal" value={String(releaseSummary.internalCount)} />
+          </dl>
+        </section>
+      ) : null}
+
+      {!releaseAccess.allowed ? (
+        <AppNextRouteOnlyPanel
+          title="Owner Preview access blocked"
+          body={`This route is not included in the current Owner Preview release scope. reason=${releaseAccess.reasonCategory}`}
+        />
+      ) : routeDecision.currentRoute === "login" ? (
         state === "loading" ? (
           <AppNextRouteOnlyPanel title={stateMessage.title} body={stateMessage.body} />
         ) : (
