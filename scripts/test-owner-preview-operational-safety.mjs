@@ -390,6 +390,95 @@ test("workspace save readiness diagnostics expose safe counters", () => {
   }
 });
 
+test("notice direct Firestore writes are blocked by operational write gate", () => {
+  assert.match(files.app, /function checkNoticeOperationalWriteAllowedV127\(action = "write"\)/);
+  assert.match(files.app, /APP_PATCH_VERSION_V127/);
+  assert.match(files.app, /PMNoticeOperationalWriteGateV127/);
+  assert.match(files.app, /noticeWriteGateVersion:\s*"V127"/);
+  assert.match(files.app, /noticeWriteGateInstalled:\s*true/);
+  assert.match(files.app, /PMOperationalSafety\?\.isWriteBlocked\?\.\(\)/);
+  assert.match(files.app, /notice-operational-write-blocked/);
+  assert.match(files.app, /NOTICE_WRITE_BLOCKED_SAVE_MESSAGE_V127/);
+  assert.match(files.app, /NOTICE_WRITE_BLOCKED_DELETE_MESSAGE_V127/);
+  const saveSource = files.app.slice(
+    files.app.indexOf("saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV115"),
+    files.app.indexOf("async function saveEditorWithNoticeServerRefreshV115")
+  );
+  assert.notEqual(saveSource.length, 0);
+  assert.ok(
+    saveSource.indexOf("checkNoticeOperationalWriteAllowedV127(writeAction)") <
+      saveSource.indexOf(".doc(docId).set(payload, { merge: true })")
+  );
+  const deleteSource = files.app.slice(
+    files.app.indexOf("deleteWorkspaceNoticeRemoteV112 = async function deleteWorkspaceNoticeRemoteV113"),
+    files.app.indexOf("deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemoteV113")
+  );
+  assert.notEqual(deleteSource.length, 0);
+  assert.ok(
+    deleteSource.indexOf('checkNoticeOperationalWriteAllowedV127("delete")') <
+      deleteSource.indexOf(".doc(id).delete()")
+  );
+  const bulkDeleteSource = files.app.slice(
+    files.app.indexOf("deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemoteV113"),
+    files.app.indexOf("const renderNoticesSplitBeforeV113")
+  );
+  assert.notEqual(bulkDeleteSource.length, 0);
+  assert.ok(
+    bulkDeleteSource.indexOf('checkNoticeOperationalWriteAllowedV127("bulk-delete")') <
+      bulkDeleteSource.indexOf("batch.commit()")
+  );
+  const finalSaveWrapperSource = files.app.slice(
+    files.app.indexOf("saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV127"),
+    files.app.indexOf("deleteWorkspaceNoticeRemoteV112 = async function deleteWorkspaceNoticeRemoteV127")
+  );
+  assert.notEqual(finalSaveWrapperSource.length, 0);
+  assert.ok(
+    finalSaveWrapperSource.indexOf("blockNoticeWriteIfNeededV127(action") <
+      finalSaveWrapperSource.indexOf("saveNoticeDirectToFirestoreBeforeV127.apply")
+  );
+  const finalDeleteWrapperSource = files.app.slice(
+    files.app.indexOf("deleteWorkspaceNoticeRemoteV112 = async function deleteWorkspaceNoticeRemoteV127"),
+    files.app.indexOf("deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemoteV127")
+  );
+  assert.notEqual(finalDeleteWrapperSource.length, 0);
+  assert.ok(
+    finalDeleteWrapperSource.indexOf('blockNoticeWriteIfNeededV127("delete")') <
+      finalDeleteWrapperSource.indexOf("deleteWorkspaceNoticeRemoteBeforeV127.apply")
+  );
+  const finalBulkDeleteWrapperSource = files.app.slice(
+    files.app.indexOf("deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemoteV127"),
+    files.app.indexOf("window.PMNoticeOperationalWriteGateV127")
+  );
+  assert.notEqual(finalBulkDeleteWrapperSource.length, 0);
+  assert.ok(
+    finalBulkDeleteWrapperSource.indexOf('blockNoticeWriteIfNeededV127("bulk-delete")') <
+      finalBulkDeleteWrapperSource.indexOf("deleteWorkspaceNoticeIdsRemoteBeforeV127.apply")
+  );
+});
+
+test("notice write gate exposes safe diagnostics and keeps bootstrap blocked", () => {
+  for (const field of [
+    "noticeWriteGateCheckCount",
+    "noticeWriteGateAllowedCount",
+    "noticeWriteGateBlockedCount",
+    "lastNoticeWriteGateAction",
+    "lastNoticeWriteGateReason",
+    "lastNoticeWriteGateMode",
+    "noticeCreateBlockedCount",
+    "noticeUpdateBlockedCount",
+    "noticeDeleteBlockedCount",
+    "noticeBulkDeleteBlockedCount",
+  ]) {
+    assert.match(files.app, new RegExp(field));
+    assert.match(files.workspaceDataService, new RegExp(field));
+  }
+  assert.match(files.workspaceDataService, /noticeBootstrapCreateBlockedCount/);
+  assert.match(files.workspaceDataService, /notice-empty-remote-bootstrap-blocked/);
+  assert.doesNotMatch(files.app, /lastNoticeWriteGate.*uid/i);
+  assert.doesNotMatch(files.app, /lastNoticeWriteGate.*email/i);
+  assert.doesNotMatch(files.app, /lastNoticeWriteGate.*workspaceId/i);
+});
+
 test("workspace sync diagnostic call history keeps workspace values masked", () => {
   assert.match(files.workspaceDataService, /recentScheduleCalls\.push\(\{\s*at:\s*Date\.now\(\),\s*workspaceId:\s*maskId\(workspaceId\)/s);
   assert.match(files.workspaceDataService, /recentSaveReasons:\s*\[\.\.\.recentScheduleCalls\]/);

@@ -24892,6 +24892,7 @@ function incrementNoticeDeleteDiagnosticV112(key, amount = 1) {
 }
 
 function classifyNoticeDeleteErrorV112(error) {
+  if (error?.code === "notice-operational-write-blocked") return "notice-operational-write-blocked";
   const code = String(error?.code || "").replace(/^firestore\//, "");
   if (code.includes("permission-denied")) return "permission-denied";
   if (code.includes("resource-exhausted")) return "resource-exhausted";
@@ -24901,6 +24902,7 @@ function classifyNoticeDeleteErrorV112(error) {
 }
 
 function noticeDeleteErrorMessageV112(code) {
+  if (code === "notice-operational-write-blocked") return NOTICE_WRITE_BLOCKED_DELETE_MESSAGE_V127;
   if (code === "permission-denied") return "삭제 권한이 없습니다. 관리자 권한과 Firestore 규칙을 확인해 주세요.";
   if (code === "resource-exhausted") return "Firestore 사용량 한도에 도달했습니다. 한도 초기화 후 다시 시도해 주세요.";
   if (code === "unavailable") return "네트워크 연결이 불안정해 서버 삭제를 확인하지 못했습니다. 다시 시도해 주세요.";
@@ -24987,6 +24989,15 @@ async function deleteWorkspaceNoticeRemoteV112(row, triggerButton = null) {
   incrementNoticeDeleteDiagnosticV112("noticeDeleteRequestedCount", 1);
   recordNoticeDeleteDiagnosticV112({ lastNoticeDeleteReason: "single-delete-requested" });
   try {
+    const writeGate = checkNoticeOperationalWriteAllowedV127("delete");
+    if (!writeGate.allowed) {
+      recordNoticeDeleteDiagnosticV112({
+        lastNoticeDeleteFailureCode: writeGate.reason,
+        lastNoticeDeleteReason: "single-delete-blocked-operational-safety"
+      });
+      showMessage("삭제 실패", noticeOperationalWriteBlockedMessageV127("delete"));
+      return;
+    }
     const runtime = await workspaceNoticeRuntimeV112();
     await workspaceNoticeCollectionV112(runtime.db, workspaceId).doc(id).delete();
     const deleted = await verifyWorkspaceNoticeDeletedV112(workspaceId, id);
@@ -25057,6 +25068,15 @@ async function deleteWorkspaceNoticeIdsRemoteV112(ids, options = {}) {
   incrementNoticeDeleteDiagnosticV112("noticeDeleteRequestedCount", uniqueIds.length);
   recordNoticeDeleteDiagnosticV112({ lastNoticeDeleteReason: `${options.mode || "selected"}-delete-requested` });
   try {
+    const writeGate = checkNoticeOperationalWriteAllowedV127("bulk-delete");
+    if (!writeGate.allowed) {
+      recordNoticeDeleteDiagnosticV112({
+        lastNoticeDeleteFailureCode: writeGate.reason,
+        lastNoticeDeleteReason: "bulk-delete-blocked-operational-safety"
+      });
+      showMessage("공지 삭제 실패", noticeOperationalWriteBlockedMessageV127("bulk-delete"));
+      return;
+    }
     const runtime = await workspaceNoticeRuntimeV112();
     const ref = workspaceNoticeCollectionV112(runtime.db, workspaceId);
     for (const chunk of chunkNoticeIdsV112(uniqueIds)) {
@@ -25239,6 +25259,16 @@ window.PMNoticeDeleteDiagnosticsV112 = {
   noticeBulkDeleteBatchCount: window.PMNoticeDeleteDiagnosticsV112?.noticeBulkDeleteBatchCount || 0,
   noticeServerCountAfterDelete: window.PMNoticeDeleteDiagnosticsV112?.noticeServerCountAfterDelete ?? null,
   noticeBootstrapCreateBlockedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeBootstrapCreateBlockedCount || 0,
+  noticeWriteGateCheckCount: window.PMNoticeDeleteDiagnosticsV112?.noticeWriteGateCheckCount || 0,
+  noticeWriteGateAllowedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeWriteGateAllowedCount || 0,
+  noticeWriteGateBlockedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeWriteGateBlockedCount || 0,
+  lastNoticeWriteGateAction: window.PMNoticeDeleteDiagnosticsV112?.lastNoticeWriteGateAction || "none",
+  lastNoticeWriteGateReason: window.PMNoticeDeleteDiagnosticsV112?.lastNoticeWriteGateReason || "none",
+  lastNoticeWriteGateMode: window.PMNoticeDeleteDiagnosticsV112?.lastNoticeWriteGateMode || "normal",
+  noticeCreateBlockedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeCreateBlockedCount || 0,
+  noticeUpdateBlockedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeUpdateBlockedCount || 0,
+  noticeDeleteBlockedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeDeleteBlockedCount || 0,
+  noticeBulkDeleteBlockedCount: window.PMNoticeDeleteDiagnosticsV112?.noticeBulkDeleteBlockedCount || 0,
   lastNoticeDeleteFailureCode: window.PMNoticeDeleteDiagnosticsV112?.lastNoticeDeleteFailureCode || "",
   lastNoticeDeleteReason: window.PMNoticeDeleteDiagnosticsV112?.lastNoticeDeleteReason || ""
 };
@@ -25432,6 +25462,15 @@ deleteWorkspaceNoticeRemoteV112 = async function deleteWorkspaceNoticeRemoteV113
   incrementNoticeDeleteDiagnosticV112("noticeDeleteRequestedCount", 1);
   recordNoticeDeleteDiagnosticV112({ lastNoticeDeleteReason: "single-delete-requested" });
   try {
+    const writeGate = checkNoticeOperationalWriteAllowedV127("delete");
+    if (!writeGate.allowed) {
+      recordNoticeDeleteDiagnosticV112({
+        lastNoticeDeleteFailureCode: writeGate.reason,
+        lastNoticeDeleteReason: "single-delete-blocked-operational-safety"
+      });
+      showMessage("삭제 실패", noticeOperationalWriteBlockedMessageV127("delete"));
+      return;
+    }
     const runtime = await workspaceNoticeRuntimeV112();
     await workspaceNoticeCollectionV112(runtime.db, workspaceId).doc(id).delete();
     const deleted = await verifyWorkspaceNoticeDeletedV112(workspaceId, id);
@@ -25498,6 +25537,15 @@ deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemo
   incrementNoticeDeleteDiagnosticV112("noticeDeleteRequestedCount", uniqueIds.length);
   recordNoticeDeleteDiagnosticV112({ lastNoticeDeleteReason: `${options.mode || "selected"}-delete-requested` });
   try {
+    const writeGate = checkNoticeOperationalWriteAllowedV127("bulk-delete");
+    if (!writeGate.allowed) {
+      recordNoticeDeleteDiagnosticV112({
+        lastNoticeDeleteFailureCode: writeGate.reason,
+        lastNoticeDeleteReason: "bulk-delete-blocked-operational-safety"
+      });
+      showMessage("공지 삭제 실패", noticeOperationalWriteBlockedMessageV127("bulk-delete"));
+      return;
+    }
     const runtime = await workspaceNoticeRuntimeV112();
     const ref = workspaceNoticeCollectionV112(runtime.db, workspaceId);
     for (const chunk of chunkNoticeIdsV112(uniqueIds)) {
@@ -25607,6 +25655,81 @@ const noticeCreateDiagnosticsV115 = {
   lastNoticeCreateReason: "idle"
 };
 
+const NOTICE_WRITE_BLOCKED_SAVE_MESSAGE_V127 = "현재 서비스 점검 또는 운영 안정화 중이라 공지를 저장할 수 없습니다. 서비스 정상화 후 다시 시도해 주세요.";
+const NOTICE_WRITE_BLOCKED_DELETE_MESSAGE_V127 = "현재 서비스 점검 또는 운영 안정화 중이라 공지를 삭제할 수 없습니다.";
+
+function normalizeNoticeWriteActionV127(action) {
+  const value = String(action || "").toLowerCase();
+  if (value.includes("bulk")) return "bulk-delete";
+  if (value.includes("delete")) return "delete";
+  if (value.includes("update") || value.includes("edit")) return "update";
+  if (value.includes("bootstrap")) return "bootstrap";
+  if (value.includes("create") || value.includes("save")) return "create";
+  return "write";
+}
+
+function noticeOperationalSafetyStatusV127() {
+  try {
+    return window.PMOperationalSafety?.status?.() || {
+      mode: "normal",
+      writeBlocked: false
+    };
+  } catch {
+    return { mode: "normal", writeBlocked: false };
+  }
+}
+
+function incrementNoticeWriteGateDiagnosticV127(key, amount = 1) {
+  incrementNoticeDeleteDiagnosticV112(key, amount);
+}
+
+function recordNoticeWriteGateDiagnosticV127(patch = {}) {
+  recordNoticeDeleteDiagnosticV112(patch);
+}
+
+function checkNoticeOperationalWriteAllowedV127(action = "write") {
+  const normalizedAction = normalizeNoticeWriteActionV127(action);
+  const status = noticeOperationalSafetyStatusV127();
+  const mode = status?.mode || "normal";
+  let writeBlocked = Boolean(status?.writeBlocked);
+  try {
+    writeBlocked = writeBlocked || Boolean(window.PMOperationalSafety?.isWriteBlocked?.());
+  } catch {
+    writeBlocked = Boolean(status?.writeBlocked);
+  }
+  const allowed = !writeBlocked;
+  const reason = allowed ? "ready" : "operational-write-blocked";
+  incrementNoticeWriteGateDiagnosticV127("noticeWriteGateCheckCount", 1);
+  incrementNoticeWriteGateDiagnosticV127(allowed ? "noticeWriteGateAllowedCount" : "noticeWriteGateBlockedCount", 1);
+  if (!allowed) {
+    if (normalizedAction === "delete") incrementNoticeWriteGateDiagnosticV127("noticeDeleteBlockedCount", 1);
+    else if (normalizedAction === "bulk-delete") incrementNoticeWriteGateDiagnosticV127("noticeBulkDeleteBlockedCount", 1);
+    else if (normalizedAction === "update") incrementNoticeWriteGateDiagnosticV127("noticeUpdateBlockedCount", 1);
+    else incrementNoticeWriteGateDiagnosticV127("noticeCreateBlockedCount", 1);
+  }
+  recordNoticeWriteGateDiagnosticV127({
+    lastNoticeWriteGateAction: normalizedAction,
+    lastNoticeWriteGateReason: reason,
+    lastNoticeWriteGateMode: mode
+  });
+  return { allowed, reason, mode };
+}
+
+function noticeOperationalWriteBlockedMessageV127(action = "write") {
+  const normalizedAction = normalizeNoticeWriteActionV127(action);
+  return normalizedAction === "delete" || normalizedAction === "bulk-delete"
+    ? NOTICE_WRITE_BLOCKED_DELETE_MESSAGE_V127
+    : NOTICE_WRITE_BLOCKED_SAVE_MESSAGE_V127;
+}
+
+function makeNoticeOperationalWriteBlockedErrorV127(action = "write", gate = null) {
+  const error = new Error("notice-operational-write-blocked");
+  error.code = "notice-operational-write-blocked";
+  error.noticeWriteActionV127 = normalizeNoticeWriteActionV127(action);
+  error.noticeWriteGateV127 = gate || checkNoticeOperationalWriteAllowedV127(action);
+  return error;
+}
+
 function updateNoticeCreateDiagnosticsV115(patch = {}) {
   Object.assign(noticeCreateDiagnosticsV115, patch || {});
 }
@@ -25674,6 +25797,7 @@ async function recordNoticeWorkspaceDiagnosticsV115({ sessionWorkspaceId = "", s
 }
 
 function noticeCreateErrorMessageV115(code) {
+  if (code === "notice-operational-write-blocked") return NOTICE_WRITE_BLOCKED_SAVE_MESSAGE_V127;
   if (code === "workspace-mismatch") return "공지 저장 대상 워크스페이스가 현재 세션과 일치하지 않습니다. 새로고침 후 다시 시도해 주세요.";
   if (code === "missing-workspace-id") return "현재 워크스페이스가 연결되지 않아 공지를 저장할 수 없습니다.";
   if (code === "missing-canonical-workspace-id") return "현재 계정의 currentWorkspaceId가 없어 워크스페이스 공지를 저장할 수 없습니다.";
@@ -25789,6 +25913,15 @@ saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV115(
       serverCountBeforeCreate: beforeSnapshot.size,
       lastNoticeCreateReason: "server-count-before-read"
     });
+    const writeAction = existedBefore ? "update" : "create";
+    const writeGate = checkNoticeOperationalWriteAllowedV127(writeAction);
+    if (!writeGate.allowed) {
+      updateNoticeCreateDiagnosticsV115({
+        lastNoticeCreateErrorKind: writeGate.reason,
+        lastNoticeCreateReason: `${writeAction}-blocked-operational-safety`
+      });
+      throw makeNoticeOperationalWriteBlockedErrorV127(writeAction, writeGate);
+    }
     devNoticeLogV114("info", "[notice:add:start]", {
       workspaceId: writeWorkspaceId,
       uidPresent: Boolean(currentUser?.uid || currentUser?.id),
@@ -25913,6 +26046,10 @@ async function saveEditorWithNoticeServerRefreshV115(event) {
     renderPage(origin || currentPage);
     return;
   }
+  Object.defineProperty(savedRow, "__noticeWriteActionV127", {
+    value: editing.id ? "update" : "create",
+    configurable: true
+  });
   try {
     const result = await saveNoticeDirectToFirestoreV52(savedRow);
     if (!result?.confirmed) {
@@ -25923,7 +26060,7 @@ async function saveEditorWithNoticeServerRefreshV115(event) {
     renderPage(origin || currentPage);
     showMessage("저장 완료", "공지 저장이 서버에서 확인되었고 목록을 다시 불러왔습니다.");
   } catch (error) {
-    const code = error?.code === "workspace-mismatch" || error?.code === "server-confirmation-failed"
+    const code = error?.code === "workspace-mismatch" || error?.code === "server-confirmation-failed" || error?.code === "notice-operational-write-blocked"
       ? error.code
       : classifyNoticeDeleteErrorV112(error);
     editorError.textContent = noticeCreateErrorMessageV115(code);
@@ -26529,6 +26666,10 @@ async function saveEditorWithNoticeServerRefreshV116(event) {
     renderPage(origin || currentPage);
     return;
   }
+  Object.defineProperty(savedRow, "__noticeWriteActionV127", {
+    value: editing.id ? "update" : "create",
+    configurable: true
+  });
   try {
     const result = await saveNoticeDirectToFirestoreV52(savedRow);
     if (!result?.confirmed) {
@@ -26539,7 +26680,7 @@ async function saveEditorWithNoticeServerRefreshV116(event) {
     renderPage(origin || currentPage);
     showMessage("저장 완료", "공지 저장이 현재 워크스페이스 서버에서 확인되었습니다.");
   } catch (error) {
-    const code = error?.code === "workspace-mismatch" || error?.code === "server-confirmation-failed"
+    const code = error?.code === "workspace-mismatch" || error?.code === "server-confirmation-failed" || error?.code === "notice-operational-write-blocked"
       ? error.code
       : classifyNoticeDeleteErrorV112(error);
     editorError.textContent = noticeCreateErrorMessageV115(code);
@@ -27037,6 +27178,11 @@ if (typeof window !== "undefined") {
 if (typeof saveNoticeDirectToFirestoreV52 === "function" && !saveNoticeDirectToFirestoreV52.__transportWrappedV119) {
   const saveNoticeDirectToFirestoreBeforeV119 = saveNoticeDirectToFirestoreV52;
   saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV119(row) {
+    if (window.PMOperationalSafety?.isWriteBlocked?.()) {
+      const action = row?.__noticeWriteActionV127 || "save";
+      const gate = checkNoticeOperationalWriteAllowedV127(action);
+      throw makeNoticeOperationalWriteBlockedErrorV127(action, gate);
+    }
     recordFirestoreWriteRequestedV119("notice-save");
     try {
       const result = await saveNoticeDirectToFirestoreBeforeV119.apply(this, arguments);
@@ -27060,6 +27206,100 @@ if (typeof refreshWorkspaceNoticesFromServerV113 === "function" && !refreshWorks
   };
   refreshWorkspaceNoticesFromServerV113.__transportWrappedV119 = true;
 }
+
+// Notice operational write gate V127: enforce the owner-preview write block at
+// the final notice write entrypoints, not only inside intermediate wrappers.
+const APP_PATCH_VERSION_V127 = "v127.0 - 2026-07-25";
+store.settings.appVersion = APP_PATCH_VERSION_V127;
+
+function noticeWriteGateSnapshotV127() {
+  const diagnostics = window.PMWorkspaceDataService?.diagnostics?.() || window.PMNoticeDeleteDiagnosticsV112 || {};
+  const status = noticeOperationalSafetyStatusV127();
+  return {
+    noticeWriteGateVersion: "V127",
+    noticeWriteGateInstalled: true,
+    mode: status?.mode || "normal",
+    writeBlocked: Boolean(status?.writeBlocked || window.PMOperationalSafety?.isWriteBlocked?.()),
+    noticeWriteGateCheckCount: diagnostics.noticeWriteGateCheckCount || 0,
+    noticeWriteGateAllowedCount: diagnostics.noticeWriteGateAllowedCount || 0,
+    noticeWriteGateBlockedCount: diagnostics.noticeWriteGateBlockedCount || 0,
+    lastNoticeWriteGateAction: diagnostics.lastNoticeWriteGateAction || "none",
+    lastNoticeWriteGateReason: diagnostics.lastNoticeWriteGateReason || "none",
+    lastNoticeWriteGateMode: diagnostics.lastNoticeWriteGateMode || "normal",
+    noticeCreateBlockedCount: diagnostics.noticeCreateBlockedCount || 0,
+    noticeUpdateBlockedCount: diagnostics.noticeUpdateBlockedCount || 0,
+    noticeDeleteBlockedCount: diagnostics.noticeDeleteBlockedCount || 0,
+    noticeBulkDeleteBlockedCount: diagnostics.noticeBulkDeleteBlockedCount || 0
+  };
+}
+
+function blockNoticeWriteIfNeededV127(action = "write", options = {}) {
+  const gate = checkNoticeOperationalWriteAllowedV127(action);
+  if (gate.allowed) return false;
+  const normalizedAction = normalizeNoticeWriteActionV127(action);
+  const reason = `${normalizedAction}-blocked-operational-safety`;
+  recordNoticeDeleteDiagnosticV112({
+    lastNoticeDeleteFailureCode: gate.reason,
+    lastNoticeDeleteReason: reason
+  });
+  if (normalizedAction === "create" || normalizedAction === "update" || normalizedAction === "write") {
+    updateNoticeCreateDiagnosticsV115({
+      lastNoticeCreateErrorKind: gate.reason,
+      lastNoticeCreateReason: reason
+    });
+  }
+  if (options.showMessage !== false) {
+    showMessage(
+      normalizedAction === "delete" || normalizedAction === "bulk-delete" ? "공지 삭제 실패" : "공지 저장 실패",
+      noticeOperationalWriteBlockedMessageV127(normalizedAction)
+    );
+  }
+  return true;
+}
+
+if (typeof saveNoticeDirectToFirestoreV52 === "function" && !saveNoticeDirectToFirestoreV52.__noticeWriteGateWrappedV127) {
+  const saveNoticeDirectToFirestoreBeforeV127 = saveNoticeDirectToFirestoreV52;
+  saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV127(row) {
+    const action = row?.__noticeWriteActionV127 || "save";
+    if (blockNoticeWriteIfNeededV127(action, { showMessage: false })) {
+      throw makeNoticeOperationalWriteBlockedErrorV127(action, {
+        allowed: false,
+        reason: "operational-write-blocked",
+        mode: noticeOperationalSafetyStatusV127()?.mode || "normal"
+      });
+    }
+    return saveNoticeDirectToFirestoreBeforeV127.apply(this, arguments);
+  };
+  saveNoticeDirectToFirestoreV52.__noticeWriteGateWrappedV127 = true;
+}
+
+if (typeof deleteWorkspaceNoticeRemoteV112 === "function" && !deleteWorkspaceNoticeRemoteV112.__noticeWriteGateWrappedV127) {
+  const deleteWorkspaceNoticeRemoteBeforeV127 = deleteWorkspaceNoticeRemoteV112;
+  deleteWorkspaceNoticeRemoteV112 = async function deleteWorkspaceNoticeRemoteV127(row, triggerButton = null) {
+    if (row?.id !== undefined && row?.id !== null && row?.id !== "" && currentWorkspaceIdV52()) {
+      if (blockNoticeWriteIfNeededV127("delete")) return false;
+    }
+    return deleteWorkspaceNoticeRemoteBeforeV127.apply(this, arguments);
+  };
+  deleteWorkspaceNoticeRemoteV112.__noticeWriteGateWrappedV127 = true;
+}
+
+if (typeof deleteWorkspaceNoticeIdsRemoteV112 === "function" && !deleteWorkspaceNoticeIdsRemoteV112.__noticeWriteGateWrappedV127) {
+  const deleteWorkspaceNoticeIdsRemoteBeforeV127 = deleteWorkspaceNoticeIdsRemoteV112;
+  deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemoteV127(ids, options = {}) {
+    const uniqueIds = [...new Set((ids || []).map((id) => String(id)).filter(Boolean))];
+    if (uniqueIds.length && currentWorkspaceIdV52()) {
+      if (blockNoticeWriteIfNeededV127("bulk-delete")) return false;
+    }
+    return deleteWorkspaceNoticeIdsRemoteBeforeV127.apply(this, arguments);
+  };
+  deleteWorkspaceNoticeIdsRemoteV112.__noticeWriteGateWrappedV127 = true;
+}
+
+window.PMNoticeOperationalWriteGateV127 = {
+  snapshot: noticeWriteGateSnapshotV127,
+  check: (action = "write") => checkNoticeOperationalWriteAllowedV127(action)
+};
 
 // Final V120: keep the last successful top-level page in the current browser
 // tab and restore it after auth/workspace/navigation are ready.
@@ -28369,3 +28609,6 @@ setTimeout(() => {
   window.PMOperationalSafety?.recordState?.("manifestLoadState", window.PM_OWNER_PREVIEW_RELEASE_MANIFEST_V1 ? "loaded" : "missing");
   applyOperationalSafetyGateV125("startup");
 }, 0);
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V127;

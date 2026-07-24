@@ -369,9 +369,9 @@ ok("V124 save diagnostics expose periodTimes sync keys", v124.includes('lastPeri
 ok("V124 installs exactly one delegated click capture", v124.includes("__PM_PERIOD_EDITOR_CLICK_CAPTURE_V124__") && v124.includes('document.addEventListener("click", handlePeriodEditorClickV124, true)'));
 ok("V124 render wrapper recounts final DOM buttons", v124.includes("renderTimetableV29 = function renderTimetableV124") && v124.includes("periodEditorButtonsV124()"));
 ok("V124 final add/delete path does not flush timetable only", !addDomPeriodBodyV124.includes('syncKeys: ["timetable"') && !deleteDomPeriodBodyV124.includes('syncKeys: ["timetable"') && !clickCaptureBodyV124.includes("removeCurrentTimetablePeriodV103"));
-ok("index uses V120 app cache version", indexHtml.includes("app.js?v=120"));
+ok("index uses V127 app cache version", indexHtml.includes("app.js?v=127"));
 ok("index uses firebase runtime V6 and auth service V16 cache versions", indexHtml.includes("services/firebaseRuntime.js?v=6") && indexHtml.includes("services/authService.js?v=16"));
-ok("index uses V9 workspace data service cache version", indexHtml.includes("services/workspaceDataService.js?v=9"));
+ok("index uses V10 workspace data service cache version", indexHtml.includes("services/workspaceDataService.js?v=10"));
 
 if (process.exitCode) process.exit(process.exitCode);
 console.log("timetable and notice stability checks passed.");

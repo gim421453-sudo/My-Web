@@ -10,7 +10,8 @@ const assets = [
   "app.js",
   "shared",
   "services",
-  "pm-env.js"
+  "pm-env.js",
+  "robots.txt"
 ];
 
 if (!existsSync(target)) {

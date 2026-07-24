@@ -6601,6 +6601,99 @@ const tests = [
     assert.match(serviceSource, /lastSaveReadinessReason/);
     assert.match(serviceSource, /lastSaveReadinessSafetyBlocked/);
   }],
+  ["operational notices use operational safety write gate before direct Firestore writes", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const serviceSource = readFileSync(path.resolve(projectRoot, "services/workspaceDataService.js"), "utf8");
+    assert.match(appSource, /function checkNoticeOperationalWriteAllowedV127\(action = "write"\)/);
+    assert.match(appSource, /APP_PATCH_VERSION_V127/);
+    assert.match(appSource, /PMNoticeOperationalWriteGateV127/);
+    assert.match(appSource, /noticeWriteGateVersion:\s*"V127"/);
+    assert.match(appSource, /noticeWriteGateInstalled:\s*true/);
+    assert.match(appSource, /PMOperationalSafety\?\.isWriteBlocked\?\.\(\)/);
+    assert.match(appSource, /notice-operational-write-blocked/);
+    assert.match(appSource, /NOTICE_WRITE_BLOCKED_SAVE_MESSAGE_V127/);
+    assert.match(appSource, /NOTICE_WRITE_BLOCKED_DELETE_MESSAGE_V127/);
+    const noticeSaveSource = appSource.slice(
+      appSource.indexOf("saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV115"),
+      appSource.indexOf("async function saveEditorWithNoticeServerRefreshV115")
+    );
+    assert.notEqual(noticeSaveSource.length, 0);
+    assert.ok(
+      noticeSaveSource.indexOf("checkNoticeOperationalWriteAllowedV127(writeAction)") <
+        noticeSaveSource.indexOf(".doc(docId).set(payload, { merge: true })"),
+      "notice save write gate must run before Firestore set"
+    );
+    const noticeDeleteSource = appSource.slice(
+      appSource.indexOf("deleteWorkspaceNoticeRemoteV112 = async function deleteWorkspaceNoticeRemoteV113"),
+      appSource.indexOf("deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemoteV113")
+    );
+    assert.notEqual(noticeDeleteSource.length, 0);
+    assert.ok(
+      noticeDeleteSource.indexOf('checkNoticeOperationalWriteAllowedV127("delete")') <
+        noticeDeleteSource.indexOf(".doc(id).delete()"),
+      "notice delete write gate must run before Firestore delete"
+    );
+    const noticeBulkDeleteSource = appSource.slice(
+      appSource.indexOf("deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemoteV113"),
+      appSource.indexOf("const renderNoticesSplitBeforeV113")
+    );
+    assert.notEqual(noticeBulkDeleteSource.length, 0);
+    assert.ok(
+      noticeBulkDeleteSource.indexOf('checkNoticeOperationalWriteAllowedV127("bulk-delete")') <
+        noticeBulkDeleteSource.indexOf("batch.commit()"),
+      "notice bulk delete write gate must run before batch commit"
+    );
+    const finalSaveWrapperSource = appSource.slice(
+      appSource.indexOf("saveNoticeDirectToFirestoreV52 = async function saveNoticeDirectToFirestoreV127"),
+      appSource.indexOf("deleteWorkspaceNoticeRemoteV112 = async function deleteWorkspaceNoticeRemoteV127")
+    );
+    assert.notEqual(finalSaveWrapperSource.length, 0);
+    assert.ok(
+      finalSaveWrapperSource.indexOf("blockNoticeWriteIfNeededV127(action") <
+        finalSaveWrapperSource.indexOf("saveNoticeDirectToFirestoreBeforeV127.apply"),
+      "final notice save wrapper must block before calling prior wrappers"
+    );
+    const finalDeleteWrapperSource = appSource.slice(
+      appSource.indexOf("deleteWorkspaceNoticeRemoteV112 = async function deleteWorkspaceNoticeRemoteV127"),
+      appSource.indexOf("deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemoteV127")
+    );
+    assert.notEqual(finalDeleteWrapperSource.length, 0);
+    assert.ok(
+      finalDeleteWrapperSource.indexOf('blockNoticeWriteIfNeededV127("delete")') <
+        finalDeleteWrapperSource.indexOf("deleteWorkspaceNoticeRemoteBeforeV127.apply"),
+      "final notice delete wrapper must block before requested/confirmed counters in prior wrappers"
+    );
+    const finalBulkDeleteWrapperSource = appSource.slice(
+      appSource.indexOf("deleteWorkspaceNoticeIdsRemoteV112 = async function deleteWorkspaceNoticeIdsRemoteV127"),
+      appSource.indexOf("window.PMNoticeOperationalWriteGateV127")
+    );
+    assert.notEqual(finalBulkDeleteWrapperSource.length, 0);
+    assert.ok(
+      finalBulkDeleteWrapperSource.indexOf('blockNoticeWriteIfNeededV127("bulk-delete")') <
+        finalBulkDeleteWrapperSource.indexOf("deleteWorkspaceNoticeIdsRemoteBeforeV127.apply"),
+      "final notice bulk delete wrapper must block before prior batch path"
+    );
+    for (const field of [
+      "noticeWriteGateCheckCount",
+      "noticeWriteGateAllowedCount",
+      "noticeWriteGateBlockedCount",
+      "lastNoticeWriteGateAction",
+      "lastNoticeWriteGateReason",
+      "lastNoticeWriteGateMode",
+      "noticeCreateBlockedCount",
+      "noticeUpdateBlockedCount",
+      "noticeDeleteBlockedCount",
+      "noticeBulkDeleteBlockedCount",
+    ]) {
+      assert.match(appSource, new RegExp(field));
+      assert.match(serviceSource, new RegExp(field));
+    }
+    assert.match(serviceSource, /noticeBootstrapCreateBlockedCount/);
+    assert.match(serviceSource, /notice-empty-remote-bootstrap-blocked/);
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    assert.match(indexHtml, /services\/workspaceDataService\.js\?v=10/);
+    assert.match(indexHtml, /app\.js\?v=127/);
+  }],
   ["operational schedule editor save blocks duplicate clicks and avoids stale editing state", () => {
     const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
     const serviceSource = readFileSync(path.resolve(projectRoot, "services/workspaceDataService.js"), "utf8");
@@ -7654,7 +7747,7 @@ const tests = [
     const htmlSource = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     assert.match(appSource, /function renderDashboardV8\(\)/);
     assert.match(appSource, /function visibleNotices\(\)/);
-    assert.match(htmlSource, /app\.js\?v=120/);
+    assert.match(htmlSource, /app\.js\?v=127/);
     assert.equal(appSource.includes("AppNextDashboardReadOnly"), false);
     assert.equal(htmlSource.includes("AppNextDashboardReadOnly"), false);
   }],

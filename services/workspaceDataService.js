@@ -152,6 +152,16 @@
     noticeBulkDeleteBatchCount: 0,
     noticeServerCountAfterDelete: null,
     noticeBootstrapCreateBlockedCount: 0,
+    noticeWriteGateCheckCount: 0,
+    noticeWriteGateAllowedCount: 0,
+    noticeWriteGateBlockedCount: 0,
+    lastNoticeWriteGateAction: "none",
+    lastNoticeWriteGateReason: "none",
+    lastNoticeWriteGateMode: "normal",
+    noticeCreateBlockedCount: 0,
+    noticeUpdateBlockedCount: 0,
+    noticeDeleteBlockedCount: 0,
+    noticeBulkDeleteBlockedCount: 0,
     lastNoticeDeleteFailureCode: "",
     lastNoticeDeleteReason: ""
   };
