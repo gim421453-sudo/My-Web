@@ -102,6 +102,13 @@ import {
   recordOwnerPreviewManifestDecision,
   summarizeOwnerPreviewManifest,
 } from "../release/ownerPreviewReleaseManifestAdapter";
+import {
+  getOperationalSafetySnapshot,
+  getOperationalSafetyStatus,
+  isOperationalSafetyOwner,
+  recordOperationalSafetyState,
+  retryOperationalSafety,
+} from "../release/operationalSafetyAdapter";
 
 const APP_NEXT_WORKSPACE_PREVIEW_ALLOWED_ROLES = [
   WORKSPACE_ROLES.SUPER_MANAGER,
@@ -160,6 +167,7 @@ function AppNextDiagnostics({
   const settingsDiagnostics = getAppNextSettingsReadOnlyDiagnostics();
   const timetableDiagnostics = getAppNextTimetableDiagnostics();
   const schedulesDiagnostics = getAppNextSchedulesDiagnostics();
+  const operationalSafetyDiagnostics = getOperationalSafetySnapshot();
   const recentEvents = getAppNextDiagnosticEvents();
 
   return (
@@ -175,6 +183,14 @@ function AppNextDiagnostics({
         <ValueRow label="Firestore write" value="none" />
         <ValueRow label="automatic signOut" value="none" />
         <ValueRow label="operational static app" value="unchanged" />
+        <ValueRow label="operational safety mode" value={operationalSafetyDiagnostics.maintenanceMode} />
+        <ValueRow label="globalErrorCount" value={String(operationalSafetyDiagnostics.globalErrorCount)} />
+        <ValueRow label="unhandledRejectionCount" value={String(operationalSafetyDiagnostics.unhandledRejectionCount)} />
+        <ValueRow label="firebaseInitState" value={operationalSafetyDiagnostics.firebaseInitState} />
+        <ValueRow label="authInitState" value={operationalSafetyDiagnostics.authInitState} />
+        <ValueRow label="workspaceInitState" value={operationalSafetyDiagnostics.workspaceInitState} />
+        <ValueRow label="manifestLoadState" value={operationalSafetyDiagnostics.manifestLoadState} />
+        <ValueRow label="sensitiveValueDetected" value={booleanLabel(operationalSafetyDiagnostics.sensitiveValueDetected)} />
         <ValueRow label="requestedPersistence" value={appNextAuthDiagnostics.requestedPersistence} />
         <ValueRow label="effectivePersistence" value={appNextAuthDiagnostics.effectivePersistence} />
         <ValueRow label="persistenceSetSucceeded" value={booleanLabel(appNextAuthDiagnostics.persistenceSetSucceeded)} />
@@ -546,6 +562,10 @@ export function AppNext({
     () => getOwnerPreviewReleaseManifest(),
     [],
   );
+  const operationalSafetyStatus = getOperationalSafetyStatus();
+  const operationalSafetySnapshot = getOperationalSafetySnapshot();
+  const operationalSafetyOwner = isOperationalSafetyOwner(session);
+  const operationalSafetyBlocksRoute = operationalSafetyStatus.blocksGeneralUsers && !operationalSafetyOwner;
   const isReleaseRouteAllowed = useCallback((route: AppNextRoute) => decideOwnerPreviewFeatureAccess({
     system: "app-next",
     route: `#/${route}`,
@@ -562,6 +582,18 @@ export function AppNext({
 
   useEffect(() => {
     const authDiagnostics = getAuthProviderDiagnosticsSnapshot();
+    recordOperationalSafetyState("authInitState", session ? "ready" : phase === "signed_out" ? "signed-out" : phase);
+    recordOperationalSafetyState(
+      "workspaceInitState",
+      session?.currentWorkspaceId
+        ? "ready"
+        : phase === "authenticated"
+          ? "not-required"
+          : phase === "loading_session" || phase === "initializing"
+            ? "waiting-auth"
+            : "not-required",
+    );
+    recordOperationalSafetyState("manifestLoadState", releaseManifest.releaseChannel ? "loaded" : "missing");
     addAppNextDiagnosticEvent({
       event: "app-next-state",
       phase,
@@ -583,6 +615,7 @@ export function AppNext({
     firebaseUser,
     featureSource,
     phase,
+    releaseManifest.releaseChannel,
     session,
     state,
   ]);
@@ -822,6 +855,17 @@ export function AppNext({
         <p>{stateMessage.body}</p>
       </section>
 
+      {operationalSafetyStatus.mode !== "normal" ? (
+        <section className={`app-next-card app-next-${operationalSafetyStatus.mode === "partial-outage" ? "warning" : "error"}`}>
+          <h2>{operationalSafetyStatus.title}</h2>
+          <p>{operationalSafetyStatus.description}</p>
+          <p>estimated recovery: {operationalSafetyStatus.estimatedRecoveryAt}</p>
+          <button type="button" onClick={() => retryOperationalSafety()}>
+            Retry
+          </button>
+        </section>
+      ) : null}
+
       {session?.isSystemOwner ? (
         <section className="app-next-panel">
           <h2>Owner Preview Release</h2>
@@ -834,11 +878,20 @@ export function AppNext({
             <ValueRow label="stable" value={String(releaseSummary.stableCount)} />
             <ValueRow label="beta" value={String(releaseSummary.betaCount)} />
             <ValueRow label="internal" value={String(releaseSummary.internalCount)} />
+            <ValueRow label="hidden" value={String(releaseSummary.hiddenCount)} />
+            <ValueRow label="planned" value={String(releaseSummary.plannedCount)} />
+            <ValueRow label="safety mode" value={operationalSafetyStatus.mode} />
+            <ValueRow label="global errors" value={String(operationalSafetySnapshot.globalErrorCount)} />
           </dl>
         </section>
       ) : null}
 
-      {!releaseAccess.allowed ? (
+      {operationalSafetyBlocksRoute ? (
+        <AppNextRouteOnlyPanel
+          title={operationalSafetyStatus.title}
+          body={operationalSafetyStatus.description}
+        />
+      ) : !releaseAccess.allowed ? (
         <AppNextRouteOnlyPanel
           title="Owner Preview access blocked"
           body={`This route is not included in the current Owner Preview release scope. reason=${releaseAccess.reasonCategory}`}

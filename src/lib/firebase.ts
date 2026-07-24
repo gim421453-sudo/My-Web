@@ -5,6 +5,7 @@ import {
   recordAppNextAuthInstanceCreated,
   recordAppNextFirebaseInit,
 } from "../app-next/appNextDiagnostics";
+import { recordOperationalSafetyState } from "../release/operationalSafetyAdapter";
 
 const requiredEnv = {
   VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -14,17 +15,6 @@ const requiredEnv = {
   VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID,
 };
-
-if (import.meta.env.DEV) {
-  console.info("[PM Firebase env debug]", {
-    apiKey: requiredEnv.VITE_FIREBASE_API_KEY ? `${requiredEnv.VITE_FIREBASE_API_KEY.slice(0, 4)}...` : false,
-    authDomain: !!requiredEnv.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: !!requiredEnv.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: !!requiredEnv.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: !!requiredEnv.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: !!requiredEnv.VITE_FIREBASE_APP_ID,
-  });
-}
 
 function assertFirebaseConfig() {
   const missing = Object.entries(requiredEnv)
@@ -36,7 +26,13 @@ function assertFirebaseConfig() {
   }
 }
 
-assertFirebaseConfig();
+recordOperationalSafetyState("firebaseInitState", "starting");
+try {
+  assertFirebaseConfig();
+} catch (error) {
+  recordOperationalSafetyState("firebaseInitState", "failed");
+  throw error;
+}
 
 const firebaseConfig = {
   apiKey: requiredEnv.VITE_FIREBASE_API_KEY,
@@ -50,6 +46,8 @@ const firebaseConfig = {
 export const app: FirebaseApp = getApps().length
   ? getApps()[0]
   : initializeApp(firebaseConfig);
+
+recordOperationalSafetyState("firebaseInitState", "ready");
 
 recordAppNextFirebaseInit({
   appName: app.name,

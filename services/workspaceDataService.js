@@ -81,6 +81,9 @@
   let pendingSettingsSnapshot = null;
   let lastSyncedSettingsSignature = "";
   let lastSyncedRowsByKey = {};
+  let currentOnRemoteChange = null;
+  let pausedForVisibility = false;
+  let listenerRestartTimer = null;
   const recentScheduleCalls = [];
   const startDiagnostics = {
     startAttemptCount: 0,
@@ -91,6 +94,23 @@
     lastStartErrorCode: "",
     canonicalWorkspaceResolved: false,
     workspaceMatchesCanonical: false
+  };
+  const listenerDiagnostics = {
+    listenTransportErrorCount: 0,
+    lastListenTransportErrorAt: 0,
+    lastListenTransportErrorCode: "",
+    visibilityChangeCount: 0,
+    visibilityHiddenCount: 0,
+    visibilityVisibleCount: 0,
+    listenerRestartAttemptCount: 0,
+    listenerRestartSuccessCount: 0,
+    listenerRestartBlockedCount: 0,
+    duplicateListenerPathCount: 0,
+    startAttemptCount: 0,
+    startSuccessCount: 0,
+    unsubscribeCount: 0,
+    lastVisibilityState: typeof document === "undefined" ? "unknown" : document.visibilityState,
+    lastListenerLifecycleAction: "none"
   };
   const scheduleDiagnostics = {
     scheduleSaveAttemptCount: 0,
@@ -112,7 +132,18 @@
     scheduleEditorSaveFailureCount: 0,
     scheduleEditorPostConfirmFailureCount: 0,
     lastScheduleEditorSavePhase: "none",
-    lastScheduleEditorErrorCode: ""
+    lastScheduleEditorErrorCode: "",
+    saveReadinessCheckCount: 0,
+    saveReadinessAcceptedCount: 0,
+    saveReadinessBlockedCount: 0,
+    lastSaveReadinessReason: "none",
+    lastSaveReadinessServiceStarted: false,
+    lastSaveReadinessCanonicalResolved: false,
+    lastSaveReadinessWorkspaceMatched: false,
+    lastSaveReadinessSafetyBlocked: false,
+    syncRecoveryAttemptCount: 0,
+    syncRecoverySuccessCount: 0,
+    syncRecoveryFailureCount: 0
   };
   const noticeDiagnostics = {
     noticeDeleteRequestedCount: 0,
@@ -326,14 +357,83 @@
     return normalizeScheduleKeys(options.keys).includes(key);
   }
 
+  function operationalSafetyWriteBlocked() {
+    try {
+      return Boolean(window.PMOperationalSafety?.isWriteBlocked?.());
+    } catch {
+      return false;
+    }
+  }
+
+  function saveReadiness(workspaceId, options = {}) {
+    const targetWorkspaceId = normalizeWorkspaceId(workspaceId || currentWorkspaceId);
+    const canonicalWorkspaceId = normalizeWorkspaceId(options.canonicalWorkspaceId || targetWorkspaceId);
+    const serviceStarted = Boolean(currentWorkspaceId && currentStore && Number(startedAt || 0) > 0);
+    const canonicalResolved = Boolean(canonicalWorkspaceId);
+    const workspaceMatched = Boolean(
+      targetWorkspaceId
+      && currentWorkspaceId
+      && targetWorkspaceId === currentWorkspaceId
+      && (!canonicalWorkspaceId || canonicalWorkspaceId === currentWorkspaceId)
+    );
+    const safetyBlocked = operationalSafetyWriteBlocked();
+    let reason = "ready";
+    if (safetyBlocked) reason = "safety-write-blocked";
+    else if (!canonicalResolved) reason = "canonical-workspace-unresolved";
+    else if (!serviceStarted) reason = "workspace-sync-not-started";
+    else if (!workspaceMatched) reason = "workspace-mismatch";
+    return {
+      ok: reason === "ready",
+      reason,
+      serviceStarted,
+      canonicalWorkspaceResolved: canonicalResolved,
+      workspaceMatchesCanonical: workspaceMatched,
+      safetyBlocked,
+      workspacePresent: Boolean(currentWorkspaceId),
+      listenerCount: unsubscribers.length,
+      activeListenerPathCount: activeListenerPaths.size,
+      pausedForVisibility
+    };
+  }
+
+  function recordSaveReadiness(readiness = {}) {
+    scheduleDiagnostics.saveReadinessCheckCount += 1;
+    if (readiness.ok) scheduleDiagnostics.saveReadinessAcceptedCount += 1;
+    else scheduleDiagnostics.saveReadinessBlockedCount += 1;
+    scheduleDiagnostics.lastSaveReadinessReason = readiness.reason || "unknown";
+    scheduleDiagnostics.lastSaveReadinessServiceStarted = Boolean(readiness.serviceStarted);
+    scheduleDiagnostics.lastSaveReadinessCanonicalResolved = Boolean(readiness.canonicalWorkspaceResolved);
+    scheduleDiagnostics.lastSaveReadinessWorkspaceMatched = Boolean(readiness.workspaceMatchesCanonical);
+    scheduleDiagnostics.lastSaveReadinessSafetyBlocked = Boolean(readiness.safetyBlocked);
+  }
+
+  function checkSaveReadiness(workspaceId, options = {}) {
+    const readiness = saveReadiness(workspaceId, options);
+    if (options.record === true) recordSaveReadiness(readiness);
+    return readiness;
+  }
+
   function rememberListenerPath(path) {
     if (!path) return;
     if (activeListenerPaths.has(path)) {
+      listenerDiagnostics.duplicateListenerPathCount += 1;
+      listenerDiagnostics.lastListenerLifecycleAction = "duplicate-listener-blocked";
       console.warn("[PM workspace sync] duplicate listener blocked", { path: maskPath(path) });
       return false;
     }
     activeListenerPaths.add(path);
     return true;
+  }
+
+  function safeErrorCode(error) {
+    return String(error?.code || error?.name || "unknown").replace(/[^A-Za-z0-9_/-]/g, "-").slice(0, 80) || "unknown";
+  }
+
+  function recordListenTransportError(error) {
+    listenerDiagnostics.listenTransportErrorCount += 1;
+    listenerDiagnostics.lastListenTransportErrorAt = Date.now();
+    listenerDiagnostics.lastListenTransportErrorCode = safeErrorCode(error);
+    listenerDiagnostics.lastListenerLifecycleAction = "listen-transport-error";
   }
 
   function scheduleBootstrapSave(workspaceId, store, source) {
@@ -357,16 +457,23 @@
     return db.collection("workspaces").doc(workspaceId).collection(SETTINGS_DOC_COLLECTION).doc(SETTINGS_DOC_ID);
   }
 
-  function stop() {
+  function unsubscribeActiveListeners(reason = "stop") {
     unsubscribers.forEach((unsubscribe) => {
       try {
         unsubscribe();
         unsubscribeCount += 1;
+        listenerDiagnostics.unsubscribeCount += 1;
       } catch (error) {
         console.warn("[PM workspace sync] unsubscribe failed", error?.message || String(error));
       }
     });
     unsubscribers = [];
+    activeListenerPaths = new Set();
+    listenerDiagnostics.lastListenerLifecycleAction = reason;
+  }
+
+  function stop() {
+    unsubscribeActiveListeners("stop");
     currentWorkspaceId = "";
     currentStore = null;
     currentContext = {};
@@ -376,15 +483,18 @@
     pendingSettingsSnapshot = null;
     lastSyncedSettingsSignature = "";
     lastSyncedRowsByKey = {};
-    activeListenerPaths = new Set();
     applyingRemote = false;
     clearTimeout(saveTimer);
     saveTimer = null;
+    clearTimeout(listenerRestartTimer);
+    listenerRestartTimer = null;
+    pausedForVisibility = false;
   }
 
   function start(options) {
     const workspaceId = normalizeWorkspaceId(options?.workspaceId);
     startDiagnostics.startAttemptCount += 1;
+    listenerDiagnostics.startAttemptCount += 1;
     startDiagnostics.lastStartReason = options?.reason || "unspecified";
     startDiagnostics.canonicalWorkspaceResolved = Boolean(options?.canonicalWorkspaceId || workspaceId);
     startDiagnostics.workspaceMatchesCanonical = !options?.canonicalWorkspaceId || options.canonicalWorkspaceId === workspaceId;
@@ -410,12 +520,13 @@
       status: options.status || "",
       pendingWorkspaceId: options.pendingWorkspaceId || ""
     };
+    currentOnRemoteChange = options.onRemoteChange || null;
     runtime()
       .then((rt) => {
         if (!rt || workspaceId !== currentWorkspaceId) return;
-        subscribeSettings(rt, workspaceId, options.store, options.onRemoteChange);
-        COLLECTION_KEYS.forEach((key) => subscribeCollection(rt, workspaceId, key, options.store, options.onRemoteChange, currentContext));
+        subscribeAll(rt, workspaceId, options.store, options.onRemoteChange, currentContext, "start");
         startDiagnostics.startSuccessCount += 1;
+        listenerDiagnostics.startSuccessCount += 1;
         startDiagnostics.lastStartResult = "started";
         startDiagnostics.lastStartErrorCode = "";
         debugLog(`[PM workspace sync] realtime listeners started workspaceId=${maskId(workspaceId)} collections=${COLLECTION_KEYS.length}`);
@@ -426,6 +537,12 @@
         startDiagnostics.lastStartErrorCode = error?.code || "unknown";
         logFirestorePermissionError("start", { path: `workspaces/${workspaceId}`, workspaceId, uid: currentContext.uid, role: currentContext.role }, error);
       });
+  }
+
+  function subscribeAll(rt, workspaceId, store, onRemoteChange, context = {}, reason = "start") {
+    listenerDiagnostics.lastListenerLifecycleAction = reason;
+    subscribeSettings(rt, workspaceId, store, onRemoteChange);
+    COLLECTION_KEYS.forEach((key) => subscribeCollection(rt, workspaceId, key, store, onRemoteChange, context));
   }
 
   function subscribeSettings(rt, workspaceId, store, onRemoteChange) {
@@ -447,6 +564,7 @@
       applyingRemote = false;
       onRemoteChange?.({ key: "settings", type: "doc" });
     }, (error) => {
+      recordListenTransportError(error);
       logFirestorePermissionError("listen", {
         path: `workspaces/${workspaceId}/settings/${SETTINGS_DOC_ID}`,
         collection: "settings",
@@ -471,6 +589,8 @@
     }
     const query = collectionQueryForContext(rt.db, workspaceId, key, context);
     if (!query) {
+      activeListenerPaths.delete(listenerPath);
+      listenerDiagnostics.lastListenerLifecycleAction = "listener-skipped-no-query";
       remoteIdsByKey[key] = new Set();
       if (Array.isArray(store[key])) store[key] = [];
       onRemoteChange?.({ key, rows: [] });
@@ -533,6 +653,7 @@
       debugLog(`[realtime:update] collection=${key} workspaceId=${maskId(workspaceId)} count=${rows.length} changes=${snapshot.docChanges().map((change) => `${change.type}:${maskId(change.doc.id)}`).join(",")}`);
       onRemoteChange?.({ key, rows });
     }, (error) => {
+      recordListenTransportError(error);
       if (key === "notices") {
         console.error("[notice:subscribe:error]", {
           workspaceId: maskId(workspaceId),
@@ -564,10 +685,14 @@
       scheduleDiagnostics.lastScheduleWorkspaceResolved = Boolean(targetWorkspaceId);
       scheduleDiagnostics.lastScheduleWorkspaceMatchesCanonical = !options.canonicalWorkspaceId || options.canonicalWorkspaceId === targetWorkspaceId;
     }
-    if (targetWorkspaceId !== currentWorkspaceId || !unsubscribers.length) {
+    const readiness = checkSaveReadiness(targetWorkspaceId, {
+      canonicalWorkspaceId: options.canonicalWorkspaceId || targetWorkspaceId,
+      record: true
+    });
+    if (!readiness.ok) {
       saveSkippedCount += 1;
       cancelledCount += 1;
-      lastScheduleSkipReason = targetWorkspaceId !== currentWorkspaceId ? "workspace-sync-not-started" : "no-active-listeners";
+      lastScheduleSkipReason = readiness.reason;
       if (includesSchedules) {
         scheduleDiagnostics.scheduleSaveBlockedCount += 1;
         scheduleDiagnostics.lastScheduleSaveResult = lastScheduleSkipReason;
@@ -779,6 +904,95 @@
     }
   }
 
+  function hasPendingSyncWork() {
+    if (pendingSettingsSnapshot || pendingSave || saveInFlight) return true;
+    return COLLECTION_KEYS.some((key) => (
+      Object.keys(pendingLocalRowsByKey[key] || {}).length
+      || Object.keys(pendingDeletedIdsByKey[key] || {}).length
+    ));
+  }
+
+  function pauseRealtimeForVisibility(reason = "visibility-hidden") {
+    listenerDiagnostics.listenerRestartAttemptCount += 1;
+    if (!currentWorkspaceId || !currentStore || !unsubscribers.length) {
+      listenerDiagnostics.listenerRestartBlockedCount += 1;
+      listenerDiagnostics.lastListenerLifecycleAction = "pause-blocked-no-active-listeners";
+      return;
+    }
+    if (hasPendingSyncWork()) {
+      listenerDiagnostics.listenerRestartBlockedCount += 1;
+      listenerDiagnostics.lastListenerLifecycleAction = "pause-blocked-pending-sync";
+      return;
+    }
+    unsubscribeActiveListeners(reason);
+    pausedForVisibility = true;
+  }
+
+  function resumeRealtimeAfterVisibility(reason = "visibility-visible") {
+    listenerDiagnostics.listenerRestartAttemptCount += 1;
+    if (!pausedForVisibility || !currentWorkspaceId || !currentStore) {
+      listenerDiagnostics.listenerRestartBlockedCount += 1;
+      listenerDiagnostics.lastListenerLifecycleAction = "resume-blocked-no-paused-listeners";
+      return;
+    }
+    if (listenerRestartTimer) {
+      listenerDiagnostics.listenerRestartBlockedCount += 1;
+      listenerDiagnostics.lastListenerLifecycleAction = "resume-blocked-in-flight";
+      return;
+    }
+    listenerRestartTimer = setTimeout(() => {
+      listenerRestartTimer = null;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        listenerDiagnostics.listenerRestartBlockedCount += 1;
+        listenerDiagnostics.lastListenerLifecycleAction = "resume-blocked-hidden";
+        return;
+      }
+      const workspaceId = currentWorkspaceId;
+      const store = currentStore;
+      const onRemoteChange = currentOnRemoteChange;
+      runtime()
+        .then((rt) => {
+          if (!rt || workspaceId !== currentWorkspaceId || store !== currentStore) return;
+          subscribeAll(rt, workspaceId, store, onRemoteChange, currentContext, reason);
+          pausedForVisibility = false;
+          listenerDiagnostics.listenerRestartSuccessCount += 1;
+          listenerDiagnostics.lastListenerLifecycleAction = "resume-success";
+        })
+        .catch((error) => {
+          listenerDiagnostics.listenerRestartBlockedCount += 1;
+          listenerDiagnostics.lastListenerLifecycleAction = "resume-failed";
+          logFirestorePermissionError("listen-resume", {
+            path: `workspaces/${workspaceId}`,
+            workspaceId,
+            uid: currentContext.uid,
+            role: currentContext.role
+          }, error);
+        });
+    }, 250);
+  }
+
+  function handleVisibilityLifecycle(reason = "visibilitychange") {
+    if (typeof document === "undefined") return;
+    listenerDiagnostics.visibilityChangeCount += 1;
+    listenerDiagnostics.lastVisibilityState = document.visibilityState || "unknown";
+    if (document.visibilityState === "hidden") {
+      listenerDiagnostics.visibilityHiddenCount += 1;
+      pauseRealtimeForVisibility(reason);
+      return;
+    }
+    listenerDiagnostics.visibilityVisibleCount += 1;
+    resumeRealtimeAfterVisibility(reason);
+  }
+
+  if (typeof document !== "undefined" && !window.__PM_WORKSPACE_SYNC_VISIBILITY_V126__) {
+    window.__PM_WORKSPACE_SYNC_VISIBILITY_V126__ = true;
+    document.addEventListener("visibilitychange", () => handleVisibilityLifecycle("visibilitychange"));
+    window.addEventListener("pagehide", () => pauseRealtimeForVisibility("pagehide"));
+    window.addEventListener("pageshow", () => {
+      if (typeof document === "undefined" || document.visibilityState !== "hidden") resumeRealtimeAfterVisibility("pageshow");
+    });
+  }
+
   window.PMWorkspaceDataService = {
     collectionKeys: [...COLLECTION_KEYS],
     start,
@@ -816,12 +1030,13 @@
       if (!Object.prototype.hasOwnProperty.call(scheduleDiagnostics, key)) return;
       scheduleDiagnostics[key] = Number(scheduleDiagnostics[key] || 0) + Number(amount || 0);
     },
+    checkSaveReadiness,
     isApplyingRemote: () => applyingRemote
     ,
     diagnostics() {
       return {
-        workspaceId: currentWorkspaceId,
         currentWorkspaceMasked: maskId(currentWorkspaceId),
+        workspacePresent: Boolean(currentWorkspaceId),
         listenerCount: unsubscribers.length,
         activeListenerPathCount: activeListenerPaths.size,
         activeListenerPaths: [...activeListenerPaths].map(maskPath),
@@ -856,9 +1071,11 @@
         lastErrorCode: lastError?.code || "",
         lastErrorMessage: lastError?.message || "",
         lastErrorPhase: lastError?.phase || "",
-        lastErrorPath: lastError?.path || "",
+        lastErrorPath: maskPath(lastError?.path || ""),
         lastErrorAt,
         ...startDiagnostics,
+        ...listenerDiagnostics,
+        activeListenerPathCount: activeListenerPaths.size,
         ...scheduleDiagnostics,
         ...noticeDiagnostics
       };

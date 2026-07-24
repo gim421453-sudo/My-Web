@@ -247,7 +247,8 @@ ok("V106 accepts Firebase Auth email match during app user binding", v106.includ
 ok("V106 retries workspace sync after app user binding delay", startSyncBodyV106.includes("auth-user-not-bound-to-app-user-yet") && startSyncBodyV106.includes("setTimeout"));
 ok("V106 render path suppresses remote save", saveStoreBodyV106.includes("renderDepthV106 > 0") && saveStoreBodyV106.includes("skipRemote: true"));
 ok("V106 timetable row save is scoped", v106.includes('syncKeys: ["timetable", "settings"]') && v106.includes("single-timetable-row-change"));
-ok("workspace sync blocks saves before listeners are active", scheduleSaveBody.includes("!unsubscribers.length") && scheduleSaveBody.includes("no-active-listeners"));
+ok("workspace sync save readiness no longer depends on active listener count", workspaceServiceJs.includes("function saveReadiness(workspaceId, options = {})") && !scheduleSaveBody.includes("!unsubscribers.length") && scheduleSaveBody.includes("checkSaveReadiness"));
+ok("workspace sync save readiness blocks safety mode and workspace mismatch", workspaceServiceJs.includes("operationalSafetyWriteBlocked") && workspaceServiceJs.includes("safety-write-blocked") && workspaceServiceJs.includes("workspace-mismatch"));
 ok("workspace sync tracks schedule call sources", workspaceServiceJs.includes("recentScheduleCalls") && workspaceServiceJs.includes("rememberScheduleCall"));
 ok("workspace sync uses changed pending rows instead of full collection flush", flushBody.includes("keysToFlush") && !flushBody.includes("for (const key of COLLECTION_KEYS)"));
 ok("workspace sync enters quota backoff on resource exhausted", workspaceServiceJs.includes("quotaBackoffUntil") && workspaceServiceJs.includes("resource-exhausted"));

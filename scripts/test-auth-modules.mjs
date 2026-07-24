@@ -5053,13 +5053,13 @@ const tests = [
       assert.equal(forbidden.test(readFileSync(path.resolve(projectRoot, file), "utf8")), false, file);
     }
   }],
-  ["auth regression preview is standalone and build-registered", () => {
+  ["auth regression preview is standalone and production build blocked", () => {
     const html = readFileSync(path.resolve(projectRoot, "auth-regression-preview.html"), "utf8");
     const viteConfig = readFileSync(path.resolve(projectRoot, "vite.config.js"), "utf8");
     assert.match(html, /auth-regression-root/);
     assert.match(html, /src\/dev-auth-regression\/main\.tsx/);
-    assert.match(viteConfig, /authRegressionPreview/);
-    assert.match(viteConfig, /auth-regression-preview\.html/);
+    assert.doesNotMatch(viteConfig, /authRegressionPreview/);
+    assert.doesNotMatch(viteConfig, /auth-regression-preview\.html/);
     assert.equal(html.includes("app.js"), false);
     assert.equal(html.includes("services/authService.js"), false);
   }],
@@ -6589,11 +6589,17 @@ const tests = [
     assert.match(appSource, /editing\.key === "schedules"/);
     assert.match(appSource, /schedule-sync-not-started/);
     assert.match(appSource, /schedule-workspace-mismatch/);
+    assert.match(appSource, /checkSaveReadiness\?\.\(canonicalWorkspaceId/);
+    assert.doesNotMatch(appSource, /sync\.workspaceId !== canonicalWorkspaceId/);
+    assert.doesNotMatch(appSource, /Boolean\(sync\.workspaceId\)/);
     assert.match(serviceSource, /scheduleSaveAttemptCount/);
     assert.match(serviceSource, /scheduleSaveBlockedCount/);
     assert.match(serviceSource, /scheduleServerConfirmSuccessCount/);
     assert.match(serviceSource, /lastScheduleWorkspaceMatchesCanonical/);
     assert.match(serviceSource, /pendingScheduleCount/);
+    assert.match(serviceSource, /function saveReadiness\(workspaceId, options = \{\}\)/);
+    assert.match(serviceSource, /lastSaveReadinessReason/);
+    assert.match(serviceSource, /lastSaveReadinessSafetyBlocked/);
   }],
   ["operational schedule editor save blocks duplicate clicks and avoids stale editing state", () => {
     const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");

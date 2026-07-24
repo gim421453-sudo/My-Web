@@ -26316,9 +26316,30 @@ async function prepareScheduleServerSaveV121(rowWorkspaceId = "") {
     recordScheduleSaveDiagnosticV121({ lastScheduleSaveResult: "blocked-workspace", lastScheduleErrorCode: "schedule-workspace-unresolved" });
     return { ok: false, code: "schedule-workspace-unresolved" };
   }
-  const sync = window.PMWorkspaceDataService?.diagnostics?.() || {};
-  const syncStarted = Number(sync.startedAt || 0) > 0 && Number(sync.listenerCount || 0) > 0 && Boolean(sync.workspaceId);
-  if (!syncStarted) {
+  let readiness = window.PMWorkspaceDataService?.checkSaveReadiness?.(canonicalWorkspaceId, {
+    canonicalWorkspaceId,
+    record: true
+  }) || { ok: false, reason: "workspace-sync-not-started" };
+  if (!readiness.ok && readiness.reason === "workspace-sync-not-started" && typeof ensureCanonicalWorkspaceDataSyncV121 === "function") {
+    incrementScheduleSaveDiagnosticV121("syncRecoveryAttemptCount", 1);
+    const recovered = await ensureCanonicalWorkspaceDataSyncV121("schedule-save-readiness", { forceCanonical: true });
+    readiness = window.PMWorkspaceDataService?.checkSaveReadiness?.(canonicalWorkspaceId, {
+      canonicalWorkspaceId,
+      record: true
+    }) || readiness;
+    incrementScheduleSaveDiagnosticV121(readiness.ok || recovered ? "syncRecoverySuccessCount" : "syncRecoveryFailureCount", 1);
+  }
+  if (!readiness.ok && readiness.reason === "safety-write-blocked") {
+    recordScheduleSaveDiagnosticV121({
+      lastScheduleSaveResult: "blocked-safety-write",
+      lastScheduleErrorCode: "schedule-write-blocked",
+      lastScheduleWorkspaceResolved: true,
+      lastScheduleWorkspaceMatchesCanonical: Boolean(readiness.workspaceMatchesCanonical)
+    });
+    incrementScheduleSaveDiagnosticV121("scheduleSaveBlockedCount", 1);
+    return { ok: false, code: "schedule-write-blocked" };
+  }
+  if (!readiness.ok && readiness.reason === "workspace-sync-not-started") {
     recordScheduleSaveDiagnosticV121({
       lastScheduleSaveResult: "blocked-sync-not-started",
       lastScheduleErrorCode: "schedule-sync-not-started",
@@ -26328,7 +26349,7 @@ async function prepareScheduleServerSaveV121(rowWorkspaceId = "") {
     incrementScheduleSaveDiagnosticV121("scheduleSaveBlockedCount", 1);
     return { ok: false, code: "schedule-sync-not-started" };
   }
-  if (sync.workspaceId !== canonicalWorkspaceId || (rowWorkspaceId && rowWorkspaceId !== canonicalWorkspaceId)) {
+  if (!readiness.ok || !readiness.workspaceMatchesCanonical || (rowWorkspaceId && rowWorkspaceId !== canonicalWorkspaceId)) {
     recordScheduleSaveDiagnosticV121({
       lastScheduleSaveResult: "blocked-workspace-mismatch",
       lastScheduleErrorCode: "schedule-workspace-mismatch",
@@ -28167,3 +28188,184 @@ renderTimetableV29 = function renderTimetableV124() {
 };
 
 setTimeout(() => periodEditorButtonsV124(), 0);
+
+// Final V125: owner-preview operational safety guard. This is read-only except
+// for rendering safe fallback UI and does not alter notice, schedule, timetable,
+// workspace sync, auth role, or Firestore rules behavior.
+function isOperationalSafetyOwnerV125(user = currentUser) {
+  return window.PMOperationalSafety?.isSystemOwner?.(user) || user?.role === "system_owner" || user?.globalRole === "system_owner";
+}
+
+function operationalSafetyStatusV125() {
+  return window.PMOperationalSafety?.status?.() || {
+    mode: "normal",
+    title: "Normal operation",
+    description: "The service is available.",
+    estimatedRecoveryAt: "unavailable",
+    readAllowed: true,
+    writeBlocked: false,
+    blocksGeneralUsers: false
+  };
+}
+
+function updateOperationalSafetyRuntimeStatesV126() {
+  if (!window.PMOperationalSafety?.recordState) return;
+  const firebaseReady = Boolean(window.firebase?.apps?.length);
+  const firebaseConfigured = Boolean(window.PMFirebaseRuntime?.hasConfig?.());
+  window.PMOperationalSafety.recordState("firebaseInitState", firebaseReady ? "ready" : firebaseConfigured ? "waiting-auth" : "missing-config");
+
+  const firebaseAuthUser = (() => {
+    try {
+      return window.firebase?.auth?.().currentUser || null;
+    } catch {
+      return null;
+    }
+  })();
+  window.PMOperationalSafety.recordState("authInitState", currentUser || firebaseAuthUser ? "ready" : "waiting-auth");
+
+  const sync = window.PMWorkspaceDataService?.diagnostics?.() || {};
+  if (!currentUser && !firebaseAuthUser) {
+    window.PMOperationalSafety.recordState("workspaceInitState", "waiting-auth");
+  } else if (!isFirebaseBackedSessionV45()) {
+    window.PMOperationalSafety.recordState("workspaceInitState", "not-required");
+  } else if (sync.startedAt) {
+    window.PMOperationalSafety.recordState("workspaceInitState", "ready");
+  } else {
+    window.PMOperationalSafety.recordState("workspaceInitState", "waiting-workspace");
+  }
+}
+
+function renderOperationalSafetyNoticeV125(reason = "maintenance") {
+  if (!content) return false;
+  const status = operationalSafetyStatusV125();
+  content.replaceChildren();
+  const card = el("section", "card operational-safety-v125");
+  card.append(
+    el("p", "eyebrow", "Owner Preview"),
+    el("h2", "", status.title),
+    el("p", "muted", status.description),
+    el("p", "muted", `code: ${reason}`),
+    el("p", "muted", `estimated recovery: ${status.estimatedRecoveryAt || "unavailable"}`)
+  );
+  const retry = button("Retry");
+  retry.addEventListener("click", () => window.PMOperationalSafety?.retry?.());
+  card.append(retry);
+  content.append(card);
+  return true;
+}
+
+function renderOperationalSafetyOwnerPanelV125() {
+  if (!content || !isOperationalSafetyOwnerV125()) return;
+  const existing = document.getElementById("operational-safety-panel-v125");
+  if (existing) existing.remove();
+  const status = operationalSafetyStatusV125();
+  const diagnostics = window.PMOperationalSafetyDiagnostics?.snapshot?.() || {};
+  const release = window.PMOperationalSafety?.releaseInfo?.() || {};
+  const panel = document.createElement("section");
+  panel.id = "operational-safety-panel-v125";
+  panel.className = "card";
+  panel.innerHTML = `
+    <h3>Operational Safety</h3>
+    <div class="kv">
+      <span>mode</span><strong>${status.mode}</strong>
+      <span>write blocked</span><strong>${status.writeBlocked ? "true" : "false"}</strong>
+      <span>release channel</span><strong>${release.releaseChannel || "owner-preview"}</strong>
+      <span>manifest</span><strong>${release.manifestVersion || "unavailable"}</strong>
+      <span>app version</span><strong>${release.appVersion || "unavailable"}</strong>
+      <span>build date</span><strong>${release.buildDate || "unavailable"}</strong>
+      <span>git commit</span><strong>${release.gitCommit || "unavailable"}</strong>
+      <span>stable/beta</span><strong>${release.stableCount || 0}/${release.betaCount || 0}</strong>
+      <span>hidden/planned</span><strong>${release.hiddenCount || 0}/${release.plannedCount || 0}</strong>
+      <span>errors</span><strong>${diagnostics.globalErrorCount || 0}</strong>
+      <span>last code</span><strong>${diagnostics.lastErrorCode || "-"}</strong>
+    </div>
+  `;
+  content.prepend(panel);
+}
+
+function applyOperationalSafetyGateV125(reason = "render") {
+  const status = operationalSafetyStatusV125();
+  updateOperationalSafetyRuntimeStatesV126();
+  window.PMOperationalSafety?.recordState?.("manifestLoadState", window.PM_OWNER_PREVIEW_RELEASE_MANIFEST_V1 ? "loaded" : "missing");
+  if (status.blocksGeneralUsers && !isOperationalSafetyOwnerV125()) {
+    return renderOperationalSafetyNoticeV125(reason || status.mode);
+  }
+  renderOperationalSafetyOwnerPanelV125();
+  return false;
+}
+
+if (window.PMFirebaseRuntime?.init && !window.PMFirebaseRuntime.__operationalSafetyWrappedV125) {
+  const firebaseInitBeforeV125 = window.PMFirebaseRuntime.init;
+  window.PMFirebaseRuntime.init = async function firebaseInitOperationalSafetyV125(...args) {
+    window.PMOperationalSafety?.recordState?.("firebaseInitState", "starting");
+    try {
+      const result = await firebaseInitBeforeV125.apply(this, args);
+      window.PMOperationalSafety?.recordState?.("firebaseInitState", result ? "ready" : "missing-config");
+      return result;
+    } catch (error) {
+      window.PMOperationalSafety?.recordState?.("firebaseInitState", "failed");
+      window.PMOperationalSafety?.recordError?.(error, "firebase-init");
+      throw error;
+    }
+  };
+  window.PMFirebaseRuntime.__operationalSafetyWrappedV125 = true;
+}
+
+if (typeof startWorkspaceDataSyncV45 === "function" && !startWorkspaceDataSyncV45.__operationalSafetyWrappedV125) {
+  const startWorkspaceDataSyncBeforeV125 = startWorkspaceDataSyncV45;
+  startWorkspaceDataSyncV45 = function startWorkspaceDataSyncOperationalSafetyV125(workspaceId) {
+    window.PMOperationalSafety?.recordState?.("workspaceInitState", workspaceId ? "starting" : "missing-workspace");
+    try {
+      const result = startWorkspaceDataSyncBeforeV125.apply(this, arguments);
+      const sync = window.PMWorkspaceDataService?.diagnostics?.() || {};
+      window.PMOperationalSafety?.recordState?.("workspaceInitState", sync.startedAt ? "ready" : "not-started");
+      return result;
+    } catch (error) {
+      window.PMOperationalSafety?.recordState?.("workspaceInitState", "failed");
+      window.PMOperationalSafety?.recordError?.(error, "workspace-init");
+      throw error;
+    }
+  };
+  startWorkspaceDataSyncV45.__operationalSafetyWrappedV125 = true;
+}
+
+if (window.PMAuthService && !window.PMAuthService.__operationalSafetyWrappedV125) {
+  ["firebaseLoginWithEmail", "firebaseLoginWithGoogle", "firebaseSignInWithEmailOnly"].forEach((key) => {
+    const original = window.PMAuthService[key];
+    if (typeof original !== "function") return;
+    window.PMAuthService[key] = async function authOperationalSafetyV125(...args) {
+      window.PMOperationalSafety?.recordState?.("authInitState", "starting");
+      try {
+        const result = await original.apply(this, args);
+        window.PMOperationalSafety?.recordState?.("authInitState", "ready");
+        return result;
+      } catch (error) {
+        window.PMOperationalSafety?.recordState?.("authInitState", "failed");
+        window.PMOperationalSafety?.recordError?.(error, "auth-init");
+        throw error;
+      }
+    };
+  });
+  window.PMAuthService.__operationalSafetyWrappedV125 = true;
+}
+
+const renderPageBeforeV125 = renderPage;
+renderPage = function renderPageV125(key) {
+  if (applyOperationalSafetyGateV125("maintenance")) return undefined;
+  const result = renderPageBeforeV125.apply(this, arguments);
+  renderOperationalSafetyOwnerPanelV125();
+  return result;
+};
+
+const completeLoginBeforeV125 = completeLoginV34;
+completeLoginV34 = function completeLoginV125(user) {
+  window.PMOperationalSafety?.recordState?.("authInitState", user ? "ready" : "missing-user");
+  const result = completeLoginBeforeV125.apply(this, arguments);
+  applyOperationalSafetyGateV125("post-login");
+  return result;
+};
+
+setTimeout(() => {
+  window.PMOperationalSafety?.recordState?.("manifestLoadState", window.PM_OWNER_PREVIEW_RELEASE_MANIFEST_V1 ? "loaded" : "missing");
+  applyOperationalSafetyGateV125("startup");
+}, 0);

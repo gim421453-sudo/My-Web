@@ -6,6 +6,10 @@ import {
 import {
   addAppNextDiagnosticEvent,
 } from "./appNextDiagnostics";
+import {
+  recordOperationalSafetyError,
+  retryOperationalSafety,
+} from "../release/operationalSafetyAdapter";
 
 interface AppNextErrorBoundaryProps {
   children: ReactNode;
@@ -33,6 +37,7 @@ export class AppNextErrorBoundary extends Component<
   }
 
   componentDidCatch(error: unknown, _errorInfo: ErrorInfo): void {
+    recordOperationalSafetyError(error, "react-error-boundary");
     addAppNextDiagnosticEvent({
       event: "app-next-render-error",
       resourceExhausted: false,
@@ -53,6 +58,9 @@ export class AppNextErrorBoundary extends Component<
         <section className="app-next-card app-next-error">
           <h1>시험 로그인 화면에서 오류가 발생했습니다.</h1>
           <p>로그인 기능을 끄고 다시 확인해 주세요.</p>
+          <button type="button" onClick={() => retryOperationalSafety()}>
+            Retry
+          </button>
           {import.meta.env.DEV ? (
             <p>오류 유형: {this.state.errorName || "UnknownError"}</p>
           ) : null}

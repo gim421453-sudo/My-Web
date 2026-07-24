@@ -45,8 +45,7 @@ module.exports = defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
-        appNext: resolve(__dirname, "app-next.html"),
-        authRegressionPreview: resolve(__dirname, "auth-regression-preview.html")
+        appNext: resolve(__dirname, "app-next.html")
       }
     }
   }
