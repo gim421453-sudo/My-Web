@@ -1,4 +1,26 @@
 {
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "firestore.rules.console-current",
+      "firestore.rules.next",
+      "scripts/generate-blog-pdfs.py"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Robots-Tag",
+            "value": "noindex, nofollow"
+          }
+        ]
+      }
+    ]
+  },
   "firestore": {
     "database": "(default)",
     "location": "asia-northeast3",

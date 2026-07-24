@@ -95,6 +95,7 @@ const sourceFiles = {
   operationalSafety: readText("shared/operationalSafety.js"),
   workspaceDataService: readText("services/workspaceDataService.js"),
   app: readText("app.js"),
+  firebaseJson: JSON.parse(readText("firebase.json")),
 };
 
 const manifest = loadManifest();
@@ -102,6 +103,27 @@ const manifest = loadManifest();
 test("git-sensitive excluded files are not part of build inputs", () => {
   assert.doesNotMatch(sourceFiles.viteConfig, /firestore\.rules\.console-current|firestore\.rules\.next|generate-blog-pdfs/);
   assert.doesNotMatch(sourceFiles.copyStatic, /firestore\.rules\.console-current|firestore\.rules\.next|generate-blog-pdfs/);
+});
+
+test("firebase hosting preview deploy targets dist without development fallbacks", () => {
+  assert.ok(sourceFiles.firebaseJson.hosting, "firebase.json hosting config missing");
+  assert.equal(sourceFiles.firebaseJson.hosting.public, "dist");
+  assert.ok(Array.isArray(sourceFiles.firebaseJson.hosting.ignore), "hosting ignore missing");
+  assert.ok(sourceFiles.firebaseJson.hosting.ignore.includes("firestore.rules.console-current"));
+  assert.ok(sourceFiles.firebaseJson.hosting.ignore.includes("firestore.rules.next"));
+  assert.ok(sourceFiles.firebaseJson.hosting.ignore.includes("scripts/generate-blog-pdfs.py"));
+  assert.equal(sourceFiles.firebaseJson.hosting.rewrites, undefined, "unexpected Hosting rewrite can break app-next.html direct access");
+  assert.equal(sourceFiles.firebaseJson.hosting.redirects, undefined, "unexpected Hosting redirect configured");
+  assert.ok(
+    sourceFiles.firebaseJson.hosting.headers?.some((entry) =>
+      entry.source === "**" &&
+      entry.headers?.some((header) =>
+        header.key === "X-Robots-Tag" &&
+        /noindex,\s*nofollow/.test(header.value)
+      )
+    ),
+    "X-Robots-Tag noindex header missing"
+  );
 });
 
 test("production build entries are operational and app-next only", () => {
