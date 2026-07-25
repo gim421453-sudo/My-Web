@@ -7751,6 +7751,731 @@ const tests = [
     assert.equal(appSource.includes("AppNextDashboardReadOnly"), false);
     assert.equal(htmlSource.includes("AppNextDashboardReadOnly"), false);
   }],
+  ["owner preview V128 hides sensitive UI fields but keeps selector values possible", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v128 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V128"));
+    assert.match(v128, /SENSITIVE_DISPLAY_FIELD_RE_V128/);
+    assert.match(v128, /redactDisplayRowV128/);
+    assert.match(v128, /showViewerV128/);
+    assert.match(v128, /simpleRowsTableV128/);
+    assert.match(v128, /dashboardRowsV128/);
+    assert.match(v128, /studentDisplayNameV128/);
+    assert.match(v128, /등록된 학생이 없습니다/);
+    assert.equal(/option\([^)]*uid/i.test(v128), false);
+  }],
+  ["owner preview V128 confirms attendance writes before local success", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v128 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V128"));
+    assert.match(v128, /attendanceSaveClickCount/);
+    assert.match(v128, /attendanceSaveAttemptCount/);
+    assert.match(v128, /attendanceServerConfirmSuccessCount/);
+    assert.match(v128, /attendanceServerConfirmFailureCount/);
+    assert.match(v128, /saveAttendanceDirectToFirestoreV128/);
+    assert.match(v128, /\.collection\("attendance"\)\.doc\(docId\)/);
+    assert.match(v128, /ref\.get\(\{\s*source:\s*"server"\s*\}\)/);
+    assert.match(v128, /saveStore\(\{\s*skipRemote:\s*true,\s*syncReason:\s*"attendance-server-confirmed"/);
+  }],
+  ["owner preview V128 aligns attendance filter enum values", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v128 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V128"));
+    assert.match(v128, /normalizeAttendanceStatusV128/);
+    assert.match(v128, /if \(text === "완료"\) return "처리 완료"/);
+    assert.match(v128, /if \(text === "출석"\) return "정상"/);
+    assert.match(v128, /\["정상", "확인 필요", "처리 완료"\]/);
+  }],
+  ["owner preview V129 blocks user-facing identifiers in detail and quick display paths", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v129 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V129"));
+    assert.match(v129, /INTERNAL_DISPLAY_FIELD_KEYS_V129/);
+    for (const field of ["studentuid", "owneruid", "authoruid", "authoremail", "authorrole", "workspaceid", "documentid", "setid", "programid", "sourcetype", "createdbyuid", "updatedbyuid"]) {
+      assert.match(v129, new RegExp(`"${field}"`));
+    }
+    assert.match(v129, /collectionDisplayRowV129/);
+    assert.match(v129, /showViewerV129/);
+    assert.match(v129, /simpleRowsTableV129/);
+    assert.match(v129, /dashboardRowsV129/);
+    assert.match(v129, /sanitizeUserFacingElementV129/);
+    assert.match(v129, /RAW_IDENTIFIER_VALUE_RE_V129/);
+  }],
+  ["owner preview V129 keeps student select values but resolves visible labels", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v129 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V129"));
+    assert.match(v129, /function studentCandidatesV129/);
+    assert.match(v129, /function studentDisplayNameV129/);
+    assert.match(v129, /function sanitizeStudentSelectV129/);
+    assert.match(v129, /item\.textContent = studentDisplayNameV129\(item\.value\)/);
+    assert.match(v129, /option\("", "등록된 학생이 없습니다"\)/);
+    assert.doesNotMatch(v129.match(/function sanitizeStudentSelectV129[\s\S]*?function guardRequiredStudentSelectionV129/)?.[0] || "", /item\.value\s*=[^=]/);
+  }],
+  ["owner preview V129 normalizes attendance filters without mutating stored rows", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v129 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V129"));
+    assert.match(v129, /ATTENDANCE_STATUS_OPTIONS_V129 = \["전체", "정상", "지각", "결석", "조퇴", "인정", "처리 완료"\]/);
+    assert.match(v129, /출석:\s*"정상"/);
+    assert.match(v129, /완료:\s*"처리 완료"/);
+    assert.match(v129, /sessionStorage\.removeItem\("filter:attendance:status"\)/);
+    assert.match(v129, /normalizeAttendanceStatusV129\(row\.status \|\| row\.state \|\| ""\)/);
+    assert.doesNotMatch(v129.match(/filteredRowsV7 = function filteredRowsV129[\s\S]*?function createdAtTextV129/)?.[0] || "", /row\.status\s*=/);
+  }],
+  ["owner preview V129 removes system notice email from dashboard display only", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v129 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V129"));
+    assert.match(v129, /renderDashboardV129/);
+    assert.match(v129, /systemNoticeEmailHiddenCount/);
+    assert.match(v129, /userDisplayNameV129/);
+    assert.match(v129, /authorEmail/);
+    assert.doesNotMatch(v129, /row\.authorEmail\s*=/);
+  }],
+  ["owner preview V129 records integrated-unconfigured mode instead of treating main as personal", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v129 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V129"));
+    assert.match(v129, /ownerPreviewModeSnapshotV129/);
+    assert.match(v129, /mode:\s*"integrated-unconfigured"/);
+    assert.doesNotMatch(v129, /mode:\s*"personal"/);
+  }],
+  ["owner preview V130 exposes user-facing identifier diagnostics without raw samples", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v130 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V130"));
+    assert.match(v130, /PMUserFacingIdentifierDiagnostics/);
+    for (const field of [
+      "visibleUidLikeCount",
+      "visibleInternalLabelCount",
+      "lastVisibleIdentifierSurface",
+      "maskedSampleLength",
+      "optionValueOnlyCount",
+    ]) assert.match(v130, new RegExp(field));
+    assert.doesNotMatch(v130.match(/window\.PMUserFacingIdentifierDiagnostics[\s\S]*?};/)?.[0] || "", /rawSample|uidValue|workspaceIdValue|emailValue/);
+  }],
+  ["owner preview V130 removes student UID labels while preserving option values", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v130 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V130"));
+    assert.match(v130, /sanitizeStudentFieldLabelV130/);
+    assert.match(v130, /sanitizeStudentSelectV130/);
+    assert.match(v130, /return key\.includes\("target"\) \? "대상 학생" : "학생"/);
+    assert.match(v130, /item\.textContent = USER_VISIBLE_IDENTIFIER_RE_V130\.test\(label\) \? "학생" : label/);
+    assert.doesNotMatch(v130.match(/function sanitizeStudentSelectV130[\s\S]*?const inputNodeV4BeforeV130/)?.[0] || "", /item\.value\s*=/);
+  }],
+  ["owner preview V130 shows system notices as system administrator without email or UID", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v130 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V130"));
+    assert.match(v130, /function noticeAuthorLabelV130/);
+    assert.match(v130, /authorRole.*system_owner/s);
+    assert.match(v130, /시스템 관리자/);
+    assert.match(v130, /authorEmail:\s*""/);
+    assert.match(v130, /authorUid:\s*""/);
+    assert.doesNotMatch(v130.match(/function noticeAuthorLabelV130[\s\S]*?if \(typeof userDisplayNameV129/)?.[0] || "", /row\.authorEmail|row\.authorUid/);
+  }],
+  ["owner preview V130 uses attendance date type and status selects without mutating rows", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v130 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V130"));
+    assert.match(v130, /ATTENDANCE_STATUS_OPTIONS_V130 = \["상태 전체", "정상", "지각", "결석", "조퇴", "인정", "처리 완료"\]/);
+    assert.match(v130, /attendanceSelectV130\("date", "날짜"/);
+    assert.match(v130, /attendanceSelectV130\("type", "유형"/);
+    assert.match(v130, /출석:\s*"정상"/);
+    assert.match(v130, /완료:\s*"처리 완료"/);
+    assert.doesNotMatch(v130.match(/filteredRowsV7 = function filteredRowsV130[\s\S]*?function quickTimetablePeriodOptionsV130/)?.[0] || "", /row\.(status|type|date)\s*=/);
+  }],
+  ["owner preview V130 quick timetable starts blank and saves set plus first class row", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v130 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V130"));
+    assert.match(v130, /function quickTimetableDialogV130/);
+    assert.match(v130, /quickTimetableSubjectV130/);
+    assert.match(v130, /quickTimetableTeacherV130/);
+    assert.match(v130, /quickTimetableRoomV130/);
+    assert.match(v130, /quickTimetableSeatV130/);
+    assert.match(v130, /startDate\.value > endDate\.value/);
+    assert.match(v130, /linkedType !== type/);
+    assert.match(v130, /store\.timetableSets\.push\(setRow\)/);
+    assert.match(v130, /store\.timetable\.push\(classRow\)/);
+    assert.match(v130, /syncKeys:\s*\["timetableSets", "timetable"\]/);
+    assert.match(v130, /quick-timetable-set-and-row-create-v130/);
+    const quickBody = v130.match(/function quickTimetableDialogV130[\s\S]*?openQuickCreateV70 = function openQuickCreateV130/)?.[0] || "";
+    assert.doesNotMatch(quickBody, /name\.value\s*=\s*[^=]/);
+  }],
+  ["owner preview V130 quick timetable view is weekly and hides internal IDs", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v130 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V130"));
+    const controls = v130.match(/quickTimetableControlsV9 = function quickTimetableControlsV130[\s\S]*?};/)?.[0] || "";
+    assert.match(controls, /quickTimetableModeControlV104/);
+    assert.doesNotMatch(controls, /quickTimetableDay|daySelect/);
+    assert.match(v130, /function renderQuickTimetableListV130/);
+    assert.match(v130, /renderQuickTimetableGridV104\(wrap, state\)/);
+    assert.match(v130, /시간표/);
+    const listBody = v130.match(/function renderQuickTimetableListV130[\s\S]*?quickTimetableViewV100/)?.[0] || "";
+    assert.doesNotMatch(listBody, /createdAt|registration|programCreatedAt|sourceType|documentId/);
+    assert.equal(listBody.includes("programId"), false);
+  }],
+  ["owner preview V130 school board integration avoids direct external fetch and documents future proxy work", () => {
+    const schoolSource = readFileSync(path.resolve(projectRoot, "services/schoolIntegrationService.js"), "utf8");
+    const docsSource = readFileSync(path.resolve(projectRoot, "docs/school-neis-multi-school-requirements.md"), "utf8");
+    assert.match(schoolSource, /schoolDirectExternalFetchBlockedCount/);
+    assert.match(schoolSource, /schoolProxyCooldownHitCount/);
+    assert.doesNotMatch(schoolSource, /fetch\(requestUrl/);
+    assert.match(schoolSource, /school-proxy-unavailable/);
+    assert.match(docsSource, /REQ-SCHOOL-NEIS-MULTI-SCHOOL/);
+    assert.match(docsSource, /Browser clients must not fetch/);
+  }],
+  ["owner preview V128 handles missing school proxy without write or retry loop", () => {
+    const schoolSource = readFileSync(path.resolve(projectRoot, "services/schoolIntegrationService.js"), "utf8");
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    assert.match(schoolSource, /schoolProxyConfigured/);
+    assert.match(schoolSource, /schoolProxyRequestCount/);
+    assert.match(schoolSource, /schoolProxyUnavailableCount/);
+    assert.match(schoolSource, /lastSchoolProxyReason/);
+    assert.match(schoolSource, /school-proxy-not-configured/);
+    assert.match(schoolSource, /school-proxy-cooldown/);
+    assert.match(appSource, /학교 게시판 연동 서버가 아직 설정되지 않았습니다/);
+    assert.equal(/\b(setDoc|updateDoc|deleteDoc|writeBatch)\b/.test(schoolSource), false);
+  }],
+  ["owner preview V131 finalizes system notice author display without exposing identity", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v131 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V131"));
+    assert.match(v131, /function noticeAuthorLabelV131/);
+    assert.match(v131, /systemNoticeAuthorTextV131/);
+    assert.match(v131, /시스템 관리자/);
+    assert.match(v131, /authorRole.*system_owner/s);
+    assert.match(v131, /authorEmail:\s*""/);
+    assert.match(v131, /authorUid:\s*""/);
+    const labelBody = v131.match(/function noticeAuthorLabelV131[\s\S]*?const renderNoticeCardsBeforeV131/)?.[0] || "";
+    assert.doesNotMatch(labelBody, /row\.authorEmail|row\.authorUid|row\.email/);
+    assert.match(v131, /const category = row\.source \|\| row\.category \|\| row\.type \|\| "일반"/);
+  }],
+  ["owner preview V131 attendance type filter uses canonical editor options rather than current rows", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v131 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V131"));
+    assert.match(v131, /function attendanceTypeOptionsFromEditorV131/);
+    assert.match(v131, /fieldsForV6\("attendance"\)/);
+    assert.match(v131, /store\.settings\?\.masterData\?\.attendanceTypes/);
+    for (const label of ["등교", "하교", "지각", "조퇴", "결석"]) assert.match(v131, new RegExp(label));
+    const filterBody = v131.match(/filteredRowsV7 = function filteredRowsV131[\s\S]*?async function saveAttendanceDirectToFirestoreV131/)?.[0] || "";
+    assert.match(filterBody, /const validTypes = new Set\(attendanceTypeOptionsFromEditorV131\(\)\)/);
+    assert.doesNotMatch(filterBody, /row\.(type|date|status)\s*=/);
+  }],
+  ["owner preview V131 attendance saves normalized dates only after server confirm", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v131 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V131"));
+    assert.match(v131, /function normalizeAttendanceDateV131/);
+    assert.match(v131, /attendance-\$\{date\}-\$\{Date\.now\(\)\}/);
+    assert.match(v131, /attendanceServerConfirmAttemptCount/);
+    assert.match(v131, /ref\.set\(payload, \{\s*merge:\s*true\s*\}\)/);
+    assert.match(v131, /ref\.get\(\{\s*source:\s*"server"\s*\}\)/);
+    assert.match(v131, /confirmed\.metadata\?\.hasPendingWrites/);
+    assert.match(v131, /attendance-safety-write-blocked/);
+    assert.match(v131, /saveStore\(\{\s*skipRemote:\s*true,\s*syncReason:\s*"attendance-server-confirmed-v131"/);
+  }],
+  ["owner preview V131 quick timetable lets general and school save without forced program source", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v131 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V131"));
+    const quickBody = v131.match(/function quickTimetableDialogV131[\s\S]*?openQuickCreateV70 = function openQuickCreateV131/)?.[0] || "";
+    assert.match(v131, /function quickTimetableSourceTypeForSaveV131/);
+    assert.match(v131, /if \(!isProgramTimetableTypeV131\(type\)\) return ""/);
+    assert.match(quickBody, /programType\.value = ""/);
+    assert.match(quickBody, /programType\.disabled = true/);
+    assert.match(quickBody, /if \(requiresProgram\) \{/);
+    assert.match(quickBody, /Object\.assign\(setRow/);
+    assert.match(quickBody, /Object\.assign\(classRow/);
+    assert.match(quickBody, /store\.timetableSets\.push\(setRow\)/);
+    assert.match(quickBody, /store\.timetable\.push\(classRow\)/);
+    assert.match(quickBody, /save\.disabled = true/);
+    assert.match(quickBody, /quickTimetableDuplicateClickBlockedCount/);
+    assert.match(quickBody, /store\.timetableSets = store\.timetableSets\.filter/);
+    assert.match(quickBody, /store\.timetable = store\.timetable\.filter/);
+    assert.match(quickBody, /quick-timetable-set-and-row-create-v131/);
+  }],
+  ["owner preview V132 attendance prevents false success until server write confirm and list refresh", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v132 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V132"));
+    assert.match(v132, /attendanceActiveSubmitPath:\s*"editorForm-capture-v132"/);
+    assert.match(v132, /attendanceServerWriteAttemptCount/);
+    assert.match(v132, /ref\.set\(payload,\s*\{\s*merge:\s*true\s*\}\)/);
+    assert.match(v132, /ref\.get\(\{\s*source:\s*"server"\s*\}\)/);
+    assert.match(v132, /refreshAttendanceListFromServerV132/);
+    assert.match(v132, /collection\("attendance"\)\.get\(\{\s*source:\s*"server"\s*\}\)/);
+    assert.match(v132, /attendanceFalseSuccessPreventedCount/);
+    assert.match(v132, /attendance-server-list-confirm-failed/);
+    assert.match(v132, /saveStore\(\{\s*skipRemote:\s*true,\s*syncReason:\s*"attendance-server-confirmed-v132"/);
+    assert.match(v132, /removeEventListener\("submit",\s*saveEditorWithAttendanceServerConfirmV131,\s*true\)/);
+    assert.match(v132, /addEventListener\("submit",\s*saveEditorWithAttendanceServerConfirmV132,\s*true\)/);
+  }],
+  ["owner preview V132 quick timetable uses one program selector and server batch confirm", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v132 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V132"));
+    const quickBody = v132.match(/function quickTimetableDialogV132[\s\S]*?openQuickCreateV70 = function openQuickCreateV132/)?.[0] || "";
+    assert.match(quickBody, /const program = document\.createElement\("select"\)/);
+    assert.doesNotMatch(quickBody, /const programType = document\.createElement\("select"\)/);
+    assert.match(quickBody, /programField\.hidden = !needsProgram/);
+    assert.match(quickBody, /if \(requiresProgram\) \{/);
+    const setRowBody = quickBody.match(/const setRow = \{[\s\S]*?\};/)?.[0] || "";
+    const classRowBody = quickBody.match(/const classRow = \{[\s\S]*?\};/)?.[0] || "";
+    assert.doesNotMatch(setRowBody, /programId|sourceType/);
+    assert.doesNotMatch(classRowBody, /programId|sourceType/);
+    assert.match(v132, /activePeriodRowsForQuickTimetableV132/);
+    assert.doesNotMatch(v132.match(/function activePeriodRowsForQuickTimetableV132[\s\S]*?async function quickTimetableRuntimeV132/)?.[0] || "", /store\.settings\?\.timetablePeriods|for \(let index = 1/);
+    assert.match(v132, /const batch = runtime\.db\.batch\(\)/);
+    assert.match(v132, /batch\.set\(setRef/);
+    assert.match(v132, /batch\.set\(rowRef/);
+    assert.match(v132, /await batch\.commit\(\)/);
+    assert.match(v132, /setRef\.get\(\{\s*source:\s*"server"\s*\}\)/);
+    assert.match(v132, /rowRef\.get\(\{\s*source:\s*"server"\s*\}\)/);
+    assert.match(v132, /quickTimetablePartialWriteDetectedCount/);
+    assert.match(v132, /saveStore\(\{\s*skipRemote:\s*true,\s*syncReason:\s*"quick-timetable-server-confirmed-v132"/);
+  }],
+  ["owner preview V132 system notice footer is final sanitized author plus date", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v132 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V132"));
+    assert.match(v132, /function formatSystemNoticeDateV132/);
+    assert.match(v132, /systemNoticeStaleDataPreservedCount/);
+    assert.match(v132, /systemNoticeEmptyConfirmedCount/);
+    assert.match(v132, /systemNoticeFooterSanitizedCount/);
+    assert.match(v132, /renderingSystemNoticePanelV132/);
+    assert.match(v132, /renderNoticesSplitV81 = function renderNoticesSplitV132/);
+    assert.match(v132, /meta\.textContent = \[systemNoticeAuthorTextV131\(\), date\]/);
+    const renderBody = v132.match(/renderNoticeCardsV81 = function renderNoticeCardsV132[\s\S]*?function schoolBoardRowsFromProxyPayloadV132/)?.[0] || "";
+    assert.doesNotMatch(renderBody, /row\.source \|\| row\.category \|\| row\.type/);
+  }],
+  ["owner preview V132 school proxy requires JSON and service worker bypass", () => {
+    const schoolSource = readFileSync(path.resolve(projectRoot, "services/schoolIntegrationService.js"), "utf8");
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const swSource = readFileSync(path.resolve(projectRoot, "service-worker.js"), "utf8");
+    const v132 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V132"));
+    assert.match(schoolSource, /function fetchProxyPayload/);
+    assert.match(schoolSource, /Accept:\s*"application\/json"/);
+    assert.match(schoolSource, /contentType\.includes\("application\/json"\)/);
+    assert.match(schoolSource, /school-proxy-content-type-html/);
+    assert.match(schoolSource, /fetchProxyPayload,/);
+    assert.match(v132, /fetchBoardOwnerPreviewV132/);
+    assert.match(v132, /schoolBoardRowsFromProxyPayloadV132/);
+    assert.match(v132, /Array\.isArray\(payload\?\.items\)/);
+    assert.match(v132, /payload\?\.html/);
+    assert.match(swSource, /url\.pathname\.startsWith\("\/api\/"\)/);
+    assert.match(swSource, /firestore\.googleapis\.com/);
+    assert.doesNotMatch(swSource, /caches\.open|respondWith/);
+  }],
+  ["owner preview V133 quick timetable final active path uses filtered program and active period resolvers", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v133 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V133"));
+    const quickBody = v133.match(/function quickTimetableDialogV133[\s\S]*?openQuickCreateV70 = function openQuickCreateV133/)?.[0] || "";
+    assert.match(v133, /activeQuickTimetableRenderPath:\s*"openQuickCreateV70->quickTimetableDialogV133"/);
+    assert.match(v133, /activeQuickTimetableSubmitPath:\s*"quickTimetableDialogV133-save-click"/);
+    assert.match(v133, /function programRowsForQuickTimetableV133/);
+    assert.match(v133, /cfg\?\.programs/);
+    assert.match(v133, /store\[cfg\.programs\]/);
+    assert.match(v133, /filter\(isActiveProgramRowV133\)/);
+    assert.match(v133, /function activePeriodRowsForQuickTimetableV133/);
+    assert.match(v133, /periodsForTimetableSetV103\(activeSet\)/);
+    assert.doesNotMatch(v133.match(/function activePeriodRowsForQuickTimetableV133[\s\S]*?let quickTimetableSaveInFlightV133/)?.[0] || "", /store\.settings\?\.timetablePeriods|for \(let index = 1/);
+    assert.match(quickBody, /programField\.hidden = !needsProgram \|\| programs\.length === 0/);
+    assert.match(quickBody, /등록된 연결 프로그램이 없습니다/);
+    assert.match(quickBody, /이 시간표에 활성화된 교시가 없습니다/);
+    assert.match(quickBody, /save\.disabled = \(needsProgram && programs\.length === 0\) \|\| periodRows\.length === 0/);
+    assert.doesNotMatch(quickBody, /quickTimetableProgramTypeV133|const programType = document\.createElement/);
+  }],
+  ["owner preview V133 quick timetable preserves payload policy and server-confirm success only", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v133 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V133"));
+    const quickBody = v133.match(/function quickTimetableDialogV133[\s\S]*?openQuickCreateV70 = function openQuickCreateV133/)?.[0] || "";
+    const setRowBody = quickBody.match(/const setRow = \{[\s\S]*?\};/)?.[0] || "";
+    const classRowBody = quickBody.match(/const classRow = \{[\s\S]*?\};/)?.[0] || "";
+    assert.doesNotMatch(setRowBody, /programId|sourceType/);
+    assert.doesNotMatch(classRowBody, /programId|sourceType/);
+    assert.match(quickBody, /if \(requiresProgram\) \{/);
+    assert.match(quickBody, /Object\.assign\(setRow,\s*\{ sourceType, programId/);
+    assert.match(quickBody, /saveQuickTimetableRemoteV132/);
+    assert.match(quickBody, /showMessage\("시간표 저장 완료"/);
+    assert.match(quickBody, /quickTimetableSaveInFlightV133/);
+    assert.match(quickBody, /lastQuickTimetableSaveResult = "server-confirmed"/);
+    assert.match(quickBody, /quickTimetableSaveFailureCount/);
+  }],
+  ["owner preview V133 normalizes actual dashboard system notice footer path", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v133 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V133"));
+    assert.match(v133, /renderSystemNoticesPanelBeforeV133/);
+    assert.match(v133, /renderSystemNoticesPanelV54 = function renderSystemNoticesPanelV133/);
+    assert.match(v133, /querySelectorAll\?\.\("\.system-notice-item"\)/);
+    assert.match(v133, /footer\.textContent = \[systemNoticeAuthorTextV131\(\), date\]/);
+    assert.match(v133, /systemNoticeFooterNormalizedCount/);
+    const panelBody = v133.match(/renderSystemNoticesPanelV54 = function renderSystemNoticesPanelV133[\s\S]*?const workspaceDiagnosticsBeforeV133/)?.[0] || "";
+    assert.doesNotMatch(panelBody, /notice\.priority \|\| "normal"|createdByEmail|authorUid|authorEmail/);
+  }],
+  ["owner preview V133 exposes official diagnostics aliases without raw identifiers", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v133 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V133"));
+    for (const field of [
+      "attendanceCollectionRefreshSuccessCount",
+      "lastAttendanceSaveResult",
+      "quickTimetableSaveSuccessCount",
+      "quickTimetableProgramOptionCount",
+      "quickTimetableActivePeriodCount",
+      "lastQuickTimetableSaveResult",
+      "systemNoticeFooterNormalizedCount",
+      "systemNoticeStalePreservedCount",
+      "lastSystemNoticeRenderResult",
+      "schoolProxyAttemptCount",
+      "schoolProxySuccessCount",
+      "schoolProxyFailureCount",
+      "lastSchoolProxyResult"
+    ]) assert.match(v133, new RegExp(field));
+    assert.match(v133, /window\.PMWorkspaceDataService\.diagnostics = function diagnosticsV133/);
+    const publicBody = v133.match(/function ownerPreviewPublicDiagnosticsV133[\s\S]*?function isActiveProgramRowV133/)?.[0] || "";
+    assert.doesNotMatch(publicBody, /uid|email|workspaceId|programId|documentId/i);
+  }],
+  ["owner preview V134 quick timetable display labels reject numeric and identifier-only program labels", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v134 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V134"));
+    assert.match(v134, /function quickTimetableProgramDisplayLabelV134/);
+    assert.match(v134, /\["title", "name", "programName", "lectureName", "className", "courseName"\]/);
+    assert.match(v134, /looksLikeInternalProgramLabelV134/);
+    assert.match(v134, /\^\\d\+\$/);
+    assert.match(v134, /이름 미등록 프로그램/);
+    assert.match(v134, /quickTimetableProgramInvalidLabelCount/);
+  }],
+  ["owner preview V134 quick timetable program options are deduped and visible-label only", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v134 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V134"));
+    const resolverBody = v134.match(/function programRowsForQuickTimetableV134[\s\S]*?function activePeriodRowsForQuickTimetableV134/)?.[0] || "";
+    assert.match(resolverBody, /programConfigV26\(type\)/);
+    assert.match(resolverBody, /store\[cfg\.programs\]/);
+    assert.match(resolverBody, /filter\(isActiveProgramRowV133\)/);
+    assert.match(resolverBody, /quickTimetableProgramIdentityV134/);
+    assert.match(resolverBody, /labelIdentity/);
+    assert.match(resolverBody, /quickTimetableProgramRawCount/);
+    assert.match(resolverBody, /quickTimetableProgramVisibleCount/);
+    assert.match(resolverBody, /quickTimetableProgramDeduplicatedCount/);
+  }],
+  ["owner preview V134 quick timetable autofills class fields without changing timetable name", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v134 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V134"));
+    const quickBody = v134.match(/function quickTimetableDialogV134[\s\S]*?openQuickCreateV70 = function openQuickCreateV134/)?.[0] || "";
+    assert.match(quickBody, /program\.addEventListener\("change", \(\) => refreshProgramAndPeriodState\(\{ autofill: true \}\)\)/);
+    assert.match(quickBody, /subject\.value = selectedProgram\.name/);
+    assert.match(quickBody, /if \(!teacher\.value && selectedProgram\.teacher\) teacher\.value = selectedProgram\.teacher/);
+    assert.match(quickBody, /if \(!room\.value && selectedProgram\.room\) room\.value = selectedProgram\.room/);
+    assert.match(quickBody, /quickTimetableClassNameAutofillCount/);
+    assert.doesNotMatch(quickBody, /name\.value = selectedProgram|name\.value = linkedProgram|name\.value = program/);
+  }],
+  ["owner preview V134 quick timetable preserves non-program payload and blocks unavailable program or periods", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v134 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V134"));
+    const quickBody = v134.match(/function quickTimetableDialogV134[\s\S]*?openQuickCreateV70 = function openQuickCreateV134/)?.[0] || "";
+    const setRowBody = quickBody.match(/const setRow = \{[\s\S]*?\};/)?.[0] || "";
+    const classRowBody = quickBody.match(/const classRow = \{[\s\S]*?\};/)?.[0] || "";
+    assert.doesNotMatch(setRowBody, /programId|sourceType|programType|linkedProgramId/);
+    assert.doesNotMatch(classRowBody, /programId|sourceType|programType|linkedProgramId/);
+    assert.match(quickBody, /program\.required = needsProgram/);
+    assert.match(quickBody, /program\.disabled = !needsProgram \|\| programs\.length === 0/);
+    assert.match(quickBody, /save\.disabled = \(needsProgram && programs\.length === 0\) \|\| periodRows\.length === 0/);
+    assert.match(quickBody, /if \(requiresProgram\) \{/);
+  }],
+  ["owner preview V134 quick timetable uses active period sources without hardcoded period generation", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v134 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V134"));
+    const periodBody = v134.match(/function activePeriodRowsForQuickTimetableV134[\s\S]*?function selectedQuickTimetableProgramV134/)?.[0] || "";
+    assert.match(periodBody, /periodsForTimetableSetV103\(activeSet\)/);
+    assert.match(periodBody, /commonPeriodRowsV110\(\)/);
+    assert.doesNotMatch(periodBody, /for \(let number = 1|store\.settings\?\.timetablePeriods|TIMETABLE_DEFAULT_VISIBLE_PERIOD_COUNT/);
+  }],
+  ["owner preview V134 quick timetable exposes save confirm and rollback diagnostics", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v134 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V134"));
+    const quickBody = v134.match(/function quickTimetableDialogV134[\s\S]*?openQuickCreateV70 = function openQuickCreateV134/)?.[0] || "";
+    assert.match(quickBody, /quickTimetableSaveAttemptCount \+= 1/);
+    assert.match(quickBody, /quickTimetableDuplicateClickBlockedCount \+= 1/);
+    assert.match(quickBody, /await saveQuickTimetableRemoteV132/);
+    assert.match(quickBody, /quickTimetableSetServerConfirmSuccessCount/);
+    assert.match(quickBody, /quickTimetableRowServerConfirmSuccessCount/);
+    assert.match(quickBody, /quickTimetableRollbackCount \+= 1/);
+    assert.match(quickBody, /lastQuickTimetableSaveResult = "server-confirmed"/);
+  }],
+  ["owner preview V134 public diagnostics include required quick timetable counters safely", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v134 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V134"));
+    for (const field of [
+      "quickTimetableSaveAttemptCount",
+      "quickTimetableSaveSuccessCount",
+      "quickTimetableSaveFailureCount",
+      "quickTimetableDuplicateClickBlockedCount",
+      "quickTimetableSetServerConfirmSuccessCount",
+      "quickTimetableRowServerConfirmSuccessCount",
+      "quickTimetableRollbackCount",
+      "lastQuickTimetableSaveResult",
+      "lastQuickTimetableSaveType",
+      "quickTimetableActivePeriodCount",
+      "quickTimetableProgramRawCount",
+      "quickTimetableProgramVisibleCount",
+      "quickTimetableProgramDeduplicatedCount",
+      "quickTimetableProgramInvalidLabelCount",
+      "quickTimetableClassNameAutofillCount"
+    ]) assert.match(v134, new RegExp(field));
+    assert.match(v134, /window\.PMWorkspaceDataService\.diagnostics = function diagnosticsV134/);
+  }],
+  ["owner preview V135 quick timetable uses existing set row-only architecture", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v135 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V135"));
+    const quickBody = v135.match(/function quickTimetableDialogV135[\s\S]*?openQuickCreateV70 = function openQuickCreateV135/)?.[0] || "";
+    const saveBody = v135.match(/async function saveQuickTimetableRowRemoteV135[\s\S]*?let quickTimetableSaveInFlightV135/)?.[0] || "";
+    assert.match(v135, /activeQuickTimetableRenderPath: "openQuickCreateV70->quickTimetableDialogV135"/);
+    assert.match(v135, /openQuickCreateV70 = function openQuickCreateV135/);
+    assert.match(quickBody, /quickTimetableExistingSetV135/);
+    assert.doesNotMatch(quickBody, /quickTimetableNameV135|quickTimetableStartV135|quickTimetableEndV135/);
+    assert.doesNotMatch(quickBody, /const setRow = \{|store\.timetableSets\.push|confirmed\.setRow/);
+    assert.match(saveBody, /\.collection\("timetableSets"\)\.doc\(String\(selectedSet\.id\)\)/);
+    assert.match(saveBody, /\.collection\("timetable"\)\.doc\(String\(classRow\.id\)\)/);
+    assert.match(saveBody, /rowRef\.set\(rowPayload, \{ merge: true \}\)/);
+    assert.doesNotMatch(saveBody, /batch\.set\(setRef|batch\.commit\(\)|setRef\.set/);
+  }],
+  ["owner preview V135 timetable set creation stays in timetable management path", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v135 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V135"));
+    const addBody = v135.match(/addTimetableSetV29 = function addTimetableSetV135[\s\S]*?function editTimetableSetMetadataV135/)?.[0] || "";
+    const editBody = v135.match(/function editTimetableSetMetadataV135[\s\S]*?function timetableSetSortValueV135/)?.[0] || "";
+    assert.match(addBody, /분류를 입력하세요/);
+    assert.match(addBody, /시작일\(선택, YYYY-MM-DD\)/);
+    assert.match(addBody, /종료일\(선택, YYYY-MM-DD\)/);
+    assert.match(addBody, /상태를 입력하세요/);
+    assert.match(addBody, /kind/);
+    assert.match(addBody, /visiblePeriodCount/);
+    assert.match(addBody, /syncReason: "timetable-set-create-v135"/);
+    assert.match(editBody, /syncReason: "timetable-set-metadata-edit-v135"/);
+  }],
+  ["owner preview V135 quick timetable filters category set options and period scope", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v135 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V135"));
+    const selectableBody = v135.match(/function selectableTimetableSetsForQuickV135[\s\S]*?function timetableSetDisplayNameV135/)?.[0] || "";
+    const periodsBody = v135.match(/function periodsForQuickTimetableSetV135[\s\S]*?function selectedTimetableSetForQuickV135/)?.[0] || "";
+    assert.match(v135, /TIMETABLE_KIND_LABELS_V135/);
+    assert.match(v135, /school: "학교"/);
+    assert.match(v135, /general: "기타"/);
+    assert.match(v135, /specialLectures: "특강"/);
+    assert.match(v135, /clubs: "동아리"/);
+    assert.match(selectableBody, /timetableSetKindV135\(set\) === wantedKind/);
+    assert.match(selectableBody, /\["ended", "archived"\]\.includes\(status\)/);
+    assert.match(periodsBody, /periodsForTimetableSetV103\(setId\)/);
+    assert.doesNotMatch(periodsBody, /commonPeriodRowsV110|for \(let number = 1|TIMETABLE_DEFAULT_VISIBLE_PERIOD_COUNT/);
+  }],
+  ["owner preview V135 quick timetable payload policy prevents false success", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v135 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V135"));
+    const quickBody = v135.match(/function quickTimetableDialogV135[\s\S]*?openQuickCreateV70 = function openQuickCreateV135/)?.[0] || "";
+    const classRowBody = quickBody.match(/const classRow = \{[\s\S]*?\};/)?.[0] || "";
+    assert.doesNotMatch(classRowBody, /programId|sourceType/);
+    assert.match(quickBody, /if \(isProgramTimetableTypeV131\?\.\(kind\)\) \{/);
+    assert.match(quickBody, /classRow\.sourceType = kind/);
+    assert.match(quickBody, /classRow\.programId = set\.programId \|\| ""/);
+    assert.match(quickBody, /quickTimetableSaveInFlightV135/);
+    assert.match(quickBody, /quickTimetableDuplicateClickBlockedCount \+= 1/);
+    assert.match(quickBody, /quickTimetableRollbackCount \+= 1/);
+    assert.match(quickBody, /quickTimetableFalseSuccessPreventedCount \+= 1/);
+    assert.match(quickBody, /lastQuickTimetableSaveResult = "server-confirmed-row-only"/);
+  }],
+  ["owner preview V135 ended timetable lifecycle panel is display-sort only and delete-safe", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v135 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V135"));
+    const panelBody = v135.match(/function timetableEndedManagementPanelV135[\s\S]*?const renderTimetableBeforeV135/)?.[0] || "";
+    assert.match(panelBody, /종료된 시간표/);
+    assert.match(panelBody, /sortedTimetableSetsV135/);
+    assert.match(panelBody, /timetableReactivateAttemptCount/);
+    assert.match(panelBody, /timetableDuplicateAttemptCount/);
+    assert.match(panelBody, /hasLinkedDataForTimetableSetV135\(set\)/);
+    assert.match(panelBody, /timetableDeleteBlockedByLinkedDataCount/);
+    assert.match(panelBody, /실제 삭제 대신 보관/);
+    assert.doesNotMatch(panelBody, /attendance\.push|assignments\.push|exams\.push|delete\(\)/);
+  }],
+  ["owner preview V135 public diagnostics expose architecture counters without raw identifiers", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v135 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V135"));
+    const publicBody = v135.match(/function ownerPreviewPublicDiagnosticsV135[\s\S]*?const workspaceDiagnosticsBeforeV135/)?.[0] || "";
+    for (const field of [
+      "quickTimetableExistingSetOptionCount",
+      "quickTimetableSelectedSetIdMasked",
+      "quickTimetableActivePeriodCount",
+      "quickTimetableSaveAttemptCount",
+      "quickTimetableSaveSuccessCount",
+      "quickTimetableSaveFailureCount",
+      "quickTimetableDuplicateClickBlockedCount",
+      "quickTimetableServerConfirmSuccessCount",
+      "quickTimetableServerConfirmFailureCount",
+      "quickTimetableFalseSuccessPreventedCount",
+      "timetableEndedCount",
+      "timetableArchivedCount",
+      "timetableReactivateAttemptCount",
+      "timetableReactivateSuccessCount",
+      "timetableDuplicateAttemptCount",
+      "timetableDuplicateSuccessCount",
+      "timetableDeleteBlockedByLinkedDataCount",
+      "timetableVisibleIdentifierCount"
+    ]) assert.match(publicBody, new RegExp(field));
+    assert.match(v135, /window\.PMWorkspaceDataService\.diagnostics = function diagnosticsV135/);
+    assert.doesNotMatch(publicBody, /\bworkspaceId\b|\buid\b|\bemail\b|\bprogramId\b|\bsetId\b/);
+  }],
+  ["owner preview V136 timetable management uses full screens and no raw prompt lifecycle UI", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v136 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V136"));
+    const navBody = v136.match(/function timetableManagementNavV136[\s\S]*?function timetableSetSummaryCardV136/)?.[0] || "";
+    const editorBody = v136.match(/function openTimetableSetEditorDialogV136[\s\S]*?async function reactivateTimetableSetV136/)?.[0] || "";
+    assert.match(v136, /APP_PATCH_VERSION_V136/);
+    assert.match(navBody, /\+ 시간표 추가/);
+    assert.match(navBody, /현재 시간표 관리/);
+    assert.match(navBody, /종료된 시간표/);
+    assert.match(navBody, /보관된 시간표/);
+    assert.match(v136, /renderCurrentTimetableManagementScreenV136/);
+    assert.match(v136, /renderEndedTimetableScreenV136/);
+    assert.match(v136, /renderArchivedTimetableScreenV136/);
+    assert.match(v136, /removeLegacyTimetableInlineManagementV136/);
+    assert.match(v136, /\.timetable-ended-panel-v135/);
+    assert.doesNotMatch(editorBody, /\bprompt\s*\(|\bconfirm\s*\(/);
+  }],
+  ["owner preview V136 timetable lifecycle displays Korean status labels and blocks past-ended creation", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v136 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V136"));
+    const validationBody = v136.match(/function validateTimetableDateRangeV136[\s\S]*?function timetableSetDisplayNameV136/)?.[0] || "";
+    const editorBody = v136.match(/function openTimetableSetEditorDialogV136[\s\S]*?async function reactivateTimetableSetV136/)?.[0] || "";
+    assert.match(v136, /active: "사용 중"/);
+    assert.match(v136, /scheduled: "시작 예정"/);
+    assert.match(v136, /ended: "종료됨"/);
+    assert.match(v136, /archived: "보관됨"/);
+    assert.match(v136, /TIMETABLE_PAST_END_BLOCK_MESSAGE_V136/);
+    assert.match(validationBody, /normalizedEndDate < normalizedStartDate/);
+    assert.match(validationBody, /normalizedEndDate < todayDateStringV136\(\)/);
+    assert.match(validationBody, /timetablePastEndCreateBlockedCount \+= 1/);
+    assert.match(editorBody, /appendTimetableStatusOptionsV136/);
+    assert.match(editorBody, /makeField\("표시 상태"/);
+    assert.doesNotMatch(editorBody, /active \/ scheduled|active \/ scheduled \/ ended \/ archived/);
+  }],
+  ["owner preview V136 current ended archived screens enforce lifecycle separation", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v136 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V136"));
+    const lifecycleBody = v136.match(/function timetableSetLifecycleStatusV136[\s\S]*?function validateTimetableDateRangeV136/)?.[0] || "";
+    const currentBody = v136.match(/function currentTimetableSetsForManagementV136[\s\S]*?function activeTimetableSetForManagementV136/)?.[0] || "";
+    const quickBody = v136.match(/selectableTimetableSetsForQuickV135 = function selectableTimetableSetsForQuickV136[\s\S]*?const addTimetableSetBeforeV136/)?.[0] || "";
+    assert.match(lifecycleBody, /explicit === "archived"/);
+    assert.match(lifecycleBody, /return "ended"/);
+    assert.match(lifecycleBody, /timetableLifecycleStatusFromDatesV136/);
+    assert.match(v136, /endValue < todayValue/);
+    assert.match(currentBody, /status === "active" \|\| status === "scheduled"/);
+    assert.match(v136, /timetableSetsForManagementV136\("ended"\)/);
+    assert.match(v136, /timetableSetsForManagementV136\("archived"\)/);
+    assert.match(quickBody, /lifecycle === "active" \|\| lifecycle === "scheduled"/);
+  }],
+  ["owner preview V136 reactivation copy archive and delete policies are server-confirmed", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v136 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V136"));
+    const reactivateBody = v136.match(/async function reactivateTimetableSetV136[\s\S]*?function copyTimetableSetV136/)?.[0] || "";
+    const copyBody = v136.match(/function copyTimetableSetV136[\s\S]*?async function archiveTimetableSetV136/)?.[0] || "";
+    const deleteBody = v136.match(/async function deleteEmptyTimetableSetRemoteV136[\s\S]*?async function clearTimetableRowsRemoteV136/)?.[0] || "";
+    const policyBody = v136.match(/async function deleteTimetableSetWithPolicyV136[\s\S]*?async function clearCurrentTimetableRowsV136/)?.[0] || "";
+    assert.match(reactivateBody, /startDate: start/);
+    assert.match(reactivateBody, /status: "active"/);
+    assert.match(reactivateBody, /saveTimetableSetRemoteV136/);
+    assert.match(reactivateBody, /timetableReactivateSuccessCount \+= 1/);
+    assert.match(copyBody, /시간표 세트와 수업 행만 복사합니다/);
+    assert.match(copyBody, /sourceRows = timetableRowsForSetV136/);
+    assert.match(copyBody, /timetableRowRefV136\(runtime, rowId\)/);
+    assert.doesNotMatch(copyBody, /attendance\.push|assignments\.push|exams\.push|applications\.push|studentRecords\.push/);
+    assert.match(v136, /보관함으로 이동/);
+    assert.match(v136, /보관 해제/);
+    assert.match(deleteBody, /isSystemOwnerForTimetableManagementV136/);
+    assert.match(deleteBody, /hasLinkedDataForTimetableSetV136/);
+    assert.match(deleteBody, /ref\.delete\(\)/);
+    assert.match(deleteBody, /snap\.exists/);
+    assert.match(policyBody, /TIMETABLE_LINKED_DELETE_BLOCK_MESSAGE_V136/);
+    assert.match(policyBody, /customConfirmDialogV136/);
+  }],
+  ["owner preview V136 diagnostics expose management counters without raw identifiers", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v136 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V136"));
+    const publicBody = v136.match(/function ownerPreviewPublicDiagnosticsV136[\s\S]*?const workspaceDiagnosticsBeforeV136/)?.[0] || "";
+    for (const field of [
+      "timetableManagementOpenCount",
+      "endedTimetableOpenCount",
+      "archivedTimetableOpenCount",
+      "timetableExpiredDisplayCount",
+      "timetablePastEndCreateBlockedCount",
+      "timetableReactivateAttemptCount",
+      "timetableReactivateSuccessCount",
+      "timetableReactivateFailureCount",
+      "timetableCopyAttemptCount",
+      "timetableCopySuccessCount",
+      "timetableArchiveCount",
+      "timetableUnarchiveCount",
+      "timetableDeleteBlockedLinkedDataCount",
+      "timetableEmptySetDeleteSuccessCount",
+      "timetableVisibleIdentifierCount"
+    ]) assert.match(publicBody, new RegExp(field));
+    assert.match(v136, /window\.PMWorkspaceDataService\.diagnostics = function diagnosticsV136/);
+    assert.match(v136, /recordVisibleTimetableIdentifiersV136/);
+    assert.doesNotMatch(publicBody, /\bworkspaceId\b|\buid\b|\bemail\b|\bprogramId\b|\bsetId\b/);
+  }],
+  ["owner preview V136.1 returns management screens to the timetable main view without navigation side effects", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v136 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V136"));
+    const navBody = v136.match(/function navigateTimetableManagementV136[\s\S]*?function timetableManagementNavV136/)?.[0] || "";
+    assert.match(navBody, /TIMETABLE_MANAGEMENT_MODE_KEY_V136/);
+    assert.match(navBody, /sessionStorage\.removeItem/);
+    assert.match(navBody, /renderTimetableV29/);
+    assert.match(navBody, /timetableMainNavigationClickCount/);
+    assert.doesNotMatch(navBody, /location\.|window\.location|history\./);
+  }],
+  ["owner preview V136.1 accepts optional end dates and keeps lifecycle date-derived", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v136 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V136"));
+    const validationBody = v136.match(/function validateTimetableDateRangeV136[\s\S]*?function timetableSetDisplayNameV136/)?.[0] || "";
+    const lifecycleBody = v136.match(/function timetableSetLifecycleStatusV136[\s\S]*?function validateTimetableDateRangeV136/)?.[0] || "";
+    assert.match(v136, /function timetableDateRangeV136/);
+    assert.match(validationBody, /if \(!String\(endDate \?\? ""\)\.trim\(\)\)/);
+    assert.match(validationBody, /normalizedEndDate < normalizedStartDate/);
+    assert.match(validationBody, /normalizedEndDate < todayDateStringV136\(\)/);
+    assert.match(v136, /applyTimetableDateConstraintsV136/);
+    assert.doesNotMatch(lifecycleBody, /explicit === "scheduled"/);
+  }],
+  ["owner preview V136.1 separates unarchive from reactivation and resolves the restored view by dates", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v136 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V136"));
+    const archiveBody = v136.match(/async function archiveTimetableSetV136[\s\S]*?async function deleteTimetableSetWithPolicyV136/)?.[0] || "";
+    assert.match(archiveBody, /timetableLifecycleStatusFromDatesV136/);
+    assert.match(archiveBody, /timetableUnarchiveAttemptCount/);
+    assert.match(archiveBody, /timetableUnarchiveSuccessCount/);
+    assert.match(archiveBody, /restoredStatus === "ended" \? "ended" : "current"/);
+    assert.doesNotMatch(archiveBody, /startDate:\s*todayDateStringV136/);
+  }],
+  ["owner preview B9.2 normalizes lifecycle date input before it reaches a date control", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v136 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V136"));
+    const normalizer = v136.match(/function normalizeTimetableDateInputV136[\s\S]*?function validDateStringV136/)?.[0] || "";
+    const rangeBody = v136.match(/function timetableDateRangeV136[\s\S]*?function timetableLifecycleStatusFromDatesV136/)?.[0] || "";
+    assert.match(normalizer, /raw\.match\(/);
+    assert.match(normalizer, /timetableDateTrailingSeparatorFixedCount/);
+    assert.match(normalizer, /local\.getDate\(\) !== day/);
+    assert.match(rangeBody, /normalizeTimetableDateInputV136\(set\.startDate/);
+    assert.match(rangeBody, /normalizeTimetableDateInputV136\(set\.endDate/);
+  }],
+  ["owner preview B9.2 uses one optional-end-date validator for create edit copy and reactivation", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v136 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V136"));
+    const editorBody = v136.match(/function openTimetableSetEditorDialogV136[\s\S]*?async function reactivateTimetableSetV136/)?.[0] || "";
+    const reactivateBody = v136.match(/async function reactivateTimetableSetV136[\s\S]*?function copyTimetableSetV136/)?.[0] || "";
+    const copyBody = v136.match(/function copyTimetableSetV136[\s\S]*?async function archiveTimetableSetV136/)?.[0] || "";
+    assert.match(editorBody, /validateTimetableDateRangeV136/);
+    assert.match(reactivateBody, /validateTimetableDateRangeV136/);
+    assert.match(copyBody, /validateTimetableDateRangeV136/);
+    assert.match(v136, /endDateInput\.max = ""/);
+    assert.match(v136, /timetableEndDateClearedAfterStartChangeCount/);
+  }],
+  ["owner preview V131 school board import separates proxy format network and valid-empty states", () => {
+    const schoolSource = readFileSync(path.resolve(projectRoot, "services/schoolIntegrationService.js"), "utf8");
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v131 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V131"));
+    assert.match(schoolSource, /looksLikeBoardResponse/);
+    assert.match(schoolSource, /school-board-format-invalid/);
+    assert.match(schoolSource, /school-board-network-failed/);
+    assert.match(schoolSource, /school-proxy-not-configured/);
+    assert.doesNotMatch(schoolSource, /fetch\(requestUrl/);
+    assert.match(v131, /fetchBoardOwnerPreviewV131/);
+    assert.match(v131, /schoolBoardUserMessageV131/);
+    assert.match(v131, /새로운 학교 공지가 없습니다/);
+    assert.match(v131, /학교 게시판 연동 서버가 아직 설정되지 않았습니다/);
+    assert.match(v131, /학교 게시판 응답을 확인할 수 없습니다/);
+    assert.match(v131, /학교 게시판 연결에 실패했습니다/);
+  }],
 ];
 
 for (const [name, test] of tests) {

@@ -28612,3 +28612,5500 @@ setTimeout(() => {
 
 store.settings ??= {};
 store.settings.appVersion = APP_PATCH_VERSION_V127;
+
+// Final V128: owner-preview critical repair batch 1. This patch keeps the
+// existing operational app structure and adds only narrow safety wrappers for
+// privacy-safe display, attendance confirmation, program timetable linking,
+// school proxy handling, and owner diagnostics.
+const APP_PATCH_VERSION_V128 = "v128.0 - 2026-07-25";
+
+function ownerPreviewModeSnapshotV128() {
+  const appTarget = String(window.PM_APP_TARGET || "main");
+  const configuredMode = String(
+    window.PM_OPERATIONAL_APP_MODE
+    || store?.settings?.operationalMode
+    || store?.settings?.appMode
+    || ""
+  ).trim();
+  return {
+    appTarget,
+    mode: configuredMode || "통합 모드/미설정",
+    modeSource: configuredMode ? "configured" : "unresolved",
+    modeSwitchImplemented: Boolean(configuredMode),
+    menuModeFilterApplied: false
+  };
+}
+
+window.PMOwnerPreviewModeDiagnostics = {
+  snapshot: ownerPreviewModeSnapshotV128
+};
+
+const renderOperationalSafetyOwnerPanelBeforeV128 = typeof renderOperationalSafetyOwnerPanelV125 === "function"
+  ? renderOperationalSafetyOwnerPanelV125
+  : null;
+if (renderOperationalSafetyOwnerPanelBeforeV128) {
+  renderOperationalSafetyOwnerPanelV125 = function renderOperationalSafetyOwnerPanelV128() {
+    const result = renderOperationalSafetyOwnerPanelBeforeV128.apply(this, arguments);
+    const panel = document.getElementById("operational-safety-panel-v125");
+    const kv = panel?.querySelector?.(".kv");
+    if (kv && !panel.querySelector("[data-owner-preview-mode-v128]")) {
+      const mode = ownerPreviewModeSnapshotV128();
+      const label = document.createElement("span");
+      label.dataset.ownerPreviewModeV128 = "true";
+      label.textContent = "app mode";
+      const value = document.createElement("strong");
+      value.dataset.ownerPreviewModeV128 = "true";
+      value.textContent = mode.mode;
+      kv.append(label, value);
+    }
+    return result;
+  };
+}
+
+const SENSITIVE_DISPLAY_FIELD_RE_V128 = /(^|_)(uid|useruid|owneruid|authoruid|targetstudentuid|workspaceid|workspace_id|setid|programid|documentid|docid|sessionid|deviceid|token|apikey|path|email)($|_)/i;
+const SENSITIVE_VALUE_RE_V128 = /\b(ws_[A-Za-z0-9_-]{6,}|[A-Za-z0-9_-]{20,}|[^@\s]+@[^@\s]+\.[^@\s]+)\b/;
+
+function isSensitiveDisplayFieldV128(field = "") {
+  return SENSITIVE_DISPLAY_FIELD_RE_V128.test(String(field || ""));
+}
+
+function maskSensitiveTextV128(value = "") {
+  const text = String(value ?? "");
+  if (!text) return "";
+  if (text.includes("@")) return "숨김";
+  if (SENSITIVE_VALUE_RE_V128.test(text)) return "숨김";
+  return text;
+}
+
+function studentDisplayNameV128(uid = "") {
+  const target = String(uid || "");
+  if (!target) return "등록된 학생이 없습니다";
+  const pools = [
+    ...(Array.isArray(store.people) ? store.people : []),
+    ...(Array.isArray(store.students) ? store.students : []),
+    ...(Array.isArray(store.accounts) ? store.accounts : []),
+    ...(Array.isArray(store.users) ? store.users : [])
+  ];
+  const found = pools.find((row) => [row?.uid, row?.id, row?.studentUid, row?.userId].some((value) => String(value || "") === target));
+  if (!found) return "등록된 학생이 없습니다";
+  return [found.name || found.displayName || found.studentName, found.studentNo || found.number, found.status].filter(Boolean).join(" · ") || "등록된 학생이 없습니다";
+}
+
+function displayValueForFieldV128(field = "", value = "", row = {}) {
+  const name = String(field || "");
+  if (/studentUid|targetStudentId|userId/i.test(name)) return studentDisplayNameV128(value);
+  if (/authorName|createdByName|teacher|name|title|subject|date|period|day|room|memo|content|state|status|type/i.test(name)) return String(value ?? "");
+  if (isSensitiveDisplayFieldV128(name)) return "";
+  return maskSensitiveTextV128(value);
+}
+
+function redactDisplayRowV128(row = {}) {
+  const result = {};
+  Object.entries(row || {}).forEach(([field, value]) => {
+    const display = displayValueForFieldV128(field, value, row);
+    if (display !== "") result[field] = display;
+  });
+  if (!result.author && (row.authorName || row.createdByName)) result.author = row.authorName || row.createdByName;
+  return result;
+}
+
+function safeColumnsV128(cols = []) {
+  return (cols || []).filter((col) => !isSensitiveDisplayFieldV128(col));
+}
+
+const summaryTextBeforeV128 = typeof summaryTextV5 === "function" ? summaryTextV5 : null;
+if (summaryTextBeforeV128) {
+  summaryTextV5 = function summaryTextV128(row) {
+    return summaryTextBeforeV128(redactDisplayRowV128(row));
+  };
+}
+
+const showViewerBeforeV128 = typeof showViewerV5 === "function" ? showViewerV5 : null;
+if (showViewerBeforeV128) {
+  showViewerV5 = function showViewerV128(title, row) {
+    return showViewerBeforeV128(title, redactDisplayRowV128(row));
+  };
+}
+
+const simpleRowsTableBeforeV128 = typeof simpleRowsTableV16 === "function" ? simpleRowsTableV16 : null;
+if (simpleRowsTableBeforeV128) {
+  simpleRowsTableV16 = function simpleRowsTableV128(cols, rows) {
+    return simpleRowsTableBeforeV128(safeColumnsV128(cols), (rows || []).map(redactDisplayRowV128));
+  };
+}
+
+const dashboardRowsBeforeV128 = typeof dashboardRowsV70 === "function" ? dashboardRowsV70 : null;
+if (dashboardRowsBeforeV128) {
+  dashboardRowsV70 = function dashboardRowsV128(key) {
+    return dashboardRowsBeforeV128(key).map(redactDisplayRowV128);
+  };
+}
+
+function normalizeAttendanceStatusV128(value = "") {
+  const text = String(value || "").trim();
+  if (!text || ["전체", "all", "ALL"].includes(text)) return "";
+  if (text === "완료") return "처리 완료";
+  if (text === "출석") return "정상";
+  return ["정상", "확인 필요", "처리 완료", "지각", "조퇴", "결석"].includes(text) ? text : "";
+}
+
+const fieldsForV7BeforeV128 = typeof fieldsForV7 === "function" ? fieldsForV7 : null;
+if (fieldsForV7BeforeV128) {
+  fieldsForV7 = function fieldsForV128(key) {
+    const fields = fieldsForV7BeforeV128(key);
+    if (key !== "attendance") return fields;
+    return fields.map((field) => field[0] === "status"
+      ? ["status", field[1] || "상태", "select", ["정상", "확인 필요", "처리 완료"]]
+      : field);
+  };
+}
+
+const filteredRowsBeforeV128 = typeof filteredRowsV7 === "function" ? filteredRowsV7 : null;
+if (filteredRowsBeforeV128) {
+  filteredRowsV7 = function filteredRowsV128(key) {
+    if (key !== "attendance") return filteredRowsBeforeV128(key);
+    const raw = sessionStorage.getItem("filter:attendance:status") || "";
+    const normalized = normalizeAttendanceStatusV128(raw);
+    if (raw && raw !== normalized) {
+      if (normalized) sessionStorage.setItem("filter:attendance:status", normalized);
+      else sessionStorage.removeItem("filter:attendance:status");
+    }
+    return filteredRowsBeforeV128(key);
+  };
+}
+
+const attendanceSaveDiagnosticsV128 = {
+  attendanceSaveClickCount: 0,
+  attendanceSaveAttemptCount: 0,
+  attendanceSaveSuccessCount: 0,
+  attendanceSaveFailureCount: 0,
+  attendanceServerConfirmSuccessCount: 0,
+  attendanceServerConfirmFailureCount: 0,
+  lastAttendanceSaveReason: "none",
+  lastAttendanceSavePhase: "idle"
+};
+
+function recordAttendanceSaveV128(patch = {}) {
+  Object.assign(attendanceSaveDiagnosticsV128, patch || {});
+}
+
+window.PMAttendanceSaveDiagnostics = {
+  snapshot: () => ({ ...attendanceSaveDiagnosticsV128 })
+};
+
+function attendanceSaveErrorV128(code = "unknown") {
+  const error = new Error(code);
+  error.code = code;
+  return error;
+}
+
+async function attendanceRuntimeV128() {
+  if (!window.PMFirebaseRuntime?.hasConfig?.()) throw attendanceSaveErrorV128("attendance-firebase-unavailable");
+  const runtime = await window.PMFirebaseRuntime.init();
+  if (!runtime?.db) throw attendanceSaveErrorV128("attendance-firebase-unavailable");
+  const authUser = firebase?.auth?.().currentUser || null;
+  if (!authUser) throw attendanceSaveErrorV128("attendance-auth-unavailable");
+  return runtime;
+}
+
+async function saveAttendanceDirectToFirestoreV128(row = {}) {
+  attendanceSaveDiagnosticsV128.attendanceSaveAttemptCount += 1;
+  recordAttendanceSaveV128({ lastAttendanceSavePhase: "preflight", lastAttendanceSaveReason: "checking" });
+  const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116("attendance-editor-submit", { force: true });
+  if (!workspaceId) throw attendanceSaveErrorV128("attendance-workspace-unresolved");
+  const readiness = window.PMWorkspaceDataService?.checkSaveReadiness?.(workspaceId, {
+    canonicalWorkspaceId: workspaceId,
+    record: true
+  });
+  if (!readiness?.ok) throw attendanceSaveErrorV128(readiness?.reason || "attendance-sync-not-started");
+  const runtime = await attendanceRuntimeV128();
+  const FieldValue = firebase.firestore.FieldValue;
+  const docId = String(row.id || `attendance-${Date.now()}`);
+  const payload = cleanFirestoreObjectV52({
+    ...row,
+    id: docId,
+    workspaceId,
+    workspace_id: workspaceId,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  if (!row.createdAt) payload.createdAt = FieldValue.serverTimestamp();
+  recordAttendanceSaveV128({ lastAttendanceSavePhase: "write", lastAttendanceSaveReason: "server-write" });
+  const ref = runtime.db.collection("workspaces").doc(workspaceId).collection("attendance").doc(docId);
+  await ref.set(payload, { merge: true });
+  recordAttendanceSaveV128({ lastAttendanceSavePhase: "confirm", lastAttendanceSaveReason: "server-confirm" });
+  const confirmed = await ref.get({ source: "server" });
+  if (!confirmed.exists || confirmed.metadata?.hasPendingWrites) {
+    attendanceSaveDiagnosticsV128.attendanceServerConfirmFailureCount += 1;
+    throw attendanceSaveErrorV128("attendance-server-confirm-failed");
+  }
+  attendanceSaveDiagnosticsV128.attendanceServerConfirmSuccessCount += 1;
+  const confirmedRow = { id: docId, ...(confirmed.data() || {}) };
+  window.PMWorkspaceDataService?.discardPendingRow?.("attendance", docId);
+  return confirmedRow;
+}
+
+async function saveAttendanceEditorWithServerConfirmV128(event) {
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  if (!editing || editing.key !== "attendance") return;
+  attendanceSaveDiagnosticsV128.attendanceSaveClickCount += 1;
+  const payload = Object.fromEntries(new FormData(editorForm).entries());
+  delete payload._confirm_password;
+  payload.status = normalizeAttendanceStatusV128(payload.status) || "정상";
+  const origin = editing.origin;
+  const rows = store.attendance || (store.attendance = []);
+  const existing = editing.id ? rows.find((row) => String(row.id) === String(editing.id)) : null;
+  const row = {
+    ...(existing || {}),
+    ...payload,
+    id: editing.id || `attendance-${Date.now()}`
+  };
+  try {
+    const confirmedRow = await saveAttendanceDirectToFirestoreV128(row);
+    const index = rows.findIndex((item) => String(item.id) === String(confirmedRow.id));
+    if (index >= 0) rows[index] = confirmedRow;
+    else rows.unshift(confirmedRow);
+    saveStore({ skipRemote: true, syncReason: "attendance-server-confirmed" });
+    attendanceSaveDiagnosticsV128.attendanceSaveSuccessCount += 1;
+    recordAttendanceSaveV128({ lastAttendanceSavePhase: "completed", lastAttendanceSaveReason: "server-confirmed" });
+    closeEditor();
+    renderPage(origin || currentPage);
+    showMessage("출결 저장 완료", "출결이 현재 워크스페이스 서버에서 확인되었습니다.");
+  } catch (error) {
+    attendanceSaveDiagnosticsV128.attendanceSaveFailureCount += 1;
+    if (String(error?.code || "").includes("confirm")) attendanceSaveDiagnosticsV128.attendanceServerConfirmFailureCount += 1;
+    recordAttendanceSaveV128({
+      lastAttendanceSavePhase: "failed",
+      lastAttendanceSaveReason: error?.code || "attendance-save-failed"
+    });
+    editorError.textContent = "출결을 서버에 저장하지 못했습니다. 로그인과 워크스페이스 연결 상태를 확인한 뒤 다시 시도해 주세요.";
+  }
+}
+
+async function saveEditorWithAttendanceServerConfirmV128(event) {
+  if (editing?.key === "attendance") return saveAttendanceEditorWithServerConfirmV128(event);
+  return saveEditorWithNoticeServerRefreshV116(event);
+}
+
+try {
+  const editorFormElV128 = document.getElementById("editorForm");
+  if (editorFormElV128 && editorFormElV128.dataset.attendanceServerConfirmV128 !== "true") {
+    editorFormElV128.dataset.attendanceServerConfirmV128 = "true";
+    editorFormElV128.removeEventListener("submit", saveEditorWithNoticeServerRefreshV116, true);
+    editorFormElV128.addEventListener("submit", saveEditorWithAttendanceServerConfirmV128, true);
+  }
+} catch (error) {
+  console.info("[attendance editor V128 binding skipped]", error?.code || "unknown");
+}
+
+function quickTimetableDialogV128() {
+  const old = document.getElementById("quickTimetableDialogV128");
+  if (old) old.remove();
+  const dialog = document.createElement("dialog");
+  dialog.id = "quickTimetableDialogV128";
+  dialog.className = "editor-dialog";
+  const form = document.createElement("form");
+  form.method = "dialog";
+  const type = document.createElement("select");
+  [["school", "일반"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => type.append(option(value, label)));
+  const name = document.createElement("input");
+  name.name = "name";
+  name.required = true;
+  name.placeholder = "시간표 이름";
+  const start = document.createElement("input");
+  start.type = "date";
+  const end = document.createElement("input");
+  end.type = "date";
+  const programType = document.createElement("select");
+  [["", "없음"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => programType.append(option(value, label)));
+  const actions = el("div", "row-actions");
+  const save = button("저장");
+  const cancel = button("취소", "ghost");
+  cancel.addEventListener("click", () => dialog.close());
+  save.addEventListener("click", () => {
+    if (!name.value.trim()) {
+      name.focus();
+      return;
+    }
+    store.timetableSets ??= [];
+    const id = `ttset-${String(type.value || "school").replace(/[^A-Za-z0-9_-]/g, "_")}-${Date.now()}`;
+    store.timetableSets.push({
+      id,
+      name: name.value.trim(),
+      type: type.value || "school",
+      sourceType: programType.value || type.value || "school",
+      startDate: start.value || "",
+      endDate: end.value || "",
+      visiblePeriodCount: Number(store.settings?.timetablePeriods || 9)
+    });
+    sessionStorage.setItem("pm-timetable-set", id);
+    saveStore({ syncKeys: ["timetableSets"], syncReason: "quick-timetable-set-create-v128" });
+    dialog.close();
+    renderTimetableV29?.();
+  });
+  actions.append(save, cancel);
+  form.append(
+    el("h3", "", "시간표 추가"),
+    makeField("수업 유형", "quickTimetableTypeV128", type),
+    makeField("시간표 이름", "quickTimetableNameV128", name),
+    makeField("시작일", "quickTimetableStartV128", start),
+    makeField("종료일", "quickTimetableEndV128", end),
+    makeField("연결 프로그램 유형", "quickTimetableProgramTypeV128", programType),
+    actions
+  );
+  dialog.append(form);
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
+const openQuickCreateBeforeV128 = typeof openQuickCreateV70 === "function" ? openQuickCreateV70 : null;
+if (openQuickCreateBeforeV128) {
+  openQuickCreateV70 = function openQuickCreateV128(key) {
+    if (key === "timetable") return quickTimetableDialogV128();
+    return openQuickCreateBeforeV128.apply(this, arguments);
+  };
+}
+
+function normalizeProgramTimetableSourceTypeV128(type = "") {
+  return { afterschool: "afterschool", specialLectures: "specialLectures", clubs: "clubs" }[type] || String(type || "");
+}
+
+const ensureProgramTimetableSetBeforeV128 = typeof ensureProgramTimetableSetV98 === "function" ? ensureProgramTimetableSetV98 : null;
+if (ensureProgramTimetableSetBeforeV128) {
+  ensureProgramTimetableSetV98 = function ensureProgramTimetableSetV128(type, program) {
+    const cfg = programConfigV26(type);
+    const sourceType = normalizeProgramTimetableSourceTypeV128(type);
+    const expectedId = programSetIdV26(type, program);
+    store.timetableSets ??= [];
+    const existing = store.timetableSets.find((set) => (
+      String(set.programId || "") === String(program?.id || "")
+      && String(set.sourceType || set.type || "") === sourceType
+    )) || store.timetableSets.find((set) => String(set.id || "") === expectedId);
+    const setName = `${cfg.title} · ${program?.name || cfg.title}`;
+    if (existing) {
+      existing.name = existing.name || setName;
+      existing.type = existing.type || cfg.scheduleType;
+      existing.sourceType = sourceType;
+      existing.programId = program?.id || existing.programId || "";
+      return existing.id;
+    }
+    const id = ensureProgramTimetableSetBeforeV128(type, program);
+    const created = store.timetableSets.find((set) => String(set.id || "") === String(id));
+    if (created) {
+      created.sourceType = sourceType;
+      created.programId = program?.id || "";
+      created.type = created.type || cfg.scheduleType;
+      created.name = created.name || setName;
+    }
+    return id;
+  };
+}
+
+const schoolFetchBoardBeforeV128 = window.PMSchoolIntegrationService?.fetchBoard;
+if (typeof schoolFetchBoardBeforeV128 === "function" && !window.PMSchoolIntegrationService.__ownerPreviewSafeProxyV128) {
+  window.PMSchoolIntegrationService.fetchBoard = async function fetchBoardOwnerPreviewV128(url, source) {
+    try {
+      return await schoolFetchBoardBeforeV128.call(this, url, source);
+    } catch (error) {
+      const code = String(error?.code || error?.message || "unknown");
+      if (/school-proxy/.test(code)) {
+        const isHomeLetter = /가정|home/i.test(String(source || ""));
+        showMessage("학교 게시판 연동", window.PMSchoolIntegrationService.safeUnavailableMessage || "학교 게시판 연동 서버가 아직 설정되지 않았습니다.");
+        return isHomeLetter ? [...(store.homeLetters || [])] : [...(store.schoolNotices || [])];
+      }
+      throw error;
+    }
+  };
+  window.PMSchoolIntegrationService.__ownerPreviewSafeProxyV128 = true;
+}
+
+window.PMOwnerPreviewCriticalRepairDiagnostics = {
+  snapshot: () => ({
+    appVersion: APP_PATCH_VERSION_V128,
+    mode: ownerPreviewModeSnapshotV128(),
+    attendance: window.PMAttendanceSaveDiagnostics?.snapshot?.() || {},
+    schoolProxy: window.PMSchoolIntegrationService?.diagnostics?.() || {},
+    sensitiveValueDetected: false
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V128;
+
+// Final V129: owner-preview field-test repair batch 2. This layer is
+// presentation-only except for the quick timetable-set create dialog and new
+// program createdAt values. It must not alter notice/schedule/timetable
+// server-confirm or workspace sync behavior.
+const APP_PATCH_VERSION_V129 = "v129.0 - 2026-07-25";
+
+const ownerPreviewCriticalRepairDiagnosticsV129 = {
+  identifierSanitizerInstalled: true,
+  identifierHiddenFieldCount: 0,
+  studentOptionResolvedCount: 0,
+  studentOptionFallbackCount: 0,
+  rawIdentifierDisplayBlockedCount: 0,
+  attendanceFilterNormalizeCount: 0,
+  attendanceFilterInvalidResetCount: 0,
+  timetableQuickModalOpenCount: 0,
+  timetableQuickSaveSuccessCount: 0,
+  timetableQuickSaveFailureCount: 0,
+  programCreatedAtDisplayedCount: 0,
+  systemNoticeEmailHiddenCount: 0
+};
+
+function incrementOwnerPreviewCriticalRepairV129(field, amount = 1) {
+  if (Object.prototype.hasOwnProperty.call(ownerPreviewCriticalRepairDiagnosticsV129, field)) {
+    ownerPreviewCriticalRepairDiagnosticsV129[field] += amount;
+  }
+}
+
+const INTERNAL_DISPLAY_FIELD_KEYS_V129 = new Set([
+  "uid", "userid", "useruid", "studentuid", "targetstudentuid", "targetstudentid",
+  "owneruid", "authoruid", "authoruserid", "authorid", "authorrole", "authrole",
+  "authprovider", "authtoken", "workspaceid", "workspace_id", "targetworkspaceid",
+  "documentid", "docid", "firestorepath", "path", "setid", "timetablesetid",
+  "schedulesetid", "programid", "sourcetype", "createdbyuid", "updatedbyuid",
+  "sessionid", "deviceid", "token", "apikey", "email", "authoremail", "created_by"
+]);
+
+const RAW_IDENTIFIER_VALUE_RE_V129 = /\b(ws_[A-Za-z0-9_-]{6,}|[A-Za-z0-9_-]{24,}|[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{6,}|[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+)\b/g;
+
+function normalizedFieldKeyV129(field = "") {
+  return String(field || "").replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+}
+
+function isInternalDisplayFieldV129(field = "") {
+  return INTERNAL_DISPLAY_FIELD_KEYS_V129.has(normalizedFieldKeyV129(field));
+}
+
+function blockRawIdentifierTextV129(value = "") {
+  const text = String(value ?? "");
+  if (!text) return "";
+  RAW_IDENTIFIER_VALUE_RE_V129.lastIndex = 0;
+  if (!RAW_IDENTIFIER_VALUE_RE_V129.test(text)) return text;
+  RAW_IDENTIFIER_VALUE_RE_V129.lastIndex = 0;
+  incrementOwnerPreviewCriticalRepairV129("rawIdentifierDisplayBlockedCount");
+  return text.replace(RAW_IDENTIFIER_VALUE_RE_V129, "숨김");
+}
+
+function koreanRoleLabelV129(value = "") {
+  return {
+    system_owner: "시스템 오너",
+    super_manager: "최고 관리자",
+    manager: "관리자",
+    teacher: "교사",
+    normal: "일반 사용자",
+    viewer: "읽기 전용",
+    print_account: "인쇄 계정",
+    user: "일반 사용자",
+    admin: "관리자"
+  }[String(value || "")] || blockRawIdentifierTextV129(value);
+}
+
+function koreanValueForFieldV129(field = "", value = "") {
+  const key = normalizedFieldKeyV129(field);
+  const text = String(value ?? "");
+  if (key === "visibility") return { private: "비공개", public: "공개" }[text] || text;
+  if (key === "status" || key === "state") {
+    return {
+      active: "사용 중",
+      inactive: "사용 중지",
+      disabled: "비활성",
+      pending: "대기",
+      rejected: "거절",
+      complete: "처리 완료",
+      completed: "처리 완료",
+      done: "처리 완료"
+    }[text] || normalizeAttendanceStatusV129(text) || text;
+  }
+  if (key === "role" || key === "globalrole" || key === "workspacerole") return koreanRoleLabelV129(text);
+  if (key === "type" || key === "classtype" || key === "programtype" || key === "sourcetype") {
+    return programTypeLabelV129(text);
+  }
+  if (key === "consentpublic" || key === "publicapproved") return value === true || text === "true" ? "동의함" : "동의 안 함";
+  if (key === "deadlinerequired") return value === true || text === "true" ? "마감 있음" : "마감 아님";
+  if (typeof value === "boolean") return value ? "예" : "아니오";
+  return blockRawIdentifierTextV129(text);
+}
+
+function programTypeLabelV129(type = "") {
+  return {
+    general: "일반",
+    school: "학교",
+    manual: "일반",
+    afterschool: "방과후",
+    specialLectures: "특강",
+    specialLecture: "특강",
+    clubs: "동아리",
+    club: "동아리"
+  }[String(type || "")] || blockRawIdentifierTextV129(type);
+}
+
+function dateValueTextV129(value) {
+  if (!value) return "";
+  if (typeof value?.toDate === "function") return dateValueTextV129(value.toDate());
+  if (typeof value === "number") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+  }
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? "" : value.toISOString().slice(0, 10);
+  const text = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 16).replace("T", " ");
+  return blockRawIdentifierTextV129(text);
+}
+
+function studentCandidatesV129() {
+  const rows = [];
+  const push = (row = {}) => {
+    const uid = row.uid || row.id || row.studentUid || row.userId || row.targetStudentId;
+    if (!uid) return;
+    const name = row.name || row.displayName || row.studentName || row.savedName || "";
+    const studentNo = row.studentNo || row.studentNumber || row.number || row.no || "";
+    const label = [name, studentNo].filter(Boolean).join(" · ") || name || studentNo || "등록된 사용자";
+    rows.push({ uid: String(uid), label: blockRawIdentifierTextV129(label) });
+  };
+  [...(store.people || []), ...(store.students || []), ...(store.accounts || []), ...(store.users || [])].forEach(push);
+  try {
+    (authStateV31?.workspace_members || []).forEach((member) => push({
+      uid: member.uid || member.id || member.userId,
+      name: member.displayName || member.name || member.studentName,
+      studentNo: member.studentNo || member.number
+    }));
+  } catch {}
+  const byUid = new Map();
+  rows.forEach((row) => {
+    if (!byUid.has(row.uid)) byUid.set(row.uid, row);
+  });
+  return [...byUid.values()];
+}
+
+function studentDisplayNameV129(uid = "") {
+  const value = String(uid || "");
+  if (!value) return "등록된 학생이 없습니다";
+  const found = studentCandidatesV129().find((row) => row.uid === value);
+  if (!found) {
+    incrementOwnerPreviewCriticalRepairV129("studentOptionFallbackCount");
+    return "등록된 학생이 없습니다";
+  }
+  incrementOwnerPreviewCriticalRepairV129("studentOptionResolvedCount");
+  return found.label || "등록된 사용자";
+}
+
+function userDisplayNameV129(row = {}) {
+  return blockRawIdentifierTextV129(row.displayName || row.authorName || row.createdByName || row.name || row.savedName || "등록된 사용자");
+}
+
+function timetableSetByIdSafeV129(setId = "") {
+  const target = String(setId || "");
+  return (store.timetableSets || []).find((set) => String(set.id || "") === target) || null;
+}
+
+function programByReferenceV129(type = "", programId = "") {
+  const normalized = normalizeProgramTimetableSourceTypeV128(type);
+  if (!["afterschool", "specialLectures", "clubs"].includes(normalized)) return null;
+  const cfg = programConfigV26(normalized);
+  return (store[cfg.programs] || []).find((program) => String(program.id || "") === String(programId || "")) || null;
+}
+
+function addDisplayFieldV129(target, label, value, sourceField = label) {
+  const text = koreanValueForFieldV129(sourceField, value);
+  if (text !== "") target[label] = text;
+}
+
+function collectionDisplayRowV129(key = "", row = {}) {
+  const target = {};
+  const collectionKey = key === "academic" ? "academicSchedules" : key;
+  if (collectionKey === "academicSchedules") {
+    addDisplayFieldV129(target, "제목", row.title || row.name);
+    addDisplayFieldV129(target, "날짜", row.date || row.startDate || row.endDate);
+    addDisplayFieldV129(target, "내용", row.content || row.memo || row.description);
+    addDisplayFieldV129(target, "카테고리", row.category);
+    addDisplayFieldV129(target, "공개 범위", row.visibility, "visibility");
+    addDisplayFieldV129(target, "공개 동의", row.consentPublic ?? row.publicApproved, "consentPublic");
+  } else if (collectionKey === "notices") {
+    addDisplayFieldV129(target, "제목", row.title || row.name);
+    addDisplayFieldV129(target, "내용", row.content || row.memo || row.description);
+    addDisplayFieldV129(target, "과목", row.subject);
+    addDisplayFieldV129(target, "중요도", row.importance || row.priority);
+    addDisplayFieldV129(target, "공지일", row.notice_date || row.date || row.createdAt || row.createdDate);
+    addDisplayFieldV129(target, "마감 여부", row.deadline_required, "deadline_required");
+    addDisplayFieldV129(target, "마감일", row.deadline_date || row.deadline);
+    addDisplayFieldV129(target, "상태", row.status, "status");
+    addDisplayFieldV129(target, "작성자", userDisplayNameV129(row));
+  } else if (collectionKey === "assignments") {
+    addDisplayFieldV129(target, "제목", row.title || row.name);
+    addDisplayFieldV129(target, "과목", row.subject);
+    addDisplayFieldV129(target, "구분", row.type);
+    addDisplayFieldV129(target, "중요도", row.importance || row.priority);
+    addDisplayFieldV129(target, "날짜", row.date || row.deadline_date || row.deadline);
+    addDisplayFieldV129(target, "확인 상태", row.status, "status");
+    addDisplayFieldV129(target, "공개 범위", row.visibility, "visibility");
+    addDisplayFieldV129(target, "공개 동의", row.consentPublic ?? row.publicApproved, "consentPublic");
+    addDisplayFieldV129(target, "대상 학생", studentDisplayNameV129(row.studentUid || row.targetStudentId || row.ownerUid || ""));
+  } else if (collectionKey === "attendance") {
+    addDisplayFieldV129(target, "날짜", row.date);
+    addDisplayFieldV129(target, "시간", row.time);
+    addDisplayFieldV129(target, "유형", row.type);
+    addDisplayFieldV129(target, "상태", row.status || row.state, "status");
+    addDisplayFieldV129(target, "메모", row.memo || row.note);
+    addDisplayFieldV129(target, "공개 범위", row.visibility, "visibility");
+    addDisplayFieldV129(target, "공개 동의", row.consentPublic ?? row.publicApproved, "consentPublic");
+    addDisplayFieldV129(target, "대상 학생", studentDisplayNameV129(row.studentUid || row.targetStudentId || row.ownerUid || row.userId || ""));
+  } else if (collectionKey === "timetable") {
+    const set = timetableSetByIdSafeV129(row.setId || row.timetableSetId || row.scheduleSetId);
+    const sourceType = row.sourceType || set?.sourceType || set?.type || row.type || "manual";
+    const program = programByReferenceV129(sourceType, row.programId || set?.programId);
+    addDisplayFieldV129(target, "시간표 이름", set?.name || row.setName || row.scheduleName);
+    addDisplayFieldV129(target, "수업 유형", set?.type || row.type || sourceType, "classType");
+    addDisplayFieldV129(target, "프로그램 유형", sourceType, "programType");
+    addDisplayFieldV129(target, "연결 프로그램", program?.name || row.programName || "");
+    addDisplayFieldV129(target, "요일", row.day);
+    addDisplayFieldV129(target, "교시", row.period);
+    addDisplayFieldV129(target, "시간", row.time || [row.start, row.end].filter(Boolean).join("~"));
+    addDisplayFieldV129(target, "과목", row.subject || row.name);
+    addDisplayFieldV129(target, "메모", row.memo);
+  } else {
+    Object.entries(row || {}).forEach(([field, value]) => {
+      if (field === "id" || isInternalDisplayFieldV129(field)) {
+        incrementOwnerPreviewCriticalRepairV129("identifierHiddenFieldCount");
+        return;
+      }
+      addDisplayFieldV129(target, labelFor(field), value, field);
+    });
+  }
+  Object.keys(target).forEach((field) => {
+    if (!target[field]) delete target[field];
+  });
+  Object.defineProperty(target, "__pmDisplayKeyV129", { value: collectionKey, enumerable: false });
+  return target;
+}
+
+function sanitizeColumnsV129(cols = []) {
+  return (cols || []).filter((col) => {
+    const keep = !isInternalDisplayFieldV129(col);
+    if (!keep) incrementOwnerPreviewCriticalRepairV129("identifierHiddenFieldCount");
+    return keep;
+  });
+}
+
+function genericDisplayRowV129(key = "", row = {}) {
+  const result = {};
+  Object.entries(row || {}).forEach(([field, value]) => {
+    if (field === "id" || isInternalDisplayFieldV129(field)) {
+      incrementOwnerPreviewCriticalRepairV129("identifierHiddenFieldCount");
+      return;
+    }
+    result[field] = koreanValueForFieldV129(field, value);
+  });
+  Object.defineProperty(result, "__pmDisplayKeyV129", { value: key, enumerable: false });
+  return result;
+}
+
+function sanitizeUserFacingElementV129(root) {
+  if (!root || typeof document === "undefined") return root;
+  const attrs = ["title", "aria-label", "placeholder"];
+  const elements = root.querySelectorAll ? [root, ...root.querySelectorAll("*")] : [root];
+  elements.forEach((node) => {
+    attrs.forEach((attr) => {
+      const value = node.getAttribute?.(attr);
+      RAW_IDENTIFIER_VALUE_RE_V129.lastIndex = 0;
+      if (value && RAW_IDENTIFIER_VALUE_RE_V129.test(value)) {
+        RAW_IDENTIFIER_VALUE_RE_V129.lastIndex = 0;
+        node.setAttribute(attr, blockRawIdentifierTextV129(value));
+      }
+    });
+  });
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  textNodes.forEach((node) => {
+    const value = String(node.nodeValue || "");
+    RAW_IDENTIFIER_VALUE_RE_V129.lastIndex = 0;
+    if (RAW_IDENTIFIER_VALUE_RE_V129.test(value)) {
+      RAW_IDENTIFIER_VALUE_RE_V129.lastIndex = 0;
+      node.nodeValue = blockRawIdentifierTextV129(value);
+    }
+    if (/\b(studentUid|ownerUid|authorUid|authorEmail|authorRole|workspaceId|documentId|setId|programId|sourceType)\b/.test(String(node.nodeValue || ""))) {
+      node.nodeValue = String(node.nodeValue || "").replace(/\b(studentUid|ownerUid|authorUid|authorEmail|authorRole|workspaceId|documentId|setId|programId|sourceType)\b/g, "숨김");
+      incrementOwnerPreviewCriticalRepairV129("identifierHiddenFieldCount");
+    }
+  });
+  return root;
+}
+
+const showViewerBeforeV129 = typeof showViewerV5 === "function" ? showViewerV5 : null;
+if (showViewerBeforeV129) {
+  showViewerV5 = function showViewerV129(title, row = {}) {
+    const key = row.__pmDisplayKeyV129 || currentPage || "";
+    const safeRow = collectionDisplayRowV129(key, row);
+    const result = showViewerBeforeV129(title, safeRow);
+    sanitizeUserFacingElementV129(messageBody);
+    return result;
+  };
+}
+
+const simpleRowsTableBeforeV129 = typeof simpleRowsTableV16 === "function" ? simpleRowsTableV16 : null;
+if (simpleRowsTableBeforeV129) {
+  simpleRowsTableV16 = function simpleRowsTableV129(cols, rows) {
+    return sanitizeUserFacingElementV129(simpleRowsTableBeforeV129(sanitizeColumnsV129(cols), (rows || []).map((row) => genericDisplayRowV129(currentPage || "", row))));
+  };
+}
+
+const dashboardRowsBeforeV129 = typeof dashboardRowsV70 === "function" ? dashboardRowsV70 : null;
+if (dashboardRowsBeforeV129) {
+  dashboardRowsV70 = function dashboardRowsV129(key) {
+    return dashboardRowsBeforeV129(key).map((row) => genericDisplayRowV129(key, row));
+  };
+}
+
+function sanitizeStudentSelectV129(select) {
+  if (!select || select.tagName !== "SELECT") return;
+  const name = String(select.name || select.id || "").toLowerCase();
+  if (!/(student|owner|target)/.test(name)) return;
+  const required = select.required || select.closest("label")?.textContent?.includes("필수");
+  const students = studentCandidatesV129();
+  if (!students.length) {
+    select.replaceChildren(option("", "등록된 학생이 없습니다"));
+    select.disabled = true;
+    select.dataset.requiredStudentV129 = required ? "true" : "false";
+    incrementOwnerPreviewCriticalRepairV129("studentOptionFallbackCount");
+    return;
+  }
+  const current = select.value || "";
+  [...select.options].forEach((item) => {
+    if (!item.value) return;
+    item.textContent = studentDisplayNameV129(item.value);
+  });
+  if (![...select.options].some((item) => item.value === current)) select.value = "";
+}
+
+const inputNodeV4BeforeV129 = typeof inputNodeV4 === "function" ? inputNodeV4 : null;
+if (inputNodeV4BeforeV129) {
+  inputNodeV4 = function inputNodeV4V129(name, label, type, requiredOrOptions, value) {
+    const field = inputNodeV4BeforeV129(name, label, type, requiredOrOptions, value);
+    const select = field?.querySelector?.("select");
+    sanitizeStudentSelectV129(select);
+    sanitizeUserFacingElementV129(field);
+    return field;
+  };
+}
+
+function guardRequiredStudentSelectionV129(event) {
+  const blocker = editorForm?.querySelector?.('select[data-required-student-v129="true"]:disabled');
+  if (!blocker) return;
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  if (editorError) editorError.textContent = "대상 학생을 먼저 등록해 주세요.";
+}
+
+try {
+  if (editorForm && editorForm.dataset.studentGuardV129 !== "true") {
+    editorForm.dataset.studentGuardV129 = "true";
+    editorForm.addEventListener("submit", guardRequiredStudentSelectionV129, true);
+  }
+} catch {}
+
+const ATTENDANCE_STATUS_OPTIONS_V129 = ["전체", "정상", "지각", "결석", "조퇴", "인정", "처리 완료"];
+function normalizeAttendanceStatusV129(value = "") {
+  const text = String(value || "").trim();
+  if (!text || text === "전체" || /^all$/i.test(text)) return "";
+  const map = {
+    출석: "정상",
+    정상: "정상",
+    완료: "처리 완료",
+    처리완료: "처리 완료",
+    "처리 완료": "처리 완료",
+    지각: "지각",
+    결석: "결석",
+    조퇴: "조퇴",
+    인정: "인정",
+    인정결석: "인정"
+  };
+  return map[text.replace(/\s+/g, "")] || map[text] || "";
+}
+
+const filterBarBeforeV129 = typeof filterBarV7 === "function" ? filterBarV7 : null;
+if (filterBarBeforeV129) {
+  filterBarV7 = function filterBarV129(key) {
+    if (key !== "attendance") return filterBarBeforeV129(key);
+    const bar = el("div", "toolbar compact-filter filter-bar-v129");
+    filterFieldsForV7(key).forEach((field) => {
+      if (field !== "status") {
+        const input = document.createElement("input");
+        input.dataset.filter = field;
+        input.placeholder = `${labelFor(field)} 검색`;
+        input.value = sessionStorage.getItem(`filter:${key}:${field}`) || "";
+        input.addEventListener("input", () => sessionStorage.setItem(`filter:${key}:${field}`, input.value));
+        input.addEventListener("keydown", (event) => { if (event.key === "Enter") renderPage(key); });
+        bar.append(makeField(labelFor(field), `${key}-${field}-filter-v129`, input));
+        return;
+      }
+      const select = document.createElement("select");
+      ATTENDANCE_STATUS_OPTIONS_V129.forEach((label) => select.append(option(label === "전체" ? "" : label, label)));
+      const raw = sessionStorage.getItem("filter:attendance:status") || "";
+      const normalized = normalizeAttendanceStatusV129(raw);
+      if (raw && raw !== normalized) {
+        incrementOwnerPreviewCriticalRepairV129(normalized ? "attendanceFilterNormalizeCount" : "attendanceFilterInvalidResetCount");
+        if (normalized) sessionStorage.setItem("filter:attendance:status", normalized);
+        else sessionStorage.removeItem("filter:attendance:status");
+      }
+      select.value = normalized;
+      select.addEventListener("change", () => {
+        if (select.value) sessionStorage.setItem("filter:attendance:status", select.value);
+        else sessionStorage.removeItem("filter:attendance:status");
+        renderPage("attendance");
+      });
+      bar.append(makeField("상태", "attendance-status-filter-v129", select));
+    });
+    const reset = button("필터 초기화", "ghost");
+    reset.addEventListener("click", () => {
+      filterFieldsForV7(key).forEach((field) => sessionStorage.removeItem(`filter:${key}:${field}`));
+      if (globalSearch) globalSearch.value = "";
+      renderPage(key);
+    });
+    bar.append(reset);
+    return bar;
+  };
+}
+
+const filteredRowsBeforeV129 = typeof filteredRowsV7 === "function" ? filteredRowsV7 : null;
+if (filteredRowsBeforeV129) {
+  filteredRowsV7 = function filteredRowsV129(key) {
+    if (key !== "attendance") return filteredRowsBeforeV129(key);
+    const raw = sessionStorage.getItem("filter:attendance:status") || "";
+    const normalized = normalizeAttendanceStatusV129(raw);
+    if (raw && raw !== normalized) {
+      incrementOwnerPreviewCriticalRepairV129(normalized ? "attendanceFilterNormalizeCount" : "attendanceFilterInvalidResetCount");
+      if (normalized) sessionStorage.setItem("filter:attendance:status", normalized);
+      else sessionStorage.removeItem("filter:attendance:status");
+    }
+    const savedStatusFilter = sessionStorage.getItem("filter:attendance:status");
+    sessionStorage.removeItem("filter:attendance:status");
+    const rows = filteredRowsBeforeV129(key);
+    if (savedStatusFilter !== null) sessionStorage.setItem("filter:attendance:status", savedStatusFilter);
+    if (!normalized) return rows;
+    return rows.filter((row) => normalizeAttendanceStatusV129(row.status || row.state || "") === normalized);
+  };
+}
+
+function createdAtTextV129(row = {}) {
+  const text = dateValueTextV129(row.createdAt || row.createdAtMs || row.createdDate);
+  return text ? `등록일 ${text}` : "등록일 정보 없음";
+}
+
+const programCardBeforeV129 = typeof programCardV26 === "function" ? programCardV26 : null;
+if (programCardBeforeV129) {
+  programCardV26 = function programCardV129(type, program) {
+    const card = programCardBeforeV129(type, program);
+    if (!card.querySelector("[data-program-created-at-v129]")) {
+      const created = el("small", "muted", createdAtTextV129(program));
+      created.dataset.programCreatedAtV129 = "true";
+      card.append(created);
+      incrementOwnerPreviewCriticalRepairV129("programCreatedAtDisplayedCount");
+    }
+    return sanitizeUserFacingElementV129(card);
+  };
+}
+
+const addProgramBeforeV129 = typeof addProgramV26 === "function" ? addProgramV26 : null;
+if (addProgramBeforeV129) {
+  addProgramV26 = function addProgramV129(type) {
+    const cfg = programConfigV26(type);
+    const before = (store[cfg.programs] || []).length;
+    const result = addProgramBeforeV129(type);
+    const rows = store[cfg.programs] || [];
+    if (rows.length > before) {
+      const created = rows[0] || rows[rows.length - 1];
+      if (created && !created.createdAt) created.createdAt = new Date().toISOString();
+    }
+    return result;
+  };
+}
+
+function timetableProgramOptionsV129(type = "") {
+  if (!["afterschool", "specialLectures", "clubs"].includes(type)) return [];
+  const cfg = programConfigV26(type);
+  return (store[cfg.programs] || []).map((program) => ({ id: String(program.id || ""), name: blockRawIdentifierTextV129(program.name || cfg.title) })).filter((program) => program.id);
+}
+
+function quickTimetableDialogV129() {
+  const old = document.getElementById("quickTimetableDialogV129") || document.getElementById("quickTimetableDialogV128");
+  if (old) old.remove();
+  incrementOwnerPreviewCriticalRepairV129("timetableQuickModalOpenCount");
+  const dialog = document.createElement("dialog");
+  dialog.id = "quickTimetableDialogV129";
+  dialog.className = "editor-dialog quick-timetable-dialog-v129";
+  const form = document.createElement("form");
+  form.method = "dialog";
+  form.className = "quick-timetable-form-v129";
+  const status = el("p", "muted", "");
+  const type = document.createElement("select");
+  [["general", "일반"], ["school", "학교"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => type.append(option(value, label)));
+  const name = document.createElement("input");
+  name.name = "name";
+  name.required = true;
+  name.placeholder = "시간표 이름";
+  const start = document.createElement("input");
+  start.type = "date";
+  const end = document.createElement("input");
+  end.type = "date";
+  const programType = document.createElement("select");
+  [["", "연결 안 함"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => programType.append(option(value, label)));
+  const program = document.createElement("select");
+  const refreshPrograms = () => {
+    const selectedType = programType.value;
+    program.replaceChildren();
+    program.append(option("", selectedType ? "프로그램을 선택해 주세요" : "연결 안 함"));
+    timetableProgramOptionsV129(selectedType).forEach((item) => program.append(option(item.id, item.name)));
+  };
+  const syncProgramRequirement = () => {
+    const classType = type.value;
+    const needsProgram = ["afterschool", "specialLectures", "clubs"].includes(classType);
+    if (needsProgram) programType.value = classType;
+    program.required = needsProgram;
+    refreshPrograms();
+    status.textContent = needsProgram ? "선택한 수업 유형은 연결 프로그램이 필요합니다." : "일반/학교 시간표는 프로그램 연결 없이 저장할 수 있습니다.";
+  };
+  type.addEventListener("change", syncProgramRequirement);
+  programType.addEventListener("change", refreshPrograms);
+  syncProgramRequirement();
+  const actions = el("div", "row-actions");
+  const save = button("저장");
+  const cancel = button("취소", "ghost");
+  cancel.addEventListener("click", () => dialog.close());
+  save.addEventListener("click", () => {
+    const classType = type.value || "general";
+    const linkedType = programType.value || "";
+    const linkedProgram = programByReferenceV129(linkedType, program.value);
+    const requiresProgram = ["afterschool", "specialLectures", "clubs"].includes(classType);
+    if (!name.value.trim()) {
+      status.textContent = "시간표 이름을 입력해 주세요.";
+      name.focus();
+      incrementOwnerPreviewCriticalRepairV129("timetableQuickSaveFailureCount");
+      return;
+    }
+    if (requiresProgram && (!linkedProgram || linkedType !== classType)) {
+      status.textContent = "수업 유형과 일치하는 연결 프로그램을 선택해 주세요.";
+      program.focus();
+      incrementOwnerPreviewCriticalRepairV129("timetableQuickSaveFailureCount");
+      return;
+    }
+    store.timetableSets ??= [];
+    const sourceType = normalizeProgramTimetableSourceTypeV128(linkedType || classType);
+    const duplicate = store.timetableSets.find((set) => (
+      String(set.name || "") === name.value.trim()
+      && String(set.sourceType || set.type || "") === sourceType
+      && String(set.programId || "") === String(linkedProgram?.id || "")
+    ));
+    if (duplicate) {
+      sessionStorage.setItem("pm-timetable-set", duplicate.id);
+      status.textContent = "이미 같은 시간표가 있어 기존 시간표를 선택했습니다.";
+      incrementOwnerPreviewCriticalRepairV129("timetableQuickSaveSuccessCount");
+      dialog.close();
+      renderTimetableV29?.();
+      return;
+    }
+    const id = linkedProgram ? programSetIdV26(sourceType, linkedProgram) : `ttset-${sourceType}-${Date.now()}`;
+    const existing = store.timetableSets.find((set) => String(set.id || "") === String(id));
+    if (existing) {
+      sessionStorage.setItem("pm-timetable-set", existing.id);
+      dialog.close();
+      renderTimetableV29?.();
+      return;
+    }
+    store.timetableSets.push({
+      id,
+      name: name.value.trim(),
+      type: classType,
+      sourceType,
+      programId: linkedProgram?.id || "",
+      programName: linkedProgram?.name || "",
+      startDate: start.value || "",
+      endDate: end.value || "",
+      createdAt: new Date().toISOString(),
+      visiblePeriodCount: Number(store.settings?.timetablePeriods || 9)
+    });
+    sessionStorage.setItem("pm-timetable-set", id);
+    saveStore({ syncKeys: ["timetableSets"], syncReason: "quick-timetable-set-create-v129" });
+    incrementOwnerPreviewCriticalRepairV129("timetableQuickSaveSuccessCount");
+    dialog.close();
+    renderTimetableV29?.();
+  });
+  actions.append(save, cancel);
+  form.append(
+    el("h3", "", "시간표 추가"),
+    el("p", "muted", "수업 유형과 적용 기간을 확인한 뒤 시간표를 만듭니다."),
+    makeField("수업 유형", "quickTimetableClassTypeV129", type),
+    makeField("시간표 이름", "quickTimetableNameV129", name),
+    makeField("적용 시작일", "quickTimetableStartV129", start),
+    makeField("적용 종료일", "quickTimetableEndV129", end),
+    makeField("연결 프로그램 유형", "quickTimetableProgramTypeV129", programType),
+    makeField("연결 프로그램", "quickTimetableProgramV129", program),
+    status,
+    actions
+  );
+  dialog.append(form);
+  document.body.append(dialog);
+  dialog.showModal();
+  return dialog;
+}
+
+const openQuickCreateBeforeV129 = typeof openQuickCreateV70 === "function" ? openQuickCreateV70 : null;
+if (openQuickCreateBeforeV129) {
+  openQuickCreateV70 = function openQuickCreateV129(key) {
+    if (key === "timetable") return quickTimetableDialogV129();
+    return openQuickCreateBeforeV129.apply(this, arguments);
+  };
+}
+
+function replaceBadTimetableTextV129(root) {
+  if (!root?.querySelectorAll) return root;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach((node) => {
+    node.nodeValue = String(node.nodeValue || "").replace(/시간표표/g, "시간표").replace(/실시간표/g, "시간표");
+  });
+  return root;
+}
+
+const quickTimetableViewBeforeV129 = typeof quickTimetableViewV100 === "function" ? quickTimetableViewV100 : null;
+if (quickTimetableViewBeforeV129) {
+  quickTimetableViewV100 = function quickTimetableViewV129(wrap) {
+    const result = quickTimetableViewBeforeV129.apply(this, arguments);
+    replaceBadTimetableTextV129(wrap);
+    sanitizeUserFacingElementV129(wrap);
+    return result;
+  };
+}
+
+const showQuickPopupBeforeV129 = typeof showQuickPopup === "function" ? showQuickPopup : null;
+if (showQuickPopupBeforeV129) {
+  showQuickPopup = function showQuickPopupV129(type) {
+    const result = showQuickPopupBeforeV129.apply(this, arguments);
+    const popup = document.querySelector(".quick-popup,.quick-modal,.floating-quick-panel");
+    replaceBadTimetableTextV129(popup || document.body);
+    sanitizeUserFacingElementV129(popup || document.body);
+    return result;
+  };
+}
+
+const renderDashboardBeforeV129 = typeof renderDashboardV8 === "function" ? renderDashboardV8 : null;
+if (renderDashboardBeforeV129) {
+  renderDashboardV8 = function renderDashboardV129() {
+    const result = renderDashboardBeforeV129.apply(this, arguments);
+    const before = ownerPreviewCriticalRepairDiagnosticsV129.rawIdentifierDisplayBlockedCount;
+    sanitizeUserFacingElementV129(content);
+    if (ownerPreviewCriticalRepairDiagnosticsV129.rawIdentifierDisplayBlockedCount > before) {
+      incrementOwnerPreviewCriticalRepairV129("systemNoticeEmailHiddenCount");
+    }
+    return result;
+  };
+}
+
+const renderPageBeforeV129 = typeof renderPage === "function" ? renderPage : null;
+if (renderPageBeforeV129) {
+  renderPage = function renderPageV129(key) {
+    const result = renderPageBeforeV129.apply(this, arguments);
+    setTimeout(() => sanitizeUserFacingElementV129(content), 0);
+    return result;
+  };
+}
+
+function ensureOwnerPreviewStyleV129() {
+  if (document.getElementById("owner-preview-critical-repair-v129-style")) return;
+  const style = document.createElement("style");
+  style.id = "owner-preview-critical-repair-v129-style";
+  style.textContent = `
+    .quick-timetable-dialog-v129{max-width:min(860px,calc(100vw - 24px));max-height:min(760px,calc(100vh - 24px));overflow:auto}
+    .quick-timetable-form-v129{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .quick-timetable-form-v129 h3,.quick-timetable-form-v129 p,.quick-timetable-form-v129 .row-actions{grid-column:1/-1}
+    @media (max-width:720px){.quick-timetable-form-v129{grid-template-columns:1fr}}
+  `;
+  document.head.append(style);
+}
+ensureOwnerPreviewStyleV129();
+
+const ownerPreviewModeSnapshotBeforeV129 = typeof ownerPreviewModeSnapshotV128 === "function" ? ownerPreviewModeSnapshotV128 : null;
+if (ownerPreviewModeSnapshotBeforeV129) {
+  ownerPreviewModeSnapshotV128 = function ownerPreviewModeSnapshotV129() {
+    const snapshot = ownerPreviewModeSnapshotBeforeV129();
+    if (snapshot.modeSource === "unresolved") {
+      return { ...snapshot, mode: "integrated-unconfigured" };
+    }
+    return snapshot;
+  };
+}
+
+window.PMOwnerPreviewCriticalRepairDiagnostics = {
+  snapshot: () => ({
+    appVersion: APP_PATCH_VERSION_V129,
+    mode: ownerPreviewModeSnapshotV128(),
+    ...ownerPreviewCriticalRepairDiagnosticsV129,
+    attendance: window.PMAttendanceSaveDiagnostics?.snapshot?.() || {},
+    schoolProxy: window.PMSchoolIntegrationService?.diagnostics?.() || {},
+    sensitiveValueDetected: false
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V129;
+
+// Owner Preview Field Test Critical Repair Batch 3:
+// user-facing identifier cleanup, system notice author labels,
+// attendance filter selects, quick timetable set+row creation, full quick view,
+// and safe school-board proxy handling.
+const APP_PATCH_VERSION_V130 = "v130.0 - 2026-07-25";
+const ownerPreviewCriticalRepairDiagnosticsV130 = {
+  visibleUidLikeCount: 0,
+  visibleInternalLabelCount: 0,
+  lastVisibleIdentifierSurface: "none",
+  maskedSampleLength: 0,
+  optionValueOnlyCount: 0,
+  systemNoticeAuthorLabelCount: 0,
+  attendanceDateSelectCount: 0,
+  attendanceTypeSelectCount: 0,
+  attendanceStatusSelectCount: 0,
+  quickTimetableRowSaveSuccessCount: 0,
+  quickTimetableRowSaveFailureCount: 0,
+  quickTimetableViewWeeklyRenderCount: 0
+};
+
+const USER_VISIBLE_IDENTIFIER_RE_V130 = /\b(?:uid_[a-z0-9_-]{6,}|[A-Za-z0-9_-]{24,}|ws_[A-Za-z0-9_-]{4,}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i;
+const USER_VISIBLE_INTERNAL_LABEL_RE_V130 = /\b(?:studentUid|targetStudentId|ownerUid|authorUid|authorEmail|authorRole|workspaceId|documentId|setId|programId|sourceType)\b|학생\s*UID|Google\s*비밀번호|구글\s*비번/i;
+
+function safeSurfaceLabelV130(node) {
+  if (!node) return "unknown";
+  const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  if (!element) return "text";
+  const tag = String(element.tagName || "element").toLowerCase();
+  const cls = String(element.className || "").split(/\s+/).filter(Boolean).slice(0, 2).join(".");
+  return cls ? `${tag}.${cls}` : tag;
+}
+
+function scanUserFacingIdentifiersV130(root = document.body) {
+  const result = {
+    visibleUidLikeCount: 0,
+    visibleInternalLabelCount: 0,
+    lastVisibleIdentifierSurface: "none",
+    maskedSampleLength: 0,
+    optionValueOnlyCount: 0
+  };
+  if (!root || typeof document === "undefined") return result;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent) return NodeFilter.FILTER_REJECT;
+      if (parent.closest("script,style,template,option")) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  while (walker.nextNode()) {
+    const value = String(walker.currentNode.nodeValue || "");
+    if (USER_VISIBLE_IDENTIFIER_RE_V130.test(value)) {
+      result.visibleUidLikeCount += 1;
+      result.lastVisibleIdentifierSurface = safeSurfaceLabelV130(walker.currentNode);
+      result.maskedSampleLength = Math.max(result.maskedSampleLength, blockRawIdentifierTextV129?.(value)?.length || 0);
+    }
+    if (USER_VISIBLE_INTERNAL_LABEL_RE_V130.test(value)) {
+      result.visibleInternalLabelCount += 1;
+      result.lastVisibleIdentifierSurface = safeSurfaceLabelV130(walker.currentNode);
+    }
+  }
+  root.querySelectorAll?.("option").forEach((item) => {
+    const value = String(item.value || "");
+    const text = String(item.textContent || "");
+    if (USER_VISIBLE_IDENTIFIER_RE_V130.test(value) && !USER_VISIBLE_IDENTIFIER_RE_V130.test(text)) {
+      result.optionValueOnlyCount += 1;
+    }
+  });
+  Object.assign(ownerPreviewCriticalRepairDiagnosticsV130, result);
+  return result;
+}
+
+window.PMUserFacingIdentifierDiagnostics = {
+  snapshot: () => ({
+    ...scanUserFacingIdentifiersV130(),
+    sensitiveValueDetected: ownerPreviewCriticalRepairDiagnosticsV130.visibleUidLikeCount > 0
+      || ownerPreviewCriticalRepairDiagnosticsV130.visibleInternalLabelCount > 0
+  })
+};
+
+function sanitizeStudentFieldLabelV130(name = "", label = "") {
+  const key = String(name || "").toLowerCase();
+  const text = String(label || "");
+  if (/(student|owner|target)/.test(key) && /(uid|id|학생\s*uid|대상\s*학생\s*uid)/i.test(`${key} ${text}`)) {
+    return key.includes("target") ? "대상 학생" : "학생";
+  }
+  return text.replace(/학생\s*UID/gi, "학생").replace(/\bUID\b/g, "").replace(/\bID\b/g, "").trim() || text;
+}
+
+const labelForBeforeV130 = typeof labelFor === "function" ? labelFor : null;
+if (labelForBeforeV130) {
+  labelFor = function labelForV130(field) {
+    return sanitizeStudentFieldLabelV130(field, labelForBeforeV130(field));
+  };
+}
+
+function sanitizeFieldSpecsV130(fields = []) {
+  return (fields || []).map((field) => {
+    if (!Array.isArray(field)) return field;
+    const next = [...field];
+    next[1] = sanitizeStudentFieldLabelV130(next[0], next[1]);
+    return next;
+  });
+}
+
+const fieldsForV7BeforeV130 = typeof fieldsForV7 === "function" ? fieldsForV7 : null;
+if (fieldsForV7BeforeV130) {
+  fieldsForV7 = function fieldsForV130(key) {
+    return sanitizeFieldSpecsV130(fieldsForV7BeforeV130(key));
+  };
+}
+
+const fieldsForV10BeforeV130 = typeof fieldsForV10 === "function" ? fieldsForV10 : null;
+if (fieldsForV10BeforeV130) {
+  fieldsForV10 = function fieldsForV10V130(key) {
+    return sanitizeFieldSpecsV130(fieldsForV10BeforeV130(key));
+  };
+}
+
+function sanitizeStudentSelectV130(select) {
+  sanitizeStudentSelectV129?.(select);
+  if (!select || select.tagName !== "SELECT") return;
+  const name = String(select.name || select.id || "").toLowerCase();
+  if (!/(student|owner|target)/.test(name)) return;
+  [...select.options].forEach((item) => {
+    if (!item.value) return;
+    const label = studentDisplayNameV129?.(item.value) || item.textContent || "학생";
+    item.textContent = USER_VISIBLE_IDENTIFIER_RE_V130.test(label) ? "학생" : label;
+  });
+  const label = select.closest("label");
+  if (label?.firstChild?.nodeType === Node.TEXT_NODE) {
+    label.firstChild.nodeValue = sanitizeStudentFieldLabelV130(select.name || select.id, label.firstChild.nodeValue);
+  }
+}
+
+const inputNodeV4BeforeV130 = typeof inputNodeV4 === "function" ? inputNodeV4 : null;
+if (inputNodeV4BeforeV130) {
+  inputNodeV4 = function inputNodeV4V130(name, label, type, requiredOrOptions, value) {
+    const field = inputNodeV4BeforeV130(name, sanitizeStudentFieldLabelV130(name, label), type, requiredOrOptions, value);
+    sanitizeStudentSelectV130(field?.querySelector?.("select"));
+    sanitizeUserFacingElementV129?.(field);
+    return field;
+  };
+}
+
+function noticeAuthorLabelV130(row = {}) {
+  const authorRole = String(row.authorRole || row.globalRole || "").toLowerCase();
+  if (authorRole === "system_owner" || isSystemNoticeV81?.(row) || row.isSystem === true || row.system === true) {
+    ownerPreviewCriticalRepairDiagnosticsV130.systemNoticeAuthorLabelCount += 1;
+    return "시스템 관리자";
+  }
+  const name = String(row.authorName || row.createdByName || row.writerName || "").trim();
+  if (name && !USER_VISIBLE_IDENTIFIER_RE_V130.test(name) && !/시숲까/.test(name)) return name;
+  return "작성자";
+}
+
+if (typeof userDisplayNameV129 === "function") {
+  const userDisplayNameBeforeV130 = userDisplayNameV129;
+  userDisplayNameV129 = function userDisplayNameV130(row = {}) {
+    if (String(row.authorRole || row.globalRole || "").toLowerCase() === "system_owner" || isSystemNoticeV81?.(row)) {
+      return "시스템 관리자";
+    }
+    return userDisplayNameBeforeV130(row);
+  };
+}
+
+const renderNoticeCardsBeforeV130 = typeof renderNoticeCardsV81 === "function" ? renderNoticeCardsV81 : null;
+if (renderNoticeCardsBeforeV130) {
+  renderNoticeCardsV81 = function renderNoticeCardsV130(key, rows = []) {
+    const safeRows = (rows || []).map((row) => ({
+      ...row,
+      authorName: noticeAuthorLabelV130(row),
+      authorEmail: "",
+      authorUid: "",
+      created_by: noticeAuthorLabelV130(row)
+    }));
+    const wrap = renderNoticeCardsBeforeV130(key, safeRows);
+    wrap.querySelectorAll?.(".notice-card-v81").forEach((card, index) => {
+      const row = safeRows[index] || {};
+      const meta = card.querySelector("p.muted");
+      if (meta) {
+        const date = row.notice_date || row.noticeDate || row.date || row.createdAt || "";
+        const category = row.source || row.category || row.type || "일반";
+        meta.textContent = [category, date, noticeAuthorLabelV130(row)].filter(Boolean).join(" · ");
+      }
+    });
+    sanitizeUserFacingElementV129?.(wrap);
+    return wrap;
+  };
+}
+
+const ATTENDANCE_STATUS_OPTIONS_V130 = ["상태 전체", "정상", "지각", "결석", "조퇴", "인정", "처리 완료"];
+function normalizeAttendanceStatusV130(value = "") {
+  const text = String(value || "").trim();
+  if (!text || text === "상태 전체" || /^all$/i.test(text)) return "";
+  const compact = text.replace(/\s+/g, "");
+  const map = {
+    출석: "정상",
+    정상: "정상",
+    완료: "처리 완료",
+    처리완료: "처리 완료",
+    "처리 완료": "처리 완료",
+    지각: "지각",
+    결석: "결석",
+    조퇴: "조퇴",
+    인정: "인정",
+    인정결석: "인정"
+  };
+  return map[text] || map[compact] || "";
+}
+
+function uniqueAttendanceValuesV130(field) {
+  const values = new Set();
+  (store.attendance || []).forEach((row) => {
+    const value = String(row?.[field] || "").trim();
+    if (value) values.add(value);
+  });
+  return [...values].sort((a, b) => a.localeCompare(b, "ko-KR"));
+}
+
+function attendanceSelectV130(field, label, options) {
+  const select = document.createElement("select");
+  select.dataset.filter = field;
+  options.forEach(([value, text]) => select.append(option(value, text)));
+  const raw = sessionStorage.getItem(`filter:attendance:${field}`) || "";
+  const allowed = new Set(options.map(([value]) => value));
+  if (raw && !allowed.has(raw)) {
+    sessionStorage.removeItem(`filter:attendance:${field}`);
+    incrementOwnerPreviewCriticalRepairV129?.("attendanceFilterInvalidResetCount");
+  } else {
+    select.value = raw;
+  }
+  select.addEventListener("change", () => {
+    if (select.value) sessionStorage.setItem(`filter:attendance:${field}`, select.value);
+    else sessionStorage.removeItem(`filter:attendance:${field}`);
+    renderPage("attendance");
+  });
+  return makeField(label, `attendance-${field}-filter-v130`, select);
+}
+
+const filterBarBeforeV130 = typeof filterBarV7 === "function" ? filterBarV7 : null;
+if (filterBarBeforeV130) {
+  filterBarV7 = function filterBarV130(key) {
+    if (key !== "attendance") return filterBarBeforeV130(key);
+    const bar = el("div", "toolbar compact-filter filter-bar-v130");
+    const dateOptions = [["", "날짜 전체"], ...uniqueAttendanceValuesV130("date").map((value) => [value, value])];
+    const typeOptions = [["", "유형 전체"], ...uniqueAttendanceValuesV130("type").map((value) => [value, value])];
+    const statusOptions = ATTENDANCE_STATUS_OPTIONS_V130.map((label, index) => [index === 0 ? "" : label, label]);
+    bar.append(
+      attendanceSelectV130("date", "날짜", dateOptions),
+      attendanceSelectV130("type", "유형", typeOptions),
+      attendanceSelectV130("status", "상태", statusOptions)
+    );
+    ownerPreviewCriticalRepairDiagnosticsV130.attendanceDateSelectCount += 1;
+    ownerPreviewCriticalRepairDiagnosticsV130.attendanceTypeSelectCount += 1;
+    ownerPreviewCriticalRepairDiagnosticsV130.attendanceStatusSelectCount += 1;
+    const reset = button("필터 초기화", "ghost");
+    reset.addEventListener("click", () => {
+      ["date", "type", "status"].forEach((field) => sessionStorage.removeItem(`filter:attendance:${field}`));
+      if (globalSearch) globalSearch.value = "";
+      renderPage("attendance");
+    });
+    bar.append(reset);
+    return bar;
+  };
+}
+
+const filteredRowsBeforeV130 = typeof filteredRowsV7 === "function" ? filteredRowsV7 : null;
+if (filteredRowsBeforeV130) {
+  filteredRowsV7 = function filteredRowsV130(key) {
+    if (key !== "attendance") return filteredRowsBeforeV130(key);
+    const saved = {
+      date: sessionStorage.getItem("filter:attendance:date"),
+      type: sessionStorage.getItem("filter:attendance:type"),
+      status: sessionStorage.getItem("filter:attendance:status")
+    };
+    ["date", "type", "status"].forEach((field) => sessionStorage.removeItem(`filter:attendance:${field}`));
+    const baseRows = filteredRowsBeforeV130(key);
+    Object.entries(saved).forEach(([field, value]) => {
+      if (value !== null) sessionStorage.setItem(`filter:attendance:${field}`, value);
+    });
+    const validDates = new Set(uniqueAttendanceValuesV130("date"));
+    const validTypes = new Set(uniqueAttendanceValuesV130("type"));
+    let dateFilter = saved.date || "";
+    let typeFilter = saved.type || "";
+    let statusFilter = normalizeAttendanceStatusV130(saved.status || "");
+    if (dateFilter && !validDates.has(dateFilter)) {
+      sessionStorage.removeItem("filter:attendance:date");
+      dateFilter = "";
+      incrementOwnerPreviewCriticalRepairV129?.("attendanceFilterInvalidResetCount");
+    }
+    if (typeFilter && !validTypes.has(typeFilter)) {
+      sessionStorage.removeItem("filter:attendance:type");
+      typeFilter = "";
+      incrementOwnerPreviewCriticalRepairV129?.("attendanceFilterInvalidResetCount");
+    }
+    if ((saved.status || "") && !statusFilter) {
+      sessionStorage.removeItem("filter:attendance:status");
+      incrementOwnerPreviewCriticalRepairV129?.("attendanceFilterInvalidResetCount");
+    } else if ((saved.status || "") !== statusFilter) {
+      sessionStorage.setItem("filter:attendance:status", statusFilter);
+      incrementOwnerPreviewCriticalRepairV129?.("attendanceFilterNormalizeCount");
+    }
+    return baseRows.filter((row) => {
+      if (dateFilter && String(row.date || "") !== dateFilter) return false;
+      if (typeFilter && String(row.type || "") !== typeFilter) return false;
+      if (statusFilter && normalizeAttendanceStatusV130(row.status || row.state || "") !== statusFilter) return false;
+      return true;
+    });
+  };
+}
+
+function quickTimetablePeriodOptionsV130(setId = "") {
+  const source = periodsForTimetableSetV103?.(setId) || store.periodTimes || [];
+  const seen = new Set();
+  const rows = [];
+  source.forEach((row, index) => {
+    const label = normalizePeriodLabelV84?.(row.period || row.value || row.label, index) || `${index + 1}교시`;
+    const number = periodNumberV99?.(label, index + 1) || index + 1;
+    if (seen.has(number)) return;
+    seen.add(number);
+    const time = [row.start, row.end].filter(Boolean).join("~") || row.time || "";
+    rows.push({ number, value: `${number}교시`, label: time ? `${number}교시 · ${time}` : `${number}교시`, time });
+  });
+  if (!rows.length) {
+    const count = Number(store.settings?.timetablePeriods || 9);
+    for (let index = 1; index <= count; index += 1) rows.push({ number: index, value: `${index}교시`, label: `${index}교시`, time: "" });
+  }
+  return rows.sort((a, b) => a.number - b.number);
+}
+
+function quickTimetableDialogV130() {
+  const old = document.getElementById("quickTimetableDialogV130") || document.getElementById("quickTimetableDialogV129") || document.getElementById("quickTimetableDialogV128");
+  if (old) old.remove();
+  incrementOwnerPreviewCriticalRepairV129?.("timetableQuickModalOpenCount");
+  const dialog = document.createElement("dialog");
+  dialog.id = "quickTimetableDialogV130";
+  dialog.className = "editor-dialog quick-timetable-dialog-v130";
+  const form = document.createElement("form");
+  form.method = "dialog";
+  form.className = "quick-timetable-form-v130";
+  const status = el("p", "muted", "");
+  const classType = document.createElement("select");
+  [["general", "일반"], ["school", "학교"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => classType.append(option(value, label)));
+  const name = document.createElement("input");
+  name.name = "name";
+  name.required = true;
+  name.placeholder = "시간표 이름";
+  const startDate = document.createElement("input");
+  startDate.type = "date";
+  const endDate = document.createElement("input");
+  endDate.type = "date";
+  endDate.min = todayDateStringV136();
+  const programType = document.createElement("select");
+  [["", "연결 없음"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => programType.append(option(value, label)));
+  const program = document.createElement("select");
+  const refreshPrograms = () => {
+    const type = programType.value;
+    program.replaceChildren(option("", type ? "프로그램 선택" : "연결 없음"));
+    timetableProgramOptionsV129(type).forEach((item) => program.append(option(item.id, item.name)));
+  };
+  const day = document.createElement("select");
+  (programDaysV26?.() || ["월", "화", "수", "목", "금"]).forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  const refreshPeriods = () => {
+    period.replaceChildren(option("", "교시 선택"));
+    quickTimetablePeriodOptionsV130("").forEach((row) => period.append(option(row.value, row.label)));
+  };
+  refreshPeriods();
+  const subject = document.createElement("input");
+  subject.placeholder = "수업/과목명";
+  const teacher = document.createElement("input");
+  teacher.placeholder = "담당 교사";
+  const room = document.createElement("input");
+  room.placeholder = "교실";
+  const seat = document.createElement("input");
+  seat.placeholder = "좌석/위치";
+  const startTime = document.createElement("input");
+  startTime.type = "time";
+  const endTime = document.createElement("input");
+  endTime.type = "time";
+  const memo = document.createElement("textarea");
+  memo.placeholder = "메모";
+  const syncProgramRequirement = () => {
+    const type = classType.value;
+    const needsProgram = ["afterschool", "specialLectures", "clubs"].includes(type);
+    if (needsProgram) programType.value = type;
+    program.required = needsProgram;
+    refreshPrograms();
+  };
+  classType.addEventListener("change", syncProgramRequirement);
+  programType.addEventListener("change", refreshPrograms);
+  syncProgramRequirement();
+  const actions = el("div", "row-actions");
+  const save = button("저장");
+  const cancel = button("취소", "ghost");
+  cancel.addEventListener("click", () => dialog.close());
+  save.addEventListener("click", () => {
+    const type = classType.value || "general";
+    const linkedType = programType.value || "";
+    const linkedProgram = programByReferenceV129(linkedType, program.value);
+    const requiresProgram = ["afterschool", "specialLectures", "clubs"].includes(type);
+    if (!name.value.trim()) return (status.textContent = "시간표 이름을 입력해 주세요.", name.focus(), incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    if (startDate.value && endDate.value && startDate.value > endDate.value) return (status.textContent = "시작일은 종료일보다 늦을 수 없습니다.", startDate.focus(), incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    if (requiresProgram && (!linkedProgram || linkedType !== type)) return (status.textContent = "수업 유형과 일치하는 연결 프로그램을 선택해 주세요.", program.focus(), incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    if (!day.value || !period.value || !subject.value.trim()) return (status.textContent = "첫 수업의 요일, 교시, 수업명을 입력해 주세요.", incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    store.timetableSets ??= [];
+    store.timetable ??= [];
+    const sourceType = normalizeProgramTimetableSourceTypeV128(linkedType || type);
+    const duplicate = store.timetableSets.find((set) => (
+      String(set.name || "") === name.value.trim()
+      && String(set.sourceType || set.type || "") === sourceType
+      && String(set.programId || "") === String(linkedProgram?.id || "")
+    ));
+    if (duplicate) return (status.textContent = "이미 같은 시간표가 있습니다. 기존 시간표를 선택하거나 이름을 바꿔 주세요.", incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    const setId = linkedProgram ? programSetIdV26(sourceType, linkedProgram) : `ttset-${sourceType}-${Date.now()}`;
+    if (store.timetableSets.some((set) => String(set.id || "") === String(setId))) return (status.textContent = "이미 같은 시간표가 있습니다.", incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    const normalizedPeriod = normalizePeriodLabelV84(period.value, 0);
+    const time = [startTime.value, endTime.value].filter(Boolean).join("-");
+    const setRow = {
+      id: setId,
+      name: name.value.trim(),
+      type,
+      sourceType,
+      programId: linkedProgram?.id || "",
+      programName: linkedProgram?.name || "",
+      startDate: startDate.value || "",
+      endDate: endDate.value || "",
+      createdAt: new Date().toISOString(),
+      visiblePeriodCount: Math.max(Number(store.settings?.timetablePeriods || 9), periodNumberV99?.(normalizedPeriod, 1) || 1)
+    };
+    const classRow = {
+      id: `tt-${setId}-${day.value}-${normalizedPeriod}-${Date.now()}`,
+      setId,
+      day: day.value,
+      period: normalizedPeriod,
+      subject: subject.value.trim(),
+      name: subject.value.trim(),
+      teacher: teacher.value.trim(),
+      room: room.value.trim(),
+      location: seat.value.trim() || room.value.trim(),
+      seat: seat.value.trim(),
+      time,
+      start: startTime.value || "",
+      end: endTime.value || "",
+      memo: memo.value.trim(),
+      sourceType,
+      programId: linkedProgram?.id || "",
+      programName: linkedProgram?.name || ""
+    };
+    try {
+      store.timetableSets.push(setRow);
+      store.timetable.push(classRow);
+      sessionStorage.setItem("pm-timetable-set", setId);
+      saveStore({ syncKeys: ["timetableSets", "timetable"], syncReason: "quick-timetable-set-and-row-create-v130" });
+      incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveSuccessCount");
+      ownerPreviewCriticalRepairDiagnosticsV130.quickTimetableRowSaveSuccessCount += 1;
+      dialog.close();
+      renderTimetableV29?.();
+    } catch (error) {
+      store.timetableSets = store.timetableSets.filter((row) => row !== setRow);
+      store.timetable = store.timetable.filter((row) => row !== classRow);
+      ownerPreviewCriticalRepairDiagnosticsV130.quickTimetableRowSaveFailureCount += 1;
+      status.textContent = "시간표 저장에 실패했습니다. 다시 시도해 주세요.";
+    }
+  });
+  actions.append(save, cancel);
+  form.append(
+    el("h3", "", "시간표 추가"),
+    el("p", "muted", "기본 정보와 첫 수업을 함께 저장합니다."),
+    el("h4", "wide", "A. 기본 정보"),
+    makeField("수업 유형", "quickTimetableClassTypeV130", classType),
+    makeField("시간표 이름", "quickTimetableNameV130", name),
+    makeField("시작일", "quickTimetableStartV130", startDate),
+    makeField("종료일", "quickTimetableEndV130", endDate),
+    makeField("연결 프로그램 유형", "quickTimetableProgramTypeV130", programType),
+    makeField("연결 프로그램", "quickTimetableProgramV130", program),
+    el("h4", "wide", "B. 첫 수업/교시"),
+    makeField("요일", "quickTimetableDayV130", day),
+    makeField("교시", "quickTimetablePeriodV130", period),
+    makeField("수업명", "quickTimetableSubjectV130", subject),
+    makeField("교사", "quickTimetableTeacherV130", teacher),
+    makeField("교실", "quickTimetableRoomV130", room),
+    makeField("좌석/위치", "quickTimetableSeatV130", seat),
+    makeField("시작 시간", "quickTimetableStartTimeV130", startTime),
+    makeField("종료 시간", "quickTimetableEndTimeV130", endTime),
+    makeField("메모", "quickTimetableMemoV130", memo),
+    status,
+    actions
+  );
+  dialog.append(form);
+  document.body.append(dialog);
+  dialog.showModal();
+  return dialog;
+}
+
+openQuickCreateV70 = function openQuickCreateV130(key) {
+  if (key === "timetable") return quickTimetableDialogV130();
+  return openQuickCreateBeforeV129 ? openQuickCreateBeforeV129.apply(this, arguments) : undefined;
+};
+
+quickTimetableControlsV9 = function quickTimetableControlsV130() {
+  const state = activeQuickTimetableStateV104();
+  const box = el("div", "quick-tt-controls quick-tt-controls-v130");
+  const selector = document.createElement("select");
+  selector.append(option("", state.missingRequested ? "선택한 시간표를 찾을 수 없습니다" : "시간표 선택"));
+  validTimetableSetsV101().forEach((set) => selector.append(option(set.id, set.name)));
+  selector.value = state.setId || "";
+  selector.addEventListener("change", () => {
+    if (selector.value) {
+      sessionStorage.setItem("pm-timetable-set", selector.value);
+      sessionStorage.setItem("quickTimetableSet", selector.value);
+      sessionStorage.removeItem("pm-timetable-needs-selection");
+    } else {
+      sessionStorage.removeItem("quickTimetableSet");
+    }
+    showQuickPopup("timetable");
+  });
+  box.append(makeField("시간표", "quickTimetableSetV130", selector), makeField("보기 방식", "quickTimetableModeV130", quickTimetableModeControlV104()));
+  return box;
+};
+
+function renderQuickTimetableListV130(wrap, state) {
+  const days = programDaysV26?.() || QUICK_TIMETABLE_GRID_DAYS_V104 || ["월", "화", "수", "목", "금"];
+  const periods = periodsForTimetableSetV103(state.setId);
+  const list = el("div", "quick-tt-list-v130");
+  list.append(el("h4", "", `${activeTimetableSetNameV104(state.setId)} · 시간표`));
+  days.forEach((day) => {
+    const dayBox = el("section", "quick-tt-day-v130");
+    dayBox.append(el("strong", "", `${day}요일`));
+    periods.forEach((periodRow) => {
+      const row = state.rows.find((item) => item.day === day && normalizePeriodLabelV84(item.period, 0) === normalizePeriodLabelV84(periodRow.period, 0));
+      if (!row) return;
+      const item = el("div", "quick-tt-row");
+      item.append(
+        el("span", "", `${periodRow.period} ${[periodRow.start, periodRow.end].filter(Boolean).join("~") || periodRow.time || ""}`.trim()),
+        el("strong", "", row.subject || row.name || "-"),
+        el("small", "", [row.teacher, row.room || row.location].filter(Boolean).join(" / "))
+      );
+      dayBox.append(item);
+    });
+    if (dayBox.children.length > 1) list.append(dayBox);
+  });
+  if (list.children.length === 1) list.append(el("div", "empty", "등록된 수업이 없습니다."));
+  wrap.append(list);
+}
+
+quickTimetableViewV100 = function quickTimetableViewV130(wrap) {
+  const state = activeQuickTimetableStateV104();
+  wrap.append(quickTimetableControlsV9());
+  if (state.loading) return wrap.append(el("div", "empty", "시간표를 불러오는 중입니다."));
+  if (state.missingRequested) return wrap.append(el("div", "empty", "선택한 시간표를 찾을 수 없습니다. 시간표 목록에서 다시 선택해 주세요."));
+  if (!state.setId) return wrap.append(el("div", "empty", "시간표를 선택해 주세요."));
+  ownerPreviewCriticalRepairDiagnosticsV130.quickTimetableViewWeeklyRenderCount += 1;
+  if (selectedQuickTimetableModeV104() === "grid") renderQuickTimetableGridV104(wrap, state);
+  else renderQuickTimetableListV130(wrap, state);
+  replaceBadTimetableTextV129?.(wrap);
+  sanitizeUserFacingElementV129?.(wrap);
+};
+
+function ensureOwnerPreviewStyleV130() {
+  if (document.getElementById("owner-preview-critical-repair-v130-style")) return;
+  const style = document.createElement("style");
+  style.id = "owner-preview-critical-repair-v130-style";
+  style.textContent = `
+    .quick-timetable-dialog-v130{max-width:min(920px,calc(100vw - 24px));max-height:min(780px,calc(100vh - 24px));overflow:auto}
+    .quick-timetable-form-v130{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .quick-timetable-form-v130 h3,.quick-timetable-form-v130 p,.quick-timetable-form-v130 h4,.quick-timetable-form-v130 .wide,.quick-timetable-form-v130 .row-actions{grid-column:1/-1}
+    .quick-tt-list-v130{display:grid;gap:12px}
+    .quick-tt-day-v130{display:grid;gap:8px}
+    @media (max-width:720px){.quick-timetable-form-v130{grid-template-columns:1fr}}
+  `;
+  document.head.append(style);
+}
+ensureOwnerPreviewStyleV130();
+
+const ownerPreviewCriticalRepairSnapshotBeforeV130 = window.PMOwnerPreviewCriticalRepairDiagnostics?.snapshot;
+window.PMOwnerPreviewCriticalRepairDiagnostics = {
+  snapshot: () => ({
+    ...(ownerPreviewCriticalRepairSnapshotBeforeV130?.() || {}),
+    appVersion: APP_PATCH_VERSION_V130,
+    userFacingIdentifiers: window.PMUserFacingIdentifierDiagnostics?.snapshot?.() || {},
+    ...ownerPreviewCriticalRepairDiagnosticsV130,
+    schoolProxy: window.PMSchoolIntegrationService?.diagnostics?.() || {},
+    sensitiveValueDetected: (window.PMUserFacingIdentifierDiagnostics?.snapshot?.().sensitiveValueDetected || false)
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V130;
+
+// Final V131: owner-preview field-test repair batch 4. This layer keeps the
+// existing operational structures intact and narrows fixes to display, read
+// filters, attendance server-confirm writes, quick timetable creation, and
+// school-board import result classification.
+const APP_PATCH_VERSION_V131 = "v131.0 - 2026-07-25";
+
+const ownerPreviewCriticalRepairDiagnosticsV131 = {
+  systemNoticeAuthorFinalLabelCount: 0,
+  attendanceCanonicalTypeCount: 0,
+  attendanceDateNormalizeCount: 0,
+  attendanceServerConfirmAttemptCount: 0,
+  attendanceServerConfirmSuccessCount: 0,
+  attendanceServerConfirmFailureCount: 0,
+  lastAttendanceSaveDate: "",
+  lastAttendanceSaveReason: "none",
+  lastAttendanceSavePhase: "idle",
+  quickTimetableGeneralSaveAttemptCount: 0,
+  quickTimetableSchoolSaveAttemptCount: 0,
+  quickTimetableRollbackCount: 0,
+  quickTimetableDuplicateClickBlockedCount: 0,
+  schoolBoardValidEmptyCount: 0,
+  schoolBoardProxyFailureCount: 0,
+  schoolBoardFormatFailureCount: 0,
+  schoolBoardNetworkFailureCount: 0,
+  firestoreListen400Status: "hold"
+};
+
+function systemNoticeAuthorTextV131() {
+  return "시스템 관리자";
+}
+
+function isSystemNoticeRowV131(row = {}) {
+  const role = String(row.authorRole || row.globalRole || row.role || "").toLowerCase();
+  const source = String(row.source || row.category || row.type || "").toLowerCase();
+  return role === "system_owner"
+    || row.isSystem === true
+    || row.system === true
+    || source.includes("system")
+    || source.includes("시스템")
+    || Boolean(isSystemNoticeV81?.(row));
+}
+
+function noticeAuthorLabelV131(row = {}) {
+  if (isSystemNoticeRowV131(row)) {
+    ownerPreviewCriticalRepairDiagnosticsV131.systemNoticeAuthorFinalLabelCount += 1;
+    return systemNoticeAuthorTextV131();
+  }
+  const name = String(row.authorName || row.createdByName || row.writerName || row.created_by || "").trim();
+  if (name && !USER_VISIBLE_IDENTIFIER_RE_V130.test(name) && !/@/.test(name) && !/숨김/.test(name)) return name;
+  return "작성자";
+}
+
+const renderNoticeCardsBeforeV131 = typeof renderNoticeCardsV81 === "function" ? renderNoticeCardsV81 : null;
+if (renderNoticeCardsBeforeV131) {
+  renderNoticeCardsV81 = function renderNoticeCardsV131(key, rows = []) {
+    const safeRows = (rows || []).map((row) => {
+      const next = {
+        ...row,
+        authorName: noticeAuthorLabelV131(row),
+        authorEmail: "",
+        authorUid: "",
+        created_by: noticeAuthorLabelV131(row)
+      };
+      if (isSystemNoticeRowV131(row)) next.authorRole = "system_owner";
+      return next;
+    });
+    const wrap = renderNoticeCardsBeforeV131(key, safeRows);
+    wrap.querySelectorAll?.(".notice-card-v81").forEach((card, index) => {
+      const row = safeRows[index] || {};
+      const meta = card.querySelector("p.muted");
+      if (!meta) return;
+      const date = row.notice_date || row.noticeDate || row.date || row.createdAt || "";
+      const category = row.source || row.category || row.type || "일반";
+      meta.textContent = [category, date, noticeAuthorLabelV131(row)].filter(Boolean).join(" · ");
+    });
+    return wrap;
+  };
+}
+
+function attendanceTypeOptionsFromEditorV131() {
+  const values = [];
+  try {
+    const attendanceFields = typeof fieldsForV6 === "function" ? fieldsForV6("attendance") : [];
+    const typeField = attendanceFields.find((field) => field?.[0] === "type" && Array.isArray(field?.[3]));
+    values.push(...(typeField?.[3] || []));
+  } catch {}
+  try {
+    values.push(...(store.settings?.masterData?.attendanceTypes || []));
+  } catch {}
+  const fallback = ["등교", "하교", "지각", "조퇴", "결석"];
+  if (!values.length) values.push(...fallback);
+  const seen = new Set();
+  const normalized = [];
+  values.forEach((value) => {
+    const text = normalizeAttendanceTypeV131(value);
+    if (!text || seen.has(text)) return;
+    seen.add(text);
+    normalized.push(text);
+  });
+  ownerPreviewCriticalRepairDiagnosticsV131.attendanceCanonicalTypeCount = normalized.length;
+  return normalized;
+}
+
+function normalizeAttendanceTypeV131(value = "") {
+  const text = String(value || "").trim();
+  if (!text || text === "유형 전체" || /^all$/i.test(text)) return "";
+  const compact = text.replace(/\s+/g, "");
+  const map = {
+    출석: "등교",
+    정상출석: "등교",
+    등교: "등교",
+    하교: "하교",
+    지각: "지각",
+    조퇴: "조퇴",
+    결석: "결석",
+    인정결석: "결석",
+    인정: "결석"
+  };
+  return map[text] || map[compact] || text;
+}
+
+function normalizeAttendanceDateV131(value = "") {
+  const text = String(value || "").trim();
+  const hit = text.match(/^(\d{4})[-./]?(\d{1,2})[-./]?(\d{1,2})$/);
+  if (!hit) return "";
+  const normalized = `${hit[1]}-${String(hit[2]).padStart(2, "0")}-${String(hit[3]).padStart(2, "0")}`;
+  if (normalized !== text) ownerPreviewCriticalRepairDiagnosticsV131.attendanceDateNormalizeCount += 1;
+  return normalized;
+}
+
+function attendanceRowDateValuesV131() {
+  const values = new Set();
+  (store.attendance || []).forEach((row) => {
+    const date = normalizeAttendanceDateV131(row?.date || row?.attendanceDate || "");
+    if (date) values.add(date);
+  });
+  return [...values].sort((a, b) => a.localeCompare(b));
+}
+
+function attendanceSelectV131(field, label, options) {
+  const select = document.createElement("select");
+  select.dataset.filter = field;
+  options.forEach(([value, text]) => select.append(option(value, text)));
+  const raw = sessionStorage.getItem(`filter:attendance:${field}`) || "";
+  const allowed = new Set(options.map(([value]) => value));
+  if (raw && !allowed.has(raw)) {
+    sessionStorage.removeItem(`filter:attendance:${field}`);
+    incrementOwnerPreviewCriticalRepairV129?.("attendanceFilterInvalidResetCount");
+  } else {
+    select.value = raw;
+  }
+  select.addEventListener("change", () => {
+    if (select.value) sessionStorage.setItem(`filter:attendance:${field}`, select.value);
+    else sessionStorage.removeItem(`filter:attendance:${field}`);
+    renderPage("attendance");
+  });
+  return makeField(label, `attendance-${field}-filter-v131`, select);
+}
+
+const filterBarBeforeV131 = typeof filterBarV7 === "function" ? filterBarV7 : null;
+if (filterBarBeforeV131) {
+  filterBarV7 = function filterBarV131(key) {
+    if (key !== "attendance") return filterBarBeforeV131(key);
+    const bar = el("div", "toolbar compact-filter filter-bar-v131");
+    const dateOptions = [["", "날짜 전체"], ...attendanceRowDateValuesV131().map((value) => [value, value])];
+    const typeOptions = [["", "유형 전체"], ...attendanceTypeOptionsFromEditorV131().map((value) => [value, value])];
+    const statusOptions = ATTENDANCE_STATUS_OPTIONS_V130.map((label, index) => [index === 0 ? "" : label, label]);
+    bar.append(
+      attendanceSelectV131("date", "날짜", dateOptions),
+      attendanceSelectV131("type", "유형", typeOptions),
+      attendanceSelectV131("status", "상태", statusOptions)
+    );
+    const reset = button("필터 초기화", "ghost");
+    reset.type = "button";
+    reset.addEventListener("click", () => {
+      ["date", "type", "status"].forEach((field) => sessionStorage.removeItem(`filter:attendance:${field}`));
+      if (globalSearch) globalSearch.value = "";
+      renderPage("attendance");
+    });
+    bar.append(reset);
+    return bar;
+  };
+}
+
+const filteredRowsBeforeV131 = typeof filteredRowsBeforeV130 === "function" ? filteredRowsBeforeV130 : filteredRowsV7;
+filteredRowsV7 = function filteredRowsV131(key) {
+  if (key !== "attendance") return filteredRowsBeforeV131(key);
+  const saved = {
+    date: sessionStorage.getItem("filter:attendance:date") || "",
+    type: sessionStorage.getItem("filter:attendance:type") || "",
+    status: sessionStorage.getItem("filter:attendance:status") || ""
+  };
+  ["date", "type", "status"].forEach((field) => sessionStorage.removeItem(`filter:attendance:${field}`));
+  const baseRows = filteredRowsBeforeV131(key);
+  Object.entries(saved).forEach(([field, value]) => {
+    if (value) sessionStorage.setItem(`filter:attendance:${field}`, value);
+  });
+  const validDates = new Set(attendanceRowDateValuesV131());
+  const validTypes = new Set(attendanceTypeOptionsFromEditorV131());
+  let dateFilter = normalizeAttendanceDateV131(saved.date);
+  let typeFilter = normalizeAttendanceTypeV131(saved.type);
+  let statusFilter = normalizeAttendanceStatusV130(saved.status || "");
+  if (saved.date && (!dateFilter || !validDates.has(dateFilter))) {
+    sessionStorage.removeItem("filter:attendance:date");
+    dateFilter = "";
+  }
+  if (saved.type && (!typeFilter || !validTypes.has(typeFilter))) {
+    sessionStorage.removeItem("filter:attendance:type");
+    typeFilter = "";
+  }
+  if (saved.status && !statusFilter) sessionStorage.removeItem("filter:attendance:status");
+  return baseRows.filter((row) => {
+    const rowDate = normalizeAttendanceDateV131(row.date || row.attendanceDate || "");
+    const rowType = normalizeAttendanceTypeV131(row.type || row.kind || "");
+    if (dateFilter && rowDate !== dateFilter) return false;
+    if (typeFilter && rowType !== typeFilter) return false;
+    if (statusFilter && normalizeAttendanceStatusV130(row.status || row.state || "") !== statusFilter) return false;
+    return true;
+  });
+};
+
+async function saveAttendanceDirectToFirestoreV131(row = {}) {
+  attendanceSaveDiagnosticsV128.attendanceSaveAttemptCount += 1;
+  ownerPreviewCriticalRepairDiagnosticsV131.attendanceServerConfirmAttemptCount += 1;
+  const date = normalizeAttendanceDateV131(row.date || row.attendanceDate || "");
+  Object.assign(attendanceSaveDiagnosticsV128, {
+    lastAttendanceSaveDate: date,
+    lastAttendanceSavePhase: "preflight",
+    lastAttendanceSaveReason: "checking"
+  });
+  Object.assign(ownerPreviewCriticalRepairDiagnosticsV131, {
+    lastAttendanceSaveDate: date,
+    lastAttendanceSavePhase: "preflight",
+    lastAttendanceSaveReason: "checking"
+  });
+  if (!date) throw attendanceSaveErrorV128("attendance-date-invalid");
+  const safety = window.PMOperationalSafety?.status?.();
+  if (safety?.writeBlocked) throw attendanceSaveErrorV128("attendance-safety-write-blocked");
+  const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116("attendance-editor-submit", { force: true });
+  if (!workspaceId) throw attendanceSaveErrorV128("attendance-workspace-unresolved");
+  const readiness = window.PMWorkspaceDataService?.checkSaveReadiness?.(workspaceId, {
+    canonicalWorkspaceId: workspaceId,
+    record: true
+  });
+  if (!readiness?.ok) throw attendanceSaveErrorV128(readiness?.reason || "attendance-sync-not-started");
+  const runtime = await attendanceRuntimeV128();
+  const FieldValue = firebase.firestore.FieldValue;
+  const docId = String(row.id || `attendance-${date}-${Date.now()}`);
+  const payload = cleanFirestoreObjectV52({
+    ...row,
+    id: docId,
+    date,
+    type: normalizeAttendanceTypeV131(row.type || row.kind || "") || row.type || "",
+    workspaceId,
+    workspace_id: workspaceId,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  if (!row.createdAt) payload.createdAt = FieldValue.serverTimestamp();
+  Object.assign(attendanceSaveDiagnosticsV128, { lastAttendanceSavePhase: "write", lastAttendanceSaveReason: "server-write" });
+  Object.assign(ownerPreviewCriticalRepairDiagnosticsV131, { lastAttendanceSavePhase: "write", lastAttendanceSaveReason: "server-write" });
+  const ref = runtime.db.collection("workspaces").doc(workspaceId).collection("attendance").doc(docId);
+  await ref.set(payload, { merge: true });
+  Object.assign(attendanceSaveDiagnosticsV128, { lastAttendanceSavePhase: "confirm", lastAttendanceSaveReason: "server-confirm" });
+  Object.assign(ownerPreviewCriticalRepairDiagnosticsV131, { lastAttendanceSavePhase: "confirm", lastAttendanceSaveReason: "server-confirm" });
+  const confirmed = await ref.get({ source: "server" });
+  if (!confirmed.exists || confirmed.metadata?.hasPendingWrites) {
+    attendanceSaveDiagnosticsV128.attendanceServerConfirmFailureCount += 1;
+    ownerPreviewCriticalRepairDiagnosticsV131.attendanceServerConfirmFailureCount += 1;
+    throw attendanceSaveErrorV128("attendance-server-confirm-failed");
+  }
+  attendanceSaveDiagnosticsV128.attendanceServerConfirmSuccessCount += 1;
+  ownerPreviewCriticalRepairDiagnosticsV131.attendanceServerConfirmSuccessCount += 1;
+  window.PMWorkspaceDataService?.discardPendingRow?.("attendance", docId);
+  return { id: docId, ...(confirmed.data() || {}) };
+}
+
+async function saveAttendanceEditorWithServerConfirmV131(event) {
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  if (!editing || editing.key !== "attendance") return;
+  attendanceSaveDiagnosticsV128.attendanceSaveClickCount += 1;
+  const payload = Object.fromEntries(new FormData(editorForm).entries());
+  delete payload._confirm_password;
+  payload.date = normalizeAttendanceDateV131(payload.date || "");
+  payload.type = normalizeAttendanceTypeV131(payload.type || "") || payload.type;
+  payload.status = normalizeAttendanceStatusV130(payload.status) || "정상";
+  const origin = editing.origin;
+  const rows = store.attendance || (store.attendance = []);
+  const existing = editing.id ? rows.find((row) => String(row.id) === String(editing.id)) : null;
+  const row = {
+    ...(existing || {}),
+    ...payload,
+    id: editing.id || `attendance-${payload.date}-${Date.now()}`
+  };
+  try {
+    const confirmedRow = await saveAttendanceDirectToFirestoreV131(row);
+    const index = rows.findIndex((item) => String(item.id) === String(confirmedRow.id));
+    if (index >= 0) rows[index] = confirmedRow;
+    else rows.unshift(confirmedRow);
+    saveStore({ skipRemote: true, syncReason: "attendance-server-confirmed-v131" });
+    attendanceSaveDiagnosticsV128.attendanceSaveSuccessCount += 1;
+    Object.assign(attendanceSaveDiagnosticsV128, { lastAttendanceSavePhase: "completed", lastAttendanceSaveReason: "server-confirmed" });
+    Object.assign(ownerPreviewCriticalRepairDiagnosticsV131, { lastAttendanceSavePhase: "completed", lastAttendanceSaveReason: "server-confirmed" });
+    closeEditor();
+    renderPage(origin || currentPage);
+    showMessage("출결 저장 완료", "출결이 현재 워크스페이스 서버에서 확인되었습니다.");
+  } catch (error) {
+    attendanceSaveDiagnosticsV128.attendanceSaveFailureCount += 1;
+    Object.assign(attendanceSaveDiagnosticsV128, {
+      lastAttendanceSavePhase: "failed",
+      lastAttendanceSaveReason: error?.code || "attendance-save-failed"
+    });
+    Object.assign(ownerPreviewCriticalRepairDiagnosticsV131, {
+      lastAttendanceSavePhase: "failed",
+      lastAttendanceSaveReason: error?.code || "attendance-save-failed"
+    });
+    editorError.textContent = "출결을 서버에 저장하지 못했습니다. 로그인, 워크스페이스 연결, 점검 상태를 확인한 뒤 다시 시도해 주세요.";
+  }
+}
+
+async function saveEditorWithAttendanceServerConfirmV131(event) {
+  if (editing?.key === "attendance") return saveAttendanceEditorWithServerConfirmV131(event);
+  return saveEditorWithNoticeServerRefreshV116(event);
+}
+
+try {
+  const editorFormElV131 = document.getElementById("editorForm");
+  if (editorFormElV131 && editorFormElV131.dataset.attendanceServerConfirmV131 !== "true") {
+    editorFormElV131.dataset.attendanceServerConfirmV131 = "true";
+    editorFormElV131.removeEventListener("submit", saveEditorWithAttendanceServerConfirmV128, true);
+    editorFormElV131.addEventListener("submit", saveEditorWithAttendanceServerConfirmV131, true);
+  }
+} catch (error) {
+  console.info("[attendance editor V131 binding skipped]", error?.code || "unknown");
+}
+
+function isProgramTimetableTypeV131(type = "") {
+  return ["afterschool", "specialLectures", "clubs"].includes(String(type || ""));
+}
+
+function quickTimetableSourceTypeForSaveV131(type = "", linkedType = "") {
+  if (!isProgramTimetableTypeV131(type)) return "";
+  if (linkedType !== type) return "";
+  return normalizeProgramTimetableSourceTypeV128(linkedType || type);
+}
+
+let quickTimetableSaveInFlightV131 = false;
+function quickTimetableDialogV131() {
+  const old = document.getElementById("quickTimetableDialogV131") || document.getElementById("quickTimetableDialogV130") || document.getElementById("quickTimetableDialogV129") || document.getElementById("quickTimetableDialogV128");
+  if (old) old.remove();
+  incrementOwnerPreviewCriticalRepairV129?.("timetableQuickModalOpenCount");
+  const dialog = document.createElement("dialog");
+  dialog.id = "quickTimetableDialogV131";
+  dialog.className = "editor-dialog quick-timetable-dialog-v130 quick-timetable-dialog-v131";
+  const form = document.createElement("form");
+  form.method = "dialog";
+  form.className = "quick-timetable-form-v130 quick-timetable-form-v131";
+  const status = el("p", "muted", "");
+  const classType = document.createElement("select");
+  [["general", "일반"], ["school", "학교"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => classType.append(option(value, label)));
+  const name = document.createElement("input");
+  name.name = "name";
+  name.required = true;
+  name.placeholder = "시간표 이름";
+  const startDate = document.createElement("input");
+  startDate.type = "date";
+  const endDate = document.createElement("input");
+  endDate.type = "date";
+  const programType = document.createElement("select");
+  [["", "연결 없음"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => programType.append(option(value, label)));
+  const program = document.createElement("select");
+  const refreshPrograms = () => {
+    const type = programType.value;
+    program.replaceChildren(option("", type ? "프로그램 선택" : "연결 없음"));
+    timetableProgramOptionsV129(type).forEach((item) => program.append(option(item.id, item.name)));
+  };
+  const day = document.createElement("select");
+  (programDaysV26?.() || ["월", "화", "수", "목", "금"]).forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  const refreshPeriods = () => {
+    period.replaceChildren(option("", "교시 선택"));
+    quickTimetablePeriodOptionsV130("").forEach((row) => period.append(option(row.value, row.label)));
+  };
+  refreshPeriods();
+  const subject = document.createElement("input");
+  subject.placeholder = "수업/과목명";
+  const teacher = document.createElement("input");
+  teacher.placeholder = "담당 교사";
+  const room = document.createElement("input");
+  room.placeholder = "교실";
+  const seat = document.createElement("input");
+  seat.placeholder = "좌석/위치";
+  const startTime = document.createElement("input");
+  startTime.type = "time";
+  const endTime = document.createElement("input");
+  endTime.type = "time";
+  const memo = document.createElement("textarea");
+  memo.placeholder = "메모";
+  const syncProgramRequirement = () => {
+    const type = classType.value || "general";
+    const needsProgram = isProgramTimetableTypeV131(type);
+    if (needsProgram) {
+      programType.disabled = false;
+      programType.value = type;
+      program.required = true;
+    } else {
+      programType.value = "";
+      programType.disabled = true;
+      program.required = false;
+      program.value = "";
+    }
+    refreshPrograms();
+  };
+  classType.addEventListener("change", syncProgramRequirement);
+  programType.addEventListener("change", refreshPrograms);
+  syncProgramRequirement();
+  const actions = el("div", "row-actions");
+  const save = button("저장");
+  save.type = "button";
+  const cancel = button("취소", "ghost");
+  cancel.type = "button";
+  cancel.addEventListener("click", () => dialog.close());
+  save.addEventListener("click", () => {
+    if (quickTimetableSaveInFlightV131) {
+      ownerPreviewCriticalRepairDiagnosticsV131.quickTimetableDuplicateClickBlockedCount += 1;
+      return;
+    }
+    const type = classType.value || "general";
+    const linkedType = programType.value || "";
+    const linkedProgram = programByReferenceV129(linkedType, program.value);
+    const requiresProgram = isProgramTimetableTypeV131(type);
+    if (type === "general") ownerPreviewCriticalRepairDiagnosticsV131.quickTimetableGeneralSaveAttemptCount += 1;
+    if (type === "school") ownerPreviewCriticalRepairDiagnosticsV131.quickTimetableSchoolSaveAttemptCount += 1;
+    if (!name.value.trim()) return (status.textContent = "시간표 이름을 입력해 주세요.", name.focus(), incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    if (startDate.value && endDate.value && startDate.value > endDate.value) return (status.textContent = "시작일은 종료일보다 늦을 수 없습니다.", startDate.focus(), incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    if (requiresProgram && (!linkedProgram || linkedType !== type)) return (status.textContent = "수업 유형과 일치하는 연결 프로그램을 선택해 주세요.", program.focus(), incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    if (!day.value || !period.value || !subject.value.trim()) return (status.textContent = "첫 수업의 요일, 교시, 수업명을 입력해 주세요.", incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    store.timetableSets ??= [];
+    store.timetable ??= [];
+    const sourceType = quickTimetableSourceTypeForSaveV131(type, linkedType);
+    const duplicate = store.timetableSets.find((set) => {
+      const sameName = String(set.name || "") === name.value.trim();
+      if (!sameName) return false;
+      if (!requiresProgram) return String(set.type || "") === type && !String(set.programId || "");
+      return String(set.sourceType || set.type || "") === sourceType && String(set.programId || "") === String(linkedProgram?.id || "");
+    });
+    if (duplicate) return (status.textContent = "이미 같은 시간표가 있습니다. 기존 시간표를 선택하거나 이름을 바꿔 주세요.", incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    const setId = requiresProgram ? programSetIdV26(sourceType, linkedProgram) : `ttset-${type}-${Date.now()}`;
+    if (store.timetableSets.some((set) => String(set.id || "") === String(setId))) return (status.textContent = "이미 같은 시간표가 있습니다.", incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveFailureCount"));
+    const normalizedPeriod = normalizePeriodLabelV84(period.value, 0);
+    const time = [startTime.value, endTime.value].filter(Boolean).join("-");
+    const setRow = {
+      id: setId,
+      name: name.value.trim(),
+      type,
+      startDate: startDate.value || "",
+      endDate: endDate.value || "",
+      createdAt: new Date().toISOString(),
+      visiblePeriodCount: Math.max(Number(store.settings?.timetablePeriods || 9), periodNumberV99?.(normalizedPeriod, 1) || 1)
+    };
+    const classRow = {
+      id: `tt-${setId}-${day.value}-${normalizedPeriod}-${Date.now()}`,
+      setId,
+      day: day.value,
+      period: normalizedPeriod,
+      subject: subject.value.trim(),
+      name: subject.value.trim(),
+      teacher: teacher.value.trim(),
+      room: room.value.trim(),
+      location: seat.value.trim() || room.value.trim(),
+      seat: seat.value.trim(),
+      time,
+      start: startTime.value || "",
+      end: endTime.value || "",
+      memo: memo.value.trim()
+    };
+    if (requiresProgram) {
+      Object.assign(setRow, {
+        sourceType,
+        programId: linkedProgram?.id || "",
+        programName: linkedProgram?.name || ""
+      });
+      Object.assign(classRow, {
+        sourceType,
+        programId: linkedProgram?.id || "",
+        programName: linkedProgram?.name || ""
+      });
+    }
+    quickTimetableSaveInFlightV131 = true;
+    save.disabled = true;
+    try {
+      store.timetableSets.push(setRow);
+      store.timetable.push(classRow);
+      sessionStorage.setItem("pm-timetable-set", setId);
+      saveStore({ syncKeys: ["timetableSets", "timetable"], syncReason: "quick-timetable-set-and-row-create-v131" });
+      incrementOwnerPreviewCriticalRepairV129?.("timetableQuickSaveSuccessCount");
+      ownerPreviewCriticalRepairDiagnosticsV130.quickTimetableRowSaveSuccessCount += 1;
+      dialog.close();
+      renderTimetableV29?.();
+    } catch (error) {
+      store.timetableSets = store.timetableSets.filter((row) => row !== setRow);
+      store.timetable = store.timetable.filter((row) => row !== classRow);
+      ownerPreviewCriticalRepairDiagnosticsV131.quickTimetableRollbackCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV130.quickTimetableRowSaveFailureCount += 1;
+      status.textContent = "시간표 저장에 실패했습니다. 저장 상태를 확인한 뒤 다시 시도해 주세요.";
+    } finally {
+      quickTimetableSaveInFlightV131 = false;
+      save.disabled = false;
+    }
+  });
+  actions.append(save, cancel);
+  form.append(
+    el("h3", "", "시간표 추가"),
+    el("p", "muted", "기본 정보와 첫 수업을 함께 저장합니다."),
+    el("h4", "wide", "A. 기본 정보"),
+    makeField("수업 유형", "quickTimetableClassTypeV131", classType),
+    makeField("시간표 이름", "quickTimetableNameV131", name),
+    makeField("시작일", "quickTimetableStartV131", startDate),
+    makeField("종료일", "quickTimetableEndV131", endDate),
+    makeField("연결 프로그램 유형", "quickTimetableProgramTypeV131", programType),
+    makeField("연결 프로그램", "quickTimetableProgramV131", program),
+    el("h4", "wide", "B. 첫 수업/교시"),
+    makeField("요일", "quickTimetableDayV131", day),
+    makeField("교시", "quickTimetablePeriodV131", period),
+    makeField("수업명", "quickTimetableSubjectV131", subject),
+    makeField("교사", "quickTimetableTeacherV131", teacher),
+    makeField("교실", "quickTimetableRoomV131", room),
+    makeField("좌석/위치", "quickTimetableSeatV131", seat),
+    makeField("시작 시간", "quickTimetableStartTimeV131", startTime),
+    makeField("종료 시간", "quickTimetableEndTimeV131", endTime),
+    makeField("메모", "quickTimetableMemoV131", memo),
+    status,
+    actions
+  );
+  dialog.append(form);
+  document.body.append(dialog);
+  dialog.showModal();
+  return dialog;
+}
+
+openQuickCreateV70 = function openQuickCreateV131(key) {
+  if (key === "timetable") return quickTimetableDialogV131();
+  return openQuickCreateBeforeV129 ? openQuickCreateBeforeV129.apply(this, arguments) : undefined;
+};
+
+function schoolBoardUserMessageV131(error) {
+  const code = String(error?.code || error?.message || "");
+  if (/proxy.*not-configured|proxy.*unavailable|proxy.*cooldown/.test(code)) return "학교 게시판 연동 서버가 아직 설정되지 않았습니다.";
+  if (/format/.test(code)) return "학교 게시판 응답을 확인할 수 없습니다.";
+  if (/network|failed|HTTP/i.test(code)) return "학교 게시판 연결에 실패했습니다.";
+  return "학교 게시판 연결에 실패했습니다.";
+}
+
+if (window.PMSchoolIntegrationService?.fetchHtml && window.PMSchoolIntegrationService?.parseBoardHtml) {
+  window.PMSchoolIntegrationService.fetchBoard = async function fetchBoardOwnerPreviewV131(url, source) {
+    try {
+      const html = await window.PMSchoolIntegrationService.fetchHtml(url);
+      if (!window.PMSchoolIntegrationService.looksLikeBoardResponse?.(html)) {
+        ownerPreviewCriticalRepairDiagnosticsV131.schoolBoardFormatFailureCount += 1;
+        const error = new Error("학교 게시판 응답을 확인할 수 없습니다.");
+        error.code = "school-board-format-invalid";
+        throw error;
+      }
+      return window.PMSchoolIntegrationService.parseBoardHtml(html, url, source);
+    } catch (error) {
+      const code = String(error?.code || error?.message || "");
+      if (/proxy/.test(code)) ownerPreviewCriticalRepairDiagnosticsV131.schoolBoardProxyFailureCount += 1;
+      else if (/format/.test(code)) ownerPreviewCriticalRepairDiagnosticsV131.schoolBoardFormatFailureCount += 1;
+      else ownerPreviewCriticalRepairDiagnosticsV131.schoolBoardNetworkFailureCount += 1;
+      const safe = new Error(schoolBoardUserMessageV131(error));
+      safe.code = error?.code || "school-board-network-failed";
+      throw safe;
+    }
+  };
+  window.PMSchoolIntegrationService.__ownerPreviewSafeProxyV131 = true;
+}
+
+if (typeof fetchSchoolBoardV66 === "function") {
+  fetchSchoolBoardV66 = async function fetchSchoolBoardV131(context) {
+    const key = context === "homeLetters" ? "homeLetters" : "schoolNotices";
+    const label = schoolBoardLabelV66(context);
+    const rows = await window.PMSchoolIntegrationService.fetchBoard(schoolBoardUrlV66(context), `동아고 ${label}`);
+    if (!rows.length) {
+      ownerPreviewCriticalRepairDiagnosticsV131.schoolBoardValidEmptyCount += 1;
+      showMessage("가져오기 완료", "새로운 학교 공지가 없습니다.");
+      renderSchoolBoardV66(context);
+      return;
+    }
+    const added = mergeSchoolRowsV64(key, rows);
+    saveStore();
+    showMessage("가져오기 완료", `${label} ${rows.length}개 확인, 새 항목 ${added}개 저장`);
+    renderSchoolBoardV66(context);
+  };
+}
+
+const attendanceSaveSnapshotBeforeV131 = window.PMAttendanceSaveDiagnostics?.snapshot;
+window.PMAttendanceSaveDiagnostics = {
+  snapshot: () => ({
+    ...(attendanceSaveSnapshotBeforeV131?.() || {}),
+    attendanceServerConfirmAttemptCount: ownerPreviewCriticalRepairDiagnosticsV131.attendanceServerConfirmAttemptCount,
+    attendanceServerConfirmSuccessCount: ownerPreviewCriticalRepairDiagnosticsV131.attendanceServerConfirmSuccessCount,
+    attendanceServerConfirmFailureCount: ownerPreviewCriticalRepairDiagnosticsV131.attendanceServerConfirmFailureCount,
+    lastAttendanceSaveDate: ownerPreviewCriticalRepairDiagnosticsV131.lastAttendanceSaveDate || attendanceSaveDiagnosticsV128.lastAttendanceSaveDate || "",
+    lastAttendanceSaveReason: ownerPreviewCriticalRepairDiagnosticsV131.lastAttendanceSaveReason || attendanceSaveDiagnosticsV128.lastAttendanceSaveReason || "none",
+    lastAttendanceSavePhase: ownerPreviewCriticalRepairDiagnosticsV131.lastAttendanceSavePhase || attendanceSaveDiagnosticsV128.lastAttendanceSavePhase || "idle"
+  })
+};
+
+const ownerPreviewCriticalRepairSnapshotBeforeV131 = window.PMOwnerPreviewCriticalRepairDiagnostics?.snapshot;
+window.PMOwnerPreviewCriticalRepairDiagnostics = {
+  snapshot: () => ({
+    ...(ownerPreviewCriticalRepairSnapshotBeforeV131?.() || {}),
+    appVersion: APP_PATCH_VERSION_V131,
+    attendance: window.PMAttendanceSaveDiagnostics?.snapshot?.() || {},
+    canonicalAttendanceTypes: attendanceTypeOptionsFromEditorV131(),
+    ...ownerPreviewCriticalRepairDiagnosticsV131,
+    schoolProxy: window.PMSchoolIntegrationService?.diagnostics?.() || {},
+    userFacingIdentifiers: window.PMUserFacingIdentifierDiagnostics?.snapshot?.() || {},
+    sensitiveValueDetected: (window.PMUserFacingIdentifierDiagnostics?.snapshot?.().sensitiveValueDetected || false)
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V131;
+
+// Owner Preview field-test critical repair batch 5. This final layer fixes
+// false-success writes and rendering diagnostics without changing the existing
+// workspace sync/listener design.
+const APP_PATCH_VERSION_V132 = "v132.0 - 2026-07-25";
+
+const ownerPreviewCriticalRepairDiagnosticsV132 = {
+  attendanceEditorSaveClickCount: 0,
+  attendanceSaveAttemptCount: 0,
+  attendanceSaveBlockedCount: 0,
+  attendanceServerWriteAttemptCount: 0,
+  attendanceServerWriteSuccessCount: 0,
+  attendanceServerWriteFailureCount: 0,
+  attendanceServerConfirmAttemptCount: 0,
+  attendanceServerConfirmSuccessCount: 0,
+  attendanceServerConfirmFailureCount: 0,
+  attendanceListRefreshAttemptCount: 0,
+  attendanceListRefreshSuccessCount: 0,
+  attendanceListRefreshFailureCount: 0,
+  attendanceFalseSuccessPreventedCount: 0,
+  lastAttendanceSavePhase: "idle",
+  lastAttendanceSaveReason: "none",
+  lastAttendanceDate: "",
+  lastAttendanceDocumentMasked: "",
+  attendanceActiveSubmitPath: "editorForm-capture-v132",
+  quickTimetableSaveClickCount: 0,
+  quickTimetableSaveAttemptCount: 0,
+  quickTimetableSaveBlockedCount: 0,
+  quickTimetableBatchAttemptCount: 0,
+  quickTimetableBatchSuccessCount: 0,
+  quickTimetableBatchFailureCount: 0,
+  quickTimetableSetConfirmSuccessCount: 0,
+  quickTimetableRowConfirmSuccessCount: 0,
+  quickTimetablePartialWriteDetectedCount: 0,
+  quickTimetableDuplicateClickBlockedCount: 0,
+  lastQuickTimetableSavePhase: "idle",
+  lastQuickTimetableSaveReason: "none",
+  lastQuickTimetableType: "",
+  lastQuickTimetablePeriodCount: 0,
+  lastQuickTimetableProgramRequired: false,
+  lastQuickTimetableProgramResolved: false,
+  systemNoticeLoadAttemptCount: 0,
+  systemNoticeLoadSuccessCount: 0,
+  systemNoticeLoadFailureCount: 0,
+  systemNoticeRenderCount: 0,
+  systemNoticeEmptyConfirmedCount: 0,
+  systemNoticeStaleDataPreservedCount: 0,
+  systemNoticeFooterSanitizedCount: 0,
+  lastSystemNoticeLoadPhase: "idle",
+  lastSystemNoticeLoadReason: "none",
+  lastSystemNoticeServerCount: 0,
+  schoolProxyHtmlResponseBlockedCount: 0,
+  schoolProxyJsonPayloadSuccessCount: 0,
+  schoolProxyJsonEmptyCount: 0,
+  schoolProxyServiceWorkerBypassExpected: true
+};
+
+function maskOwnerPreviewIdV132(value = "") {
+  const text = String(value || "");
+  if (!text) return "";
+  return `${text.slice(0, 4)}...${text.slice(-4)}`;
+}
+
+function setAttendanceSavePhaseV132(phase, reason = "none", patch = {}) {
+  Object.assign(ownerPreviewCriticalRepairDiagnosticsV132, {
+    lastAttendanceSavePhase: phase,
+    lastAttendanceSaveReason: reason,
+    ...patch
+  });
+  if (typeof attendanceSaveDiagnosticsV128 === "object") {
+    Object.assign(attendanceSaveDiagnosticsV128, {
+      lastAttendanceSavePhase: phase,
+      lastAttendanceSaveReason: reason,
+      lastAttendanceSaveDate: patch.lastAttendanceDate || ownerPreviewCriticalRepairDiagnosticsV132.lastAttendanceDate || ""
+    });
+  }
+}
+
+function attendanceSafeErrorV132(code) {
+  const error = typeof attendanceSaveErrorV128 === "function" ? attendanceSaveErrorV128(code) : new Error(code);
+  error.code = code;
+  return error;
+}
+
+async function attendanceRuntimeV132() {
+  if (typeof attendanceRuntimeV128 === "function") return attendanceRuntimeV128();
+  if (!firebase?.apps?.length) throw attendanceSafeErrorV132("attendance-firebase-unavailable");
+  return { db: firebase.firestore(), auth: firebase.auth() };
+}
+
+async function refreshAttendanceListFromServerV132(runtime, workspaceId, expectedDocId = "") {
+  ownerPreviewCriticalRepairDiagnosticsV132.attendanceListRefreshAttemptCount += 1;
+  setAttendanceSavePhaseV132("refresh", "server-list-refresh");
+  try {
+    const snapshot = await runtime.db.collection("workspaces").doc(workspaceId).collection("attendance").get({ source: "server" });
+    const rows = [];
+    let foundExpected = !expectedDocId;
+    snapshot.forEach((doc) => {
+      const row = { id: doc.id, ...(doc.data() || {}) };
+      if (String(doc.id) === String(expectedDocId)) foundExpected = true;
+      rows.push(row);
+    });
+    store.attendance = rows;
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceListRefreshSuccessCount += 1;
+    if (!foundExpected) {
+      ownerPreviewCriticalRepairDiagnosticsV132.attendanceFalseSuccessPreventedCount += 1;
+      throw attendanceSafeErrorV132("attendance-server-list-confirm-failed");
+    }
+    return rows;
+  } catch (error) {
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceListRefreshFailureCount += 1;
+    if (error?.code) throw error;
+    throw attendanceSafeErrorV132("attendance-list-refresh-failed");
+  }
+}
+
+async function saveAttendanceDirectToFirestoreV132(row = {}) {
+  ownerPreviewCriticalRepairDiagnosticsV132.attendanceSaveAttemptCount += 1;
+  const date = normalizeAttendanceDateV131(row.date || row.attendanceDate || "");
+  const docId = String(row.id || `attendance-${date}-${Date.now()}`);
+  Object.assign(ownerPreviewCriticalRepairDiagnosticsV132, {
+    lastAttendanceDate: date,
+    lastAttendanceDocumentMasked: maskOwnerPreviewIdV132(docId)
+  });
+  setAttendanceSavePhaseV132("preflight", "checking");
+  if (!date) {
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceSaveBlockedCount += 1;
+    throw attendanceSafeErrorV132("attendance-date-invalid");
+  }
+  const safety = window.PMOperationalSafety?.status?.();
+  if (safety?.writeBlocked) {
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceSaveBlockedCount += 1;
+    throw attendanceSafeErrorV132("attendance-safety-write-blocked");
+  }
+  const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116("attendance-editor-submit-v132", { force: true });
+  if (!workspaceId) {
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceSaveBlockedCount += 1;
+    throw attendanceSafeErrorV132("attendance-workspace-unresolved");
+  }
+  const readiness = window.PMWorkspaceDataService?.checkSaveReadiness?.(workspaceId, {
+    canonicalWorkspaceId: workspaceId,
+    record: true
+  });
+  if (!readiness?.ok) {
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceSaveBlockedCount += 1;
+    throw attendanceSafeErrorV132(readiness?.reason || "attendance-sync-not-started");
+  }
+  const runtime = await attendanceRuntimeV132();
+  const FieldValue = firebase.firestore.FieldValue;
+  const payload = cleanFirestoreObjectV52({
+    ...row,
+    id: docId,
+    date,
+    attendanceDate: date,
+    type: normalizeAttendanceTypeV131(row.type || row.kind || "") || row.type || "",
+    status: normalizeAttendanceStatusV130(row.status || row.state || "") || row.status || "",
+    workspaceId,
+    workspace_id: workspaceId,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  if (!row.createdAt) payload.createdAt = FieldValue.serverTimestamp();
+  const ref = runtime.db.collection("workspaces").doc(workspaceId).collection("attendance").doc(docId);
+  setAttendanceSavePhaseV132("write", "server-write");
+  ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerWriteAttemptCount += 1;
+  try {
+    await ref.set(payload, { merge: true });
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerWriteSuccessCount += 1;
+  } catch (error) {
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerWriteFailureCount += 1;
+    throw attendanceSafeErrorV132(error?.code || "attendance-server-write-failed");
+  }
+  setAttendanceSavePhaseV132("confirm", "server-confirm");
+  ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerConfirmAttemptCount += 1;
+  const confirmed = await ref.get({ source: "server" });
+  if (!confirmed.exists || confirmed.metadata?.hasPendingWrites) {
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerConfirmFailureCount += 1;
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceFalseSuccessPreventedCount += 1;
+    throw attendanceSafeErrorV132("attendance-server-confirm-failed");
+  }
+  ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerConfirmSuccessCount += 1;
+  const refreshedRows = await refreshAttendanceListFromServerV132(runtime, workspaceId, docId);
+  window.PMWorkspaceDataService?.discardPendingRow?.("attendance", docId);
+  const confirmedRow = refreshedRows.find((item) => String(item.id) === String(docId)) || { id: docId, ...(confirmed.data() || {}) };
+  return confirmedRow;
+}
+
+let attendanceEditorSaveInFlightV132 = false;
+async function saveAttendanceEditorWithServerConfirmV132(event) {
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  if (!editing || editing.key !== "attendance") return;
+  ownerPreviewCriticalRepairDiagnosticsV132.attendanceEditorSaveClickCount += 1;
+  if (attendanceEditorSaveInFlightV132) {
+    ownerPreviewCriticalRepairDiagnosticsV132.attendanceSaveBlockedCount += 1;
+    setAttendanceSavePhaseV132("blocked", "duplicate-click");
+    return;
+  }
+  attendanceEditorSaveInFlightV132 = true;
+  const origin = editing.origin || currentPage || "attendance";
+  const existingRows = store.attendance || (store.attendance = []);
+  const previousRows = existingRows.slice();
+  try {
+    const payload = Object.fromEntries(new FormData(editorForm).entries());
+    delete payload._confirm_password;
+    payload.date = normalizeAttendanceDateV131(payload.date || "");
+    payload.type = normalizeAttendanceTypeV131(payload.type || "") || payload.type;
+    payload.status = normalizeAttendanceStatusV130(payload.status || "") || "정상";
+    const existing = editing.id ? previousRows.find((row) => String(row.id) === String(editing.id)) : null;
+    const row = { ...(existing || {}), ...payload, id: editing.id || `attendance-${payload.date}-${Date.now()}` };
+    const confirmedRow = await saveAttendanceDirectToFirestoreV132(row);
+    saveStore({ skipRemote: true, syncReason: "attendance-server-confirmed-v132" });
+    setAttendanceSavePhaseV132("completed", "server-confirmed");
+    closeEditor();
+    renderPage(origin);
+    const visible = (typeof filteredRowsV7 === "function" ? filteredRowsV7("attendance") : store.attendance || [])
+      .some((item) => String(item.id) === String(confirmedRow.id));
+    const body = visible
+      ? "출결이 현재 워크스페이스 서버에서 확인되었습니다."
+      : "출결은 서버에 저장되었지만 현재 필터 조건과 달라 목록에 표시되지 않습니다.";
+    showMessage("출결 저장 완료", body);
+  } catch (error) {
+    store.attendance = previousRows;
+    saveStore({ skipRemote: true, syncReason: "attendance-server-confirm-failed-v132" });
+    setAttendanceSavePhaseV132("failed", error?.code || "attendance-save-failed");
+    editorError.textContent = "출결을 서버에 저장하지 못했습니다. 로그인, 워크스페이스 연결, 권한 상태를 확인한 뒤 다시 시도해 주세요.";
+  } finally {
+    attendanceEditorSaveInFlightV132 = false;
+  }
+}
+
+async function saveEditorWithAttendanceServerConfirmV132(event) {
+  if (editing?.key === "attendance") return saveAttendanceEditorWithServerConfirmV132(event);
+  return saveEditorWithNoticeServerRefreshV116(event);
+}
+
+try {
+  const editorFormElV132 = document.getElementById("editorForm");
+  if (editorFormElV132 && editorFormElV132.dataset.attendanceServerConfirmV132 !== "true") {
+    editorFormElV132.dataset.attendanceServerConfirmV132 = "true";
+    editorFormElV132.removeEventListener("submit", saveEditorWithAttendanceServerConfirmV128, true);
+    editorFormElV132.removeEventListener("submit", saveEditorWithAttendanceServerConfirmV131, true);
+    editorFormElV132.addEventListener("submit", saveEditorWithAttendanceServerConfirmV132, true);
+  }
+} catch (error) {
+  console.info("[attendance editor V132 binding skipped]", error?.code || "unknown");
+}
+
+function activePeriodRowsForQuickTimetableV132() {
+  const activeSet = sessionStorage.getItem("pm-timetable-set") || sessionStorage.getItem("quickTimetableSet") || "";
+  const rows = (typeof periodsForTimetableSetV103 === "function" ? periodsForTimetableSetV103(activeSet) : [])
+    .filter((row) => row && row.deleted !== true && row.active !== false);
+  const seen = new Set();
+  const result = [];
+  rows.forEach((row, index) => {
+    const label = normalizePeriodLabelV84?.(row.period || row.value || row.label, index) || "";
+    const number = periodNumberV99?.(label, index + 1) || index + 1;
+    if (!label || seen.has(number)) return;
+    seen.add(number);
+    const time = [row.start, row.end].filter(Boolean).join("~") || row.time || "";
+    result.push({ number, value: `${number}교시`, label: time ? `${number}교시 · ${time}` : `${number}교시`, time });
+  });
+  result.sort((a, b) => a.number - b.number);
+  ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetablePeriodCount = result.length;
+  return result;
+}
+
+async function quickTimetableRuntimeV132() {
+  if (typeof attendanceRuntimeV132 === "function") return attendanceRuntimeV132();
+  if (!firebase?.apps?.length) throw new Error("quick-timetable-firebase-unavailable");
+  return { db: firebase.firestore(), auth: firebase.auth() };
+}
+
+async function saveQuickTimetableRemoteV132({ setRow, classRow, type, requiresProgram, linkedProgram }) {
+  ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableSaveAttemptCount += 1;
+  Object.assign(ownerPreviewCriticalRepairDiagnosticsV132, {
+    lastQuickTimetableSavePhase: "preflight",
+    lastQuickTimetableSaveReason: "checking",
+    lastQuickTimetableType: type,
+    lastQuickTimetableProgramRequired: !!requiresProgram,
+    lastQuickTimetableProgramResolved: !!linkedProgram
+  });
+  const safety = window.PMOperationalSafety?.status?.();
+  if (safety?.writeBlocked) {
+    ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableSaveBlockedCount += 1;
+    throw new Error("quick-timetable-safety-write-blocked");
+  }
+  const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116("quick-timetable-create-v132", { force: true });
+  if (!workspaceId) {
+    ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableSaveBlockedCount += 1;
+    throw new Error("quick-timetable-workspace-unresolved");
+  }
+  const readiness = window.PMWorkspaceDataService?.checkSaveReadiness?.(workspaceId, {
+    canonicalWorkspaceId: workspaceId,
+    record: true
+  });
+  if (!readiness?.ok) {
+    ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableSaveBlockedCount += 1;
+    throw new Error(readiness?.reason || "quick-timetable-sync-not-started");
+  }
+  const runtime = await quickTimetableRuntimeV132();
+  const FieldValue = firebase.firestore.FieldValue;
+  const setPayload = cleanFirestoreObjectV52({ ...setRow, workspaceId, workspace_id: workspaceId, updatedAt: FieldValue.serverTimestamp() });
+  const rowPayload = cleanFirestoreObjectV52({ ...classRow, workspaceId, workspace_id: workspaceId, updatedAt: FieldValue.serverTimestamp() });
+  const setRef = runtime.db.collection("workspaces").doc(workspaceId).collection("timetableSets").doc(String(setRow.id));
+  const rowRef = runtime.db.collection("workspaces").doc(workspaceId).collection("timetable").doc(String(classRow.id));
+  const batch = runtime.db.batch();
+  batch.set(setRef, setPayload, { merge: true });
+  batch.set(rowRef, rowPayload, { merge: true });
+  ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableBatchAttemptCount += 1;
+  ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetableSavePhase = "batch";
+  ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetableSaveReason = "server-batch";
+  try {
+    await batch.commit();
+    ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableBatchSuccessCount += 1;
+  } catch (error) {
+    ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableBatchFailureCount += 1;
+    throw error;
+  }
+  ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetableSavePhase = "confirm";
+  ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetableSaveReason = "server-confirm";
+  const [setSnap, rowSnap] = await Promise.all([setRef.get({ source: "server" }), rowRef.get({ source: "server" })]);
+  if (setSnap.exists) ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableSetConfirmSuccessCount += 1;
+  if (rowSnap.exists) ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableRowConfirmSuccessCount += 1;
+  if (!setSnap.exists || !rowSnap.exists) {
+    ownerPreviewCriticalRepairDiagnosticsV132.quickTimetablePartialWriteDetectedCount += 1;
+    throw new Error("quick-timetable-server-confirm-failed");
+  }
+  window.PMWorkspaceDataService?.discardPendingRow?.("timetableSets", setRow.id);
+  window.PMWorkspaceDataService?.discardPendingRow?.("timetable", classRow.id);
+  return {
+    setRow: { id: setSnap.id, ...(setSnap.data() || {}) },
+    classRow: { id: rowSnap.id, ...(rowSnap.data() || {}) }
+  };
+}
+
+let quickTimetableSaveInFlightV132 = false;
+function quickTimetableDialogV132() {
+  const old = document.getElementById("quickTimetableDialogV132") || document.getElementById("quickTimetableDialogV131") || document.getElementById("quickTimetableDialogV130") || document.getElementById("quickTimetableDialogV129") || document.getElementById("quickTimetableDialogV128");
+  if (old) old.remove();
+  incrementOwnerPreviewCriticalRepairV129?.("timetableQuickModalOpenCount");
+  const dialog = document.createElement("dialog");
+  dialog.id = "quickTimetableDialogV132";
+  dialog.className = "editor-dialog quick-timetable-dialog-v130 quick-timetable-dialog-v132";
+  const form = document.createElement("form");
+  form.method = "dialog";
+  form.className = "quick-timetable-form-v130 quick-timetable-form-v132";
+  const status = el("p", "muted", "");
+  const classType = document.createElement("select");
+  [["general", "일반"], ["school", "학교"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => classType.append(option(value, label)));
+  const name = document.createElement("input");
+  name.name = "name";
+  name.required = true;
+  name.placeholder = "시간표 이름";
+  const startDate = document.createElement("input");
+  startDate.type = "date";
+  const endDate = document.createElement("input");
+  endDate.type = "date";
+  const program = document.createElement("select");
+  const programField = makeField("연결 프로그램", "quickTimetableProgramV132", program);
+  const day = document.createElement("select");
+  (programDaysV26?.() || ["월", "화", "수", "목", "금"]).forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  const periodHelp = el("p", "muted wide", "");
+  const refreshPrograms = () => {
+    const type = classType.value || "general";
+    const needsProgram = isProgramTimetableTypeV131(type);
+    program.replaceChildren(option("", needsProgram ? "프로그램 선택" : "연결 안 함"));
+    if (needsProgram) timetableProgramOptionsV129(type).forEach((item) => program.append(option(item.id, item.name)));
+    program.required = needsProgram;
+    programField.hidden = !needsProgram;
+    if (!needsProgram) program.value = "";
+  };
+  const refreshPeriods = () => {
+    const rows = activePeriodRowsForQuickTimetableV132();
+    period.replaceChildren(option("", "교시 선택"));
+    rows.forEach((row) => period.append(option(row.value, row.label)));
+    period.disabled = rows.length === 0;
+    periodHelp.textContent = rows.length ? "" : "먼저 이 시간표의 교시 시간을 설정해 주세요.";
+  };
+  classType.addEventListener("change", () => {
+    refreshPrograms();
+    refreshPeriods();
+  });
+  refreshPrograms();
+  refreshPeriods();
+  const subject = document.createElement("input");
+  subject.placeholder = "수업명";
+  const teacher = document.createElement("input");
+  teacher.placeholder = "교사";
+  const room = document.createElement("input");
+  room.placeholder = "교실";
+  const seat = document.createElement("input");
+  seat.placeholder = "좌석/위치";
+  const startTime = document.createElement("input");
+  startTime.type = "time";
+  const endTime = document.createElement("input");
+  endTime.type = "time";
+  const memo = document.createElement("textarea");
+  memo.placeholder = "메모";
+  const actions = el("div", "row-actions");
+  const save = button("저장");
+  save.type = "button";
+  const cancel = button("취소", "ghost");
+  cancel.type = "button";
+  cancel.addEventListener("click", () => dialog.close());
+  save.addEventListener("click", async () => {
+    ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableSaveClickCount += 1;
+    if (quickTimetableSaveInFlightV132) {
+      ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableDuplicateClickBlockedCount += 1;
+      return;
+    }
+    const type = classType.value || "general";
+    const requiresProgram = isProgramTimetableTypeV131(type);
+    const linkedProgram = requiresProgram ? programByReferenceV129(type, program.value) : null;
+    Object.assign(ownerPreviewCriticalRepairDiagnosticsV132, {
+      lastQuickTimetableType: type,
+      lastQuickTimetableProgramRequired: requiresProgram,
+      lastQuickTimetableProgramResolved: !!linkedProgram
+    });
+    if (!name.value.trim()) return (status.textContent = "시간표 이름을 입력해 주세요.", name.focus());
+    if (startDate.value && endDate.value && startDate.value > endDate.value) return (status.textContent = "시작일은 종료일보다 늦을 수 없습니다.", startDate.focus());
+    if (requiresProgram && !linkedProgram) return (status.textContent = "수업 유형과 일치하는 연결 프로그램을 선택해 주세요.", program.focus());
+    if (!period.value) return (status.textContent = "먼저 이 시간표의 교시 시간을 설정해 주세요.", period.focus());
+    if (!day.value || !subject.value.trim()) return (status.textContent = "요일, 교시, 수업명을 입력해 주세요.");
+    const sourceType = requiresProgram ? quickTimetableSourceTypeForSaveV131(type, type) : "";
+    const setId = requiresProgram ? programSetIdV26(sourceType, linkedProgram) : `ttset-${type}-${Date.now()}`;
+    const normalizedPeriod = normalizePeriodLabelV84(period.value, 0);
+    const time = [startTime.value, endTime.value].filter(Boolean).join("-");
+    const setRow = {
+      id: setId,
+      name: name.value.trim(),
+      type,
+      startDate: startDate.value || "",
+      endDate: endDate.value || "",
+      createdAt: new Date().toISOString(),
+      visiblePeriodCount: Math.max(periodNumberV99?.(normalizedPeriod, 1) || 1, ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetablePeriodCount || 1)
+    };
+    const classRow = {
+      id: `tt-${setId}-${day.value}-${normalizedPeriod}-${Date.now()}`,
+      setId,
+      day: day.value,
+      period: normalizedPeriod,
+      subject: subject.value.trim(),
+      name: subject.value.trim(),
+      teacher: teacher.value.trim(),
+      room: room.value.trim(),
+      location: seat.value.trim() || room.value.trim(),
+      seat: seat.value.trim(),
+      time,
+      start: startTime.value || "",
+      end: endTime.value || "",
+      memo: memo.value.trim()
+    };
+    if (requiresProgram) {
+      Object.assign(setRow, { sourceType, programId: linkedProgram?.id || "", programName: linkedProgram?.name || "" });
+      Object.assign(classRow, { sourceType, programId: linkedProgram?.id || "", programName: linkedProgram?.name || "" });
+    }
+    quickTimetableSaveInFlightV132 = true;
+    save.disabled = true;
+    try {
+      const confirmed = await saveQuickTimetableRemoteV132({ setRow, classRow, type, requiresProgram, linkedProgram });
+      store.timetableSets ??= [];
+      store.timetable ??= [];
+      store.timetableSets = store.timetableSets.filter((row) => String(row.id || "") !== String(confirmed.setRow.id));
+      store.timetable = store.timetable.filter((row) => String(row.id || "") !== String(confirmed.classRow.id));
+      store.timetableSets.push(confirmed.setRow);
+      store.timetable.push(confirmed.classRow);
+      sessionStorage.setItem("pm-timetable-set", confirmed.setRow.id);
+      saveStore({ skipRemote: true, syncReason: "quick-timetable-server-confirmed-v132" });
+      ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetableSavePhase = "completed";
+      ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetableSaveReason = "server-confirmed";
+      dialog.close();
+      renderTimetableV29?.();
+    } catch (error) {
+      ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetableSavePhase = "failed";
+      ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetableSaveReason = error?.code || error?.message || "quick-timetable-save-failed";
+      status.textContent = "시간표를 서버에 저장하지 못했습니다. 로그인, 워크스페이스 연결, 권한 상태를 확인해 주세요.";
+    } finally {
+      quickTimetableSaveInFlightV132 = false;
+      save.disabled = false;
+    }
+  });
+  actions.append(save, cancel);
+  form.append(
+    el("h3", "", "시간표 추가"),
+    el("p", "muted", "기본 정보와 첫 수업을 함께 서버에 저장합니다."),
+    el("h4", "wide", "A. 기본 정보"),
+    makeField("수업 유형", "quickTimetableClassTypeV132", classType),
+    makeField("시간표 이름", "quickTimetableNameV132", name),
+    makeField("시작일", "quickTimetableStartV132", startDate),
+    makeField("종료일", "quickTimetableEndV132", endDate),
+    programField,
+    el("h4", "wide", "B. 첫 수업/교시"),
+    makeField("요일", "quickTimetableDayV132", day),
+    makeField("교시", "quickTimetablePeriodV132", period),
+    periodHelp,
+    makeField("수업명", "quickTimetableSubjectV132", subject),
+    makeField("교사", "quickTimetableTeacherV132", teacher),
+    makeField("교실", "quickTimetableRoomV132", room),
+    makeField("좌석/위치", "quickTimetableSeatV132", seat),
+    makeField("시작 시간", "quickTimetableStartTimeV132", startTime),
+    makeField("종료 시간", "quickTimetableEndTimeV132", endTime),
+    makeField("메모", "quickTimetableMemoV132", memo),
+    status,
+    actions
+  );
+  dialog.append(form);
+  document.body.append(dialog);
+  dialog.showModal();
+  return dialog;
+}
+
+openQuickCreateV70 = function openQuickCreateV132(key) {
+  if (key === "timetable") return quickTimetableDialogV132();
+  return openQuickCreateBeforeV129 ? openQuickCreateBeforeV129.apply(this, arguments) : undefined;
+};
+
+function formatSystemNoticeDateV132(value) {
+  let date = value;
+  if (date?.toDate) date = date.toDate();
+  else if (typeof date === "string" || typeof date === "number") date = new Date(date);
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+const lastSystemNoticeRowsV132 = [];
+let renderingSystemNoticePanelV132 = false;
+const renderNoticeCardsBeforeV132 = typeof renderNoticeCardsV81 === "function" ? renderNoticeCardsV81 : null;
+if (renderNoticeCardsBeforeV132) {
+  renderNoticeCardsV81 = function renderNoticeCardsV132(key, rows = []) {
+    ownerPreviewCriticalRepairDiagnosticsV132.systemNoticeLoadAttemptCount += 1;
+    const inputRows = Array.isArray(rows) ? rows : [];
+    const systemRows = inputRows.filter(isSystemNoticeRowV131);
+    let renderRows = inputRows;
+    if (systemRows.length) {
+      lastSystemNoticeRowsV132.splice(0, lastSystemNoticeRowsV132.length, ...systemRows);
+      ownerPreviewCriticalRepairDiagnosticsV132.systemNoticeLoadSuccessCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV132.lastSystemNoticeServerCount = systemRows.length;
+    } else if (!inputRows.length && lastSystemNoticeRowsV132.length && renderingSystemNoticePanelV132) {
+      renderRows = lastSystemNoticeRowsV132.slice();
+      ownerPreviewCriticalRepairDiagnosticsV132.systemNoticeStaleDataPreservedCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV132.lastSystemNoticeLoadReason = "stale-preserved";
+    } else if (!inputRows.length) {
+      ownerPreviewCriticalRepairDiagnosticsV132.systemNoticeEmptyConfirmedCount += 1;
+    }
+    ownerPreviewCriticalRepairDiagnosticsV132.lastSystemNoticeLoadPhase = "render";
+    const wrap = renderNoticeCardsBeforeV132(key, renderRows);
+    wrap.querySelectorAll?.(".notice-card-v81").forEach((card, index) => {
+      const row = renderRows[index] || {};
+      if (!isSystemNoticeRowV131(row)) return;
+      const meta = card.querySelector("p.muted");
+      if (!meta) return;
+      const date = formatSystemNoticeDateV132(row.createdAt || row.updatedAt || row.notice_date || row.noticeDate || row.date);
+      meta.textContent = [systemNoticeAuthorTextV131(), date].filter(Boolean).join(" · ");
+      ownerPreviewCriticalRepairDiagnosticsV132.systemNoticeFooterSanitizedCount += 1;
+    });
+    ownerPreviewCriticalRepairDiagnosticsV132.systemNoticeRenderCount += 1;
+    return wrap;
+  };
+}
+
+const renderNoticesSplitBeforeV132 = typeof renderNoticesSplitV81 === "function" ? renderNoticesSplitV81 : null;
+if (renderNoticesSplitBeforeV132) {
+  renderNoticesSplitV81 = function renderNoticesSplitV132() {
+    content.replaceChildren();
+    const rows = filteredRowsV7("notices");
+    const section = panel("공지 관리");
+    const head = section.querySelector(".panel-head");
+    const actions = el("div", "row-actions");
+    const download = button("보고서 다운로드", "ghost");
+    download.addEventListener("click", () => downloadReportV5("notices", rows));
+    const add = button("공지 추가");
+    add.disabled = !can("create", "notices");
+    add.addEventListener("click", () => openEditorV7("notices", null, "notices"));
+    actions.append(download, add);
+    head?.append(actions);
+    section.append(renderNoticeBulkActionsV112(rows));
+    const split = el("div", "notice-split-grid-v81");
+    const general = el("section", "notice-split-panel-v81");
+    general.append(el("h3", "", "일반 공지"), renderNoticeCardsV81("notices", rows.filter((row) => !isSystemNoticeRowV131(row))));
+    const system = el("section", "notice-split-panel-v81");
+    renderingSystemNoticePanelV132 = true;
+    try {
+      system.append(el("h3", "", "시스템 공지"), renderNoticeCardsV81("notices", rows.filter(isSystemNoticeRowV131)));
+    } finally {
+      renderingSystemNoticePanelV132 = false;
+    }
+    split.append(general, system);
+    section.append(filterBarV7("notices"), split);
+    content.append(section);
+  };
+}
+
+function schoolBoardRowsFromProxyPayloadV132(payload, url, source) {
+  if (Array.isArray(payload?.items)) {
+    ownerPreviewCriticalRepairDiagnosticsV132.schoolProxyJsonPayloadSuccessCount += 1;
+    if (payload.items.length === 0) ownerPreviewCriticalRepairDiagnosticsV132.schoolProxyJsonEmptyCount += 1;
+    return payload.items.map((item, index) => ({
+      id: item.id || item.url || `school-proxy-item-${index}`,
+      title: item.title || item.name || "제목 없음",
+      date: item.date || item.createdAt || "",
+      url: item.url || url,
+      content: item.content || item.summary || "",
+      source
+    }));
+  }
+  if (payload?.html) return window.PMSchoolIntegrationService.parseBoardHtml(String(payload.html), url, source);
+  const error = new Error("school-board-format-invalid");
+  error.code = "school-board-format-invalid";
+  throw error;
+}
+
+if (window.PMSchoolIntegrationService?.fetchProxyPayload && window.PMSchoolIntegrationService?.parseBoardHtml) {
+  window.PMSchoolIntegrationService.fetchBoard = async function fetchBoardOwnerPreviewV132(url, source) {
+    try {
+      const payload = await window.PMSchoolIntegrationService.fetchProxyPayload(url);
+      return schoolBoardRowsFromProxyPayloadV132(payload, url, source);
+    } catch (error) {
+      const code = String(error?.code || error?.message || "");
+      if (/content-type-html|format/.test(code)) ownerPreviewCriticalRepairDiagnosticsV132.schoolProxyHtmlResponseBlockedCount += 1;
+      const safe = new Error(schoolBoardUserMessageV131(error));
+      safe.code = error?.code || "school-board-network-failed";
+      throw safe;
+    }
+  };
+  window.PMSchoolIntegrationService.__ownerPreviewSafeProxyV132 = true;
+}
+
+const attendanceSaveSnapshotBeforeV132 = window.PMAttendanceSaveDiagnostics?.snapshot;
+window.PMAttendanceSaveDiagnostics = {
+  snapshot: () => ({
+    ...(attendanceSaveSnapshotBeforeV132?.() || {}),
+    attendanceEditorSaveClickCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceEditorSaveClickCount,
+    attendanceSaveAttemptCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceSaveAttemptCount,
+    attendanceSaveBlockedCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceSaveBlockedCount,
+    attendanceServerWriteAttemptCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerWriteAttemptCount,
+    attendanceServerWriteSuccessCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerWriteSuccessCount,
+    attendanceServerWriteFailureCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerWriteFailureCount,
+    attendanceServerConfirmAttemptCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerConfirmAttemptCount,
+    attendanceServerConfirmSuccessCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerConfirmSuccessCount,
+    attendanceServerConfirmFailureCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceServerConfirmFailureCount,
+    attendanceListRefreshAttemptCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceListRefreshAttemptCount,
+    attendanceListRefreshSuccessCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceListRefreshSuccessCount,
+    attendanceListRefreshFailureCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceListRefreshFailureCount,
+    attendanceFalseSuccessPreventedCount: ownerPreviewCriticalRepairDiagnosticsV132.attendanceFalseSuccessPreventedCount,
+    lastAttendanceSavePhase: ownerPreviewCriticalRepairDiagnosticsV132.lastAttendanceSavePhase,
+    lastAttendanceSaveReason: ownerPreviewCriticalRepairDiagnosticsV132.lastAttendanceSaveReason,
+    lastAttendanceDate: ownerPreviewCriticalRepairDiagnosticsV132.lastAttendanceDate,
+    lastAttendanceDocumentMasked: ownerPreviewCriticalRepairDiagnosticsV132.lastAttendanceDocumentMasked,
+    attendanceActiveSubmitPath: ownerPreviewCriticalRepairDiagnosticsV132.attendanceActiveSubmitPath
+  })
+};
+
+const ownerPreviewCriticalRepairSnapshotBeforeV132 = window.PMOwnerPreviewCriticalRepairDiagnostics?.snapshot;
+window.PMOwnerPreviewCriticalRepairDiagnostics = {
+  snapshot: () => ({
+    ...(ownerPreviewCriticalRepairSnapshotBeforeV132?.() || {}),
+    appVersion: APP_PATCH_VERSION_V132,
+    attendance: window.PMAttendanceSaveDiagnostics?.snapshot?.() || {},
+    ...ownerPreviewCriticalRepairDiagnosticsV132,
+    schoolProxy: window.PMSchoolIntegrationService?.diagnostics?.() || {},
+    userFacingIdentifiers: window.PMUserFacingIdentifierDiagnostics?.snapshot?.() || {},
+    sensitiveValueDetected: (window.PMUserFacingIdentifierDiagnostics?.snapshot?.().sensitiveValueDetected || false)
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V132;
+
+// Owner Preview field-test critical repair batch 6. This layer is limited to
+// the active quick timetable dialog path, system notice footer rendering, and
+// public diagnostics aliases for manual verification.
+const APP_PATCH_VERSION_V133 = "v133.0 - 2026-07-25";
+
+const ownerPreviewCriticalRepairDiagnosticsV133 = {
+  activeQuickTimetableRenderPath: "openQuickCreateV70->quickTimetableDialogV133",
+  activeQuickTimetableSubmitPath: "quickTimetableDialogV133-save-click",
+  quickTimetableProgramOptionCount: 0,
+  quickTimetableActivePeriodCount: 0,
+  quickTimetableSaveSuccessCount: 0,
+  quickTimetableSaveFailureCount: 0,
+  lastQuickTimetableSaveResult: "idle",
+  lastQuickTimetableProgramSource: "none",
+  lastQuickTimetablePeriodSource: "none",
+  systemNoticeFooterNormalizedCount: 0,
+  systemNoticeStalePreservedCount: 0,
+  lastSystemNoticeRenderResult: "idle",
+  schoolProxyAttemptCount: 0,
+  schoolProxySuccessCount: 0,
+  schoolProxyFailureCount: 0,
+  lastSchoolProxyResult: "none"
+};
+
+function ownerPreviewPublicDiagnosticsV133() {
+  const base = ownerPreviewCriticalRepairDiagnosticsV132 || {};
+  const service = window.PMSchoolIntegrationService?.diagnostics?.() || {};
+  const attendance = window.PMAttendanceSaveDiagnostics?.snapshot?.() || {};
+  return {
+    attendanceSaveAttemptCount: attendance.attendanceSaveAttemptCount || base.attendanceSaveAttemptCount || 0,
+    attendanceServerConfirmSuccessCount: attendance.attendanceServerConfirmSuccessCount || base.attendanceServerConfirmSuccessCount || 0,
+    attendanceServerConfirmFailureCount: attendance.attendanceServerConfirmFailureCount || base.attendanceServerConfirmFailureCount || 0,
+    attendanceCollectionRefreshSuccessCount: attendance.attendanceListRefreshSuccessCount || base.attendanceListRefreshSuccessCount || 0,
+    attendanceFalseSuccessPreventedCount: attendance.attendanceFalseSuccessPreventedCount || base.attendanceFalseSuccessPreventedCount || 0,
+    lastAttendanceSaveResult: attendance.lastAttendanceSaveReason || base.lastAttendanceSaveReason || "none",
+    quickTimetableSaveAttemptCount: base.quickTimetableSaveAttemptCount || 0,
+    quickTimetableSaveSuccessCount: ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableSaveSuccessCount,
+    quickTimetableSaveFailureCount: ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableSaveFailureCount,
+    quickTimetableDuplicateClickBlockedCount: base.quickTimetableDuplicateClickBlockedCount || 0,
+    quickTimetableProgramOptionCount: ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableProgramOptionCount,
+    quickTimetableActivePeriodCount: ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableActivePeriodCount,
+    lastQuickTimetableSaveResult: ownerPreviewCriticalRepairDiagnosticsV133.lastQuickTimetableSaveResult,
+    systemNoticeRenderCount: base.systemNoticeRenderCount || 0,
+    systemNoticeFooterNormalizedCount: ownerPreviewCriticalRepairDiagnosticsV133.systemNoticeFooterNormalizedCount,
+    systemNoticeStalePreservedCount: base.systemNoticeStaleDataPreservedCount || 0,
+    lastSystemNoticeRenderResult: ownerPreviewCriticalRepairDiagnosticsV133.lastSystemNoticeRenderResult,
+    schoolProxyAttemptCount: service.schoolProxyRequestCount || 0,
+    schoolProxySuccessCount: service.lastSchoolProxyStatus === "success" ? service.schoolProxyRequestCount || 0 : 0,
+    schoolProxyFailureCount: (service.schoolProxyUnavailableCount || 0) + (service.schoolBoardFormatErrorCount || 0) + (service.schoolBoardNetworkFailureCount || 0),
+    lastSchoolProxyResult: service.lastSchoolBoardErrorCode || service.lastSchoolProxyStatus || "none"
+  };
+}
+
+function isActiveProgramRowV133(row = {}) {
+  const status = String(row.status || row.state || "").toLowerCase();
+  if (row.deleted === true || row.archived === true || row.hidden === true) return false;
+  if (row.active === false || row.enabled === false) return false;
+  if (["deleted", "archived", "inactive", "disabled", "closed"].includes(status)) return false;
+  return true;
+}
+
+function programRowsForQuickTimetableV133(type = "") {
+  if (!isProgramTimetableTypeV131(type)) return [];
+  const cfg = typeof programConfigV26 === "function" ? programConfigV26(type) : null;
+  const rows = cfg?.programs && Array.isArray(store[cfg.programs]) ? store[cfg.programs] : [];
+  const filtered = rows.filter(isActiveProgramRowV133).map((row) => ({
+    id: String(row.id || row.programId || ""),
+    name: String(row.name || row.title || cfg?.title || "프로그램").trim(),
+    row
+  })).filter((row) => row.id && row.name);
+  ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableProgramOptionCount = filtered.length;
+  ownerPreviewCriticalRepairDiagnosticsV133.lastQuickTimetableProgramSource = cfg?.programs || "none";
+  return filtered;
+}
+
+function activePeriodRowsForQuickTimetableV133(type = "", programId = "") {
+  const sourceType = isProgramTimetableTypeV131(type) ? quickTimetableSourceTypeForSaveV131(type, type) : "";
+  const program = programId && isProgramTimetableTypeV131(type) ? programByReferenceV129(type, programId) : null;
+  const programSetId = program && typeof programSetIdV26 === "function" ? programSetIdV26(sourceType, program) : "";
+  const activeSet = programSetId || sessionStorage.getItem("pm-timetable-set") || sessionStorage.getItem("quickTimetableSet") || "";
+  const sourceRows = activeSet && typeof periodsForTimetableSetV103 === "function" ? periodsForTimetableSetV103(activeSet) : [];
+  const seen = new Set();
+  const result = [];
+  sourceRows.forEach((row, index) => {
+    if (!row || row.deleted === true || row.active === false) return;
+    const label = normalizePeriodLabelV84?.(row.period || row.value || row.label, index) || "";
+    const number = periodNumberV99?.(label, index + 1) || index + 1;
+    if (!label || seen.has(number)) return;
+    seen.add(number);
+    const time = [row.start, row.end].filter(Boolean).join("~") || row.time || "";
+    result.push({ number, value: `${number}교시`, label: time ? `${number}교시 · ${time}` : `${number}교시`, time });
+  });
+  result.sort((a, b) => a.number - b.number);
+  ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableActivePeriodCount = result.length;
+  ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetablePeriodCount = result.length;
+  ownerPreviewCriticalRepairDiagnosticsV133.lastQuickTimetablePeriodSource = activeSet ? "timetable-set-periods" : "none";
+  return result;
+}
+
+let quickTimetableSaveInFlightV133 = false;
+function quickTimetableDialogV133() {
+  const old = document.getElementById("quickTimetableDialogV133") || document.getElementById("quickTimetableDialogV132") || document.getElementById("quickTimetableDialogV131") || document.getElementById("quickTimetableDialogV130") || document.getElementById("quickTimetableDialogV129") || document.getElementById("quickTimetableDialogV128");
+  if (old) old.remove();
+  incrementOwnerPreviewCriticalRepairV129?.("timetableQuickModalOpenCount");
+  const dialog = document.createElement("dialog");
+  dialog.id = "quickTimetableDialogV133";
+  dialog.className = "editor-dialog quick-timetable-dialog-v130 quick-timetable-dialog-v133";
+  const form = document.createElement("form");
+  form.method = "dialog";
+  form.className = "quick-timetable-form-v130 quick-timetable-form-v133";
+  const status = el("p", "muted", "");
+  const classType = document.createElement("select");
+  [["general", "일반"], ["school", "학교"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => classType.append(option(value, label)));
+  const name = document.createElement("input");
+  name.name = "name";
+  name.required = true;
+  name.placeholder = "시간표 이름";
+  const startDate = document.createElement("input");
+  startDate.type = "date";
+  const endDate = document.createElement("input");
+  endDate.type = "date";
+  const program = document.createElement("select");
+  const programField = makeField("연결 프로그램", "quickTimetableProgramV133", program);
+  const programHelp = el("p", "muted wide", "");
+  const day = document.createElement("select");
+  (programDaysV26?.() || ["월", "화", "수", "목", "금"]).forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  const periodHelp = el("p", "muted wide", "");
+  const subject = document.createElement("input");
+  subject.placeholder = "수업명";
+  const teacher = document.createElement("input");
+  teacher.placeholder = "교사";
+  const room = document.createElement("input");
+  room.placeholder = "교실";
+  const seat = document.createElement("input");
+  seat.placeholder = "좌석/위치";
+  const startTime = document.createElement("input");
+  startTime.type = "time";
+  const endTime = document.createElement("input");
+  endTime.type = "time";
+  const memo = document.createElement("textarea");
+  memo.placeholder = "메모";
+  const actions = el("div", "row-actions");
+  const save = button("저장");
+  save.type = "button";
+  const cancel = button("취소", "ghost");
+  cancel.type = "button";
+  cancel.addEventListener("click", () => dialog.close());
+
+  function refreshProgramAndPeriodState() {
+    const type = classType.value || "general";
+    const needsProgram = isProgramTimetableTypeV131(type);
+    const programs = programRowsForQuickTimetableV133(type);
+    program.replaceChildren(option("", "프로그램 선택"));
+    programs.forEach((item) => program.append(option(item.id, item.name)));
+    program.required = needsProgram;
+    programField.hidden = !needsProgram || programs.length === 0;
+    if (!needsProgram) program.value = "";
+    programHelp.textContent = needsProgram && programs.length === 0
+      ? "등록된 연결 프로그램이 없습니다. 해당 프로그램을 먼저 등록해 주세요."
+      : "";
+    const periodRows = activePeriodRowsForQuickTimetableV133(type, program.value);
+    period.replaceChildren(option("", "교시 선택"));
+    periodRows.forEach((row) => period.append(option(row.value, row.label)));
+    period.disabled = periodRows.length === 0;
+    periodHelp.textContent = periodRows.length === 0
+      ? "이 시간표에 활성화된 교시가 없습니다. 시간표별 교시 시간을 먼저 설정해 주세요."
+      : "";
+    save.disabled = (needsProgram && programs.length === 0) || periodRows.length === 0 || quickTimetableSaveInFlightV133;
+  }
+
+  classType.addEventListener("change", refreshProgramAndPeriodState);
+  program.addEventListener("change", refreshProgramAndPeriodState);
+  refreshProgramAndPeriodState();
+
+  save.addEventListener("click", async () => {
+    ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableSaveClickCount += 1;
+    if (quickTimetableSaveInFlightV133) {
+      ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableDuplicateClickBlockedCount += 1;
+      return;
+    }
+    const type = classType.value || "general";
+    const requiresProgram = isProgramTimetableTypeV131(type);
+    const linkedProgram = requiresProgram ? programByReferenceV129(type, program.value) : null;
+    Object.assign(ownerPreviewCriticalRepairDiagnosticsV132, {
+      lastQuickTimetableType: type,
+      lastQuickTimetableProgramRequired: requiresProgram,
+      lastQuickTimetableProgramResolved: !!linkedProgram
+    });
+    if (!name.value.trim()) return (status.textContent = "시간표 이름을 입력해 주세요.", name.focus());
+    if (startDate.value && endDate.value && startDate.value > endDate.value) return (status.textContent = "시작일은 종료일보다 늦을 수 없습니다.", startDate.focus());
+    if (requiresProgram && !linkedProgram) return (status.textContent = "수업 유형과 일치하는 연결 프로그램을 선택해 주세요.", program.focus());
+    if (!period.value) return (status.textContent = "이 시간표에 활성화된 교시가 없습니다. 시간표별 교시 시간을 먼저 설정해 주세요.", period.focus());
+    if (!day.value || !subject.value.trim()) return (status.textContent = "요일, 교시, 수업명을 입력해 주세요.");
+    const sourceType = requiresProgram ? quickTimetableSourceTypeForSaveV131(type, type) : "";
+    const setId = requiresProgram ? programSetIdV26(sourceType, linkedProgram) : `ttset-${type}-${Date.now()}`;
+    const normalizedPeriod = normalizePeriodLabelV84(period.value, 0);
+    const setRow = {
+      id: setId,
+      name: name.value.trim(),
+      type,
+      startDate: startDate.value || "",
+      endDate: endDate.value || "",
+      createdAt: new Date().toISOString(),
+      visiblePeriodCount: Math.max(periodNumberV99?.(normalizedPeriod, 1) || 1, ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableActivePeriodCount || 1)
+    };
+    const classRow = {
+      id: `tt-${setId}-${day.value}-${normalizedPeriod}-${Date.now()}`,
+      setId,
+      day: day.value,
+      period: normalizedPeriod,
+      subject: subject.value.trim(),
+      name: subject.value.trim(),
+      teacher: teacher.value.trim(),
+      room: room.value.trim(),
+      location: seat.value.trim() || room.value.trim(),
+      seat: seat.value.trim(),
+      time: [startTime.value, endTime.value].filter(Boolean).join("-"),
+      start: startTime.value || "",
+      end: endTime.value || "",
+      memo: memo.value.trim()
+    };
+    if (requiresProgram) {
+      Object.assign(setRow, { sourceType, programId: linkedProgram?.id || "", programName: linkedProgram?.name || "" });
+      Object.assign(classRow, { sourceType, programId: linkedProgram?.id || "", programName: linkedProgram?.name || "" });
+    }
+    quickTimetableSaveInFlightV133 = true;
+    save.disabled = true;
+    try {
+      const confirmed = await saveQuickTimetableRemoteV132({ setRow, classRow, type, requiresProgram, linkedProgram });
+      store.timetableSets ??= [];
+      store.timetable ??= [];
+      store.timetableSets = store.timetableSets.filter((row) => String(row.id || "") !== String(confirmed.setRow.id));
+      store.timetable = store.timetable.filter((row) => String(row.id || "") !== String(confirmed.classRow.id));
+      store.timetableSets.push(confirmed.setRow);
+      store.timetable.push(confirmed.classRow);
+      sessionStorage.setItem("pm-timetable-set", confirmed.setRow.id);
+      saveStore({ skipRemote: true, syncReason: "quick-timetable-server-confirmed-v133" });
+      ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableSaveSuccessCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV133.lastQuickTimetableSaveResult = "server-confirmed";
+      dialog.close();
+      renderTimetableV29?.();
+      showMessage("시간표 저장 완료", "시간표와 첫 수업이 서버에서 확인되었습니다.");
+    } catch (error) {
+      ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableSaveFailureCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV133.lastQuickTimetableSaveResult = error?.code || error?.message || "quick-timetable-save-failed";
+      status.textContent = "시간표를 서버에 저장하지 못했습니다. 로그인, 워크스페이스 연결, 권한 상태를 확인해 주세요.";
+    } finally {
+      quickTimetableSaveInFlightV133 = false;
+      refreshProgramAndPeriodState();
+    }
+  });
+
+  actions.append(save, cancel);
+  form.append(
+    el("h3", "", "시간표 추가"),
+    el("p", "muted", "기본 정보와 첫 수업을 함께 서버에 저장합니다."),
+    el("h4", "wide", "A. 기본 정보"),
+    makeField("수업 유형", "quickTimetableClassTypeV133", classType),
+    makeField("시간표 이름", "quickTimetableNameV133", name),
+    makeField("시작일", "quickTimetableStartV133", startDate),
+    makeField("종료일", "quickTimetableEndV133", endDate),
+    programField,
+    programHelp,
+    el("h4", "wide", "B. 첫 수업/교시"),
+    makeField("요일", "quickTimetableDayV133", day),
+    makeField("교시", "quickTimetablePeriodV133", period),
+    periodHelp,
+    makeField("수업명", "quickTimetableSubjectV133", subject),
+    makeField("교사", "quickTimetableTeacherV133", teacher),
+    makeField("교실", "quickTimetableRoomV133", room),
+    makeField("좌석/위치", "quickTimetableSeatV133", seat),
+    makeField("시작 시간", "quickTimetableStartTimeV133", startTime),
+    makeField("종료 시간", "quickTimetableEndTimeV133", endTime),
+    makeField("메모", "quickTimetableMemoV133", memo),
+    status,
+    actions
+  );
+  dialog.append(form);
+  document.body.append(dialog);
+  dialog.showModal();
+  return dialog;
+}
+
+openQuickCreateV70 = function openQuickCreateV133(key) {
+  if (key === "timetable") return quickTimetableDialogV133();
+  return openQuickCreateBeforeV129 ? openQuickCreateBeforeV129.apply(this, arguments) : undefined;
+};
+
+const renderSystemNoticesPanelBeforeV133 = typeof renderSystemNoticesPanelV54 === "function" ? renderSystemNoticesPanelV54 : null;
+if (renderSystemNoticesPanelBeforeV133) {
+  renderSystemNoticesPanelV54 = function renderSystemNoticesPanelV133() {
+    const box = renderSystemNoticesPanelBeforeV133.apply(this, arguments);
+    box.querySelectorAll?.(".system-notice-item").forEach((item, index) => {
+      const notice = systemNoticesV54[index] || {};
+      const footer = item.querySelector("small.muted");
+      if (!footer) return;
+      const date = formatSystemNoticeDateV132(notice.createdAt || notice.updatedAt || notice.date);
+      footer.textContent = [systemNoticeAuthorTextV131(), date].filter(Boolean).join(" · ");
+      ownerPreviewCriticalRepairDiagnosticsV133.systemNoticeFooterNormalizedCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV133.lastSystemNoticeRenderResult = "footer-normalized";
+    });
+    return box;
+  };
+}
+
+const workspaceDiagnosticsBeforeV133 = window.PMWorkspaceDataService?.diagnostics?.bind(window.PMWorkspaceDataService);
+if (workspaceDiagnosticsBeforeV133 && !window.PMWorkspaceDataService.__ownerPreviewDiagnosticsV133) {
+  window.PMWorkspaceDataService.__ownerPreviewDiagnosticsV133 = true;
+  window.PMWorkspaceDataService.diagnostics = function diagnosticsV133() {
+    return {
+      ...workspaceDiagnosticsBeforeV133(),
+      ...ownerPreviewPublicDiagnosticsV133()
+    };
+  };
+}
+
+const ownerPreviewCriticalRepairSnapshotBeforeV133 = window.PMOwnerPreviewCriticalRepairDiagnostics?.snapshot;
+window.PMOwnerPreviewCriticalRepairDiagnostics = {
+  snapshot: () => ({
+    ...(ownerPreviewCriticalRepairSnapshotBeforeV133?.() || {}),
+    appVersion: APP_PATCH_VERSION_V133,
+    publicDiagnostics: ownerPreviewPublicDiagnosticsV133(),
+    ...ownerPreviewCriticalRepairDiagnosticsV133,
+    ...ownerPreviewPublicDiagnosticsV133(),
+    sensitiveValueDetected: (window.PMUserFacingIdentifierDiagnostics?.snapshot?.().sensitiveValueDetected || false)
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V133;
+
+// Owner Preview field-test critical repair batch 7. This layer is limited to
+// quick timetable creation display labels, autofill, save diagnostics, and the
+// active dialog binding. It keeps the V132 batch/server-confirm save helper.
+const APP_PATCH_VERSION_V134 = "v134.0 - 2026-07-25";
+
+const ownerPreviewCriticalRepairDiagnosticsV134 = {
+  activeQuickTimetableRenderPath: "openQuickCreateV70->quickTimetableDialogV134",
+  activeQuickTimetableSubmitPath: "quickTimetableDialogV134-save-click->saveQuickTimetableRemoteV132",
+  quickTimetableProgramRawCount: 0,
+  quickTimetableProgramVisibleCount: 0,
+  quickTimetableProgramDeduplicatedCount: 0,
+  quickTimetableProgramInvalidLabelCount: 0,
+  lastQuickTimetableProgramResolverType: "none",
+  quickTimetableProgramSelectionCount: 0,
+  quickTimetableClassNameAutofillCount: 0,
+  lastQuickTimetableSelectedProgramLabelSafe: "",
+  quickTimetableSaveAttemptCount: 0,
+  quickTimetableSaveSuccessCount: 0,
+  quickTimetableSaveFailureCount: 0,
+  quickTimetableDuplicateClickBlockedCount: 0,
+  quickTimetableSetServerConfirmSuccessCount: 0,
+  quickTimetableRowServerConfirmSuccessCount: 0,
+  quickTimetableRollbackCount: 0,
+  lastQuickTimetableSaveResult: "idle",
+  lastQuickTimetableSaveType: ""
+};
+
+function normalizeQuickTimetableLabelV134(value = "") {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function looksLikeInternalProgramLabelV134(value = "") {
+  const text = normalizeQuickTimetableLabelV134(value);
+  if (!text) return true;
+  if (/^\d+$/.test(text)) return true;
+  if (/^(ws_|uid_|ttset-|tt-|afterschool-\d+|specialLectures-\d+|clubs-\d+)/i.test(text)) return true;
+  if (/^[A-Za-z0-9_-]{16,}$/.test(text)) return true;
+  return false;
+}
+
+function quickTimetableProgramDisplayLabelV134(row = {}) {
+  const fields = ["title", "name", "programName", "lectureName", "className", "courseName"];
+  for (const field of fields) {
+    const label = normalizeQuickTimetableLabelV134(row[field]);
+    if (!looksLikeInternalProgramLabelV134(label)) return label;
+  }
+  ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableProgramInvalidLabelCount += 1;
+  return "이름 미등록 프로그램";
+}
+
+function quickTimetableProgramTeacherV134(row = {}) {
+  return normalizeQuickTimetableLabelV134(row.teacher || row.teacherName || row.instructor || row.instructorName || row.lecturer || row.lecturerName);
+}
+
+function quickTimetableProgramRoomV134(row = {}) {
+  return normalizeQuickTimetableLabelV134(row.location || row.room || row.classroom || row.place || row.venue);
+}
+
+function quickTimetableProgramIdentityV134(row = {}, type = "", label = "") {
+  const id = normalizeQuickTimetableLabelV134(row.id || row.programId);
+  if (id) return `id:${id}`;
+  return `label:${type}:${normalizeQuickTimetableLabelV134(label).toLowerCase()}`;
+}
+
+function programRowsForQuickTimetableV134(type = "") {
+  if (!isProgramTimetableTypeV131(type)) {
+    Object.assign(ownerPreviewCriticalRepairDiagnosticsV134, {
+      quickTimetableProgramRawCount: 0,
+      quickTimetableProgramVisibleCount: 0,
+      quickTimetableProgramDeduplicatedCount: 0,
+      lastQuickTimetableProgramResolverType: "none"
+    });
+    return [];
+  }
+  const cfg = typeof programConfigV26 === "function" ? programConfigV26(type) : null;
+  const rows = cfg?.programs && Array.isArray(store[cfg.programs]) ? store[cfg.programs] : [];
+  const activeRows = rows.filter(isActiveProgramRowV133);
+  const byIdentity = new Map();
+  let deduped = 0;
+  activeRows.forEach((row) => {
+    const label = quickTimetableProgramDisplayLabelV134(row);
+    const id = normalizeQuickTimetableLabelV134(row.id || row.programId || `program-${type}-${byIdentity.size + 1}`);
+    const identity = quickTimetableProgramIdentityV134(row, type, label);
+    const labelIdentity = `label:${type}:${normalizeQuickTimetableLabelV134(label).toLowerCase()}`;
+    if (byIdentity.has(identity) || byIdentity.has(labelIdentity)) {
+      deduped += 1;
+      return;
+    }
+    const item = {
+      id,
+      name: label,
+      teacher: quickTimetableProgramTeacherV134(row),
+      room: quickTimetableProgramRoomV134(row),
+      row
+    };
+    byIdentity.set(identity, item);
+    byIdentity.set(labelIdentity, item);
+  });
+  const visible = [...new Set(byIdentity.values())];
+  Object.assign(ownerPreviewCriticalRepairDiagnosticsV134, {
+    quickTimetableProgramRawCount: rows.length,
+    quickTimetableProgramVisibleCount: visible.length,
+    quickTimetableProgramDeduplicatedCount: deduped,
+    lastQuickTimetableProgramResolverType: cfg?.programs || "none"
+  });
+  ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableProgramOptionCount = visible.length;
+  return visible;
+}
+
+function activePeriodRowsForQuickTimetableV134(type = "", programId = "") {
+  const sourceType = isProgramTimetableTypeV131(type) ? quickTimetableSourceTypeForSaveV131(type, type) : "";
+  const selected = isProgramTimetableTypeV131(type) ? selectedQuickTimetableProgramV134(type, programId) : null;
+  const programForSet = selected ? { ...(selected.row || {}), id: selected.id, name: selected.name } : null;
+  const programSetId = programForSet && typeof programSetIdV26 === "function" ? programSetIdV26(sourceType, programForSet) : "";
+  const activeSet = programSetId || sessionStorage.getItem("pm-timetable-set") || sessionStorage.getItem("quickTimetableSet") || (typeof activeTimetableSetV29 === "function" ? activeTimetableSetV29() : "") || "";
+  const sourceRows = activeSet && typeof periodsForTimetableSetV103 === "function"
+    ? periodsForTimetableSetV103(activeSet)
+    : (typeof commonPeriodRowsV110 === "function" ? commonPeriodRowsV110() : []);
+  const seen = new Set();
+  const result = [];
+  sourceRows.forEach((row, index) => {
+    if (!row || row.deleted === true || row.active === false) return;
+    const number = periodNumberKeyV109?.(row.period || row.value || row.label || row.id) || periodNumberV99?.(row.period || row.value || row.label, index + 1) || 0;
+    if (!number || seen.has(number)) return;
+    seen.add(number);
+    const label = normalizePeriodOptionLabelV109?.(number) || `${number}교시`;
+    const time = [row.start, row.end].filter(Boolean).join("~") || row.time || "";
+    result.push({ number, value: label, label: time ? `${label} · ${time}` : label, time });
+  });
+  result.sort((a, b) => a.number - b.number);
+  ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableActivePeriodCount = result.length;
+  ownerPreviewCriticalRepairDiagnosticsV132.lastQuickTimetablePeriodCount = result.length;
+  ownerPreviewCriticalRepairDiagnosticsV133.lastQuickTimetablePeriodSource = activeSet ? "timetable-set-periods" : "common-period-times";
+  return result;
+}
+
+function selectedQuickTimetableProgramV134(type = "", value = "") {
+  return programRowsForQuickTimetableV134(type).find((item) => String(item.id || "") === String(value || "")) || null;
+}
+
+function ownerPreviewPublicDiagnosticsV134() {
+  return {
+    ...ownerPreviewPublicDiagnosticsV133(),
+    quickTimetableSaveAttemptCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableSaveAttemptCount,
+    quickTimetableSaveSuccessCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableSaveSuccessCount,
+    quickTimetableSaveFailureCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableSaveFailureCount,
+    quickTimetableDuplicateClickBlockedCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableDuplicateClickBlockedCount,
+    quickTimetableSetServerConfirmSuccessCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableSetServerConfirmSuccessCount,
+    quickTimetableRowServerConfirmSuccessCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableRowServerConfirmSuccessCount,
+    quickTimetableRollbackCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableRollbackCount,
+    lastQuickTimetableSaveResult: ownerPreviewCriticalRepairDiagnosticsV134.lastQuickTimetableSaveResult,
+    lastQuickTimetableSaveType: ownerPreviewCriticalRepairDiagnosticsV134.lastQuickTimetableSaveType,
+    quickTimetableActivePeriodCount: ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableActivePeriodCount,
+    quickTimetableProgramRawCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableProgramRawCount,
+    quickTimetableProgramVisibleCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableProgramVisibleCount,
+    quickTimetableProgramDeduplicatedCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableProgramDeduplicatedCount,
+    quickTimetableProgramInvalidLabelCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableProgramInvalidLabelCount,
+    quickTimetableClassNameAutofillCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableClassNameAutofillCount,
+    quickTimetableProgramSelectionCount: ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableProgramSelectionCount,
+    lastQuickTimetableSelectedProgramLabelSafe: ownerPreviewCriticalRepairDiagnosticsV134.lastQuickTimetableSelectedProgramLabelSafe
+  };
+}
+
+let quickTimetableSaveInFlightV134 = false;
+function quickTimetableDialogV134() {
+  const old = document.getElementById("quickTimetableDialogV134") || document.getElementById("quickTimetableDialogV133") || document.getElementById("quickTimetableDialogV132") || document.getElementById("quickTimetableDialogV131") || document.getElementById("quickTimetableDialogV130") || document.getElementById("quickTimetableDialogV129") || document.getElementById("quickTimetableDialogV128");
+  if (old) old.remove();
+  incrementOwnerPreviewCriticalRepairV129?.("timetableQuickModalOpenCount");
+  const dialog = document.createElement("dialog");
+  dialog.id = "quickTimetableDialogV134";
+  dialog.className = "editor-dialog quick-timetable-dialog-v130 quick-timetable-dialog-v134";
+  const form = document.createElement("form");
+  form.method = "dialog";
+  form.className = "quick-timetable-form-v130 quick-timetable-form-v134";
+  const status = el("p", "muted", "");
+  const classType = document.createElement("select");
+  [["general", "일반"], ["school", "학교"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => classType.append(option(value, label)));
+  const name = document.createElement("input");
+  name.name = "name";
+  name.required = true;
+  name.placeholder = "시간표 이름";
+  const startDate = document.createElement("input");
+  startDate.type = "date";
+  const endDate = document.createElement("input");
+  endDate.type = "date";
+  const program = document.createElement("select");
+  const programField = makeField("연결 프로그램", "quickTimetableProgramV134", program);
+  const programHelp = el("p", "muted wide", "");
+  const day = document.createElement("select");
+  (programDaysV26?.() || ["월", "화", "수", "목", "금"]).forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  const periodHelp = el("p", "muted wide", "");
+  const subject = document.createElement("input");
+  subject.placeholder = "수업명";
+  const teacher = document.createElement("input");
+  teacher.placeholder = "교사";
+  const room = document.createElement("input");
+  room.placeholder = "교실";
+  const seat = document.createElement("input");
+  seat.placeholder = "좌석/위치";
+  const startTime = document.createElement("input");
+  startTime.type = "time";
+  const endTime = document.createElement("input");
+  endTime.type = "time";
+  const memo = document.createElement("textarea");
+  memo.placeholder = "메모";
+  const actions = el("div", "row-actions");
+  const save = button("저장");
+  save.type = "button";
+  const cancel = button("취소", "ghost");
+  cancel.type = "button";
+  cancel.addEventListener("click", () => dialog.close());
+
+  function refreshProgramAndPeriodState({ autofill = false } = {}) {
+    const type = classType.value || "general";
+    const needsProgram = isProgramTimetableTypeV131(type);
+    const currentProgram = program.value;
+    const programs = programRowsForQuickTimetableV134(type);
+    program.replaceChildren(option("", "프로그램 선택"));
+    programs.forEach((item) => program.append(option(item.id, item.name)));
+    if (needsProgram && programs.some((item) => String(item.id) === String(currentProgram))) program.value = currentProgram;
+    else program.value = "";
+    program.required = needsProgram;
+    program.disabled = !needsProgram || programs.length === 0;
+    programField.hidden = !needsProgram || programs.length === 0;
+    programHelp.textContent = needsProgram && programs.length === 0
+      ? "등록된 연결 프로그램이 없습니다. 해당 프로그램을 먼저 등록해 주세요."
+      : "";
+    const selectedProgram = needsProgram ? selectedQuickTimetableProgramV134(type, program.value) : null;
+    if (autofill && selectedProgram) {
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableProgramSelectionCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV134.lastQuickTimetableSelectedProgramLabelSafe = selectedProgram.name;
+      subject.value = selectedProgram.name;
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableClassNameAutofillCount += 1;
+      if (!teacher.value && selectedProgram.teacher) teacher.value = selectedProgram.teacher;
+      if (!room.value && selectedProgram.room) room.value = selectedProgram.room;
+    }
+    const periodRows = activePeriodRowsForQuickTimetableV134(type, program.value);
+    const currentPeriod = period.value;
+    period.replaceChildren(option("", "교시 선택"));
+    periodRows.forEach((row) => period.append(option(row.value, row.label)));
+    if (periodRows.some((row) => String(row.value) === String(currentPeriod))) period.value = currentPeriod;
+    period.disabled = periodRows.length === 0;
+    periodHelp.textContent = periodRows.length === 0
+      ? "사용 가능한 활성 교시가 없습니다. 시간표 교시 시간을 먼저 설정해 주세요."
+      : "";
+    save.disabled = (needsProgram && programs.length === 0) || periodRows.length === 0 || quickTimetableSaveInFlightV134;
+  }
+
+  classType.addEventListener("change", () => refreshProgramAndPeriodState());
+  program.addEventListener("change", () => refreshProgramAndPeriodState({ autofill: true }));
+  form.addEventListener("submit", (event) => event.preventDefault());
+  refreshProgramAndPeriodState();
+
+  save.addEventListener("click", async () => {
+    ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableSaveAttemptCount += 1;
+    if (quickTimetableSaveInFlightV134) {
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableDuplicateClickBlockedCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableDuplicateClickBlockedCount += 1;
+      return;
+    }
+    const type = classType.value || "general";
+    const requiresProgram = isProgramTimetableTypeV131(type);
+    ownerPreviewCriticalRepairDiagnosticsV134.lastQuickTimetableSaveType = type;
+    const selectedProgram = requiresProgram ? selectedQuickTimetableProgramV134(type, program.value) : null;
+    const linkedProgram = selectedProgram ? { ...(selectedProgram.row || {}), id: selectedProgram.id, name: selectedProgram.name } : null;
+    Object.assign(ownerPreviewCriticalRepairDiagnosticsV132, {
+      lastQuickTimetableType: type,
+      lastQuickTimetableProgramRequired: requiresProgram,
+      lastQuickTimetableProgramResolved: !!linkedProgram
+    });
+    if (!name.value.trim()) return (status.textContent = "시간표 이름을 입력해 주세요.", name.focus());
+    if (startDate.value && endDate.value && startDate.value > endDate.value) return (status.textContent = "시작일은 종료일보다 늦을 수 없습니다.", startDate.focus());
+    if (requiresProgram && !linkedProgram) return (status.textContent = "수업 유형과 일치하는 연결 프로그램을 선택해 주세요.", program.focus());
+    if (!period.value) return (status.textContent = "사용 가능한 활성 교시가 없습니다. 시간표 교시 시간을 먼저 설정해 주세요.", period.focus());
+    if (!day.value || !subject.value.trim()) return (status.textContent = "요일, 교시, 수업명을 입력해 주세요.", subject.focus());
+    const sourceType = requiresProgram ? quickTimetableSourceTypeForSaveV131(type, type) : "";
+    const setId = requiresProgram ? programSetIdV26(sourceType, linkedProgram) : `ttset-${type}-${Date.now()}`;
+    const normalizedPeriod = normalizePeriodLabelV84(period.value, 0);
+    const setRow = {
+      id: setId,
+      name: name.value.trim(),
+      type,
+      startDate: startDate.value || "",
+      endDate: endDate.value || "",
+      createdAt: new Date().toISOString(),
+      visiblePeriodCount: Math.max(periodNumberV99?.(normalizedPeriod, 1) || 1, ownerPreviewCriticalRepairDiagnosticsV133.quickTimetableActivePeriodCount || 1)
+    };
+    const classRow = {
+      id: `tt-${setId}-${day.value}-${normalizedPeriod}-${Date.now()}`,
+      setId,
+      day: day.value,
+      period: normalizedPeriod,
+      subject: subject.value.trim(),
+      name: subject.value.trim(),
+      teacher: teacher.value.trim(),
+      room: room.value.trim(),
+      location: seat.value.trim() || room.value.trim(),
+      seat: seat.value.trim(),
+      time: [startTime.value, endTime.value].filter(Boolean).join("-"),
+      start: startTime.value || "",
+      end: endTime.value || "",
+      memo: memo.value.trim()
+    };
+    if (requiresProgram) {
+      Object.assign(setRow, { sourceType, programId: linkedProgram?.id || "", programName: selectedProgram.name });
+      Object.assign(classRow, { sourceType, programId: linkedProgram?.id || "", programName: selectedProgram.name });
+    }
+    quickTimetableSaveInFlightV134 = true;
+    save.disabled = true;
+    const setConfirmBefore = ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableSetConfirmSuccessCount || 0;
+    const rowConfirmBefore = ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableRowConfirmSuccessCount || 0;
+    try {
+      const confirmed = await saveQuickTimetableRemoteV132({ setRow, classRow, type, requiresProgram, linkedProgram });
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableSetServerConfirmSuccessCount += Math.max(0, (ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableSetConfirmSuccessCount || 0) - setConfirmBefore);
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableRowServerConfirmSuccessCount += Math.max(0, (ownerPreviewCriticalRepairDiagnosticsV132.quickTimetableRowConfirmSuccessCount || 0) - rowConfirmBefore);
+      store.timetableSets ??= [];
+      store.timetable ??= [];
+      store.timetableSets = store.timetableSets.filter((row) => String(row.id || "") !== String(confirmed.setRow.id));
+      store.timetable = store.timetable.filter((row) => String(row.id || "") !== String(confirmed.classRow.id));
+      store.timetableSets.push(confirmed.setRow);
+      store.timetable.push(confirmed.classRow);
+      sessionStorage.setItem("pm-timetable-set", confirmed.setRow.id);
+      saveStore({ skipRemote: true, syncReason: "quick-timetable-server-confirmed-v134" });
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableSaveSuccessCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV134.lastQuickTimetableSaveResult = "server-confirmed";
+      dialog.close();
+      renderTimetableV29?.();
+      showMessage("시간표 저장 완료", "시간표와 첫 수업을 서버에서 확인했습니다.");
+    } catch (error) {
+      store.timetableSets = (store.timetableSets || []).filter((row) => String(row.id || "") !== String(setRow.id));
+      store.timetable = (store.timetable || []).filter((row) => String(row.id || "") !== String(classRow.id));
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableRollbackCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableSaveFailureCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV134.lastQuickTimetableSaveResult = error?.code || error?.message || "quick-timetable-save-failed";
+      status.textContent = "시간표를 서버에 저장하지 못했습니다. 로그인, 워크스페이스 연결, 권한 상태를 확인해 주세요.";
+    } finally {
+      quickTimetableSaveInFlightV134 = false;
+      refreshProgramAndPeriodState();
+    }
+  });
+
+  actions.append(save, cancel);
+  form.append(
+    el("h3", "", "시간표 추가"),
+    el("p", "muted", "기본 정보와 첫 수업을 함께 서버에 저장합니다."),
+    el("h4", "wide", "A. 기본 정보"),
+    makeField("수업 유형", "quickTimetableClassTypeV134", classType),
+    makeField("시간표 이름", "quickTimetableNameV134", name),
+    makeField("시작일", "quickTimetableStartV134", startDate),
+    makeField("종료일", "quickTimetableEndV134", endDate),
+    programField,
+    programHelp,
+    el("h4", "wide", "B. 첫 수업/교시"),
+    makeField("요일", "quickTimetableDayV134", day),
+    makeField("교시", "quickTimetablePeriodV134", period),
+    periodHelp,
+    makeField("수업명", "quickTimetableSubjectV134", subject),
+    makeField("교사", "quickTimetableTeacherV134", teacher),
+    makeField("교실", "quickTimetableRoomV134", room),
+    makeField("좌석/위치", "quickTimetableSeatV134", seat),
+    makeField("시작 시간", "quickTimetableStartTimeV134", startTime),
+    makeField("종료 시간", "quickTimetableEndTimeV134", endTime),
+    makeField("메모", "quickTimetableMemoV134", memo),
+    status,
+    actions
+  );
+  dialog.append(form);
+  document.body.append(dialog);
+  dialog.showModal();
+  return dialog;
+}
+
+openQuickCreateV70 = function openQuickCreateV134(key) {
+  if (key === "timetable") return quickTimetableDialogV134();
+  return openQuickCreateBeforeV129 ? openQuickCreateBeforeV129.apply(this, arguments) : undefined;
+};
+
+const workspaceDiagnosticsBeforeV134 = window.PMWorkspaceDataService?.diagnostics?.bind(window.PMWorkspaceDataService);
+if (workspaceDiagnosticsBeforeV134 && !window.PMWorkspaceDataService.__ownerPreviewDiagnosticsV134) {
+  window.PMWorkspaceDataService.__ownerPreviewDiagnosticsV134 = true;
+  window.PMWorkspaceDataService.diagnostics = function diagnosticsV134() {
+    return {
+      ...workspaceDiagnosticsBeforeV134(),
+      ...ownerPreviewPublicDiagnosticsV134()
+    };
+  };
+}
+
+const ownerPreviewCriticalRepairSnapshotBeforeV134 = window.PMOwnerPreviewCriticalRepairDiagnostics?.snapshot;
+window.PMOwnerPreviewCriticalRepairDiagnostics = {
+  snapshot: () => ({
+    ...(ownerPreviewCriticalRepairSnapshotBeforeV134?.() || {}),
+    appVersion: APP_PATCH_VERSION_V134,
+    publicDiagnostics: ownerPreviewPublicDiagnosticsV134(),
+    ...ownerPreviewCriticalRepairDiagnosticsV134,
+    ...ownerPreviewPublicDiagnosticsV134(),
+    sensitiveValueDetected: (window.PMUserFacingIdentifierDiagnostics?.snapshot?.().sensitiveValueDetected || false)
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V134;
+
+// Owner Preview timetable architecture alignment batch 8. Quick timetable
+// registration now attaches one class row to an existing timetable set only;
+// timetable set creation and lifecycle management stay in the timetable screen.
+const APP_PATCH_VERSION_V135 = "v135.0 - 2026-07-25";
+
+const TIMETABLE_KIND_LABELS_V135 = {
+  school: "학교",
+  general: "기타",
+  afterschool: "방과후",
+  specialLectures: "특강",
+  clubs: "동아리"
+};
+
+const TIMETABLE_KIND_ALIASES_V135 = {
+  school: "school",
+  "학교": "school",
+  "학교수업": "school",
+  manual: "general",
+  general: "general",
+  "기타": "general",
+  "일반": "general",
+  afterschool: "afterschool",
+  "방과후": "afterschool",
+  special: "specialLectures",
+  speciallecture: "specialLectures",
+  speciallectures: "specialLectures",
+  "특강": "specialLectures",
+  club: "clubs",
+  clubs: "clubs",
+  "동아리": "clubs"
+};
+
+const ownerPreviewTimetableArchitectureDiagnosticsV135 = {
+  activeQuickTimetableRenderPath: "openQuickCreateV70->quickTimetableDialogV135",
+  activeQuickTimetableSubmitPath: "quickTimetableDialogV135-save-click->saveQuickTimetableRowRemoteV135",
+  quickTimetableExistingSetOptionCount: 0,
+  quickTimetableSelectedSetIdMasked: "",
+  quickTimetableActivePeriodCount: 0,
+  quickTimetableSaveAttemptCount: 0,
+  quickTimetableSaveSuccessCount: 0,
+  quickTimetableSaveFailureCount: 0,
+  quickTimetableDuplicateClickBlockedCount: 0,
+  quickTimetableServerConfirmSuccessCount: 0,
+  quickTimetableServerConfirmFailureCount: 0,
+  quickTimetableFalseSuccessPreventedCount: 0,
+  quickTimetableRollbackCount: 0,
+  lastQuickTimetableSaveResult: "idle",
+  lastQuickTimetableSaveType: "",
+  lastQuickTimetableSetStatus: "none",
+  timetableEndedCount: 0,
+  timetableArchivedCount: 0,
+  timetableReactivateAttemptCount: 0,
+  timetableReactivateSuccessCount: 0,
+  timetableDuplicateAttemptCount: 0,
+  timetableDuplicateSuccessCount: 0,
+  timetableDeleteBlockedByLinkedDataCount: 0,
+  timetableVisibleIdentifierCount: 0,
+  lastTimetableLifecycleAction: "none"
+};
+
+function maskTimetableArchitectureIdV135(value = "") {
+  if (typeof maskOwnerPreviewIdV132 === "function") return maskOwnerPreviewIdV132(value);
+  if (typeof maskIdentifierV114 === "function") return maskIdentifierV114(value);
+  const text = String(value || "");
+  return text ? `${text.slice(0, 3)}...${text.slice(-3)}` : "";
+}
+
+function normalizeTimetableKindV135(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const compact = text.replace(/[\s_-]+/g, "").toLowerCase();
+  return TIMETABLE_KIND_ALIASES_V135[text]
+    || TIMETABLE_KIND_ALIASES_V135[text.toLowerCase()]
+    || TIMETABLE_KIND_ALIASES_V135[compact]
+    || "";
+}
+
+function timetableSetKindV135(set = {}) {
+  return normalizeTimetableKindV135(set.kind)
+    || normalizeTimetableKindV135(set.category)
+    || normalizeTimetableKindV135(set.classType)
+    || normalizeTimetableKindV135(set.sourceType)
+    || normalizeTimetableKindV135(set.type)
+    || (set.programId ? normalizeTimetableKindV135(set.sourceType || set.programType) : "")
+    || normalizeTimetableKindV135(String(set.id || "").split("-")[0])
+    || "general";
+}
+
+function timetableKindLabelV135(kind = "") {
+  return TIMETABLE_KIND_LABELS_V135[timetableSetKindV135({ type: kind }) || kind] || TIMETABLE_KIND_LABELS_V135.general;
+}
+
+function dateValueForTimetableV135(value = "") {
+  if (!value) return null;
+  if (value?.toDate) return value.toDate();
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function timetableSetLifecycleStatusV135(set = {}, now = new Date()) {
+  if (isDeletedTimetableEntityV101?.(set)) {
+    const status = String(set.status || "").toLowerCase();
+    return status === "archived" || set.archived === true ? "archived" : "ended";
+  }
+  const explicit = String(set.status || set.state || "").toLowerCase();
+  if (["archived", "ended", "closed", "inactive"].includes(explicit)) return explicit === "archived" ? "archived" : "ended";
+  if (set.archived === true) return "archived";
+  const start = dateValueForTimetableV135(set.startDate || set.activeFrom || set.fromDate);
+  const end = dateValueForTimetableV135(set.endDate || set.activeUntil || set.toDate);
+  if (end && end.getTime() < new Date(now.toDateString()).getTime()) return "ended";
+  if (start && start.getTime() > now.getTime()) return "scheduled";
+  return "active";
+}
+
+function selectableTimetableSetsForQuickV135(type = "") {
+  const wantedKind = normalizeTimetableKindV135(type) || "general";
+  const sets = (store.timetableSets || []).filter((set) => {
+    if (!set || !set.id) return false;
+    if (isDeletedTimetableEntityV101?.(set)) return false;
+    const status = timetableSetLifecycleStatusV135(set);
+    if (["ended", "archived"].includes(status)) return false;
+    return timetableSetKindV135(set) === wantedKind;
+  });
+  ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableExistingSetOptionCount = sets.length;
+  return sets;
+}
+
+function timetableSetDisplayNameV135(set = {}) {
+  return normalizeQuickTimetableLabelV134?.(set.name || set.title || set.label || "이름 없는 시간표") || "이름 없는 시간표";
+}
+
+function programDisplayNameForSetV135(set = {}) {
+  if (!isProgramTimetableTypeV131?.(timetableSetKindV135(set))) return "";
+  const program = set.programId && typeof programByReferenceV129 === "function" ? programByReferenceV129(timetableSetKindV135(set), set.programId) : null;
+  return quickTimetableProgramDisplayLabelV134?.(program || set) || set.programName || "";
+}
+
+function quickTimetableSetOptionLabelV135(set = {}) {
+  const status = timetableSetLifecycleStatusV135(set);
+  const range = [set.startDate || set.activeFrom || "", set.endDate || set.activeUntil || ""].filter(Boolean).join(" ~ ");
+  const programName = programDisplayNameForSetV135(set);
+  return [
+    `[${timetableKindLabelV135(timetableSetKindV135(set))}]`,
+    timetableSetDisplayNameV135(set),
+    programName ? `· ${programName}` : "",
+    range ? `· ${range}` : "",
+    status === "scheduled" ? "· 예정" : ""
+  ].filter(Boolean).join(" ");
+}
+
+function periodsForQuickTimetableSetV135(setId = "") {
+  const rows = typeof periodsForTimetableSetV103 === "function" ? periodsForTimetableSetV103(setId) : [];
+  const seen = new Set();
+  const result = [];
+  rows.forEach((row, index) => {
+    if (!row || row.deleted === true || row.active === false) return;
+    const number = periodNumberKeyV109?.(row.period || row.value || row.label || row.id) || periodNumberV99?.(row.period || row.value || row.label, index + 1) || 0;
+    if (!number || seen.has(number)) return;
+    seen.add(number);
+    const label = normalizePeriodOptionLabelV109?.(number) || `${number}교시`;
+    const time = [row.start, row.end].filter(Boolean).join("~") || row.time || "";
+    result.push({ number, value: label, label: time ? `${label} · ${time}` : label, time });
+  });
+  result.sort((a, b) => a.number - b.number);
+  ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableActivePeriodCount = result.length;
+  return result;
+}
+
+function selectedTimetableSetForQuickV135(type = "", setId = "") {
+  return selectableTimetableSetsForQuickV135(type).find((set) => String(set.id) === String(setId || "")) || null;
+}
+
+async function saveQuickTimetableRowRemoteV135({ classRow, selectedSet }) {
+  const diag = ownerPreviewTimetableArchitectureDiagnosticsV135;
+  Object.assign(diag, {
+    lastQuickTimetableSaveResult: "preflight",
+    lastQuickTimetableSetStatus: timetableSetLifecycleStatusV135(selectedSet)
+  });
+  const safety = window.PMOperationalSafety?.status?.();
+  if (safety?.writeBlocked) throw new Error("quick-timetable-safety-write-blocked");
+  const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116("quick-timetable-row-create-v135", { force: true });
+  if (!workspaceId) throw new Error("quick-timetable-workspace-unresolved");
+  const readiness = window.PMWorkspaceDataService?.checkSaveReadiness?.(workspaceId, {
+    canonicalWorkspaceId: workspaceId,
+    record: true
+  });
+  if (!readiness?.ok) throw new Error(readiness?.reason || "quick-timetable-sync-not-started");
+  const runtime = await quickTimetableRuntimeV132();
+  const setRef = runtime.db.collection("workspaces").doc(workspaceId).collection("timetableSets").doc(String(selectedSet.id));
+  const setSnap = await setRef.get({ source: "server" });
+  if (!setSnap.exists) throw new Error("quick-timetable-set-not-found");
+  const serverSet = { id: setSnap.id, ...(setSnap.data() || {}) };
+  const serverStatus = timetableSetLifecycleStatusV135(serverSet);
+  diag.lastQuickTimetableSetStatus = serverStatus;
+  if (["ended", "archived"].includes(serverStatus) || isDeletedTimetableEntityV101?.(serverSet)) throw new Error("quick-timetable-set-not-active");
+  const activePeriods = periodsForQuickTimetableSetV135(serverSet.id).map((row) => String(row.value));
+  if (!activePeriods.includes(String(classRow.period))) throw new Error("quick-timetable-period-not-active");
+  const FieldValue = firebase.firestore.FieldValue;
+  const rowPayload = cleanFirestoreObjectV52({
+    ...classRow,
+    workspaceId,
+    workspace_id: workspaceId,
+    updatedAt: FieldValue.serverTimestamp()
+  });
+  const rowRef = runtime.db.collection("workspaces").doc(workspaceId).collection("timetable").doc(String(classRow.id));
+  await rowRef.set(rowPayload, { merge: true });
+  const rowSnap = await rowRef.get({ source: "server" });
+  if (!rowSnap.exists) {
+    diag.quickTimetableServerConfirmFailureCount += 1;
+    diag.quickTimetableFalseSuccessPreventedCount += 1;
+    throw new Error("quick-timetable-row-confirm-failed");
+  }
+  diag.quickTimetableServerConfirmSuccessCount += 1;
+  window.PMWorkspaceDataService?.discardPendingRow?.("timetable", classRow.id);
+  return { classRow: { id: rowSnap.id, ...(rowSnap.data() || {}) }, selectedSet: serverSet };
+}
+
+let quickTimetableSaveInFlightV135 = false;
+function quickTimetableDialogV135() {
+  const old = document.getElementById("quickTimetableDialogV135") || document.getElementById("quickTimetableDialogV134") || document.getElementById("quickTimetableDialogV133") || document.getElementById("quickTimetableDialogV132") || document.getElementById("quickTimetableDialogV131");
+  if (old) old.remove();
+  incrementOwnerPreviewCriticalRepairV129?.("timetableQuickModalOpenCount");
+  const dialog = document.createElement("dialog");
+  dialog.id = "quickTimetableDialogV135";
+  dialog.className = "editor-dialog quick-timetable-dialog-v130 quick-timetable-dialog-v135";
+  const form = document.createElement("form");
+  form.method = "dialog";
+  form.className = "quick-timetable-form-v130 quick-timetable-form-v135";
+  form.addEventListener("submit", (event) => event.preventDefault());
+  const status = el("p", "muted", "");
+  const classType = document.createElement("select");
+  [["school", "학교"], ["general", "기타"], ["afterschool", "방과후"], ["specialLectures", "특강"], ["clubs", "동아리"]].forEach(([value, label]) => classType.append(option(value, label)));
+  const setSelect = document.createElement("select");
+  const setInfo = el("p", "muted wide", "");
+  const day = document.createElement("select");
+  (programDaysV26?.() || ["월", "화", "수", "목", "금"]).forEach((value) => day.append(option(value, value)));
+  const period = document.createElement("select");
+  const periodHelp = el("p", "muted wide", "");
+  const subject = document.createElement("input");
+  subject.placeholder = "수업명";
+  const teacher = document.createElement("input");
+  teacher.placeholder = "교사";
+  const room = document.createElement("input");
+  room.placeholder = "교실";
+  const seat = document.createElement("input");
+  seat.placeholder = "좌석/위치";
+  const startTime = document.createElement("input");
+  startTime.type = "time";
+  const endTime = document.createElement("input");
+  endTime.type = "time";
+  const memo = document.createElement("textarea");
+  memo.placeholder = "메모";
+  const actions = el("div", "row-actions");
+  const save = button("저장");
+  save.type = "button";
+  const cancel = button("취소", "ghost");
+  cancel.type = "button";
+  cancel.addEventListener("click", () => dialog.close());
+
+  function selectedSet() {
+    return selectedTimetableSetForQuickV135(classType.value || "school", setSelect.value);
+  }
+
+  function refreshSetAndPeriodState() {
+    const type = classType.value || "school";
+    const previousSet = setSelect.value;
+    const sets = selectableTimetableSetsForQuickV135(type);
+    setSelect.replaceChildren(option("", "기존 시간표 선택"));
+    sets.forEach((set) => setSelect.append(option(set.id, quickTimetableSetOptionLabelV135(set))));
+    if (sets.some((set) => String(set.id) === String(previousSet))) setSelect.value = previousSet;
+    else setSelect.value = "";
+    ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableSelectedSetIdMasked = maskTimetableArchitectureIdV135(setSelect.value);
+    const set = selectedSet();
+    const periodRows = set ? periodsForQuickTimetableSetV135(set.id) : [];
+    period.replaceChildren(option("", "교시 선택"));
+    periodRows.forEach((row) => period.append(option(row.value, row.label)));
+    period.disabled = !set || periodRows.length === 0;
+    const lifecycle = set ? timetableSetLifecycleStatusV135(set) : "none";
+    setInfo.textContent = set
+      ? `선택한 시간표: ${quickTimetableSetOptionLabelV135(set)}`
+      : "빠른 등록은 시간표 관리에서 만든 기존 시간표에만 수업을 추가합니다.";
+    periodHelp.textContent = set && !periodRows.length
+      ? "선택한 시간표에 활성 교시가 없습니다. 시간표 관리에서 교시 범위를 먼저 설정해 주세요."
+      : "";
+    ownerPreviewTimetableArchitectureDiagnosticsV135.lastQuickTimetableSetStatus = lifecycle;
+    save.disabled = !set || periodRows.length === 0 || quickTimetableSaveInFlightV135;
+  }
+
+  classType.addEventListener("change", () => {
+    subject.value = "";
+    teacher.value = "";
+    room.value = "";
+    refreshSetAndPeriodState();
+  });
+  setSelect.addEventListener("change", () => {
+    const set = selectedSet();
+    ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableSelectedSetIdMasked = maskTimetableArchitectureIdV135(set?.id || "");
+    if (set && isProgramTimetableTypeV131?.(timetableSetKindV135(set))) {
+      const program = set.programId && typeof programByReferenceV129 === "function" ? programByReferenceV129(timetableSetKindV135(set), set.programId) : null;
+      const label = quickTimetableProgramDisplayLabelV134?.(program || set) || set.programName || "";
+      if (label && !subject.value) subject.value = label;
+      if (program && !teacher.value) teacher.value = quickTimetableProgramTeacherV134?.(program) || teacher.value;
+      if (program && !room.value) room.value = quickTimetableProgramRoomV134?.(program) || room.value;
+    }
+    refreshSetAndPeriodState();
+  });
+  refreshSetAndPeriodState();
+
+  save.addEventListener("click", async () => {
+    const diag = ownerPreviewTimetableArchitectureDiagnosticsV135;
+    diag.quickTimetableSaveAttemptCount += 1;
+    if (quickTimetableSaveInFlightV135) {
+      diag.quickTimetableDuplicateClickBlockedCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableDuplicateClickBlockedCount += 1;
+      return;
+    }
+    const type = classType.value || "school";
+    const set = selectedSet();
+    diag.lastQuickTimetableSaveType = type;
+    if (!set) return (status.textContent = "기존 시간표를 선택해 주세요.", setSelect.focus());
+    if (!period.value) return (status.textContent = "선택한 시간표의 교시를 선택해 주세요.", period.focus());
+    if (!day.value || !subject.value.trim()) return (status.textContent = "요일, 교시, 수업명을 입력해 주세요.", subject.focus());
+    const kind = timetableSetKindV135(set);
+    const normalizedPeriod = normalizePeriodLabelV84(period.value, 0);
+    const classRow = {
+      id: `tt-${String(set.id)}-${day.value}-${normalizedPeriod}-${Date.now()}`,
+      setId: set.id,
+      day: day.value,
+      period: normalizedPeriod,
+      subject: subject.value.trim(),
+      name: subject.value.trim(),
+      teacher: teacher.value.trim(),
+      room: room.value.trim(),
+      location: seat.value.trim() || room.value.trim(),
+      seat: seat.value.trim(),
+      time: [startTime.value, endTime.value].filter(Boolean).join("-"),
+      start: startTime.value || "",
+      end: endTime.value || "",
+      memo: memo.value.trim()
+    };
+    if (isProgramTimetableTypeV131?.(kind)) {
+      classRow.sourceType = kind;
+      classRow.programId = set.programId || "";
+      classRow.programName = set.programName || programDisplayNameForSetV135(set) || "";
+    }
+    quickTimetableSaveInFlightV135 = true;
+    save.disabled = true;
+    try {
+      const confirmed = await saveQuickTimetableRowRemoteV135({ classRow, selectedSet: set });
+      store.timetable ??= [];
+      store.timetable = store.timetable.filter((row) => String(row.id || "") !== String(confirmed.classRow.id));
+      store.timetable.push(confirmed.classRow);
+      sessionStorage.setItem("pm-timetable-set", set.id);
+      saveStore({ skipRemote: true, syncReason: "quick-timetable-row-server-confirmed-v135" });
+      diag.quickTimetableSaveSuccessCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableSaveSuccessCount += 1;
+      diag.lastQuickTimetableSaveResult = "server-confirmed-row-only";
+      dialog.close();
+      renderTimetableV29?.();
+      showMessage("시간표 저장 완료", "선택한 기존 시간표에 수업 1건을 저장했습니다.");
+    } catch (error) {
+      store.timetable = (store.timetable || []).filter((row) => String(row.id || "") !== String(classRow.id));
+      diag.quickTimetableRollbackCount += 1;
+      diag.quickTimetableSaveFailureCount += 1;
+      ownerPreviewCriticalRepairDiagnosticsV134.quickTimetableSaveFailureCount += 1;
+      diag.lastQuickTimetableSaveResult = error?.code || error?.message || "quick-timetable-save-failed";
+      if (/confirm|server/.test(String(diag.lastQuickTimetableSaveResult))) diag.quickTimetableFalseSuccessPreventedCount += 1;
+      status.textContent = "시간표 수업을 서버에 저장하지 못했습니다. 로그인, 워크스페이스, 권한, 선택한 시간표 상태를 확인해 주세요.";
+    } finally {
+      quickTimetableSaveInFlightV135 = false;
+      refreshSetAndPeriodState();
+    }
+  });
+
+  actions.append(save, cancel);
+  form.append(
+    el("h3", "", "빠른 수업 등록"),
+    el("p", "muted", "빠른 등록은 새 시간표를 만들지 않고, 시간표 관리에서 만든 기존 시간표에 수업 1건만 추가합니다."),
+    makeField("수업 분류", "quickTimetableClassTypeV135", classType),
+    makeField("연결할 기존 시간표", "quickTimetableExistingSetV135", setSelect),
+    setInfo,
+    makeField("요일", "quickTimetableDayV135", day),
+    makeField("교시", "quickTimetablePeriodV135", period),
+    periodHelp,
+    makeField("수업명", "quickTimetableSubjectV135", subject),
+    makeField("교사", "quickTimetableTeacherV135", teacher),
+    makeField("교실", "quickTimetableRoomV135", room),
+    makeField("좌석/위치", "quickTimetableSeatV135", seat),
+    makeField("시작 시간", "quickTimetableStartTimeV135", startTime),
+    makeField("종료 시간", "quickTimetableEndTimeV135", endTime),
+    makeField("메모", "quickTimetableMemoV135", memo),
+    status,
+    actions
+  );
+  dialog.append(form);
+  document.body.append(dialog);
+  dialog.showModal();
+  return dialog;
+}
+
+openQuickCreateV70 = function openQuickCreateV135(key) {
+  if (key === "timetable") return quickTimetableDialogV135();
+  return openQuickCreateBeforeV129 ? openQuickCreateBeforeV129.apply(this, arguments) : undefined;
+};
+
+function timetableSetRowsCountV135(setId = "") {
+  return (store.timetable || []).filter((row) => String(row.setId || row.timetableSetId || "") === String(setId)).length;
+}
+
+function linkedDataSummaryForTimetableSetV135(set = {}) {
+  const setId = String(set.id || "");
+  const programId = String(set.programId || "");
+  const keys = ["attendance", "assignments", "exams", "lessons", "applications", "studentRecords"];
+  const summary = {};
+  keys.forEach((key) => {
+    summary[key] = (store[key] || []).filter((row) => String(row.setId || row.timetableSetId || row.programId || "") === setId || (programId && String(row.programId || "") === programId)).length;
+  });
+  summary.timetableRows = timetableSetRowsCountV135(setId);
+  return summary;
+}
+
+function hasLinkedDataForTimetableSetV135(set = {}) {
+  const summary = linkedDataSummaryForTimetableSetV135(set);
+  return Object.values(summary).some((count) => Number(count || 0) > 0);
+}
+
+const addTimetableSetBeforeV135 = addTimetableSetV29;
+addTimetableSetV29 = function addTimetableSetV135(defaultName = "새 시간표", rerender = true) {
+  if (rerender === false) return addTimetableSetBeforeV135(defaultName, rerender);
+  store.timetableSets ??= [];
+  const name = prompt("시간표 이름", defaultName);
+  if (!name) return;
+  const categoryInput = prompt("분류를 입력하세요: 학교 / 기타 / 방과후 / 특강 / 동아리", "학교") || "학교";
+  const kind = normalizeTimetableKindV135(categoryInput) || "school";
+  const startDate = prompt("시작일(선택, YYYY-MM-DD)", "") || "";
+  const endDate = prompt("종료일(선택, YYYY-MM-DD)", "") || "";
+  if (startDate && endDate && startDate > endDate) return showMessage("시간표 추가 보류", "시작일은 종료일보다 늦을 수 없습니다.");
+  const statusInput = prompt("상태를 입력하세요: active / scheduled", startDate && new Date(startDate) > new Date() ? "scheduled" : "active") || "active";
+  const status = ["scheduled", "active"].includes(String(statusInput).toLowerCase()) ? String(statusInput).toLowerCase() : "active";
+  const id = `ttset-${kind}-${Date.now()}`;
+  store.timetableSets.push({
+    id,
+    name: name.trim(),
+    type: kind,
+    kind,
+    startDate,
+    endDate,
+    status,
+    createdAt: new Date().toISOString(),
+    visiblePeriodCount: TIMETABLE_DEFAULT_VISIBLE_PERIOD_COUNT_V103 || 9
+  });
+  sessionStorage.setItem("pm-timetable-set", id);
+  sessionStorage.removeItem("pm-timetable-needs-selection");
+  saveStore({ syncKeys: ["timetableSets"], syncReason: "timetable-set-create-v135" });
+  renderTimetableV29?.();
+};
+
+function editTimetableSetMetadataV135(set = {}) {
+  const name = prompt("시간표 이름", timetableSetDisplayNameV135(set));
+  if (!name) return false;
+  const categoryInput = prompt("분류를 입력하세요: 학교 / 기타 / 방과후 / 특강 / 동아리", timetableKindLabelV135(timetableSetKindV135(set))) || timetableKindLabelV135(timetableSetKindV135(set));
+  const kind = normalizeTimetableKindV135(categoryInput) || timetableSetKindV135(set);
+  const startDate = (prompt("시작일(선택, YYYY-MM-DD)", set.startDate || "") ?? set.startDate) || "";
+  const endDate = (prompt("종료일(선택, YYYY-MM-DD)", set.endDate || "") ?? set.endDate) || "";
+  if (startDate && endDate && startDate > endDate) return showMessage("시간표 수정 보류", "시작일은 종료일보다 늦을 수 없습니다."), false;
+  const statusInput = prompt("상태를 입력하세요: active / scheduled / ended / archived", timetableSetLifecycleStatusV135(set)) || timetableSetLifecycleStatusV135(set);
+  const status = ["active", "scheduled", "ended", "archived"].includes(String(statusInput).toLowerCase()) ? String(statusInput).toLowerCase() : "active";
+  Object.assign(set, {
+    name: name.trim(),
+    type: kind,
+    kind,
+    startDate,
+    endDate,
+    status,
+    archived: status === "archived",
+    updatedAt: new Date().toISOString()
+  });
+  if (status !== "archived") set.archived = false;
+  saveStore({ syncKeys: ["timetableSets"], syncReason: "timetable-set-metadata-edit-v135" });
+  ownerPreviewTimetableArchitectureDiagnosticsV135.lastTimetableLifecycleAction = "edit-metadata";
+  return true;
+}
+
+function timetableSetSortValueV135(set = {}, mode = "latest") {
+  if (mode === "name-asc" || mode === "name-desc") return timetableSetDisplayNameV135(set).toLowerCase();
+  if (mode === "start-soon" || mode === "start-late") return dateValueForTimetableV135(set.startDate || set.activeFrom)?.getTime() || 0;
+  if (mode === "end-soon" || mode === "end-late") return dateValueForTimetableV135(set.endDate || set.activeUntil)?.getTime() || 0;
+  return dateValueForTimetableV135(set.updatedAt || set.createdAt || set.startDate)?.getTime() || 0;
+}
+
+function sortedTimetableSetsV135(rows = [], mode = "latest") {
+  const next = [...rows];
+  next.sort((a, b) => {
+    const av = timetableSetSortValueV135(a, mode);
+    const bv = timetableSetSortValueV135(b, mode);
+    if (typeof av === "string" || typeof bv === "string") return String(av).localeCompare(String(bv), "ko");
+    return Number(av || 0) - Number(bv || 0);
+  });
+  if (["latest", "name-desc", "start-late", "end-late"].includes(mode)) next.reverse();
+  return next;
+}
+
+function recordVisibleTimetableIdentifiersV135(root = document) {
+  const text = String(root?.textContent || "");
+  const count = (text.match(/\b(sourceType|programId|specialLectures|ttset-|ws_)\b/g) || []).length;
+  ownerPreviewTimetableArchitectureDiagnosticsV135.timetableVisibleIdentifierCount = count;
+  return count;
+}
+
+function timetableEndedManagementPanelV135() {
+  const allSets = store.timetableSets || [];
+  const ended = allSets.filter((set) => ["ended", "archived"].includes(timetableSetLifecycleStatusV135(set)));
+  ownerPreviewTimetableArchitectureDiagnosticsV135.timetableEndedCount = ended.filter((set) => timetableSetLifecycleStatusV135(set) === "ended").length;
+  ownerPreviewTimetableArchitectureDiagnosticsV135.timetableArchivedCount = ended.filter((set) => timetableSetLifecycleStatusV135(set) === "archived").length;
+  const box = el("section", "timetable-ended-panel-v135");
+  const head = el("div", "period-editor-head-v81");
+  const sort = document.createElement("select");
+  [
+    ["latest", "최근 수정순"],
+    ["oldest", "오래된순"],
+    ["name-asc", "이름 오름차순"],
+    ["name-desc", "이름 내림차순"],
+    ["start-soon", "시작일 빠른순"],
+    ["start-late", "시작일 늦은순"],
+    ["end-soon", "종료일 빠른순"],
+    ["end-late", "종료일 늦은순"]
+  ].forEach(([value, label]) => sort.append(option(value, label)));
+  sort.value = sessionStorage.getItem("pm-ended-timetable-sort") || "latest";
+  sort.addEventListener("change", () => {
+    sessionStorage.setItem("pm-ended-timetable-sort", sort.value);
+    renderTimetableV29?.();
+  });
+  head.append(el("h3", "", "종료된 시간표"), makeField("정렬", "endedTimetableSortV135", sort));
+  const list = el("div", "notice-list");
+  const rows = sortedTimetableSetsV135(ended, sort.value);
+  if (!rows.length) list.append(el("p", "muted", "종료되었거나 보관된 시간표가 없습니다."));
+  rows.forEach((set) => {
+    const card = el("article", "notice-card-v81 timetable-ended-card-v135");
+    const status = timetableSetLifecycleStatusV135(set);
+    const linkedSummary = linkedDataSummaryForTimetableSetV135(set);
+    const linkedCount = Object.values(linkedSummary).reduce((sum, count) => sum + Number(count || 0), 0);
+    card.append(
+      el("h4", "", timetableSetDisplayNameV135(set)),
+      el("p", "muted", [
+        timetableKindLabelV135(timetableSetKindV135(set)),
+        status === "archived" ? "보관됨" : "종료됨",
+        [set.startDate || "", set.endDate || ""].filter(Boolean).join(" ~ "),
+        `수업 ${timetableSetRowsCountV135(set.id)}건`,
+        linkedCount ? `연결 데이터 ${linkedCount}건` : "연결 데이터 없음"
+      ].filter(Boolean).join(" · "))
+    );
+    const actions = el("div", "row-actions");
+    const detail = button("상세", "ghost small");
+    detail.addEventListener("click", () => showMessage("시간표 상세", `${timetableSetDisplayNameV135(set)}\n분류: ${timetableKindLabelV135(timetableSetKindV135(set))}\n상태: ${status === "archived" ? "보관됨" : "종료됨"}`));
+    const edit = button("수정", "ghost small");
+    edit.addEventListener("click", () => {
+      if (editTimetableSetMetadataV135(set)) renderTimetableV29?.();
+    });
+    const reactivate = button("재활성화", "ghost small");
+    reactivate.addEventListener("click", () => {
+      ownerPreviewTimetableArchitectureDiagnosticsV135.timetableReactivateAttemptCount += 1;
+      const start = prompt("새 시작일(YYYY-MM-DD)", new Date().toISOString().slice(0, 10));
+      if (!start) return;
+      const end = prompt("새 종료일(YYYY-MM-DD)", set.endDate || "");
+      if (!end) return showMessage("재활성화 보류", "종료일을 입력해야 재활성화할 수 있습니다.");
+      set.startDate = start;
+      set.endDate = end;
+      set.status = "active";
+      set.archived = false;
+      saveStore({ syncKeys: ["timetableSets"], syncReason: "timetable-set-reactivate-v135" });
+      ownerPreviewTimetableArchitectureDiagnosticsV135.timetableReactivateSuccessCount += 1;
+      ownerPreviewTimetableArchitectureDiagnosticsV135.lastTimetableLifecycleAction = "reactivate";
+      renderTimetableV29?.();
+    });
+    const copy = button("복사", "ghost small");
+    copy.addEventListener("click", () => {
+      ownerPreviewTimetableArchitectureDiagnosticsV135.timetableDuplicateAttemptCount += 1;
+      const name = prompt("복사할 시간표 이름", `${timetableSetDisplayNameV135(set)} 복사본`);
+      if (!name) return;
+      const newId = `ttset-copy-${Date.now()}`;
+      const copiedSet = { ...set, id: newId, name, status: "active", archived: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      delete copiedSet.deleted;
+      store.timetableSets ??= [];
+      store.timetable ??= [];
+      store.timetableSets.push(copiedSet);
+      (store.timetable || []).filter((row) => String(row.setId) === String(set.id)).forEach((row) => {
+        store.timetable.push({ ...row, id: `tt-${newId}-${row.day}-${row.period}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, setId: newId });
+      });
+      saveStore({ syncKeys: ["timetableSets", "timetable"], syncReason: "timetable-set-copy-v135" });
+      ownerPreviewTimetableArchitectureDiagnosticsV135.timetableDuplicateSuccessCount += 1;
+      ownerPreviewTimetableArchitectureDiagnosticsV135.lastTimetableLifecycleAction = "copy-set-and-rows-only";
+      renderTimetableV29?.();
+    });
+    const archive = button("보관", "ghost small");
+    archive.addEventListener("click", () => {
+      set.status = "archived";
+      set.archived = true;
+      saveStore({ syncKeys: ["timetableSets"], syncReason: "timetable-set-archive-v135" });
+      ownerPreviewTimetableArchitectureDiagnosticsV135.lastTimetableLifecycleAction = "archive";
+      renderTimetableV29?.();
+    });
+    const remove = button("삭제 제한", "danger small");
+    remove.addEventListener("click", () => {
+      if (hasLinkedDataForTimetableSetV135(set)) {
+        ownerPreviewTimetableArchitectureDiagnosticsV135.timetableDeleteBlockedByLinkedDataCount += 1;
+        ownerPreviewTimetableArchitectureDiagnosticsV135.lastTimetableLifecycleAction = "delete-blocked-linked-data";
+        showMessage("삭제 제한", "수업·출결·과제·시험 또는 프로그램 연결 데이터가 있어 실제 삭제 대신 보관을 사용해 주세요.");
+        return;
+      }
+      ownerPreviewTimetableArchitectureDiagnosticsV135.timetableDeleteBlockedByLinkedDataCount += 1;
+      ownerPreviewTimetableArchitectureDiagnosticsV135.lastTimetableLifecycleAction = "delete-blocked-prefer-archive";
+      showMessage("삭제 제한", "Owner Preview에서는 안전을 위해 실제 삭제 대신 보관을 사용합니다.");
+    });
+    actions.append(detail, edit, reactivate, copy, archive, remove);
+    card.append(actions);
+    list.append(card);
+  });
+  box.append(head, list);
+  return box;
+}
+
+const renderTimetableBeforeV135 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV135() {
+  const result = renderTimetableBeforeV135.apply(this, arguments);
+  const section = content?.querySelector?.(".panel");
+  if (section && !section.querySelector(".timetable-ended-panel-v135")) section.append(timetableEndedManagementPanelV135());
+  recordVisibleTimetableIdentifiersV135(section || content);
+  return result;
+};
+
+function ownerPreviewPublicDiagnosticsV135() {
+  return {
+    ...ownerPreviewPublicDiagnosticsV134(),
+    quickTimetableExistingSetOptionCount: ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableExistingSetOptionCount,
+    quickTimetableSelectedSetIdMasked: ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableSelectedSetIdMasked,
+    quickTimetableActivePeriodCount: ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableActivePeriodCount,
+    quickTimetableSaveAttemptCount: ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableSaveAttemptCount,
+    quickTimetableSaveSuccessCount: ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableSaveSuccessCount,
+    quickTimetableSaveFailureCount: ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableSaveFailureCount,
+    quickTimetableDuplicateClickBlockedCount: ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableDuplicateClickBlockedCount,
+    quickTimetableServerConfirmSuccessCount: ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableServerConfirmSuccessCount,
+    quickTimetableServerConfirmFailureCount: ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableServerConfirmFailureCount,
+    quickTimetableFalseSuccessPreventedCount: ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableFalseSuccessPreventedCount,
+    timetableEndedCount: ownerPreviewTimetableArchitectureDiagnosticsV135.timetableEndedCount,
+    timetableArchivedCount: ownerPreviewTimetableArchitectureDiagnosticsV135.timetableArchivedCount,
+    timetableReactivateAttemptCount: ownerPreviewTimetableArchitectureDiagnosticsV135.timetableReactivateAttemptCount,
+    timetableReactivateSuccessCount: ownerPreviewTimetableArchitectureDiagnosticsV135.timetableReactivateSuccessCount,
+    timetableDuplicateAttemptCount: ownerPreviewTimetableArchitectureDiagnosticsV135.timetableDuplicateAttemptCount,
+    timetableDuplicateSuccessCount: ownerPreviewTimetableArchitectureDiagnosticsV135.timetableDuplicateSuccessCount,
+    timetableDeleteBlockedByLinkedDataCount: ownerPreviewTimetableArchitectureDiagnosticsV135.timetableDeleteBlockedByLinkedDataCount,
+    timetableVisibleIdentifierCount: ownerPreviewTimetableArchitectureDiagnosticsV135.timetableVisibleIdentifierCount,
+    lastTimetableLifecycleAction: ownerPreviewTimetableArchitectureDiagnosticsV135.lastTimetableLifecycleAction
+  };
+}
+
+const workspaceDiagnosticsBeforeV135 = window.PMWorkspaceDataService?.diagnostics?.bind(window.PMWorkspaceDataService);
+if (workspaceDiagnosticsBeforeV135 && !window.PMWorkspaceDataService.__ownerPreviewDiagnosticsV135) {
+  window.PMWorkspaceDataService.__ownerPreviewDiagnosticsV135 = true;
+  window.PMWorkspaceDataService.diagnostics = function diagnosticsV135() {
+    return {
+      ...workspaceDiagnosticsBeforeV135(),
+      ...ownerPreviewPublicDiagnosticsV135()
+    };
+  };
+}
+
+const ownerPreviewCriticalRepairSnapshotBeforeV135 = window.PMOwnerPreviewCriticalRepairDiagnostics?.snapshot;
+window.PMOwnerPreviewCriticalRepairDiagnostics = {
+  snapshot: () => ({
+    ...(ownerPreviewCriticalRepairSnapshotBeforeV135?.() || {}),
+    appVersion: APP_PATCH_VERSION_V135,
+    publicDiagnostics: ownerPreviewPublicDiagnosticsV135(),
+    ...ownerPreviewTimetableArchitectureDiagnosticsV135,
+    ...ownerPreviewPublicDiagnosticsV135(),
+    sensitiveValueDetected: (window.PMUserFacingIdentifierDiagnostics?.snapshot?.().sensitiveValueDetected || false)
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V135;
+
+// Owner Preview timetable management lifecycle batch 9. This layer keeps the
+// V135 quick-registration row-only architecture, but moves timetable lifecycle
+// work into explicit management screens with custom confirmation UI and
+// server-confirmed writes.
+const APP_PATCH_VERSION_V136 = "v136.0 - 2026-07-25";
+
+const TIMETABLE_CATEGORY_LABELS_V136 = {
+  school: "학교",
+  general: "기타",
+  afterschool: "방과후",
+  specialLectures: "특강",
+  clubs: "동아리"
+};
+
+const TIMETABLE_STATUS_LABELS_V136 = {
+  active: "사용 중",
+  scheduled: "시작 예정",
+  ended: "종료됨",
+  archived: "보관됨"
+};
+
+const TIMETABLE_MANAGEMENT_MODE_KEY_V136 = "pm-timetable-management-mode-v136";
+const TIMETABLE_PAST_END_BLOCK_MESSAGE_V136 = "종료일이 이미 지난 시간표는 새로 만들 수 없습니다. 시작일과 종료일을 다시 확인해 주세요.";
+const TIMETABLE_LINKED_DELETE_BLOCK_MESSAGE_V136 = "이 시간표에는 연결된 수업 또는 기록이 있어 삭제할 수 없습니다. 보관함으로 이동해 주세요.";
+
+const ownerPreviewTimetableManagementDiagnosticsV136 = {
+  timetableManagementOpenCount: 0,
+  endedTimetableOpenCount: 0,
+  archivedTimetableOpenCount: 0,
+  timetableExpiredDisplayCount: 0,
+  timetablePastEndCreateBlockedCount: 0,
+  timetableMainNavigationClickCount: 0,
+  lastTimetableManagementView: "main",
+  lastTimetableNavigationResult: "none",
+  timetableCreateAttemptCount: 0,
+  timetableCreateSuccessCount: 0,
+  timetableCreateFailureCount: 0,
+  timetableCreateWithoutEndDateCount: 0,
+  timetableInvalidPastEndDateBlockedCount: 0,
+  timetableInvalidDateRangeBlockedCount: 0,
+  timetableDateInputNormalizeCount: 0,
+  timetableDateTrailingSeparatorFixedCount: 0,
+  timetableStartDateMissingBlockedCount: 0,
+  timetableEndDateBeforeStartBlockedCount: 0,
+  timetableEndDateBeforeTodayBlockedCount: 0,
+  timetableEndDateMinUpdateCount: 0,
+  timetableEndDateClearedAfterStartChangeCount: 0,
+  timetableDateValidationAcceptedCount: 0,
+  timetableDateValidationBlockedCount: 0,
+  timetableLifecycleSaveAttemptCount: 0,
+  timetableLifecycleSaveSuccessCount: 0,
+  timetableLifecycleSaveFailureCount: 0,
+  lastTimetableDateValidationReason: "none",
+  lastTimetableDateDialogType: "none",
+  timetableReactivateAttemptCount: 0,
+  timetableReactivateSuccessCount: 0,
+  timetableReactivateFailureCount: 0,
+  timetableReactivateWithoutEndDateCount: 0,
+  timetableCopyAttemptCount: 0,
+  timetableCopySuccessCount: 0,
+  timetableArchiveCount: 0,
+  timetableUnarchiveCount: 0,
+  timetableUnarchiveAttemptCount: 0,
+  timetableUnarchiveSuccessCount: 0,
+  timetableUnarchiveFailureCount: 0,
+  lastTimetableUnarchiveResolvedStatus: "none",
+  timetableUnarchiveActiveCount: 0,
+  timetableUnarchiveScheduledCount: 0,
+  timetableUnarchiveEndedCount: 0,
+  timetableDeleteBlockedLinkedDataCount: 0,
+  timetableEmptySetDeleteSuccessCount: 0,
+  timetableVisibleIdentifierCount: 0,
+  lastTimetableManagementAction: "none",
+  lastTimetableManagementErrorCode: "none"
+};
+
+function todayDateStringV136(now = new Date()) {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function recordTimetableDateDiagnosticV136(patch = {}) {
+  Object.assign(ownerPreviewTimetableManagementDiagnosticsV136, patch);
+}
+
+function normalizeTimetableDateInputV136(value = "") {
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableDateInputNormalizeCount += 1;
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})(-)?$/);
+  if (!match) return "";
+  const normalized = `${match[1]}-${match[2]}-${match[3]}`;
+  if (match[4]) ownerPreviewTimetableManagementDiagnosticsV136.timetableDateTrailingSeparatorFixedCount += 1;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const local = new Date(year, month - 1, day);
+  if (local.getFullYear() !== year || local.getMonth() !== month - 1 || local.getDate() !== day) return "";
+  return normalized;
+}
+
+function validDateStringV136(value = "") {
+  return Boolean(normalizeTimetableDateInputV136(value));
+}
+
+function dateTimeValueV136(value = "") {
+  if (!value) return null;
+  if (value?.toDate) return value.toDate().getTime();
+  const text = normalizeTimetableDateInputV136(value);
+  if (!text) return null;
+  const [year, month, day] = text.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date.getTime();
+}
+
+function normalizeTimetableCategoryV136(value = "") {
+  return normalizeTimetableKindV135?.(value) || "general";
+}
+
+// New writes use startDate/endDate. The legacy aliases are read once here so
+// lifecycle and UI decisions never have to guess which date field to inspect.
+function timetableDateRangeV136(set = {}) {
+  return {
+    startDate: normalizeTimetableDateInputV136(set.startDate || set.activeFrom || set.fromDate),
+    endDate: normalizeTimetableDateInputV136(set.endDate || set.activeUntil || set.toDate)
+  };
+}
+
+function timetableLifecycleStatusFromDatesV136(set = {}, now = new Date()) {
+  const range = timetableDateRangeV136(set);
+  const todayValue = dateTimeValueV136(todayDateStringV136(now));
+  const endValue = dateTimeValueV136(range.endDate);
+  if (endValue !== null && todayValue !== null && endValue < todayValue) return "ended";
+  const startValue = dateTimeValueV136(range.startDate);
+  if (startValue !== null && startValue > (todayValue ?? now.getTime())) return "scheduled";
+  return "active";
+}
+
+function timetableCategoryLabelV136(value = "") {
+  const kind = normalizeTimetableCategoryV136(value);
+  return TIMETABLE_CATEGORY_LABELS_V136[kind] || TIMETABLE_CATEGORY_LABELS_V136.general;
+}
+
+function timetableStatusLabelV136(value = "") {
+  const status = String(value || "").toLowerCase();
+  return TIMETABLE_STATUS_LABELS_V136[status] || TIMETABLE_STATUS_LABELS_V136.active;
+}
+
+function timetableSetLifecycleStatusV136(set = {}, now = new Date()) {
+  const explicit = String(set.status || set.state || "").toLowerCase();
+  if (explicit === "archived" || set.archived === true) return "archived";
+  if (["ended", "closed", "inactive"].includes(explicit)) return "ended";
+  return timetableLifecycleStatusFromDatesV136(set, now);
+}
+
+function validateTimetableDateRangeV136({ startDate = "", endDate = "", allowPastEnd = false } = {}) {
+  const normalizedStartDate = normalizeTimetableDateInputV136(startDate);
+  const normalizedEndDate = normalizeTimetableDateInputV136(endDate);
+  if (!normalizedStartDate) {
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableStartDateMissingBlockedCount += 1;
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableInvalidDateRangeBlockedCount += 1;
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableDateValidationBlockedCount += 1;
+    recordTimetableDateDiagnosticV136({ lastTimetableDateValidationReason: "start-date-required" });
+    return { ok: false, code: "start-date-required", message: "시작일을 선택해 주세요." };
+  }
+  if (!String(endDate ?? "").trim()) {
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableDateValidationAcceptedCount += 1;
+    recordTimetableDateDiagnosticV136({ lastTimetableDateValidationReason: "accepted-no-end-date" });
+    return { ok: true, startDate: normalizedStartDate, endDate: "" };
+  }
+  if (!normalizedEndDate) {
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableInvalidDateRangeBlockedCount += 1;
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableDateValidationBlockedCount += 1;
+    recordTimetableDateDiagnosticV136({ lastTimetableDateValidationReason: "invalid-end-date" });
+    return { ok: false, code: "invalid-date", message: "시작일과 종료일을 다시 확인해 주세요." };
+  }
+  if (normalizedEndDate < normalizedStartDate) {
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableInvalidDateRangeBlockedCount += 1;
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableEndDateBeforeStartBlockedCount += 1;
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableDateValidationBlockedCount += 1;
+    recordTimetableDateDiagnosticV136({ lastTimetableDateValidationReason: "end-before-start" });
+    return { ok: false, code: "end-before-start", message: "종료일은 시작일보다 빠를 수 없습니다." };
+  }
+  if (!allowPastEnd && normalizedEndDate < todayDateStringV136()) {
+    ownerPreviewTimetableManagementDiagnosticsV136.timetablePastEndCreateBlockedCount += 1;
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableInvalidPastEndDateBlockedCount += 1;
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableEndDateBeforeTodayBlockedCount += 1;
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableDateValidationBlockedCount += 1;
+    recordTimetableDateDiagnosticV136({ lastTimetableDateValidationReason: "end-before-today" });
+    return { ok: false, code: "past-ended", message: "새 시간표의 종료일은 오늘 또는 이후 날짜여야 합니다." };
+  }
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableDateValidationAcceptedCount += 1;
+  recordTimetableDateDiagnosticV136({ lastTimetableDateValidationReason: "accepted" });
+  return { ok: true, startDate: normalizedStartDate, endDate: normalizedEndDate };
+}
+
+function timetableSetDisplayNameV136(set = {}) {
+  return timetableSetDisplayNameV135?.(set) || set.name || set.title || "이름 없는 시간표";
+}
+
+function timetableSetsForManagementV136(status) {
+  const rows = Array.isArray(store.timetableSets) ? store.timetableSets : [];
+  return sortedTimetableSetsV135?.(rows.filter((set) => timetableSetLifecycleStatusV136(set) === status), "latest")
+    || rows.filter((set) => timetableSetLifecycleStatusV136(set) === status);
+}
+
+function currentTimetableSetsForManagementV136() {
+  const rows = Array.isArray(store.timetableSets) ? store.timetableSets : [];
+  return sortedTimetableSetsV135?.(rows.filter((set) => {
+    const status = timetableSetLifecycleStatusV136(set);
+    return status === "active" || status === "scheduled";
+  }), "latest") || rows;
+}
+
+function activeTimetableSetForManagementV136() {
+  const currentRows = currentTimetableSetsForManagementV136();
+  const selectedId = sessionStorage.getItem("pm-timetable-set") || "";
+  return currentRows.find((set) => String(set.id) === String(selectedId)) || currentRows[0] || null;
+}
+
+function timetableRowsForSetV136(setId = "") {
+  return (store.timetable || []).filter((row) => String(row.setId || row.timetableSetId || "school") === String(setId));
+}
+
+function linkedDataSummaryForTimetableSetV136(set = {}) {
+  const summary = linkedDataSummaryForTimetableSetV135?.(set) || {};
+  const setId = String(set.id || "");
+  const programId = String(set.programId || "");
+  const extraKeys = [
+    "attendance",
+    "assignments",
+    "exams",
+    "applications",
+    "studentRecords",
+    "afterschoolApplications",
+    "clubApplications",
+    "specialLectureApplications"
+  ];
+  extraKeys.forEach((key) => {
+    if (summary[key] !== undefined) return;
+    summary[key] = (store[key] || []).filter((row) => (
+      String(row.setId || row.timetableSetId || "") === setId
+      || (programId && String(row.programId || "") === programId)
+    )).length;
+  });
+  summary.timetableRows = timetableRowsForSetV136(setId).length;
+  if (programId) summary.programLink = 1;
+  return summary;
+}
+
+function hasLinkedDataForTimetableSetV136(set = {}) {
+  return Object.values(linkedDataSummaryForTimetableSetV136(set)).some((count) => Number(count || 0) > 0);
+}
+
+function isSystemOwnerForTimetableManagementV136() {
+  const user = currentUser || {};
+  const roles = [user.globalRole, user.role, user.currentRole, user.workspaceRole].map((role) => String(role || ""));
+  return roles.includes("system_owner") || window.PMCanonicalWorkspaceDiagnostics?.snapshot?.().isSystemOwnerResolved === true;
+}
+
+async function timetableWriteRuntimeV136(reason = "timetable-management") {
+  const safety = window.PMOperationalSafety?.status?.();
+  if (safety?.writeBlocked) throw new Error(`${reason}-safety-write-blocked`);
+  const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116(`${reason}-v136`, { force: true });
+  if (!workspaceId) throw new Error(`${reason}-workspace-unresolved`);
+  const readiness = window.PMWorkspaceDataService?.checkSaveReadiness?.(workspaceId, {
+    canonicalWorkspaceId: workspaceId,
+    record: true
+  });
+  if (!readiness?.ok) throw new Error(readiness?.reason || `${reason}-sync-not-started`);
+  const runtime = await quickTimetableRuntimeV132();
+  return { ...runtime, workspaceId };
+}
+
+function timetableSetRefV136(runtime, setId = "") {
+  return runtime.db.collection("workspaces").doc(runtime.workspaceId).collection("timetableSets").doc(String(setId));
+}
+
+function timetableRowRefV136(runtime, rowId = "") {
+  return runtime.db.collection("workspaces").doc(runtime.workspaceId).collection("timetable").doc(String(rowId));
+}
+
+async function saveTimetableSetRemoteV136(set = {}, reason = "timetable-set-save") {
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableLifecycleSaveAttemptCount += 1;
+  try {
+    const runtime = await timetableWriteRuntimeV136(reason);
+    const FieldValue = firebase.firestore.FieldValue;
+    const payload = cleanFirestoreObjectV52({
+      ...set,
+      workspaceId: runtime.workspaceId,
+      workspace_id: runtime.workspaceId,
+      updatedAt: FieldValue.serverTimestamp()
+    });
+    const ref = timetableSetRefV136(runtime, set.id);
+    await ref.set(payload, { merge: true });
+    const snap = await ref.get({ source: "server" });
+    if (!snap.exists || snap.metadata?.hasPendingWrites) throw new Error(`${reason}-server-confirm-failed`);
+    window.PMWorkspaceDataService?.discardPendingRow?.("timetableSets", set.id);
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableLifecycleSaveSuccessCount += 1;
+    return { id: snap.id, ...(snap.data() || {}) };
+  } catch (error) {
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableLifecycleSaveFailureCount += 1;
+    throw error;
+  }
+}
+
+async function deleteEmptyTimetableSetRemoteV136(set = {}) {
+  if (!isSystemOwnerForTimetableManagementV136()) throw new Error("timetable-delete-system-owner-required");
+  if (hasLinkedDataForTimetableSetV136(set)) {
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableDeleteBlockedLinkedDataCount += 1;
+    throw new Error("timetable-delete-linked-data-blocked");
+  }
+  const runtime = await timetableWriteRuntimeV136("timetable-empty-set-delete");
+  const ref = timetableSetRefV136(runtime, set.id);
+  await ref.delete();
+  const snap = await ref.get({ source: "server" });
+  if (snap.exists) throw new Error("timetable-delete-server-confirm-failed");
+  window.PMWorkspaceDataService?.discardPendingRow?.("timetableSets", set.id);
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableEmptySetDeleteSuccessCount += 1;
+  return true;
+}
+
+async function clearTimetableRowsRemoteV136(set = {}) {
+  const runtime = await timetableWriteRuntimeV136("timetable-current-clear");
+  const query = await runtime.db.collection("workspaces").doc(runtime.workspaceId).collection("timetable")
+    .where("setId", "==", String(set.id))
+    .get({ source: "server" });
+  const docs = query.docs || [];
+  for (let index = 0; index < docs.length; index += 400) {
+    const batch = runtime.db.batch();
+    docs.slice(index, index + 400).forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+  }
+  const confirm = await runtime.db.collection("workspaces").doc(runtime.workspaceId).collection("timetable")
+    .where("setId", "==", String(set.id))
+    .get({ source: "server" });
+  if (!confirm.empty) throw new Error("timetable-clear-server-confirm-failed");
+  docs.forEach((doc) => window.PMWorkspaceDataService?.discardPendingRow?.("timetable", doc.id));
+  return docs.length;
+}
+
+function makeTimetableDialogV136(id = "timetableManagementDialogV136") {
+  const previous = document.getElementById(id);
+  if (previous) previous.remove();
+  const dialog = document.createElement("dialog");
+  dialog.id = id;
+  dialog.className = "editor-dialog timetable-management-dialog-v136";
+  document.body.append(dialog);
+  return dialog;
+}
+
+function showTimetableDialogV136(dialog) {
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "open");
+}
+
+function closeTimetableDialogV136(dialog) {
+  if (typeof dialog.close === "function") dialog.close();
+  dialog.remove();
+}
+
+function customConfirmDialogV136({ title = "확인", message = "", confirmText = "확인", danger = false } = {}) {
+  return new Promise((resolve) => {
+    const dialog = makeTimetableDialogV136("timetableConfirmDialogV136");
+    const form = el("div", "timetable-confirm-v136");
+    const actions = el("div", "row-actions");
+    const yes = button(confirmText, danger ? "danger" : "");
+    const no = button("취소", "ghost");
+    yes.addEventListener("click", () => {
+      closeTimetableDialogV136(dialog);
+      resolve(true);
+    });
+    no.addEventListener("click", () => {
+      closeTimetableDialogV136(dialog);
+      resolve(false);
+    });
+    actions.append(yes, no);
+    form.append(el("h3", "", title), el("p", "muted", message), actions);
+    dialog.append(form);
+    showTimetableDialogV136(dialog);
+  });
+}
+
+function appendTimetableStatusOptionsV136(select, values = ["active", "scheduled"]) {
+  values.forEach((value) => select.append(option(value, timetableStatusLabelV136(value))));
+}
+
+function appendTimetableCategoryOptionsV136(select) {
+  Object.entries(TIMETABLE_CATEGORY_LABELS_V136).forEach(([value, label]) => select.append(option(value, label)));
+}
+
+function timetableStatusForStartDateV136(startDate = "") {
+  return startDate > todayDateStringV136() ? "scheduled" : "active";
+}
+
+function applyTimetableDateConstraintsV136(startDateInput, endDateInput, status = null, hint = null) {
+  const startDate = normalizeTimetableDateInputV136(startDateInput?.value);
+  const endDate = normalizeTimetableDateInputV136(endDateInput?.value);
+  if (startDateInput.value !== startDate) startDateInput.value = startDate;
+  if (endDateInput.value !== endDate) endDateInput.value = endDate;
+  const minDate = [todayDateStringV136(), startDate].filter(Boolean).sort().at(-1) || "";
+  endDateInput.min = minDate;
+  endDateInput.max = "";
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableEndDateMinUpdateCount += 1;
+  if (endDate && minDate && endDate < minDate) {
+    endDateInput.value = "";
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableEndDateClearedAfterStartChangeCount += 1;
+    if (hint) hint.textContent = "시작일이 변경되어 기존 종료일을 다시 선택해야 합니다.";
+  } else if (hint) {
+    hint.textContent = "";
+  }
+  if (status) status.value = timetableStatusForStartDateV136(startDate);
+}
+
+function openTimetableSetEditorDialogV136({ mode = "create", set = null, endedEdit = false } = {}) {
+  ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableDateDialogType = mode === "create" ? "create" : "edit";
+  const dialog = makeTimetableDialogV136("timetableSetEditorDialogV136");
+  const form = document.createElement("form");
+  form.method = "dialog";
+  form.className = "timetable-set-editor-v136";
+  form.addEventListener("submit", (event) => event.preventDefault());
+  const status = el("p", "muted wide", "");
+  const name = document.createElement("input");
+  name.value = mode === "create" ? "" : timetableSetDisplayNameV136(set);
+  name.placeholder = "시간표 이름";
+  const category = document.createElement("select");
+  appendTimetableCategoryOptionsV136(category);
+  category.value = normalizeTimetableCategoryV136(timetableSetKindV135?.(set || {}) || set?.type || "school");
+  const startDate = document.createElement("input");
+  startDate.type = "date";
+  startDate.value = mode === "create" ? "" : timetableDateRangeV136(set || {}).startDate;
+  const endDate = document.createElement("input");
+  endDate.type = "date";
+  endDate.value = timetableDateRangeV136(set || {}).endDate;
+  endDate.max = "";
+  const state = document.createElement("select");
+  appendTimetableStatusOptionsV136(state, endedEdit ? ["ended"] : ["active", "scheduled"]);
+  state.value = endedEdit ? "ended" : (mode === "create" && startDate.value > todayDateStringV136() ? "scheduled" : timetableSetLifecycleStatusV136(set || {}));
+  state.disabled = true;
+  const dateHint = el("p", "muted wide", "");
+  const updateDateConstraints = () => applyTimetableDateConstraintsV136(startDate, endDate, endedEdit ? null : state, dateHint);
+  updateDateConstraints();
+  startDate.addEventListener("input", updateDateConstraints);
+  startDate.addEventListener("change", updateDateConstraints);
+  endDate.addEventListener("input", updateDateConstraints);
+  endDate.addEventListener("change", updateDateConstraints);
+  const memo = document.createElement("textarea");
+  memo.value = set?.memo || "";
+  memo.placeholder = "메모";
+  const actions = el("div", "row-actions");
+  const save = button("저장");
+  const cancel = button("취소", "ghost");
+  cancel.addEventListener("click", () => closeTimetableDialogV136(dialog));
+  save.addEventListener("click", async () => {
+    if (mode === "create") ownerPreviewTimetableManagementDiagnosticsV136.timetableCreateAttemptCount += 1;
+    if (!name.value.trim()) {
+      status.textContent = "시간표 이름을 입력해 주세요.";
+      name.focus();
+      return;
+    }
+    const validation = validateTimetableDateRangeV136({
+      startDate: startDate.value,
+      endDate: endDate.value,
+      allowPastEnd: endedEdit
+    });
+    if (!validation.ok) {
+      status.textContent = validation.message;
+      return;
+    }
+    save.disabled = true;
+    try {
+      const id = set?.id || `ttset-${category.value}-${Date.now()}`;
+      const next = {
+        ...(set || {}),
+        id,
+        name: name.value.trim(),
+        title: name.value.trim(),
+        type: category.value,
+        kind: category.value,
+        category: category.value,
+        startDate: validation.startDate,
+        endDate: validation.endDate,
+        status: endedEdit ? "ended" : timetableStatusForStartDateV136(validation.startDate),
+        archived: false,
+        memo: memo.value.trim(),
+        visiblePeriodCount: set?.visiblePeriodCount || TIMETABLE_DEFAULT_VISIBLE_PERIOD_COUNT_V103 || 9,
+        createdAt: set?.createdAt || new Date().toISOString()
+      };
+      const confirmed = await saveTimetableSetRemoteV136(next, mode === "create" ? "timetable-set-create" : "timetable-set-edit");
+      store.timetableSets ??= [];
+      store.timetableSets = store.timetableSets.filter((row) => String(row.id) !== String(id));
+      store.timetableSets.push({ ...next, ...confirmed, id });
+      sessionStorage.setItem("pm-timetable-set", id);
+      saveStore({ skipRemote: true, syncReason: mode === "create" ? "timetable-set-create-confirmed-v136" : "timetable-set-edit-confirmed-v136" });
+      ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementAction = mode === "create" ? "create-confirmed" : "edit-confirmed";
+      if (mode === "create") {
+        ownerPreviewTimetableManagementDiagnosticsV136.timetableCreateSuccessCount += 1;
+        if (!validation.endDate) ownerPreviewTimetableManagementDiagnosticsV136.timetableCreateWithoutEndDateCount += 1;
+      }
+      closeTimetableDialogV136(dialog);
+      renderTimetableV29?.();
+    } catch (error) {
+      if (mode === "create") ownerPreviewTimetableManagementDiagnosticsV136.timetableCreateFailureCount += 1;
+      ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementErrorCode = error?.code || error?.message || "timetable-set-save-failed";
+      status.textContent = "시간표를 서버에 저장하지 못했습니다. 로그인, 워크스페이스, 권한 상태를 확인해 주세요.";
+      save.disabled = false;
+    }
+  });
+  actions.append(save, cancel);
+  form.append(
+    el("h3", "", mode === "create" ? "시간표 추가" : "시간표 수정"),
+    makeField("이름", "timetableSetNameV136", name),
+    makeField("분류", "timetableSetCategoryV136", category),
+    makeField("시작일", "timetableSetStartV136", startDate),
+    makeField("종료일", "timetableSetEndV136", endDate),
+    dateHint,
+    makeField("표시 상태", "timetableSetStatusV136", state),
+    makeField("메모", "timetableSetMemoV136", memo),
+    status,
+    actions
+  );
+  dialog.append(form);
+  showTimetableDialogV136(dialog);
+  return dialog;
+}
+
+async function reactivateTimetableSetV136(set = {}) {
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableReactivateAttemptCount += 1;
+  ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableDateDialogType = "reactivate";
+  const dialog = makeTimetableDialogV136("timetableReactivateDialogV136");
+  const endDate = document.createElement("input");
+  endDate.type = "date";
+  endDate.min = todayDateStringV136();
+  endDate.max = "";
+  const status = el("p", "muted wide", "");
+  const actions = el("div", "row-actions");
+  const save = button("재활성화");
+  const cancel = button("취소", "ghost");
+  cancel.addEventListener("click", () => closeTimetableDialogV136(dialog));
+  save.addEventListener("click", async () => {
+    const start = todayDateStringV136();
+    const validation = validateTimetableDateRangeV136({ startDate: start, endDate: endDate.value, allowPastEnd: false });
+    if (!validation.ok) {
+      status.textContent = validation.message;
+      return;
+    }
+    const ok = await customConfirmDialogV136({
+      title: "시간표 재활성화",
+      message: "이 시간표의 수업, 교시, 연결 프로그램은 유지하고 사용 중 상태로 전환합니다.",
+      confirmText: "재활성화"
+    });
+    if (!ok) return;
+    save.disabled = true;
+    try {
+      const next = { ...set, startDate: start, endDate: validation.endDate, status: "active", archived: false, updatedAt: new Date().toISOString() };
+      const confirmed = await saveTimetableSetRemoteV136(next, "timetable-set-reactivate");
+      Object.assign(set, next, confirmed);
+      saveStore({ skipRemote: true, syncReason: "timetable-set-reactivate-confirmed-v136" });
+      ownerPreviewTimetableManagementDiagnosticsV136.timetableReactivateSuccessCount += 1;
+      if (!validation.endDate) ownerPreviewTimetableManagementDiagnosticsV136.timetableReactivateWithoutEndDateCount += 1;
+      ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementAction = "reactivate-confirmed";
+      closeTimetableDialogV136(dialog);
+      sessionStorage.setItem(TIMETABLE_MANAGEMENT_MODE_KEY_V136, "current");
+      renderTimetableV29?.();
+    } catch (error) {
+      ownerPreviewTimetableManagementDiagnosticsV136.timetableReactivateFailureCount += 1;
+      ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementErrorCode = error?.code || error?.message || "reactivate-failed";
+      status.textContent = "재활성화 저장을 서버에서 확인하지 못했습니다.";
+      save.disabled = false;
+    }
+  });
+  actions.append(save, cancel);
+  dialog.append(
+    el("h3", "", "시간표 재활성화"),
+    el("p", "muted", "시작일은 오늘로 설정됩니다. 종료일은 선택 사항입니다."),
+    makeField("새 시작일", "timetableReactivateStartV136", Object.assign(document.createElement("input"), { type: "date", value: todayDateStringV136(), disabled: true })),
+    makeField("새 종료일", "timetableReactivateEndV136", endDate),
+    status,
+    actions
+  );
+  showTimetableDialogV136(dialog);
+}
+
+function copyTimetableSetV136(set = {}) {
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableCopyAttemptCount += 1;
+  ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableDateDialogType = "copy";
+  const dialog = makeTimetableDialogV136("timetableCopyDialogV136");
+  const name = document.createElement("input");
+  name.value = `${timetableSetDisplayNameV136(set)} 복사본`;
+  const startDate = document.createElement("input");
+  startDate.type = "date";
+  startDate.value = todayDateStringV136();
+  const endDate = document.createElement("input");
+  endDate.type = "date";
+  const state = document.createElement("select");
+  appendTimetableStatusOptionsV136(state, ["active", "scheduled"]);
+  state.disabled = true;
+  state.value = timetableStatusForStartDateV136(startDate.value);
+  const dateHint = el("p", "muted wide", "");
+  const updateDateConstraints = () => applyTimetableDateConstraintsV136(startDate, endDate, state, dateHint);
+  updateDateConstraints();
+  startDate.addEventListener("input", updateDateConstraints);
+  startDate.addEventListener("change", updateDateConstraints);
+  endDate.addEventListener("input", updateDateConstraints);
+  endDate.addEventListener("change", updateDateConstraints);
+  const status = el("p", "muted wide", "시간표 세트와 수업 행만 복사합니다. 출결, 과제, 시험, 신청, 학생 기록은 복사하지 않습니다.");
+  const actions = el("div", "row-actions");
+  const save = button("복사");
+  const cancel = button("취소", "ghost");
+  cancel.addEventListener("click", () => closeTimetableDialogV136(dialog));
+  save.addEventListener("click", async () => {
+    const validation = validateTimetableDateRangeV136({ startDate: startDate.value, endDate: endDate.value, allowPastEnd: false });
+    if (!name.value.trim() || !validation.ok) {
+      status.textContent = validation.message || "새 시간표 이름을 입력해 주세요.";
+      return;
+    }
+    save.disabled = true;
+    try {
+      ownerPreviewTimetableManagementDiagnosticsV136.timetableLifecycleSaveAttemptCount += 1;
+      const runtime = await timetableWriteRuntimeV136("timetable-set-copy");
+      const FieldValue = firebase.firestore.FieldValue;
+      const newId = `ttset-copy-${Date.now()}`;
+      const copiedSet = cleanFirestoreObjectV52({
+        ...set,
+        id: newId,
+        name: name.value.trim(),
+        title: name.value.trim(),
+        status: timetableStatusForStartDateV136(validation.startDate),
+        archived: false,
+        startDate: validation.startDate,
+        endDate: validation.endDate,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        workspaceId: runtime.workspaceId,
+        workspace_id: runtime.workspaceId
+      });
+      delete copiedSet.deleted;
+      const sourceRows = timetableRowsForSetV136(set.id);
+      await timetableSetRefV136(runtime, newId).set(copiedSet, { merge: true });
+      for (let index = 0; index < sourceRows.length; index += 400) {
+        const batch = runtime.db.batch();
+        sourceRows.slice(index, index + 400).forEach((row, rowIndex) => {
+          const rowId = `tt-${newId}-${Date.now()}-${index + rowIndex}`;
+          batch.set(timetableRowRefV136(runtime, rowId), cleanFirestoreObjectV52({
+            ...row,
+            id: rowId,
+            setId: newId,
+            workspaceId: runtime.workspaceId,
+            workspace_id: runtime.workspaceId,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+          }), { merge: true });
+        });
+        await batch.commit();
+      }
+      const confirm = await timetableSetRefV136(runtime, newId).get({ source: "server" });
+      if (!confirm.exists) throw new Error("timetable-copy-server-confirm-failed");
+      store.timetableSets ??= [];
+      store.timetable ??= [];
+      store.timetableSets.push({ ...set, id: newId, name: name.value.trim(), title: name.value.trim(), status: timetableStatusForStartDateV136(validation.startDate), archived: false, startDate: validation.startDate, endDate: validation.endDate });
+      sourceRows.forEach((row, rowIndex) => store.timetable.push({ ...row, id: `tt-${newId}-local-${rowIndex}-${Date.now()}`, setId: newId }));
+      window.PMWorkspaceDataService?.discardPendingRow?.("timetableSets", newId);
+      saveStore({ skipRemote: true, syncReason: "timetable-set-copy-confirmed-v136" });
+      ownerPreviewTimetableManagementDiagnosticsV136.timetableCopySuccessCount += 1;
+      ownerPreviewTimetableManagementDiagnosticsV136.timetableLifecycleSaveSuccessCount += 1;
+      ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementAction = "copy-set-and-rows-only-confirmed";
+      closeTimetableDialogV136(dialog);
+      sessionStorage.setItem(TIMETABLE_MANAGEMENT_MODE_KEY_V136, "current");
+      renderTimetableV29?.();
+    } catch (error) {
+      ownerPreviewTimetableManagementDiagnosticsV136.timetableLifecycleSaveFailureCount += 1;
+      ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementErrorCode = error?.code || error?.message || "timetable-copy-failed";
+      status.textContent = "복사본을 서버에 저장하지 못했습니다.";
+      save.disabled = false;
+    }
+  });
+  actions.append(save, cancel);
+  dialog.append(
+    el("h3", "", "종료된 시간표 복사"),
+    makeField("새 이름", "timetableCopyNameV136", name),
+    makeField("시작일", "timetableCopyStartV136", startDate),
+    makeField("종료일", "timetableCopyEndV136", endDate),
+    dateHint,
+    makeField("표시 상태", "timetableCopyStatusV136", state),
+    status,
+    actions
+  );
+  showTimetableDialogV136(dialog);
+}
+
+async function archiveTimetableSetV136(set = {}, archived = true) {
+  if (!archived) ownerPreviewTimetableManagementDiagnosticsV136.timetableUnarchiveAttemptCount += 1;
+  const restoredStatus = archived
+    ? "archived"
+    : timetableLifecycleStatusFromDatesV136({ ...set, status: "", state: "", archived: false });
+  const next = { ...set, status: restoredStatus, archived, updatedAt: new Date().toISOString() };
+  try {
+    const confirmed = await saveTimetableSetRemoteV136(next, archived ? "timetable-set-archive" : "timetable-set-unarchive");
+    Object.assign(set, next, confirmed);
+    if (archived) ownerPreviewTimetableManagementDiagnosticsV136.timetableArchiveCount += 1;
+    else {
+      ownerPreviewTimetableManagementDiagnosticsV136.timetableUnarchiveCount += 1;
+      ownerPreviewTimetableManagementDiagnosticsV136.timetableUnarchiveSuccessCount += 1;
+      ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableUnarchiveResolvedStatus = restoredStatus;
+      if (restoredStatus === "active") ownerPreviewTimetableManagementDiagnosticsV136.timetableUnarchiveActiveCount += 1;
+      if (restoredStatus === "scheduled") ownerPreviewTimetableManagementDiagnosticsV136.timetableUnarchiveScheduledCount += 1;
+      if (restoredStatus === "ended") ownerPreviewTimetableManagementDiagnosticsV136.timetableUnarchiveEndedCount += 1;
+    }
+    ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementAction = archived ? "archive-confirmed" : "unarchive-confirmed";
+    saveStore({ skipRemote: true, syncReason: archived ? "timetable-set-archive-confirmed-v136" : "timetable-set-unarchive-confirmed-v136" });
+    if (!archived) sessionStorage.setItem(TIMETABLE_MANAGEMENT_MODE_KEY_V136, restoredStatus === "ended" ? "ended" : "current");
+    renderTimetableV29?.();
+  } catch (error) {
+    if (!archived) ownerPreviewTimetableManagementDiagnosticsV136.timetableUnarchiveFailureCount += 1;
+    ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementErrorCode = error?.code || error?.message || "timetable-archive-failed";
+    showMessage("시간표 상태 변경 실패", "시간표 상태 변경을 서버에서 확인하지 못했습니다.");
+  }
+}
+
+async function deleteTimetableSetWithPolicyV136(set = {}) {
+  if (hasLinkedDataForTimetableSetV136(set)) {
+    ownerPreviewTimetableManagementDiagnosticsV136.timetableDeleteBlockedLinkedDataCount += 1;
+    ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementAction = "delete-blocked-linked-data";
+    showMessage("삭제할 수 없습니다", TIMETABLE_LINKED_DELETE_BLOCK_MESSAGE_V136);
+    return;
+  }
+  const ok = await customConfirmDialogV136({
+    title: "빈 시간표 삭제",
+    message: "연결 데이터가 없는 빈 시간표만 실제 삭제할 수 있습니다. 이 작업은 되돌릴 수 없습니다.",
+    confirmText: "삭제",
+    danger: true
+  });
+  if (!ok) return;
+  try {
+    await deleteEmptyTimetableSetRemoteV136(set);
+    store.timetableSets = (store.timetableSets || []).filter((row) => String(row.id) !== String(set.id));
+    saveStore({ skipRemote: true, syncReason: "timetable-empty-set-delete-confirmed-v136" });
+    ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementAction = "empty-set-delete-confirmed";
+    renderTimetableV29?.();
+  } catch (error) {
+    ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementErrorCode = error?.code || error?.message || "timetable-delete-failed";
+    showMessage("삭제 실패", "시간표 삭제를 서버에서 확인하지 못했습니다. 권한과 연결 데이터를 확인해 주세요.");
+  }
+}
+
+async function clearCurrentTimetableRowsV136(set = {}) {
+  const ok = await customConfirmDialogV136({
+    title: "현재 시간표 비우기",
+    message: "시간표 세트는 유지하고 이 시간표의 수업 배정 행만 제거합니다. 연결 기록은 삭제하지 않습니다.",
+    confirmText: "비우기",
+    danger: true
+  });
+  if (!ok) return;
+  try {
+    const removedCount = await clearTimetableRowsRemoteV136(set);
+    store.timetable = (store.timetable || []).filter((row) => String(row.setId || row.timetableSetId || "school") !== String(set.id));
+    saveStore({ skipRemote: true, syncReason: "timetable-current-rows-clear-confirmed-v136" });
+    ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementAction = "current-rows-clear-confirmed";
+    renderTimetableV29?.();
+    showMessage("시간표 비우기 완료", `서버에서 수업 배정 ${removedCount}건 제거를 확인했습니다.`);
+  } catch (error) {
+    ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementErrorCode = error?.code || error?.message || "timetable-clear-failed";
+    showMessage("시간표 비우기 실패", "수업 배정 제거를 서버에서 확인하지 못했습니다.");
+  }
+}
+
+function navigateTimetableManagementV136(view = "main") {
+  const nextView = ["main", "current", "ended", "archived"].includes(view) ? view : "main";
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableMainNavigationClickCount += 1;
+  ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableManagementView = nextView;
+  if (nextView === "main") sessionStorage.removeItem(TIMETABLE_MANAGEMENT_MODE_KEY_V136);
+  else sessionStorage.setItem(TIMETABLE_MANAGEMENT_MODE_KEY_V136, nextView);
+  renderTimetableV29?.();
+  ownerPreviewTimetableManagementDiagnosticsV136.lastTimetableNavigationResult = "rendered";
+}
+
+function timetableManagementNavV136(active = "main") {
+  const nav = el("div", "row-actions timetable-management-nav-v136");
+  const main = button("메인 시간표", active === "main" ? "" : "ghost");
+  const add = button("+ 시간표 추가", active === "create" ? "" : "ghost");
+  const current = button("현재 시간표 관리", active === "current" ? "" : "ghost");
+  const ended = button("종료된 시간표", active === "ended" ? "" : "ghost");
+  const archived = button("보관된 시간표", active === "archived" ? "" : "ghost");
+  add.addEventListener("click", () => openTimetableSetEditorDialogV136({ mode: "create" }));
+  main.addEventListener("click", () => navigateTimetableManagementV136("main"));
+  current.addEventListener("click", () => navigateTimetableManagementV136("current"));
+  ended.addEventListener("click", () => navigateTimetableManagementV136("ended"));
+  archived.addEventListener("click", () => navigateTimetableManagementV136("archived"));
+  nav.append(main, add, current, ended, archived);
+  return nav;
+}
+
+function timetableSetSummaryCardV136(set = {}, context = "current") {
+  const card = el("article", "notice-card-v81 timetable-management-card-v136");
+  const lifecycle = timetableSetLifecycleStatusV136(set);
+  const dateRange = timetableDateRangeV136(set);
+  const category = timetableSetKindV135?.(set) || set.type || "general";
+  const linkedSummary = linkedDataSummaryForTimetableSetV136(set);
+  const linkedCount = Object.values(linkedSummary).reduce((sum, count) => sum + Number(count || 0), 0);
+  const programName = programDisplayNameForSetV135?.(set) || "";
+  card.append(
+    el("h4", "", timetableSetDisplayNameV136(set)),
+    el("p", "muted", [
+      timetableCategoryLabelV136(category),
+      timetableStatusLabelV136(lifecycle),
+      [dateRange.startDate, dateRange.endDate].filter(Boolean).join(" ~ "),
+      programName ? `연결 프로그램 ${programName}` : "",
+      `수업 ${timetableRowsForSetV136(set.id).length}건`,
+      linkedCount ? `연결 기록 ${linkedCount}건` : "연결 기록 없음"
+    ].filter(Boolean).join(" · "))
+  );
+  const detail = el("div", "muted");
+  detail.append(
+    el("p", "", `교시 설정: ${visiblePeriodCountForSetV103?.(set.id) || set.visiblePeriodCount || TIMETABLE_DEFAULT_VISIBLE_PERIOD_COUNT_V103 || 9}교시`),
+    el("p", "", `수업 목록: ${timetableRowsForSetV136(set.id).map((row) => row.subject || row.name || "이름 없는 수업").slice(0, 5).join(", ") || "등록된 수업 없음"}`)
+  );
+  card.append(detail);
+  const actions = el("div", "row-actions");
+  const edit = button("수정", "ghost small");
+  edit.addEventListener("click", () => openTimetableSetEditorDialogV136({ mode: "edit", set, endedEdit: context === "ended" }));
+  const detailButton = button("상세", "ghost small");
+  detailButton.addEventListener("click", () => {
+    showMessage("시간표 상세", [
+      timetableSetDisplayNameV136(set),
+      `분류: ${timetableCategoryLabelV136(category)}`,
+      `상태: ${timetableStatusLabelV136(lifecycle)}`,
+      `기간: ${[dateRange.startDate, dateRange.endDate].filter(Boolean).join(" ~ ") || "미설정"}`,
+      `수업: ${timetableRowsForSetV136(set.id).length}건`
+    ].join("\n"));
+  });
+  actions.append(detailButton, edit);
+  if (context === "ended") {
+    const reactivate = button("재활성화", "ghost small");
+    reactivate.addEventListener("click", () => reactivateTimetableSetV136(set));
+    const copy = button("복사", "ghost small");
+    copy.addEventListener("click", () => copyTimetableSetV136(set));
+    const archive = button("보관함으로 이동", "ghost small");
+    archive.addEventListener("click", () => archiveTimetableSetV136(set, true));
+    const remove = button("삭제 가능 여부 확인", "danger small");
+    remove.addEventListener("click", () => deleteTimetableSetWithPolicyV136(set));
+    actions.append(reactivate, copy, archive, remove);
+  } else if (context === "archived") {
+    const copy = button("복사", "ghost small");
+    copy.addEventListener("click", () => copyTimetableSetV136(set));
+    const unarchive = button("보관 해제", "ghost small");
+    unarchive.addEventListener("click", () => archiveTimetableSetV136(set, false));
+    const remove = button("삭제 가능 여부 확인", "danger small");
+    remove.addEventListener("click", () => deleteTimetableSetWithPolicyV136(set));
+    actions.append(copy, unarchive, remove);
+  }
+  card.append(actions);
+  return card;
+}
+
+function renderCurrentTimetableManagementScreenV136() {
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableManagementOpenCount += 1;
+  content.replaceChildren();
+  const section = panel("현재 시간표 관리");
+  section.querySelector(".panel-head")?.append(timetableManagementNavV136("current"));
+  const rows = currentTimetableSetsForManagementV136();
+  const activeSet = activeTimetableSetForManagementV136();
+  if (rows.length) {
+    const tools = el("div", "toolbar timetable-current-management-tools-v136");
+    const select = document.createElement("select");
+    rows.forEach((set) => select.append(option(set.id, timetableSetDisplayNameV136(set))));
+    if (activeSet) select.value = activeSet.id;
+    select.addEventListener("change", () => {
+      sessionStorage.setItem("pm-timetable-set", select.value);
+      renderTimetableV29?.();
+    });
+    const clear = button("현재 시간표 비우기", "danger");
+    clear.addEventListener("click", () => clearCurrentTimetableRowsV136(rows.find((set) => String(set.id) === String(select.value)) || activeSet));
+    const remove = button("현재 시간표 삭제", "danger");
+    remove.addEventListener("click", () => deleteTimetableSetWithPolicyV136(rows.find((set) => String(set.id) === String(select.value)) || activeSet));
+    tools.append(makeField("현재 시간표", "currentTimetableManageSelectV136", select), clear, remove);
+    section.append(tools);
+  }
+  const list = el("div", "notice-list");
+  if (!rows.length) list.append(el("p", "muted", "현재 사용 중이거나 시작 예정인 시간표가 없습니다."));
+  rows.forEach((set) => list.append(timetableSetSummaryCardV136(set, "current")));
+  section.append(list);
+  content.append(section);
+  recordVisibleTimetableIdentifiersV136(section);
+}
+
+function renderEndedTimetableScreenV136() {
+  ownerPreviewTimetableManagementDiagnosticsV136.endedTimetableOpenCount += 1;
+  content.replaceChildren();
+  const section = panel("종료된 시간표");
+  section.querySelector(".panel-head")?.append(timetableManagementNavV136("ended"));
+  const rows = timetableSetsForManagementV136("ended");
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableExpiredDisplayCount = rows.length;
+  const list = el("div", "notice-list");
+  if (!rows.length) list.append(el("p", "muted", "종료된 시간표가 없습니다."));
+  rows.forEach((set) => list.append(timetableSetSummaryCardV136(set, "ended")));
+  section.append(list);
+  content.append(section);
+  recordVisibleTimetableIdentifiersV136(section);
+}
+
+function renderArchivedTimetableScreenV136() {
+  ownerPreviewTimetableManagementDiagnosticsV136.archivedTimetableOpenCount += 1;
+  content.replaceChildren();
+  const section = panel("보관된 시간표");
+  section.querySelector(".panel-head")?.append(timetableManagementNavV136("archived"));
+  const rows = timetableSetsForManagementV136("archived");
+  const list = el("div", "notice-list");
+  if (!rows.length) list.append(el("p", "muted", "보관된 시간표가 없습니다."));
+  rows.forEach((set) => list.append(timetableSetSummaryCardV136(set, "archived")));
+  section.append(list);
+  content.append(section);
+  recordVisibleTimetableIdentifiersV136(section);
+}
+
+const selectableTimetableSetsForQuickBeforeV136 = selectableTimetableSetsForQuickV135;
+selectableTimetableSetsForQuickV135 = function selectableTimetableSetsForQuickV136(type = "") {
+  const rows = selectableTimetableSetsForQuickBeforeV136(type).filter((set) => {
+    const lifecycle = timetableSetLifecycleStatusV136(set);
+    return lifecycle === "active" || lifecycle === "scheduled";
+  });
+  ownerPreviewTimetableArchitectureDiagnosticsV135.quickTimetableExistingSetOptionCount = rows.length;
+  return rows;
+};
+
+const addTimetableSetBeforeV136 = addTimetableSetV29;
+addTimetableSetV29 = function addTimetableSetV136(defaultName = "새 시간표", rerender = true) {
+  if (rerender === false) return addTimetableSetBeforeV136(defaultName, rerender);
+  return openTimetableSetEditorDialogV136({ mode: "create", set: { name: defaultName } });
+};
+
+editTimetableSetMetadataV135 = function editTimetableSetMetadataV136(set = {}) {
+  openTimetableSetEditorDialogV136({ mode: "edit", set, endedEdit: timetableSetLifecycleStatusV136(set) === "ended" });
+  return true;
+};
+
+function removeLegacyTimetableInlineManagementV136(root = document) {
+  root.querySelectorAll?.(".timetable-ended-panel-v135").forEach((node) => node.remove());
+  root.querySelectorAll?.(".toolbar.timetable-toolbar button.danger").forEach((node) => node.remove());
+}
+
+function injectTimetableManagementNavOnMainV136(root = document) {
+  const section = root.querySelector?.(".panel");
+  if (!section || section.querySelector(".timetable-management-nav-v136")) return;
+  const head = section.querySelector(".panel-head");
+  if (head) head.append(timetableManagementNavV136("main"));
+  else section.prepend(timetableManagementNavV136("main"));
+}
+
+function recordVisibleTimetableIdentifiersV136(root = document) {
+  const text = String(root?.textContent || "");
+  const count = (text.match(/\b(sourceType|programId|documentId|workspaceId|setId|ttset-|ws_)\b/g) || []).length;
+  ownerPreviewTimetableManagementDiagnosticsV136.timetableVisibleIdentifierCount = count;
+  ownerPreviewTimetableArchitectureDiagnosticsV135.timetableVisibleIdentifierCount = count;
+  return count;
+}
+
+const renderTimetableBeforeV136 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV136() {
+  const mode = sessionStorage.getItem(TIMETABLE_MANAGEMENT_MODE_KEY_V136) || "main";
+  if (mode === "current") return renderCurrentTimetableManagementScreenV136();
+  if (mode === "ended") return renderEndedTimetableScreenV136();
+  if (mode === "archived") return renderArchivedTimetableScreenV136();
+  const result = renderTimetableBeforeV136.apply(this, arguments);
+  removeLegacyTimetableInlineManagementV136(content || document);
+  injectTimetableManagementNavOnMainV136(content || document);
+  recordVisibleTimetableIdentifiersV136(content || document);
+  return result;
+};
+
+function ownerPreviewPublicDiagnosticsV136() {
+  const diag = ownerPreviewTimetableManagementDiagnosticsV136;
+  return {
+    ...ownerPreviewPublicDiagnosticsV135(),
+    timetableManagementOpenCount: diag.timetableManagementOpenCount,
+    endedTimetableOpenCount: diag.endedTimetableOpenCount,
+    archivedTimetableOpenCount: diag.archivedTimetableOpenCount,
+    timetableExpiredDisplayCount: diag.timetableExpiredDisplayCount,
+    timetablePastEndCreateBlockedCount: diag.timetablePastEndCreateBlockedCount,
+    timetableMainNavigationClickCount: diag.timetableMainNavigationClickCount,
+    lastTimetableManagementView: diag.lastTimetableManagementView,
+    lastTimetableNavigationResult: diag.lastTimetableNavigationResult,
+    timetableCreateAttemptCount: diag.timetableCreateAttemptCount,
+    timetableCreateSuccessCount: diag.timetableCreateSuccessCount,
+    timetableCreateFailureCount: diag.timetableCreateFailureCount,
+    timetableCreateWithoutEndDateCount: diag.timetableCreateWithoutEndDateCount,
+    timetableInvalidPastEndDateBlockedCount: diag.timetableInvalidPastEndDateBlockedCount,
+    timetableInvalidDateRangeBlockedCount: diag.timetableInvalidDateRangeBlockedCount,
+    timetableDateInputNormalizeCount: diag.timetableDateInputNormalizeCount,
+    timetableDateTrailingSeparatorFixedCount: diag.timetableDateTrailingSeparatorFixedCount,
+    timetableStartDateMissingBlockedCount: diag.timetableStartDateMissingBlockedCount,
+    timetableEndDateBeforeStartBlockedCount: diag.timetableEndDateBeforeStartBlockedCount,
+    timetableEndDateBeforeTodayBlockedCount: diag.timetableEndDateBeforeTodayBlockedCount,
+    timetableEndDateMinUpdateCount: diag.timetableEndDateMinUpdateCount,
+    timetableEndDateClearedAfterStartChangeCount: diag.timetableEndDateClearedAfterStartChangeCount,
+    timetableDateValidationAcceptedCount: diag.timetableDateValidationAcceptedCount,
+    timetableDateValidationBlockedCount: diag.timetableDateValidationBlockedCount,
+    timetableLifecycleSaveAttemptCount: diag.timetableLifecycleSaveAttemptCount,
+    timetableLifecycleSaveSuccessCount: diag.timetableLifecycleSaveSuccessCount,
+    timetableLifecycleSaveFailureCount: diag.timetableLifecycleSaveFailureCount,
+    lastTimetableDateValidationReason: diag.lastTimetableDateValidationReason,
+    lastTimetableDateDialogType: diag.lastTimetableDateDialogType,
+    timetableReactivateAttemptCount: diag.timetableReactivateAttemptCount,
+    timetableReactivateSuccessCount: diag.timetableReactivateSuccessCount,
+    timetableReactivateFailureCount: diag.timetableReactivateFailureCount,
+    timetableReactivateWithoutEndDateCount: diag.timetableReactivateWithoutEndDateCount,
+    timetableCopyAttemptCount: diag.timetableCopyAttemptCount,
+    timetableCopySuccessCount: diag.timetableCopySuccessCount,
+    timetableArchiveCount: diag.timetableArchiveCount,
+    timetableUnarchiveCount: diag.timetableUnarchiveCount,
+    timetableUnarchiveAttemptCount: diag.timetableUnarchiveAttemptCount,
+    timetableUnarchiveSuccessCount: diag.timetableUnarchiveSuccessCount,
+    timetableUnarchiveFailureCount: diag.timetableUnarchiveFailureCount,
+    lastTimetableUnarchiveResolvedStatus: diag.lastTimetableUnarchiveResolvedStatus,
+    timetableUnarchiveActiveCount: diag.timetableUnarchiveActiveCount,
+    timetableUnarchiveScheduledCount: diag.timetableUnarchiveScheduledCount,
+    timetableUnarchiveEndedCount: diag.timetableUnarchiveEndedCount,
+    timetableDeleteBlockedLinkedDataCount: diag.timetableDeleteBlockedLinkedDataCount,
+    timetableEmptySetDeleteSuccessCount: diag.timetableEmptySetDeleteSuccessCount,
+    timetableVisibleIdentifierCount: diag.timetableVisibleIdentifierCount,
+    lastTimetableManagementAction: diag.lastTimetableManagementAction,
+    lastTimetableManagementErrorCode: diag.lastTimetableManagementErrorCode,
+    appVersion: APP_PATCH_VERSION_V136
+  };
+}
+
+const workspaceDiagnosticsBeforeV136 = window.PMWorkspaceDataService?.diagnostics?.bind(window.PMWorkspaceDataService);
+if (workspaceDiagnosticsBeforeV136 && !window.PMWorkspaceDataService.__ownerPreviewDiagnosticsV136) {
+  window.PMWorkspaceDataService.__ownerPreviewDiagnosticsV136 = true;
+  window.PMWorkspaceDataService.diagnostics = function diagnosticsV136() {
+    return {
+      ...workspaceDiagnosticsBeforeV136(),
+      ...ownerPreviewPublicDiagnosticsV136()
+    };
+  };
+}
+
+const ownerPreviewCriticalRepairSnapshotBeforeV136 = window.PMOwnerPreviewCriticalRepairDiagnostics?.snapshot;
+window.PMOwnerPreviewCriticalRepairDiagnostics = {
+  snapshot: () => ({
+    ...(ownerPreviewCriticalRepairSnapshotBeforeV136?.() || {}),
+    appVersion: APP_PATCH_VERSION_V136,
+    publicDiagnostics: ownerPreviewPublicDiagnosticsV136(),
+    ...ownerPreviewTimetableManagementDiagnosticsV136,
+    sensitiveValueDetected: (window.PMUserFacingIdentifierDiagnostics?.snapshot?.().sensitiveValueDetected || false)
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V136;
