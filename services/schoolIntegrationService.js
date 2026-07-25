@@ -3,6 +3,20 @@
 (function () {
   const NEIS_BASE_URL = "https://open.neis.go.kr/hub";
   const DEFAULT_HOMEPAGE_URL = "https://school.busanedu.net/dong-a-h/main.do";
+  const PROXY_COOLDOWN_MS = 5 * 60 * 1000;
+  const proxyCooldownUntilByReason = {};
+  const proxyDiagnostics = {
+    schoolProxyConfigured: false,
+    schoolProxyRequestCount: 0,
+    schoolProxyUnavailableCount: 0,
+    schoolDirectExternalFetchBlockedCount: 0,
+    schoolProxyCooldownHitCount: 0,
+    schoolBoardFormatErrorCount: 0,
+    schoolBoardNetworkFailureCount: 0,
+    lastSchoolProxyReason: "none",
+    lastSchoolProxyStatus: "not-started",
+    lastSchoolBoardErrorCode: "none"
+  };
 
   function compactText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -58,6 +72,42 @@
     return window.PM_PUBLIC_INTEGRATIONS?.neisApiKey || "";
   }
 
+  function isLocalDevelopment() {
+    return ["127.0.0.1", "localhost"].includes(String(location.hostname || ""));
+  }
+
+  function schoolProxyConfigured() {
+    return Boolean(window.PM_SCHOOL_PROXY_CONFIGURED === true || isLocalDevelopment());
+  }
+
+  function updateProxyDiagnostics(patch = {}) {
+    Object.assign(proxyDiagnostics, patch || {});
+    proxyDiagnostics.schoolProxyConfigured = schoolProxyConfigured();
+  }
+
+  function safeProxyError(code, message = code) {
+    const error = new Error(message);
+    error.code = code;
+    updateProxyDiagnostics({
+      lastSchoolProxyStatus: code,
+      lastSchoolBoardErrorCode: code
+    });
+    return error;
+  }
+
+  function ensureSchoolProxyAvailable(reason = "school-homepage-fetch") {
+    updateProxyDiagnostics({ lastSchoolProxyReason: reason });
+    const now = Date.now();
+    if (proxyCooldownUntilByReason[reason] && now < proxyCooldownUntilByReason[reason]) {
+      proxyDiagnostics.schoolProxyCooldownHitCount += 1;
+      throw safeProxyError("school-proxy-cooldown");
+    }
+    if (schoolProxyConfigured()) return true;
+    proxyDiagnostics.schoolProxyUnavailableCount += 1;
+    proxyCooldownUntilByReason[reason] = now + PROXY_COOLDOWN_MS;
+    throw safeProxyError("school-proxy-not-configured");
+  }
+
   function localProxyUrl(targetUrl) {
     if (!/^https?:\/\//i.test(String(targetUrl || ""))) return "";
     return `/api/school-proxy?url=${encodeURIComponent(targetUrl)}`;
@@ -75,17 +125,91 @@
 
   async function fetchTextWithProxy(url) {
     const requestUrl = cacheBustUrl(url);
-    try {
-      const response = await fetch(requestUrl, { credentials: "omit", cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.text();
-    } catch (directError) {
-      const proxy = localProxyUrl(requestUrl);
-      if (!proxy || location.protocol === "file:") throw directError;
-      const response = await fetch(proxy, { credentials: "same-origin", cache: "no-store" });
-      if (!response.ok) throw new Error(`프록시 HTTP ${response.status}`);
-      return response.text();
+    ensureSchoolProxyAvailable("school-homepage-fetch");
+    proxyDiagnostics.schoolDirectExternalFetchBlockedCount += 1;
+    const proxy = localProxyUrl(requestUrl);
+    if (!proxy || location.protocol === "file:") {
+      throw safeProxyError("school-proxy-not-configured", "학교 게시판 연동 서버가 아직 설정되지 않았습니다.");
     }
+    try {
+      proxyDiagnostics.schoolProxyRequestCount += 1;
+      updateProxyDiagnostics({ lastSchoolProxyStatus: "requesting" });
+      const response = await fetch(proxy, { credentials: "same-origin", cache: "no-store" });
+      if (!response.ok && response.status === 404) {
+        proxyDiagnostics.schoolProxyUnavailableCount += 1;
+        proxyCooldownUntilByReason["school-homepage-fetch"] = Date.now() + PROXY_COOLDOWN_MS;
+        throw safeProxyError("school-proxy-unavailable", "학교 게시판 연동 서버가 아직 설정되지 않았습니다.");
+      }
+      if (!response.ok) {
+        proxyDiagnostics.schoolBoardNetworkFailureCount += 1;
+        throw safeProxyError("school-board-network-failed", "학교 게시판 연결에 실패했습니다.");
+      }
+      updateProxyDiagnostics({ lastSchoolProxyStatus: "success", lastSchoolBoardErrorCode: "none" });
+      return response.text();
+    } catch (error) {
+      if (error?.code) throw error;
+      proxyDiagnostics.schoolBoardNetworkFailureCount += 1;
+      throw safeProxyError("school-board-network-failed", "학교 게시판 연결에 실패했습니다.");
+    }
+  }
+
+  async function fetchProxyPayload(url) {
+    const requestUrl = cacheBustUrl(url);
+    ensureSchoolProxyAvailable("school-homepage-fetch");
+    proxyDiagnostics.schoolDirectExternalFetchBlockedCount += 1;
+    const proxy = localProxyUrl(requestUrl);
+    if (!proxy || location.protocol === "file:") {
+      throw safeProxyError("school-proxy-not-configured", "학교 게시판 연동 서버가 아직 설정되지 않았습니다.");
+    }
+    try {
+      proxyDiagnostics.schoolProxyRequestCount += 1;
+      updateProxyDiagnostics({ lastSchoolProxyStatus: "requesting" });
+      const response = await fetch(proxy, {
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" }
+      });
+      const contentType = String(response.headers?.get?.("content-type") || "").toLowerCase();
+      if (!response.ok && response.status === 404) {
+        proxyDiagnostics.schoolProxyUnavailableCount += 1;
+        proxyCooldownUntilByReason["school-homepage-fetch"] = Date.now() + PROXY_COOLDOWN_MS;
+        throw safeProxyError("school-proxy-unavailable", "학교 게시판 연동 서버가 아직 설정되지 않았습니다.");
+      }
+      if (!response.ok) {
+        proxyDiagnostics.schoolBoardNetworkFailureCount += 1;
+        throw safeProxyError("school-board-network-failed", "학교 게시판 연결에 실패했습니다.");
+      }
+      if (!contentType.includes("application/json")) {
+        proxyDiagnostics.schoolBoardFormatErrorCount += 1;
+        throw safeProxyError(
+          contentType.includes("text/html") ? "school-proxy-content-type-html" : "school-proxy-content-type-invalid",
+          "학교 게시판 응답을 확인할 수 없습니다."
+        );
+      }
+      const payload = await response.json();
+      if (!payload || typeof payload !== "object") {
+        proxyDiagnostics.schoolBoardFormatErrorCount += 1;
+        throw safeProxyError("school-board-format-invalid", "학교 게시판 응답을 확인할 수 없습니다.");
+      }
+      updateProxyDiagnostics({ lastSchoolProxyStatus: "success", lastSchoolBoardErrorCode: "none" });
+      return payload;
+    } catch (error) {
+      if (error?.code) throw error;
+      proxyDiagnostics.schoolBoardNetworkFailureCount += 1;
+      throw safeProxyError("school-board-network-failed", "학교 게시판 연결에 실패했습니다.");
+    }
+  }
+
+  function looksLikeBoardResponse(html) {
+    const text = String(html || "");
+    if (!text.trim()) return false;
+    return /selectNttInfo|selectNttList|nttSn|bbsId|board|article|공지|게시|게시판|table|tbody|<li|<article/i.test(text);
+  }
+
+  function assertBoardResponseShape(html) {
+    if (looksLikeBoardResponse(html)) return true;
+    proxyDiagnostics.schoolBoardFormatErrorCount += 1;
+    throw safeProxyError("school-board-format-invalid", "학교 게시판 응답을 확인할 수 없습니다.");
   }
 
   function neisUrl(endpoint, params = {}) {
@@ -367,6 +491,7 @@
 
   async function fetchBoard(url, source) {
     const html = await fetchHtml(url);
+    assertBoardResponseShape(html);
     return parseBoardHtml(html, url, source);
   }
 
@@ -379,8 +504,12 @@
     fetchMeals,
     fetchAcademicSchedules,
     fetchHtml,
+    fetchProxyPayload,
     fetchBoard,
     parseBoardHtml,
-    publicNeisKey
+    looksLikeBoardResponse,
+    publicNeisKey,
+    diagnostics: () => ({ ...proxyDiagnostics, schoolProxyConfigured: schoolProxyConfigured() }),
+    safeUnavailableMessage: "학교 게시판 연동 서버가 아직 설정되지 않았습니다."
   };
 })();

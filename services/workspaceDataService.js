@@ -84,6 +84,8 @@
   let currentOnRemoteChange = null;
   let pausedForVisibility = false;
   let listenerRestartTimer = null;
+  let hiddenPauseTimer = null;
+  const HIDDEN_PAUSE_DELAY_MS = 60 * 1000;
   const recentScheduleCalls = [];
   const startDiagnostics = {
     startAttemptCount: 0,
@@ -106,6 +108,12 @@
     listenerRestartSuccessCount: 0,
     listenerRestartBlockedCount: 0,
     duplicateListenerPathCount: 0,
+    lifecycleHandlerInstallCount: 0,
+    duplicateLifecycleHandlerCount: 0,
+    hiddenPauseScheduledCount: 0,
+    hiddenPauseCancelledCount: 0,
+    actualPauseCount: 0,
+    actualResumeCount: 0,
     startAttemptCount: 0,
     startSuccessCount: 0,
     unsubscribeCount: 0,
@@ -252,6 +260,14 @@
     return String(path || "").replace(/workspaces\/([^/]+)/g, (_, id) => `workspaces/${maskId(id)}`);
   }
 
+  function sanitizeDiagnosticMessage(message = "") {
+    return String(message || "")
+      .replace(/workspaces\/([^/\s]+)/g, (_, id) => `workspaces/${maskId(id)}`)
+      .replace(/\bws_[A-Za-z0-9_-]+\b/g, maskId)
+      .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "email-hidden")
+      .slice(0, 180);
+  }
+
   function diagnosticsEnabled() {
     try {
       return window.PM_DEBUG_SYNC === true
@@ -317,10 +333,13 @@
       pendingWorkspaceId: maskId(payload.pendingWorkspaceId || currentContext.pendingWorkspaceId || ""),
       uid: maskId(payload.uid || contextUid(currentContext)),
       code,
-      message: error?.message || String(error)
+      message: sanitizeDiagnosticMessage(error?.message || String(error))
     };
-    if (code === "permission-denied") console.error("[Firestore Permission Error]", data);
-    else console.error("[Firestore Error]", data);
+    const safeConsolePayload = diagnosticsEnabled()
+      ? data
+      : { phase, collection: data.collection, code: data.code || "unknown" };
+    if (code === "permission-denied") console.error("[Firestore Permission Error]", safeConsolePayload);
+    else console.error("[Firestore Error]", safeConsolePayload);
   }
 
   function stableSignature(value) {
@@ -468,6 +487,10 @@
   }
 
   function unsubscribeActiveListeners(reason = "stop") {
+    if (hiddenPauseTimer) {
+      clearTimeout(hiddenPauseTimer);
+      hiddenPauseTimer = null;
+    }
     unsubscribers.forEach((unsubscribe) => {
       try {
         unsubscribe();
@@ -483,6 +506,10 @@
   }
 
   function stop() {
+    if (hiddenPauseTimer) {
+      clearTimeout(hiddenPauseTimer);
+      hiddenPauseTimer = null;
+    }
     unsubscribeActiveListeners("stop");
     currentWorkspaceId = "";
     currentStore = null;
@@ -934,12 +961,38 @@
       listenerDiagnostics.lastListenerLifecycleAction = "pause-blocked-pending-sync";
       return;
     }
+    if (reason !== "hidden-timeout") {
+      if (!hiddenPauseTimer) {
+        listenerDiagnostics.hiddenPauseScheduledCount += 1;
+        listenerDiagnostics.lastListenerLifecycleAction = "hidden-pause-scheduled";
+        hiddenPauseTimer = setTimeout(() => {
+          hiddenPauseTimer = null;
+          if (typeof document !== "undefined" && document.visibilityState !== "hidden") {
+            listenerDiagnostics.hiddenPauseCancelledCount += 1;
+            listenerDiagnostics.lastListenerLifecycleAction = "hidden-pause-cancelled-visible";
+            return;
+          }
+          pauseRealtimeForVisibility("hidden-timeout");
+        }, HIDDEN_PAUSE_DELAY_MS);
+      } else {
+        listenerDiagnostics.listenerRestartBlockedCount += 1;
+        listenerDiagnostics.lastListenerLifecycleAction = "hidden-pause-already-scheduled";
+      }
+      return;
+    }
     unsubscribeActiveListeners(reason);
     pausedForVisibility = true;
+    listenerDiagnostics.actualPauseCount += 1;
   }
 
   function resumeRealtimeAfterVisibility(reason = "visibility-visible") {
     listenerDiagnostics.listenerRestartAttemptCount += 1;
+    if (hiddenPauseTimer) {
+      clearTimeout(hiddenPauseTimer);
+      hiddenPauseTimer = null;
+      listenerDiagnostics.hiddenPauseCancelledCount += 1;
+      listenerDiagnostics.lastListenerLifecycleAction = "hidden-pause-cancelled";
+    }
     if (!pausedForVisibility || !currentWorkspaceId || !currentStore) {
       listenerDiagnostics.listenerRestartBlockedCount += 1;
       listenerDiagnostics.lastListenerLifecycleAction = "resume-blocked-no-paused-listeners";
@@ -966,6 +1019,7 @@
           subscribeAll(rt, workspaceId, store, onRemoteChange, currentContext, reason);
           pausedForVisibility = false;
           listenerDiagnostics.listenerRestartSuccessCount += 1;
+          listenerDiagnostics.actualResumeCount += 1;
           listenerDiagnostics.lastListenerLifecycleAction = "resume-success";
         })
         .catch((error) => {
@@ -996,11 +1050,14 @@
 
   if (typeof document !== "undefined" && !window.__PM_WORKSPACE_SYNC_VISIBILITY_V126__) {
     window.__PM_WORKSPACE_SYNC_VISIBILITY_V126__ = true;
+    listenerDiagnostics.lifecycleHandlerInstallCount += 1;
     document.addEventListener("visibilitychange", () => handleVisibilityLifecycle("visibilitychange"));
     window.addEventListener("pagehide", () => pauseRealtimeForVisibility("pagehide"));
     window.addEventListener("pageshow", () => {
       if (typeof document === "undefined" || document.visibilityState !== "hidden") resumeRealtimeAfterVisibility("pageshow");
     });
+  } else if (typeof document !== "undefined") {
+    listenerDiagnostics.duplicateLifecycleHandlerCount += 1;
   }
 
   window.PMWorkspaceDataService = {
@@ -1079,7 +1136,7 @@
         startedAt,
         lastBootstrapSaveAt,
         lastErrorCode: lastError?.code || "",
-        lastErrorMessage: lastError?.message || "",
+        lastErrorMessage: sanitizeDiagnosticMessage(lastError?.message || ""),
         lastErrorPhase: lastError?.phase || "",
         lastErrorPath: maskPath(lastError?.path || ""),
         lastErrorAt,

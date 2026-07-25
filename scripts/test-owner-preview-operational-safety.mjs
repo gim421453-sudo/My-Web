@@ -339,12 +339,20 @@ test("workspace sync exposes listener lifecycle and transport diagnostics", () =
     "activeListenerPathCount",
     "lastVisibilityState",
     "lastListenerLifecycleAction",
+    "lifecycleHandlerInstallCount",
+    "duplicateLifecycleHandlerCount",
+    "hiddenPauseScheduledCount",
+    "hiddenPauseCancelledCount",
+    "actualPauseCount",
+    "actualResumeCount",
   ]) {
     assert.match(files.workspaceDataService, new RegExp(field));
   }
   assert.match(files.workspaceDataService, /document\.addEventListener\("visibilitychange"/);
   assert.match(files.workspaceDataService, /pauseRealtimeForVisibility/);
   assert.match(files.workspaceDataService, /resumeRealtimeAfterVisibility/);
+  assert.match(files.workspaceDataService, /HIDDEN_PAUSE_DELAY_MS/);
+  assert.match(files.workspaceDataService, /hidden-pause-scheduled/);
 });
 
 test("workspace sync blocks duplicate listener paths and avoids retry loops", () => {
