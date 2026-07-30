@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
-const appJs = fs.readFileSync(path.join(rootDir, "app.js"), "utf8");
+const appJs = fs.readFileSync(path.join(rootDir, "app.js"), "utf8").replace(/\r\n?/g, "\n");
 
 const markerV101 = 'const APP_PATCH_VERSION_V101 = "v101.0 - 2026-07-21";';
 const markerV102 = 'const APP_PATCH_VERSION_V102 = "v102.0 - 2026-07-21";';
@@ -477,7 +477,7 @@ ok("B9.2 keeps end date optional and blocks only invalid normalized ranges", val
 ok("B9.2 dynamically recalculates end minimum with no end maximum or stale invalid value", dateConstraintBodyV136.includes("[todayDateStringV136(), startDate]") && dateConstraintBodyV136.includes('endDateInput.max = ""') && dateConstraintBodyV136.includes('endDateInput.value = ""') && dateConstraintBodyV136.includes("timetableEndDateClearedAfterStartChangeCount"));
 ok("workspace listener lifecycle uses delayed hidden pause", workspaceServiceJs.includes("hiddenPauseScheduledCount") && workspaceServiceJs.includes("hiddenPauseCancelledCount") && workspaceServiceJs.includes("actualPauseCount") && workspaceServiceJs.includes("HIDDEN_PAUSE_DELAY_MS"));
 ok("workspace listener lifecycle cancels normal tab-switch pause before teardown", workspaceServiceJs.includes("hidden-pause-cancelled") && workspaceServiceJs.includes('pauseRealtimeForVisibility("hidden-timeout")'));
-ok("index uses V127 app cache version", indexHtml.includes("app.js?v=127"));
+ok("index uses V154 app cache version", indexHtml.includes("app.js?v=154"));
 ok("index uses firebase runtime V6 and auth service V16 cache versions", indexHtml.includes("services/firebaseRuntime.js?v=6") && indexHtml.includes("services/authService.js?v=16"));
 ok("index uses V10 workspace data service cache version", indexHtml.includes("services/workspaceDataService.js?v=10"));
 

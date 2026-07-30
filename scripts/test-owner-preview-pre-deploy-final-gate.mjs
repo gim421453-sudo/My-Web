@@ -208,7 +208,8 @@ test("operational write gate covers schedule and direct notice writes", () => {
   assert.match(sourceFiles.app, /PMNoticeOperationalWriteGateV127/);
   assert.match(sourceFiles.app, /noticeWriteGateVersion:\s*"V127"/);
   assert.match(sourceFiles.indexHtml, /services\/workspaceDataService\.js\?v=10/);
-  assert.match(sourceFiles.indexHtml, /app\.js\?v=127/);
+  assert.match(sourceFiles.indexHtml, /app\.js\?v=154/);
+  assert.match(sourceFiles.indexHtml, /id="pm-exam-grade-service" src="services\/examGradeService\.js\?v=2"/);
 });
 
 if (fs.existsSync(distDir)) {

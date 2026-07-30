@@ -6692,7 +6692,7 @@ const tests = [
     assert.match(serviceSource, /notice-empty-remote-bootstrap-blocked/);
     const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     assert.match(indexHtml, /services\/workspaceDataService\.js\?v=10/);
-    assert.match(indexHtml, /app\.js\?v=127/);
+    assert.match(indexHtml, /app\.js\?v=154/);
   }],
   ["operational schedule editor save blocks duplicate clicks and avoids stale editing state", () => {
     const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
@@ -7747,7 +7747,7 @@ const tests = [
     const htmlSource = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     assert.match(appSource, /function renderDashboardV8\(\)/);
     assert.match(appSource, /function visibleNotices\(\)/);
-    assert.match(htmlSource, /app\.js\?v=127/);
+    assert.match(htmlSource, /app\.js\?v=154/);
     assert.equal(appSource.includes("AppNextDashboardReadOnly"), false);
     assert.equal(htmlSource.includes("AppNextDashboardReadOnly"), false);
   }],
@@ -8475,6 +8475,480 @@ const tests = [
     assert.match(v131, /학교 게시판 연동 서버가 아직 설정되지 않았습니다/);
     assert.match(v131, /학교 게시판 응답을 확인할 수 없습니다/);
     assert.match(v131, /학교 게시판 연결에 실패했습니다/);
+  }],
+  ["owner preview V137 learning management uses canonical references and server-confirmed writes", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v137 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V137"));
+    assert.match(v137, /APP_PATCH_VERSION_V137/);
+    assert.match(v137, /LEARNING_MANAGEMENT_KEYS_V137/);
+    assert.match(v137, /learningSelectSpecV137/);
+    assert.match(v137, /선생님을 선택하세요/);
+    assert.match(v137, /multi-select-ref/);
+    assert.match(v137, /learningTeacherEmailV137/);
+    assert.match(v137, /attachmentMode/);
+    assert.match(v137, /external-google-drive-not-configured/);
+    assert.match(v137, /learningSafeUrlV137/);
+    assert.match(v137, /noopener noreferrer/);
+    assert.match(v137, /lesson-record-detail/);
+    assert.match(v137, /assignmentSubmissions/);
+    assert.match(v137, /LEARNING_BULK_DELETE_BATCH_SIZE_V137 = 400/);
+    assert.match(v137, /resolveCanonicalCurrentWorkspaceIdV116/);
+    assert.match(v137, /checkSaveReadiness/);
+    assert.match(v137, /get\(\{ source: "server" \}\)/);
+    assert.match(v137, /learning-write-blocked/);
+    assert.doesNotMatch(v137, /Drive OAuth.*success/i);
+  }],
+  ["owner preview V137.1 learning repairs refresh materials, preserve delete cleanup, and retain canonical subject names", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v137 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V137"));
+    assert.match(v137, /refreshLearningCollectionFromServerV137/);
+    assert.match(v137, /learning-material-list-refresh-missing/);
+    assert.match(v137, /현재 필터 조건 때문에 목록에는 표시되지 않습니다/);
+    assert.match(v137, /learningCanonicalSubjectRowsV137/);
+    assert.match(v137, /learningReferenceRefreshCount/);
+    assert.match(v137, /numeric, symbolic, or non-Korean names/);
+    assert.match(v137, /docs\.forEach\(\(doc\) => window\.PMWorkspaceDataService\?\.discardPendingRow/);
+    assert.match(v137, /lessonRecordBulkDeleteConfirmedRemainingCount/);
+    assert.match(v137, /firestoreListen400Count/);
+    assert.match(v137, /firestoreListenerRestartCount/);
+    assert.match(v137, /lastFirestoreListenerErrorCode/);
+  }],
+  ["owner preview V137.2 uses canonical subject-id chips, lesson suppression, and public diagnostics", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v137 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V137"));
+    assert.match(v137, /learning-subject-picker-v137/);
+    assert.match(v137, /연결할 과목을 선택하세요/);
+    assert.match(v137, /optionValue/);
+    assert.match(v137, /canonicalIds\.has\(id\)/);
+    assert.match(v137, /subjectReferenceRefreshCount/);
+    assert.match(v137, /teacherReferenceRefreshCount/);
+    assert.match(v137, /referenceFilterRefreshCount/);
+    assert.match(v137, /ownerPreviewLearningManagementPublicDiagnosticsV137/);
+    assert.match(v137, /lessonRecordSuppressions/);
+    assert.match(v137, /learningAutoLessonSuppressionKeysV137/);
+    assert.match(appSource, /timetable-generated/);
+    assert.match(v137, /lesson-suppression-server-confirm-failed/);
+    assert.match(v137, /원본 시간표는 유지됩니다/);
+    assert.doesNotMatch(v137, /collection\("timetable"\)\.doc\([^)]*\)\.delete/);
+  }],
+  ["owner preview teacher editor restores the selected document without creating a duplicate", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v137 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V137"));
+    assert.match(v137, /async function openTeacherEditorV137/);
+    assert.match(v137, /String\(item\.id\) === String\(id\)/);
+    assert.match(v137, /collection\("teachers"\)\.doc\(String\(id\)\)\.get\(\{ source: "server" \}\)/);
+    assert.match(v137, /수정할 선생님 정보를 불러오지 못했습니다/);
+    assert.match(v137, /mode: "edit"/);
+    assert.match(v137, /editingDocumentId: String\(row\.id\)/);
+    assert.match(v137, /originalTeacherSnapshot/);
+    assert.match(v137, /setLearningSubjectRowV137/);
+    assert.match(v137, /learningTeacherSubjectSnapshotNamesV137/);
+    assert.match(v137, /row\.name \|\| row\.teacherName/);
+    assert.match(v137, /row\.type \|\| row\.teacherType/);
+    assert.match(v137, /row\.memo \|\| row\.notes/);
+    assert.match(v137, /const id = String\(editing\.id \|\| `\$\{key\}-\$\{Date\.now\(\)\}`\)/);
+  }],
+  ["owner preview learning expansion validates fields and keeps attachments metadata-only", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v137 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V137"));
+    assert.match(v137, /LEARNING_REQUIRED_FIELDS_V137/);
+    assert.match(v137, /validateLearningRequiredFieldsV137\(key, editorForm\)/);
+    assert.match(v137, /learning-required-field-missing/);
+    assert.match(v137, /supplementaryMaterials/);
+    assert.match(v137, /보조교재 추가/);
+    assert.match(v137, /attachment-list/);
+    assert.match(v137, /picker\.multiple = true/);
+    assert.match(v137, /local-reselect-required/);
+    assert.match(v137, /setLearningStructuredRowsV137/);
+    assert.match(v137, /Google Drive 연동은 아직 연결되지 않았습니다/);
+    assert.match(v137, /learning-link-invalid/);
+    assert.match(v137, /exam-schedule-year-date-mismatch/);
+    assert.match(v137, /finalBody/);
+    assert.match(v137, /showTeacherViewerV137/);
+    assert.match(v137, /LEARNING_BULK_DELETE_KEYS_V137/);
+    assert.doesNotMatch(v137, /readAsDataURL\(/);
+    assert.doesNotMatch(v137, /file:\/\//);
+  }],
+  ["owner preview learning final repair keeps validation local and detail views identifier-safe", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v137 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V137"));
+    assert.match(v137, /APP_PATCH_VERSION_V137 = "v137\.4/);
+    assert.match(v137, /records: \["activity"\]/);
+    assert.match(v137, /validationBlockedCount/);
+    assert.match(v137, /lastLearningValidationResult = "validation-blocked"/);
+    assert.match(v137, /payload\.subjectIds = ids/);
+    assert.doesNotMatch(v137, /payload\.subjectIds = JSON\.stringify\(ids\)/);
+    assert.match(v137, /teacherSubjectUpdateAttemptCount/);
+    assert.match(v137, /showLearningViewerV137/);
+    assert.match(v137, /learningSupplementaryMaterialsV137\(row\)\.forEach/);
+    assert.match(v137, /learningExamLifecycleStateV137/);
+    assert.match(v137, /learning-exam-tab-v137/);
+    assert.match(v137, /openRecordEditorV137/);
+    assert.match(v137, /name === "location"/);
+  }],
+  ["owner preview learning closure blocks duplicate subject picks, preserves first record save, and computes exam lifecycle locally", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v137 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V137"));
+    assert.match(v137, /pickOption\.disabled = selected\.has\(id\)/);
+    assert.match(v137, /if \(selected\.has\(id\)\)/);
+    assert.match(v137, /이미 선택된 과목입니다/);
+    assert.match(v137, /payload\.subjectIds = ids/);
+    assert.match(v137, /prepareRecordEditorValidationV137/);
+    assert.match(v137, /editorForm\.noValidate = true/);
+    assert.match(v137, /learningEditorSaveInFlightV137/);
+    assert.match(v137, /recordSaveAttemptCount/);
+    assert.match(v137, /learningAttachmentTypeLabelV137/);
+    assert.match(v137, /learningAttachmentSizeLabelV137/);
+    assert.match(v137, /이 기기에서 다시 선택해야 합니다/);
+    assert.doesNotMatch(v137, /item\.size \? `\$\{item\.size\} bytes`/);
+    assert.match(v137, /learningLocalDatePartsV137/);
+    assert.match(v137, /row\.end_date \|\| row\.endDate \|\| row\.examDate \|\| row\.date \|\| row\.startDate/);
+    assert.match(v137, /now\.getTime\(\) >= endAt\.getTime\(\)/);
+    assert.match(v137, /examDate\.getTime\(\) < todayStart\.getTime\(\)/);
+    assert.match(v137, /row\.completed === true \|\| row\.ended === true \|\| row\.closed === true/);
+  }],
+  ["record editor first submit keeps only activity required and binds one server-confirm path", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const start = appSource.indexOf("function prepareRecordEditorValidationV137");
+    const v137 = appSource.slice(start, start + 2200);
+    assert.match(v137, /editorForm\.querySelectorAll\("\[required\]"\)/);
+    assert.match(v137, /control\.name === "activity"/);
+    assert.match(v137, /submit\.formNoValidate = true/);
+    assert.match(v137, /function bindRecordEditorSubmitV137/);
+    assert.match(appSource, /bindRecordEditorSubmitV137\(\);/);
+    assert.match(v137, /removeEventListener\("submit", saveLearningEditorWithServerConfirmV137, true\)/);
+  }],
+  ["Batch 10C core keeps assessment writes server-confirmed and listener free", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v138 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V138"));
+    assert.match(v138, /assessmentPlans/);
+    assert.match(v138, /assessmentResults/);
+    assert.match(v138, /achievementPolicies/);
+    assert.match(v138, /get\(\{ source: "server" \}\)/);
+    assert.match(v138, /assessment-server-confirm-failed/);
+    assert.match(v138, /activeListenerCount: 0/);
+    assert.match(v138, /auditLogWriteCount: 0/);
+    assert.doesNotMatch(v138, /onSnapshot/);
+    assert.doesNotMatch(v138, /Google Drive 저장됨/);
+  }],
+  ["Batch 10D portfolio core uses the existing metadata editor with server-confirmed save", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v137 = appSource.slice(appSource.indexOf("const LEARNING_MANAGEMENT_KEYS_V137"), appSource.indexOf("const APP_PATCH_VERSION_V138"));
+    assert.match(v137, /"portfolios"/);
+    assert.match(v137, /portfolios: \["title"\]/);
+    assert.match(v137, /set\(row, \{ merge: true \}\)/);
+    assert.match(v137, /get\(\{ source: "server" \}\)/);
+    assert.doesNotMatch(v137, /readAsDataURL\(/);
+  }],
+  ["Batch 10C pure calculations enforce score, rank, achievement, and grade preview policy", () => {
+    const source = readFileSync(path.resolve(projectRoot, "services/examGradeService.js"), "utf8");
+    const context = { globalThis: {} };
+    vm.runInNewContext(source, context, { filename: "examGradeService.js" });
+    const service = context.globalThis.PMExamGradeService;
+    assert.ok(service);
+    assert.equal(service.calculateAssessmentScore({ rawScore: 50, maxScore: 100, weight: 30 }).weightedScore, 15);
+    assert.equal(service.calculateAssessmentScore({ rawScore: 101, maxScore: 100 }).code, "score-exceeds-max");
+    assert.deepEqual(service.calculateRanks([{ id: "a", score: 90 }, { id: "b", score: 90 }, { id: "c", score: 80 }], "competition").map((row) => row.rank), [1, 1, 3]);
+    assert.deepEqual(service.calculateRanks([{ id: "a", score: 90 }, { id: "b", score: 90 }, { id: "c", score: 80 }], "dense").map((row) => row.rank), [1, 1, 2]);
+    const policy = { id: "policy", name: "구간", scoreSource: "rawScore", version: 1, thresholds: [{ label: "A", minimumScore: 51, order: 1 }, { label: "B", minimumScore: 41, order: 2 }, { label: "C", minimumScore: 31, order: 3 }, { label: "D", minimumScore: 21, order: 4 }, { label: "E", minimumScore: null, fallback: true, order: 5 }] };
+    assert.equal(service.calculateAchievement(policy, { rawScore: 51 }).calculatedAchievement, "A");
+    assert.equal(service.calculateAchievement(policy, { rawScore: 50 }).calculatedAchievement, "B");
+    assert.equal(service.calculateAchievement(policy, { rawScore: 20 }).calculatedAchievement, "E");
+    assert.equal(service.previewFiveGrade([{ score: 90 }, { score: 80 }, { score: 70 }]).requiresConfirmation, true);
+    assert.equal(service.validateAchievementPolicy({ ...policy, thresholds: [{ label: "A", minimumScore: 51 }, { label: "A", minimumScore: null, fallback: true }] }).ok, false);
+    assert.match(service.buildCsv([{ key: "title", label: "title" }], [{ title: "=1+1" }]), /"'=1\+1"/);
+  }],
+  ["Batch 10C/10D operational UI defaults to the grade list and keeps destructive actions reauthenticated", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v139 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V139"));
+    assert.match(v139, /\["list",/);
+    assert.match(v139, /return .*\? tab : "list"/);
+    assert.match(v139, /function requestSensitiveDeleteV139/);
+    assert.match(v139, /requirePassword\(async/);
+    assert.match(v139, /deleteExamGradeRowsWithServerConfirmV139/);
+    assert.match(v139, /deletePortfolioRowsWithServerConfirmV139/);
+    assert.match(v139, /get\(\{ source: "server" \}\)/);
+    assert.match(v139, /activeListenerCount: 0/);
+    assert.doesNotMatch(v139, /onSnapshot/);
+  }],
+  ["Batch 10D portfolio UI normalizes legacy links without Drive upload or hidden password fields", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v139 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V139"));
+    assert.match(v139, /normalizePortfolioUrlV139/);
+    assert.match(v139, /learningStructuredRowsV137\(linkField\?\.value\)/);
+    assert.match(v139, /legacyUrls = \[row\.file_link, row\.image_link, row\.video_link, row\.result_link\]/);
+    assert.match(v139, /\["attachments", "파일 첨부", "attachment-list"\]/);
+    assert.doesNotMatch(v139, /readAsDataURL\(/);
+    assert.doesNotMatch(v139, /drive\.googleapis\.com/);
+  }],
+  ["Portfolio deletion is isolated, reauthenticated, and server-confirmed", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const start = appSource.indexOf("async function deletePortfolioRowsWithServerConfirmV139");
+    const end = appSource.indexOf("function requestPortfolioDeleteV139", start);
+    const portfolioDelete = appSource.slice(start, end);
+    const requestStart = appSource.indexOf("function requestPortfolioDeleteV139");
+    const requestEnd = appSource.indexOf("window.PMPortfolioDeleteDiagnostics", requestStart);
+    const requestDelete = appSource.slice(requestStart, requestEnd);
+    assert.ok(start >= 0 && end > start);
+    assert.doesNotMatch(portfolioDelete, /examGradeRowsV139|examGradeDeleteInFlightV139|assessmentResults|examQuestions|studentAnswers/);
+    assert.match(portfolioDelete, /portfolioRowsV139\(\)/);
+    assert.match(portfolioDelete, /collection\("portfolios"\)/);
+    assert.match(portfolioDelete, /get\(\{ source: "server" \}\)/);
+    assert.match(portfolioDelete, /delete-server-confirmed/);
+    assert.match(portfolioDelete, /refreshing/);
+    assert.match(portfolioDelete, /selection-cleared/);
+    assert.match(portfolioDelete, /portfolioSelectionV139\.clear\(\)/);
+    assert.match(requestDelete, /requirePassword\(async/);
+    assert.match(requestDelete, /reauth-started/);
+    assert.match(requestDelete, /reauth-confirmed/);
+    assert.match(appSource, /requestPortfolioDeleteV139\("포트폴리오 선택", \[\.\.\.portfolioSelectionV139\]\)/);
+    assert.match(appSource, /requestPortfolioDeleteV139\("현재 워크스페이스 포트폴리오 전체", rows\.map/);
+    assert.match(appSource, /requestPortfolioDeleteV139\("포트폴리오", \[row\.id\]\)/);
+    assert.match(portfolioDelete, /삭제 처리 중 알 수 없는 오류가 발생했습니다\. 삭제 여부를 확인한 뒤 다시 시도해 주세요\./);
+  }],
+  ["Batch 10C/10D final active path renders the operational exam and portfolio views", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v140 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V140"));
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    assert.match(indexHtml, /id="pm-exam-grade-service" src="services\/examGradeService\.js\?v=2"/);
+    assert.match(v140, /renderPage = function renderPageV140/);
+    assert.match(v140, /key === "portfolios"/);
+    assert.match(v140, /renderPortfolioV139\(\)/);
+    assert.match(v140, /queueMicrotask/);
+    assert.match(v140, /canonicalPortfolioAttachmentsV140/);
+    assert.match(v140, /sizeBytes/);
+    assert.doesNotMatch(v140, /localAttachmentKey/);
+    assert.doesNotMatch(v140, /onSnapshot/);
+  }],
+  ["Batch 10C final dispatcher keeps exam schedules separate from the advanced exam grade shell", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    const v148 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V148"));
+    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(v148, /renderPage = function renderPageV148/);
+    assert.match(v148, /key === "exams" && currentPage === "exams"/);
+    assert.match(v148, /renderExamsV6\(\)/);
+    assert.match(appSource, /key === "examSchedules"\) return renderCollectionV7\("examSchedules"\)/);
+    assert.match(appSource, /\["list",/);
+    assert.match(appSource, /\["plans",/);
+    assert.match(appSource, /\["assessments",/);
+    assert.match(appSource, /\["entry",/);
+    assert.match(appSource, /\["summary",/);
+    assert.match(appSource, /\["grades",/);
+    assert.match(appSource, /\["policies",/);
+    assert.match(appSource, /\["questions",/);
+    assert.match(appSource, /\["answers",/);
+    assert.match(appSource, /\["analysis",/);
+    assert.match(appSource, /\["export",/);
+  }],
+  ["Batch 10C/10D guided UI keeps portfolio metadata private and exposes safe mode states", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const v149 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V149"));
+    const portfolioViewer = v149.slice(v149.indexOf("function showPortfolioViewerV149"), v149.indexOf("function examGradeStartGuideV149"));
+    assert.match(v149, /appVersion: APP_PATCH_VERSION_V149/);
+    assert.match(portfolioViewer, /파일 정보만 저장됨/);
+    assert.match(portfolioViewer, /다른 기기에서는 파일을 다시 선택해야 합니다/);
+    assert.match(portfolioViewer, /등록된 자료 링크가 없습니다/);
+    assert.match(portfolioViewer, /첨부된 파일이 없습니다/);
+    assert.doesNotMatch(portfolioViewer, /JSON\.stringify|metadata-only|needsReselection|localAttachmentKey/);
+    assert.match(v149, /function examGradeStartGuideV149/);
+    assert.match(v149, /1\. 과목과 담당 교사를 먼저 등록/);
+    assert.match(v149, /function examGradeStudentAdapterV149/);
+    assert.match(v149, /source: "unavailable"/);
+    assert.match(v149, /등록된 학생이 없습니다\. 학생 관리에서 학생을 먼저 등록해 주세요/);
+    assert.match(v149, /function examGradePolicyTabV149/);
+    assert.match(v149, /현재 워크스페이스 전체/);
+    assert.match(v149, /특정 반\/그룹·과목/);
+    assert.match(v149, /백분율 점수/);
+    assert.match(v149, /A 최소 점수/);
+    assert.match(v149, /function examGradeExportTabV149/);
+    assert.match(v149, /Microsoft Excel 또는 Google Sheets/);
+    assert.match(v149, /전용 XLSX 파일 내려받기는 현재 제공하지 않습니다/);
+  }],
+  ["Batch 10E keeps operation mode server-confirmed, owner-only, and data-preserving", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const adminSource = readFileSync(path.resolve(projectRoot, "services/systemAdminService.js"), "utf8");
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    const v150 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V150"));
+    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(indexHtml, /systemAdminService\.js\?v=15/);
+    assert.match(v150, /function renderOperationModeAdminV153/);
+    assert.match(v150, /function isSystemOwnerV150/);
+    assert.match(v150, /requirePassword\(async/);
+    assert.match(v150, /operation-mode-data-preservation-failed/);
+    assert.match(v150, /function examGradeModeContractV150/);
+    assert.match(v150, /ASSESSMENT_PLAN_STATUS_OPTIONS_V150/);
+    assert.match(v150, /function examGradeCreateApprovalV150/);
+    assert.doesNotMatch(v150, /onSnapshot/);
+    assert.match(adminSource, /async function changeWorkspaceOperationMode/);
+    assert.match(adminSource, /operationModeCounts/);
+    assert.match(adminSource, /batch\.set\(workspaceRef/);
+    assert.match(adminSource, /batch\.set\(historyRef/);
+    assert.match(adminSource, /operation-mode-server-confirm-failed/);
+    assert.match(adminSource, /dataPreserved: true/);
+  }],
+  ["P0 V153 keeps operation-mode entry finite, read-only, and retryable", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const adminSource = readFileSync(path.resolve(projectRoot, "services/systemAdminService.js"), "utf8");
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    const start = appSource.indexOf('const APP_PATCH_VERSION_V153 = "v153.0 - 2026-07-30"');
+    const end = appSource.indexOf("const ownerPreviewModeSnapshotBeforeV150", start);
+    assert.ok(start >= 0 && end > start);
+    const v153 = appSource.slice(start, end);
+    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(indexHtml, /systemAdminService\.js\?v=15/);
+    assert.match(indexHtml, /examGradeService\.js\?v=2/);
+    assert.equal((v153.match(/function renderOperationModeAdminV153/g) || []).length, 1);
+    assert.match(v153, /renderSystemOwnerConsoleV54 = function renderSystemOwnerConsoleV153/);
+    assert.match(v153, /if \(!isSystemOwnerV150\(\)\)/);
+    assert.match(v153, /operationModeWorkspaceRowsV153/);
+    assert.match(v153, /operationModeCanonicalWorkspaceIdV153/);
+    assert.match(v153, /getWorkspaceById/);
+    assert.match(v153, /변경할 수 있는 워크스페이스가 없습니다/);
+    assert.match(v153, /워크스페이스 정보를 불러오지 못했습니다/);
+    assert.match(v153, /currentRequestPromise/);
+    assert.match(v153, /requestToken/);
+    assert.match(v153, /activeRequestCount:\s*0/);
+    assert.match(v153, /operationModeEntryStateV153\.isLoading = false/);
+    assert.match(v153, /다시 시도/);
+    assert.match(v153, /변경 이력 보기/);
+    assert.match(v153, /historyLoadCount \+= 1/);
+    assert.doesNotMatch(v153, /loadOperationModeHistoryV150\(\)\.then/);
+    assert.doesNotMatch(v153, /operationModeCounts|onSnapshot|setInterval/);
+    assert.match(v153, /window\.PMModeDiagnostics/);
+    assert.match(v153, /snapshot: \(\) => \(\{ \.\.\.operationModeDiagnosticsV153 \}\)/);
+    const readerStart = adminSource.indexOf("async function getWorkspaceById");
+    const readerEnd = adminSource.indexOf("async function isSystemOwner", readerStart);
+    assert.ok(readerStart >= 0 && readerEnd > readerStart);
+    const reader = adminSource.slice(readerStart, readerEnd);
+    assert.match(reader, /\.collection\("workspaces"\)\.doc\(targetId\)\.get\(\{ source: "server" \}\)/);
+    assert.doesNotMatch(reader, /\.set\(|\.update\(|\.delete\(|onSnapshot|setInterval/);
+  }],
+  ["Batch 10G routes menus and history through one operation-mode UI contract", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    const packageJson = readFileSync(path.resolve(projectRoot, "package.json"), "utf8");
+    const firebaseConfigGenerator = readFileSync(path.resolve(projectRoot, "scripts/generate-firebase-config.mjs"), "utf8");
+    const resolverStart = appSource.indexOf("function normalizeOperationModeV154");
+    const resolverEnd = appSource.indexOf("\nfunction operationModeWorkspaceIdV154", resolverStart);
+    assert.ok(resolverStart >= 0 && resolverEnd > resolverStart);
+    const resolver = vm.runInNewContext(`(() => {
+      ${appSource.slice(resolverStart, resolverEnd)}
+      return resolveOperationModeUiV154;
+    })()`);
+    const features = [
+      "dashboard", "notices", "materials", "portfolios", "systemOwner",
+      "people", "teachers", "timetable", "attendance", "exams", "records",
+      "schoolNotices", "budget", "subjects", "assignments", "lessons",
+      "academic", "afterschool", "specialLectures", "clubs", "print"
+    ];
+    const school = resolver({ appTarget: "main", operationMode: "school", globalRole: "user", workspaceRole: "teacher", availableFeatures: features });
+    assert.equal(school.normalizedMode, "school");
+    ["dashboard", "notices", "people", "teachers", "timetable", "attendance", "exams", "records"].forEach((key) => assert.ok(school.visibleMenuIds.includes(key)));
+    assert.ok(school.visibleMenuIds.includes("budget"));
+    const academy = resolver({ appTarget: "main", operationMode: "academy", globalRole: "user", workspaceRole: "manager", availableFeatures: features });
+    ["people", "teachers", "attendance", "exams", "records"].forEach((key) => assert.ok(academy.visibleMenuIds.includes(key)));
+    assert.ok(academy.hiddenMenuIds.includes("schoolNotices"));
+    assert.ok(academy.hiddenMenuIds.includes("budget"));
+    const personal = resolver({ appTarget: "main", operationMode: "personal", globalRole: "user", workspaceRole: "normal", availableFeatures: features });
+    ["dashboard", "notices", "materials", "portfolios", "subjects", "assignments", "exams", "records"].forEach((key) => assert.ok(personal.visibleMenuIds.includes(key)));
+    ["people", "teachers", "timetable", "attendance", "budget"].forEach((key) => assert.ok(personal.hiddenMenuIds.includes(key)));
+    const unconfigured = resolver({ appTarget: "main", operationMode: "unexpected-mode", globalRole: "user", workspaceRole: "normal", availableFeatures: features });
+    assert.equal(unconfigured.normalizedMode, "integrated_unconfigured");
+    ["dashboard", "notices", "materials", "portfolios"].forEach((key) => assert.ok(unconfigured.visibleMenuIds.includes(key)));
+    ["people", "teachers", "timetable", "attendance", "exams"].forEach((key) => assert.ok(unconfigured.hiddenMenuIds.includes(key)));
+    const owner = resolver({ appTarget: "main", operationMode: "integrated-unconfigured", globalRole: "system_owner", workspaceRole: "", availableFeatures: features });
+    assert.ok(owner.visibleMenuIds.includes("systemOwner"));
+    const adminPersonal = resolver({ appTarget: "admin-standalone", operationMode: "personal", globalRole: "system_owner", workspaceRole: "", availableFeatures: features });
+    const adminSchool = resolver({ appTarget: "admin-standalone", operationMode: "school", globalRole: "system_owner", workspaceRole: "", availableFeatures: features });
+    const adminAcademy = resolver({ appTarget: "admin-standalone", operationMode: "academy", globalRole: "system_owner", workspaceRole: "", availableFeatures: features });
+    const adminUnconfigured = resolver({ appTarget: "admin-standalone", operationMode: "integrated-unconfigured", globalRole: "system_owner", workspaceRole: "", availableFeatures: features });
+    [adminPersonal, adminSchool, adminAcademy, adminUnconfigured].forEach((result) => {
+      assert.equal(result.visibleMenuIds.join(","), "systemOwner");
+      assert.ok(result.systemManagementMenuIds.includes("operation-mode"));
+      assert.ok(result.systemManagementMenuIds.includes("user-permissions"));
+      assert.ok(result.systemManagementMenuIds.includes("audit-logs"));
+    });
+    ["subjects", "assignments", "records"].forEach((key) => assert.ok(adminPersonal.workspaceFeatureMenuIds.includes(key)));
+    ["people", "teachers", "timetable", "attendance", "academic"].forEach((key) => assert.ok(adminSchool.workspaceFeatureMenuIds.includes(key)));
+    ["people", "teachers", "lessons", "attendance"].forEach((key) => assert.ok(adminAcademy.workspaceFeatureMenuIds.includes(key)));
+    assert.equal(adminUnconfigured.workspaceFeatureMenuIds.length, 0);
+    assert.equal(adminSchool.modeLabel, school.modeLabel);
+    assert.equal(adminSchool.modeDescription, school.modeDescription);
+    assert.equal(adminAcademy.modeLabel, academy.modeLabel);
+    assert.equal(adminPersonal.modeLabel, personal.modeLabel);
+    assert.equal(adminUnconfigured.normalizedMode, unconfigured.normalizedMode);
+    assert.notEqual(adminSchool.appTarget, adminSchool.normalizedMode);
+    const nonOwnerAdmin = resolver({ appTarget: "admin-standalone", operationMode: "school", globalRole: "user", workspaceRole: "manager", availableFeatures: features });
+    assert.equal(nonOwnerAdmin.visibleMenuIds.length, 0);
+    assert.equal(nonOwnerAdmin.systemManagementMenuIds.length, 0);
+    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(appSource, /const APP_PATCH_VERSION_V154 = "v154\.0 - 2026-07-31"/);
+    assert.match(appSource, /return operationModeUiForCurrentUserV154\(available\)\.visibleMenuIds/);
+    assert.match(appSource, /const modeDecision = operationModeRouteDecisionV154\(key\)/);
+    assert.match(appSource, /renderOperationModeDashboardNoticeV154/);
+    assert.match(appSource, /modeServerLoadCount \+= 1/);
+    assert.match(appSource, /operationModeUiStateV154\.loadPromise/);
+    assert.match(appSource, /selectedAdminWorkspaceId/);
+    assert.match(appSource, /selectedDifferentWorkspace/);
+    assert.match(appSource, /metadataVerifiedWorkspaceId/);
+    assert.match(appSource, /candidate\.source === "workspace-metadata"/);
+    assert.match(appSource, /workspaceId === operationModeCanonicalWorkspaceIdV154\(\)/);
+    assert.match(appSource, /PMSystemAdminService\?\.getWorkspaceById/);
+    assert.doesNotMatch(appSource.slice(appSource.indexOf("function operationModeCandidateV154"), appSource.indexOf("function invalidateOperationModeUiV154")), /localStorage/);
+    assert.match(appSource, /appTarget: normalizedAppTarget/);
+    assert.match(appSource, /admin-standalone-system-menu-only/);
+    assert.match(appSource, /renderAdminStandaloneOperationModePanelV154/);
+    assert.match(appSource, /syncAdminStandaloneOperationModePanelV154/);
+    assert.match(appSource, /window\.PMSystemAdminService\?\.changeWorkspaceOperationMode/);
+    assert.equal((appSource.match(/changeWorkspaceOperationMode\?\.\(payload\)/g) || []).length, 1);
+    assert.equal((indexHtml.match(/src="app\.js\?v=154"/g) || []).length, 1);
+    assert.equal((indexHtml.match(/src="services\/systemAdminService\.js\?v=15"/g) || []).length, 1);
+    assert.match(packageJson, /"build:admin":\s*"tsc --noEmit && vite build --outDir dist-admin"/);
+    assert.match(firebaseConfigGenerator, /lifecycleEvent\.includes\("admin"\) \? "admin-standalone" : "main"/);
+    assert.match(firebaseConfigGenerator, /window\.PM_APP_TARGET/);
+    assert.match(appSource, /historyLoadCount \+= 1/);
+    assert.doesNotMatch(appSource.slice(appSource.indexOf("function populateOperationModeAdminV153"), appSource.indexOf("function renderOperationModeAdminV153")), /loadOperationModeHistoryV150\(true\).*renderSystemOwnerConsole/);
+    assert.match(appSource, /operationModeHistoryTimeLabelV154\(row\)/);
+    assert.match(appSource, /operationModeActorLabelV154\(row\)/);
+    assert.match(appSource, /row\.serverConfirmed === true && row\.dataPreserved === true/);
+    const historyStart = appSource.indexOf("function operationModeHistoryMillisV154");
+    const historyEnd = appSource.indexOf("\nasync function loadOperationModeHistoryV150", historyStart);
+    const historyContext = { currentUser: { uid: "owner-current" } };
+    vm.runInNewContext(`${appSource.slice(historyStart, historyEnd)}
+      result = {
+        missingTime: operationModeHistoryTimeLabelV154({}),
+        namedActor: operationModeActorLabelV154({ actorDisplayName: "관리자" }),
+        currentActor: operationModeActorLabelV154({ actorUid: "owner-current" }),
+        missingActor: operationModeActorLabelV154({}),
+        maskedEmail: operationModeActorLabelV154({ actorEmail: "owner@example.test" })
+      };`, historyContext);
+    assert.equal(historyContext.result.missingTime, "시각 확인 불가");
+    assert.equal(historyContext.result.namedActor, "관리자");
+    assert.equal(historyContext.result.currentActor, "시스템 소유자");
+    assert.equal(historyContext.result.missingActor, "확인되지 않은 사용자");
+    assert.equal(historyContext.result.maskedEmail, "o***@example.test");
+    assert.doesNotMatch(historyContext.result.maskedEmail, /owner@example\.test/);
+    assert.doesNotMatch(appSource.slice(resolverStart, appSource.indexOf("async function loadOperationModeHistoryV150", resolverStart)), /onSnapshot|setInterval/);
+    assert.match(appSource, /snapshot: \(\) => \(\{ \.\.\.operationModeDiagnosticsV153 \}\)/);
+  }],
+  ["Batch 10E extends grade editing with server-confirmed audit, scoped policy, and CSV preview", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    const v151 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V151"));
+    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(v151, /function examGradeAuditPayloadV151/);
+    assert.match(v151, /gradeAuditLogs/);
+    assert.match(v151, /batch\.set\(auditRef/);
+    assert.match(v151, /function examGradePlanTabV151/);
+    assert.match(v151, /review_requested/);
+    assert.match(v151, /function examGradeAssessmentTabV151/);
+    assert.match(v151, /subjectFilter/);
+    assert.match(v151, /function examGradePolicyScopeNeedsV151/);
+    assert.match(v151, /academic-year-term-subject/);
+    assert.match(v151, /function examGradeParseCsvV151/);
+    assert.match(v151, /학생 식별값/);
+    assert.doesNotMatch(v151, /onSnapshot/);
   }],
 ];
 

@@ -158,6 +158,14 @@
     return snap.exists ? { id: snap.id, ...(snap.data() || {}) } : null;
   }
 
+  async function getWorkspaceById(workspaceId) {
+    const targetId = String(workspaceId || "").trim();
+    if (!targetId) return null;
+    const runtime = await runtimeRequired();
+    const snap = await runtime.db.collection("workspaces").doc(targetId).get({ source: "server" });
+    return snap.exists ? { id: snap.id, ...(snap.data() || {}) } : null;
+  }
+
   async function isSystemOwner(uid) {
     if (!uid) return false;
     const runtime = await runtimeRequired();
@@ -1214,9 +1222,90 @@
     await logAdminAction(runtime, { action: "delete_user_firestore_profile", targetUid: uid, workspaceId, after: { email: user?.email || "", authDeleted: false } });
   }
 
+  const OPERATION_MODES = new Set(["personal", "school", "academy", "integrated_unconfigured"]);
+
+  function operationModeCounts(runtime, workspaceId) {
+    const collections = ["students", "assessmentPlans", "assessments", "assessmentResults", "portfolios", "subjects", "teachers", "gradeApprovals"];
+    return Promise.all(collections.map(async (collection) => {
+      const snapshot = await runtime.db.collection("workspaces").doc(workspaceId).collection(collection).get({ source: "server" });
+      return [collection, (snapshot.docs || []).filter((doc) => doc.data()?.deleted !== true).length];
+    })).then((entries) => Object.fromEntries(entries));
+  }
+
+  async function changeWorkspaceOperationMode({ workspaceId, operationMode, reason = "" } = {}) {
+    const runtime = await runtimeRequired();
+    const owner = runtime.auth.currentUser;
+    if (!owner?.uid || !await isSystemOwner(owner.uid)) {
+      const error = new Error("operation-mode-system-owner-required"); error.code = "operation-mode-system-owner-required"; throw error;
+    }
+    const targetId = String(workspaceId || "").trim();
+    const nextMode = String(operationMode || "").trim();
+    if (!targetId) {
+      const error = new Error("operation-mode-workspace-required"); error.code = "operation-mode-workspace-required"; throw error;
+    }
+    if (!OPERATION_MODES.has(nextMode)) {
+      const error = new Error("operation-mode-invalid"); error.code = "operation-mode-invalid"; throw error;
+    }
+    if (!String(reason || "").trim()) {
+      const error = new Error("operation-mode-reason-required"); error.code = "operation-mode-reason-required"; throw error;
+    }
+
+    const workspaceRef = runtime.db.collection("workspaces").doc(targetId);
+    const before = await workspaceRef.get({ source: "server" });
+    if (!before.exists) {
+      const error = new Error("operation-mode-workspace-not-found"); error.code = "operation-mode-workspace-not-found"; throw error;
+    }
+    const previousMode = String(before.data()?.operationMode || before.data()?.settings?.operationMode || "integrated_unconfigured");
+    const beforeCounts = await operationModeCounts(runtime, targetId);
+    const now = serverTimestamp(runtime);
+    const historyRef = runtime.db.collection("adminLogs").doc(safeId(`operation_mode_${targetId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`));
+    const batch = runtime.db.batch();
+    batch.set(workspaceRef, {
+      operationMode: nextMode,
+      operationModeVersion: 1,
+      operationModeUpdatedAt: now,
+      operationModeUpdatedBy: owner.uid,
+      operationModeReason: String(reason).trim(),
+      updatedAt: now
+    }, { merge: true });
+    batch.set(historyRef, {
+      action: "workspace_operation_mode_changed",
+      entityType: "workspace_operation_mode",
+      workspaceId: targetId,
+      previousMode,
+      nextMode,
+      reason: String(reason).trim(),
+      requestedByName: owner.displayName || "system owner",
+      reauthenticated: true,
+      serverConfirmed: false,
+      dataCountsBefore: beforeCounts,
+      dataCountsExpectedAfter: beforeCounts,
+      appVersion: String(window.PM_APP_VERSION || ""),
+      createdAt: now,
+      updatedAt: now
+    }, { merge: true });
+    await batch.commit();
+
+    const [confirmedWorkspace, confirmedHistory] = await Promise.all([
+      workspaceRef.get({ source: "server" }),
+      historyRef.get({ source: "server" })
+    ]);
+    if (!confirmedWorkspace.exists || !confirmedHistory.exists || confirmedWorkspace.metadata?.hasPendingWrites || confirmedHistory.metadata?.hasPendingWrites || String(confirmedWorkspace.data()?.operationMode || "") !== nextMode) {
+      const error = new Error("operation-mode-server-confirm-failed"); error.code = "operation-mode-server-confirm-failed"; throw error;
+    }
+    const afterCounts = await operationModeCounts(runtime, targetId);
+    const preserved = Object.keys(beforeCounts).every((key) => beforeCounts[key] === afterCounts[key]);
+    if (!preserved) {
+      const error = new Error("operation-mode-data-preservation-failed"); error.code = "operation-mode-data-preservation-failed"; throw error;
+    }
+    await historyRef.set({ dataCountsAfter: afterCounts, dataPreserved: true, serverConfirmed: true, confirmedAt: serverTimestamp(runtime) }, { merge: true });
+    return { workspaceId: targetId, previousMode, nextMode, beforeCounts, afterCounts, dataPreserved: true };
+  }
+
   window.PMSystemAdminService = {
     isSystemOwner,
     getUserDocument,
+    getWorkspaceById,
     submitJoinRequest,
     submitAdminApplication,
     subscribeCurrentUser,
@@ -1251,6 +1340,7 @@
     disableUserAccount,
     enableUserAccount,
     deleteUserFirestoreProfile,
+    changeWorkspaceOperationMode,
     sortSystemNotices
   };
 })();

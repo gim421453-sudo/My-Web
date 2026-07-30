@@ -4763,6 +4763,7 @@ function renderPage(key) {
 
 function columnsForV7(key) {
   return {
+    teachers: ["name", "subject", "type", "email", "exam_style", "memo"],
     examSchedules: ["year", "grade", "date", "end_date", "title", "subject", "teacher", "scope", "place", "memo"],
     records: ["date", "subject", "teacher", "activity", "competency", "evidence", "draft", "status"]
   }[key] || columnsForV6(key);
@@ -5156,11 +5157,13 @@ function renderPage(key) {
 
 function syncLessonsFromTimetableV10(showToast = true) {
   store.lessons ??= [];
+  if (window.__PM_LESSON_SUPPRESSIONS_READY_V137__ === false) return 0;
   const existing = new Set(store.lessons.map((row) => row.timetable_id || `${row.setId || "school"}-${row.day}-${row.period}-${row.subject}`));
   const added = [];
   (store.timetable || []).forEach((row) => {
     const key = String(row.id || `${row.setId || "school"}-${row.day}-${row.period}-${row.subject}`);
     if (existing.has(key)) return;
+    if (typeof learningIsAutoLessonSuppressedV137 === "function" && learningIsAutoLessonSuppressedV137(key)) return;
     added.push({
       id: Date.now() + Math.random(),
       timetable_id: key,
@@ -5177,7 +5180,8 @@ function syncLessonsFromTimetableV10(showToast = true) {
       homework: "",
       late: "정상",
       attendance_note: "",
-      status: "자동생성"
+      status: "자동생성",
+      sourceType: "timetable-generated"
     });
   });
   if (added.length) {
@@ -10590,7 +10594,8 @@ function authMenuKeysV31(user = authCurrentUserV31()) {
 
 function navKeys() {
   ensureSystemOwnerPatchV54();
-  return authMenuKeysV31().filter((key) => pageMeta[key] || ["schoolNotices", "homeLetters", "academic", "mealApplications", "afterschool", "specialLectures", "systemOwner"].includes(key));
+  const available = authMenuKeysV31().filter((key) => pageMeta[key] || ["schoolNotices", "homeLetters", "academic", "mealApplications", "afterschool", "specialLectures", "systemOwner"].includes(key));
+  return operationModeUiForCurrentUserV154(available).visibleMenuIds;
 }
 
 function navGroupsV28() {
@@ -11184,14 +11189,22 @@ function renderDashboardV8() {
 function renderPage(key) {
   ensureAppV29();
   ensureSystemOwnerPatchV54();
+  let blockedByOperationMode = false;
+  let blockedOperationModeReason = "";
   if (currentUser && isApprovalGateUserV54(currentUser)) {
     renderApprovalGateV54(currentUser);
     return;
   }
   if (currentUser?.role === "system_owner" && key !== "systemOwner" && !userWorkspaceIdV54(currentUser)) key = "systemOwner";
-  if (currentUser && isAdminSurfaceV60() && key !== "systemOwner") key = "systemOwner";
   if (currentUser?.role === "print" && !["print", "examSchedules"].includes(key)) key = "print";
   if (["people", "friendAwards", "site", "admin", "budget", "system"].includes(key) && !isAdmin()) key = "dashboard";
+  const modeDecision = operationModeRouteDecisionV154(key);
+  if (!modeDecision.allowed) {
+    blockedByOperationMode = true;
+    blockedOperationModeReason = modeDecision.reason;
+    key = isAdminSurfaceV60() ? "systemOwner" : "dashboard";
+  }
+  if (currentUser && isAdminSurfaceV60() && key !== "systemOwner") key = "systemOwner";
   currentPage = key;
   if (content) content.dataset.page = key;
   document.body.dataset.pmPage = key;
@@ -11234,6 +11247,14 @@ function renderPage(key) {
   else renderCollectionV7(key);
   if (key === "requests") appendSystemReportBoxV28();
   if (key !== "print") appendVersionInfoV16();
+  if (blockedByOperationMode) {
+    showMessage(
+      "사용할 수 없는 기능",
+      blockedOperationModeReason === "admin-standalone-system-menu-only"
+        ? "독립 관리자 사이트에서는 시스템 관리 기능만 사용할 수 있습니다."
+        : "현재 워크스페이스의 운영 모드에서는 이 기능을 사용할 수 없습니다."
+    );
+  }
 }
 
 function applySystemOwnerWorkspaceV57(result) {
@@ -14895,6 +14916,7 @@ function openQuickCreateV70(key) {
 renderDashboardV8 = function renderDashboardV70() {
   store.settings.dashboardCards ??= [...DASHBOARD_CARD_KEYS_V70];
   content.replaceChildren();
+  content.append(renderOperationModeDashboardNoticeV154());
   if (typeof renderSystemNoticesPanelV54 === "function") {
     content.append(renderSystemNoticesPanelV54());
   } else if (store.settings.systemNoticeEnabled !== false) {
@@ -14905,7 +14927,8 @@ renderDashboardV8 = function renderDashboardV70() {
 
   const quick = panel("빠른 등록");
   const actions = el("div", "quick-actions");
-  (store.settings.quickButtons || []).forEach((key) => {
+  const operationModeUi = operationModeUiForCurrentUserV154(authMenuKeysV31());
+  (store.settings.quickButtons || []).filter((key) => operationModeUi.visibleMenuIds.includes(key)).forEach((key) => {
     const btn = button(`${pageLabel(key)} 추가`);
     btn.disabled = !can("create", key);
     btn.addEventListener("click", () => openQuickCreateV70(key));
@@ -14916,7 +14939,7 @@ renderDashboardV8 = function renderDashboardV70() {
   content.append(quick);
 
   const grid = el("div", "dashboard-grid");
-  dashboardCardKeysV70().forEach((key) => {
+  dashboardCardKeysV70().filter((key) => operationModeUi.visibleMenuIds.includes(key)).forEach((key) => {
     if (typeof dashboardBoxV5 === "function") grid.append(dashboardBoxV5(key, pageLabel(key), dashboardRowsV70(key)));
   });
   if (!grid.children.length) grid.append(el("div", "empty", "홈페이지 관리에서 메인 대시보드 표시 항목을 선택하세요."));
@@ -34081,7 +34104,8 @@ function ownerPreviewPublicDiagnosticsV136() {
     timetableVisibleIdentifierCount: diag.timetableVisibleIdentifierCount,
     lastTimetableManagementAction: diag.lastTimetableManagementAction,
     lastTimetableManagementErrorCode: diag.lastTimetableManagementErrorCode,
-    appVersion: APP_PATCH_VERSION_V136
+    appVersion: APP_PATCH_VERSION_V136,
+    ...ownerPreviewLearningManagementPublicDiagnosticsV137()
   };
 }
 
@@ -34109,3 +34133,3913 @@ window.PMOwnerPreviewCriticalRepairDiagnostics = {
 
 store.settings ??= {};
 store.settings.appVersion = APP_PATCH_VERSION_V136;
+
+// Owner Preview Learning Management Batch 10B-1. This is deliberately a
+// narrow layer over the last active render/editor path: it does not alter
+// timetable, notice, schedule, or workspace-sync behaviour.
+const APP_PATCH_VERSION_V137 = "v137.4 - 2026-07-26";
+const LEARNING_MANAGEMENT_KEYS_V137 = new Set(["subjects", "teachers", "materials", "lessons", "assignments", "examSchedules", "records", "portfolios"]);
+const LEARNING_REFERENCE_KEYS_V137 = new Set(["subjects", "teachers"]);
+const LEARNING_BULK_DELETE_KEYS_V137 = new Set(["subjects", "teachers", "materials", "lessons", "assignments"]);
+const LEARNING_BULK_DELETE_BATCH_SIZE_V137 = 400;
+const LEARNING_TEACHER_TYPES_V137 = ["학교", "학원", "개인", "기타"];
+const LEARNING_EMAIL_DOMAINS_V137 = ["gmail.com", "naver.com", "daum.net", "kakao.com", "hanmail.net", "outlook.com", "직접 입력"];
+let learningBulkDeleteInFlightV137 = false;
+let learningEditorSaveInFlightV137 = false;
+let lessonRecordDetailRowV137 = null;
+let learningLessonSuppressionLoadV137 = null;
+const learningAutoLessonSuppressionKeysV137 = new Set();
+window.__PM_LESSON_SUPPRESSIONS_READY_V137__ = false;
+
+const learningManagementDiagnosticsV137 = {
+  serverConfirmAttemptCount: 0,
+  serverConfirmSuccessCount: 0,
+  serverConfirmFailureCount: 0,
+  bulkDeleteAttemptCount: 0,
+  bulkDeleteBlockedCount: 0,
+  bulkDeleteSuccessCount: 0,
+  bulkDeleteFailureCount: 0,
+  learningMaterialSaveAttemptCount: 0,
+  learningMaterialSaveServerConfirmedCount: 0,
+  learningMaterialSaveFailureCount: 0,
+  learningMaterialListRefreshCount: 0,
+  learningMaterialHiddenByFilterCount: 0,
+  learningMaterialListenerErrorCount: 0,
+  lastLearningMaterialSaveStage: "idle",
+  lastLearningMaterialListCount: 0,
+  learningReferenceRefreshCount: 0,
+  subjectReferenceRefreshCount: 0,
+  teacherReferenceRefreshCount: 0,
+  referenceFilterRefreshCount: 0,
+  lessonRecordBulkDeleteAttemptCount: 0,
+  lessonRecordBulkDeleteTargetCount: 0,
+  lessonRecordBulkDeleteCommittedCount: 0,
+  lessonRecordBulkDeleteConfirmedRemainingCount: null,
+  lessonRecordBulkDeleteSuccessCount: 0,
+  lessonRecordBulkDeleteFailureCount: 0,
+  lessonRecordBulkDeleteDirectTargetCount: 0,
+  lessonRecordBulkDeleteAutomaticTargetCount: 0,
+  lessonRecordBulkDeletePendingClearedCount: 0,
+  lessonRecordSuppressionConfirmedCount: 0,
+  lastLessonRecordBulkDeleteStage: "idle",
+  lastLessonRecordBulkDeleteReason: "",
+  firestoreListen400Count: 0,
+  firestoreListenerStartCount: 0,
+  firestoreListenerStopCount: 0,
+  firestoreListenerRestartCount: 0,
+  firestoreListenerErrorCount: 0,
+  lastFirestoreListenerArea: "",
+  lastFirestoreListenerOperation: "",
+  lastFirestoreListenerErrorCode: "",
+  lastLearningSaveResult: "idle",
+  validationBlockedCount: 0,
+  lastLearningValidationResult: "idle",
+  teacherSubjectUpdateAttemptCount: 0,
+  teacherSubjectUpdateSuccessCount: 0,
+  teacherSubjectUpdateFailureCount: 0,
+  lastTeacherSubjectUpdateStage: "idle",
+  recordSaveAttemptCount: 0,
+  recordSaveBlockedCount: 0,
+  recordSaveSuccessCount: 0,
+  lastRecordSaveStage: "idle",
+  lastBulkDeleteResult: "idle",
+  attachmentIntegration: "external-google-drive-not-configured"
+};
+
+function ownerPreviewLearningManagementPublicDiagnosticsV137() {
+  const diag = learningManagementDiagnosticsV137;
+  return {
+    learningMaterialSaveAttemptCount: Number(diag.learningMaterialSaveAttemptCount || 0),
+    learningMaterialSaveServerConfirmedCount: Number(diag.learningMaterialSaveServerConfirmedCount || 0),
+    learningMaterialSaveFailureCount: Number(diag.learningMaterialSaveFailureCount || 0),
+    learningMaterialListRefreshCount: Number(diag.learningMaterialListRefreshCount || 0),
+    learningMaterialHiddenByFilterCount: Number(diag.learningMaterialHiddenByFilterCount || 0),
+    validationBlockedCount: Number(diag.validationBlockedCount || 0),
+    lastLearningValidationResult: String(diag.lastLearningValidationResult || "idle"),
+    lessonRecordBulkDeleteAttemptCount: Number(diag.lessonRecordBulkDeleteAttemptCount || 0),
+    lessonRecordBulkDeleteTargetCount: Number(diag.lessonRecordBulkDeleteTargetCount || 0),
+    lessonRecordBulkDeleteCommittedCount: Number(diag.lessonRecordBulkDeleteCommittedCount || 0),
+    lessonRecordBulkDeleteConfirmedRemainingCount: diag.lessonRecordBulkDeleteConfirmedRemainingCount ?? null,
+    lessonRecordBulkDeleteSuccessCount: Number(diag.lessonRecordBulkDeleteSuccessCount || 0),
+    lessonRecordBulkDeleteFailureCount: Number(diag.lessonRecordBulkDeleteFailureCount || 0),
+    subjectReferenceRefreshCount: Number(diag.subjectReferenceRefreshCount || 0),
+    teacherReferenceRefreshCount: Number(diag.teacherReferenceRefreshCount || 0),
+    referenceFilterRefreshCount: Number(diag.referenceFilterRefreshCount || 0),
+    firestoreListen400Count: Number(diag.firestoreListen400Count || 0),
+    firestoreListenerErrorCount: Number(diag.firestoreListenerErrorCount || 0),
+    lastLearningMaterialSaveStage: String(diag.lastLearningMaterialSaveStage || "idle"),
+    teacherSubjectUpdateAttemptCount: Number(diag.teacherSubjectUpdateAttemptCount || 0),
+    teacherSubjectUpdateSuccessCount: Number(diag.teacherSubjectUpdateSuccessCount || 0),
+    teacherSubjectUpdateFailureCount: Number(diag.teacherSubjectUpdateFailureCount || 0),
+    lastTeacherSubjectUpdateStage: String(diag.lastTeacherSubjectUpdateStage || "idle"),
+    recordSaveAttemptCount: Number(diag.recordSaveAttemptCount || 0),
+    recordSaveBlockedCount: Number(diag.recordSaveBlockedCount || 0),
+    recordSaveSuccessCount: Number(diag.recordSaveSuccessCount || 0),
+    lastRecordSaveStage: String(diag.lastRecordSaveStage || "idle"),
+    lastLessonRecordBulkDeleteStage: String(diag.lastLessonRecordBulkDeleteStage || "idle"),
+    lastLessonRecordBulkDeleteReason: String(diag.lastLessonRecordBulkDeleteReason || "")
+  };
+}
+
+function learningRowsV137(key) {
+  return Array.isArray(store?.[key]) ? store[key].filter((row) => row && row.deleted !== true) : [];
+}
+
+function learningDisplayNameV137(row = {}, fallback = "정보 미등록") {
+  return String(row.name || row.title || row.displayName || fallback).trim() || fallback;
+}
+
+function learningSafeOptionLabelV137(value = "", fallback = "정보 미등록") {
+  const text = String(value || "").trim();
+  if (!text || /@|\b(uid|ws_|doc|ttset)-?/i.test(text) || /^[A-Za-z0-9_-]{20,}$/.test(text)) return fallback;
+  return text;
+}
+
+function learningCanonicalOptionLabelV137(value = "", fallback = "") {
+  // A canonical subject document's name is user content. Do not silently
+  // normalize numeric, symbolic, or non-Korean names into something else.
+  const text = typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+  if (!text || /^(?:undefined|null|nan|\[object\s+object\])$/i.test(text)) return fallback;
+  return text;
+}
+
+function learningCanonicalSubjectRowsV137() {
+  return learningRowsV137("subjects").filter((row) => {
+    const id = String(row?.id || "").trim();
+    // Subject reference options use only canonical subject documents.
+    return Boolean(id && learningCanonicalOptionLabelV137(row?.name, ""));
+  });
+}
+
+function learningSubjectOptionsV137() {
+  const rows = learningCanonicalSubjectRowsV137();
+  const counts = new Map();
+  rows.forEach((row) => {
+    const name = learningCanonicalOptionLabelV137(row.name, "정보 미등록");
+    counts.set(name, (counts.get(name) || 0) + 1);
+  });
+  return rows.map((row) => {
+    const name = learningCanonicalOptionLabelV137(row.name, "정보 미등록");
+    const supplements = learningSupplementaryMaterialsV137(row);
+    const suffix = counts.get(name) > 1
+      ? [
+        learningCanonicalOptionLabelV137(row.teacher, ""),
+        learningCanonicalOptionLabelV137(row.textbook, ""),
+        learningCanonicalOptionLabelV137(row.publisher, "")
+      ].filter(Boolean).join(" · ")
+      : "";
+    const supplementLabel = supplements.length ? `보조교재: ${supplements[0].name}${supplements.length > 1 ? ` 외 ${supplements.length - 1}개` : ""}` : "";
+    return [String(row.id || ""), [name, suffix, supplementLabel].filter(Boolean).join(" · ")];
+  }).filter(([id]) => id);
+}
+
+function learningSupplementaryMaterialsV137(row = {}) {
+  const source = row.supplementaryMaterials;
+  let values = Array.isArray(source) ? source : [];
+  if (!values.length && typeof source === "string") {
+    try { values = JSON.parse(source); } catch { values = []; }
+  }
+  return (Array.isArray(values) ? values : []).map((item, index) => ({
+    id: String(item?.id || `supplement-${index + 1}`),
+    name: String(item?.name || "").trim(),
+    publisher: String(item?.publisher || "").trim(),
+    memo: String(item?.memo || "").trim()
+  })).filter((item) => item.name || item.publisher || item.memo);
+}
+
+const LEARNING_REQUIRED_FIELDS_V137 = {
+  subjects: ["name"],
+  teachers: ["name"],
+  materials: ["title", "subjectId"],
+  lessons: ["lessonDate", "subjectId", "progressContent"],
+  assignments: ["title", "subjectId", "date"],
+  examSchedules: ["title", "year", "date", "subjectId"],
+  records: ["activity"],
+  portfolios: ["title"]
+};
+
+function learningRequiredFieldV137(key, name) {
+  return (LEARNING_REQUIRED_FIELDS_V137[key] || []).includes(name);
+}
+
+function learningTrimmedValueV137(form, name) {
+  return String(form.querySelector(`[name="${name}"]`)?.value || "").trim();
+}
+
+function learningRequiredMessageV137(key, name) {
+  if (name === "name" && key === "teachers") return "이름을 입력해 주세요.";
+  return {
+    name: "과목명을 입력해 주세요.",
+    title: "제목을 입력해 주세요.",
+    subjectId: "과목을 선택해 주세요.",
+    lessonDate: "수업일을 선택해 주세요.",
+    progressContent: "내용을 입력해 주세요.",
+    date: "마감일을 선택해 주세요.",
+    year: "시험 연도를 선택해 주세요.",
+    activity: "활동명을 입력해 주세요.",
+    finalBody: "내용을 입력해 주세요."
+  }[name] || "필수 항목을 입력해 주세요.";
+}
+
+function validateLearningRequiredFieldsV137(key, form) {
+  const required = LEARNING_REQUIRED_FIELDS_V137[key] || [];
+  const missing = required.find((name) => !learningTrimmedValueV137(form, name));
+  if (missing) {
+    const control = form.querySelector(`[name="${missing}"]`);
+    control?.focus?.();
+    const message = learningRequiredMessageV137(key, missing);
+    editorError.textContent = message;
+    learningShowFieldValidationErrorV137(form, missing, message);
+    throw learningWriteErrorV137("learning-required-field-missing");
+  }
+  if (key === "examSchedules") {
+    const year = Number(learningTrimmedValueV137(form, "year"));
+    const date = learningTrimmedValueV137(form, "date");
+    if (!Number.isInteger(year) || !new RegExp(`^${year}-`).test(date)) {
+      form.querySelector('[name="date"]')?.focus?.();
+      editorError.textContent = "시험일이 선택한 시험 연도와 일치해야 합니다.";
+      throw learningWriteErrorV137("exam-schedule-year-date-mismatch");
+    }
+  }
+}
+
+function learningShowFieldValidationErrorV137(form, name, message) {
+  const field = form.querySelector(`.field-${name}`);
+  if (!field) return;
+  let note = field.querySelector("[data-learning-validation-error-v137]");
+  if (!note) {
+    note = document.createElement("p");
+    note.className = "field-error";
+    note.dataset.learningValidationErrorV137 = "true";
+    field.append(note);
+  }
+  note.textContent = message;
+}
+
+function markLearningRequiredFieldV137(key, name, label, field) {
+  if (!learningRequiredFieldV137(key, name)) return field;
+  const control = field.querySelector?.(`[name="${name}"]`);
+  if (control) {
+    control.setAttribute("aria-required", "true");
+    const clear = () => {
+      if (editorError?.textContent) editorError.textContent = "";
+      field.querySelector?.("[data-learning-validation-error-v137]")?.remove();
+    };
+    control.addEventListener("input", clear);
+    control.addEventListener("change", clear);
+  }
+  const labelNode = field.firstElementChild;
+  if (labelNode && !labelNode.dataset.learningRequiredV137) {
+    labelNode.dataset.learningRequiredV137 = "true";
+    labelNode.append(document.createTextNode(" *"));
+  }
+  return field;
+}
+
+function learningTeacherOptionsV137() {
+  return learningRowsV137("teachers")
+    .map((row) => [String(row.id || ""), learningCanonicalOptionLabelV137(row?.name, "선생님 정보 미등록")])
+    .filter(([id]) => id);
+}
+
+function learningReferenceLabelV137(key, id, legacyValue = "") {
+  const rows = key === "subjects" ? learningCanonicalSubjectRowsV137() : learningRowsV137(key);
+  const row = rows.find((item) => String(item.id) === String(id));
+  return row ? learningDisplayNameV137(row) : (String(legacyValue || "").trim() || "정보 미등록");
+}
+
+function learningSelectSpecV137(placeholder, options = []) {
+  return [["", placeholder], ...options];
+}
+
+function learningTeacherIdForLegacyV137(value = "") {
+  const normalized = String(value || "").trim();
+  return learningRowsV137("teachers").find((row) => learningDisplayNameV137(row) === normalized)?.id || "";
+}
+
+function learningSubjectIdsV137(row = {}) {
+  const canonicalIds = new Set(learningCanonicalSubjectRowsV137().map((subject) => String(subject.id)));
+  const normalizeIds = (values) => [...new Set((values || []).map(String).filter((id) => canonicalIds.has(id)))];
+  if (Array.isArray(row.subjectIds)) return normalizeIds(row.subjectIds);
+  if (typeof row.subjectIds === "string") {
+    try {
+      const parsed = JSON.parse(row.subjectIds);
+      if (Array.isArray(parsed)) return normalizeIds(parsed);
+    } catch {}
+  }
+  const legacy = String(row.subject || "").split(/[·,]/).map((item) => item.trim()).filter(Boolean);
+  return learningCanonicalSubjectRowsV137()
+    .filter((subject) => legacy.includes(learningCanonicalOptionLabelV137(subject.name, "")))
+    .map((subject) => String(subject.id));
+}
+
+function learningTeacherSubjectSnapshotNamesV137(row = {}) {
+  const source = row.subjectNamesSnapshot ?? row.subjects ?? row.subject ?? row.subjectName ?? "";
+  let values = Array.isArray(source) ? source : null;
+  if (!values && typeof source === "string") {
+    try { const parsed = JSON.parse(source); if (Array.isArray(parsed)) values = parsed; } catch {}
+  }
+  values ||= String(source).split(/[\/,|]/);
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function learningSafeUrlV137(value = "") {
+  try {
+    const url = new URL(String(value || "").trim());
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function learningEmailPartsV137(value = "") {
+  const text = String(value || "").trim();
+  const at = text.indexOf("@");
+  if (at <= 0 || at !== text.lastIndexOf("@")) return { local: "", domain: "" };
+  return { local: text.slice(0, at), domain: text.slice(at + 1) };
+}
+
+function learningTeacherEmailV137(local = "", domain = "") {
+  const cleanLocal = String(local || "").trim();
+  const cleanDomain = String(domain || "").trim();
+  if (!cleanLocal && !cleanDomain) return "";
+  if (!cleanLocal || !cleanDomain || /\s/.test(cleanLocal + cleanDomain) || cleanLocal.includes("@") || cleanDomain.includes("@")) return null;
+  return `${cleanLocal}@${cleanDomain}`;
+}
+
+const fieldsForV7BeforeV137 = fieldsForV7;
+fieldsForV7 = function fieldsForV137(key) {
+  if (key === "subjects") return [
+    ["name", "과목명", "text", true],
+    ["teacherId", "선생님", "select-ref", learningSelectSpecV137("선생님을 선택하세요", learningTeacherOptionsV137())],
+    ["textbook", "교과서", "text"],
+    ["publisher", "교과서 출판사", "text"],
+    ["supplementaryMaterials", "보조교재", "supplementary-materials"],
+    ["location", "장소", "text"],
+    ["memo", "메모", "textarea"]
+  ];
+  if (key === "teachers") return [
+    ["name", "이름", "text", true],
+    ["subjectIds", "담당 과목", "multi-select-ref", learningSelectSpecV137("연결할 과목을 선택하세요", learningSubjectOptionsV137())],
+    ["type", "유형", "select-ref", learningSelectSpecV137("유형을 선택하세요", LEARNING_TEACHER_TYPES_V137.map((value) => [value, value]))],
+    ["email", "이메일", "email-composite"],
+    ["exam_style", "시험 출제유형", "textarea"],
+    ["memo", "메모", "textarea"]
+  ];
+  if (key === "materials") return [
+    ["title", "자료명", "text", true],
+    ["subjectId", "과목", "select-ref", learningSelectSpecV137("과목을 선택하세요", learningSubjectOptionsV137())],
+    ["teacherId", "선생님", "select-ref", learningSelectSpecV137("선생님을 선택하세요", learningTeacherOptionsV137())],
+    ["type", "자료유형", "select-ref", learningSelectSpecV137("유형을 선택하세요", ["PDF", "이미지", "문서", "PPT", "영상", "링크"].map((value) => [value, value]))],
+    ["link", "링크", "url"], ["tags", "태그", "text"],
+    ["attachments", "파일 첨부", "attachment-list"],
+    ["visibility", "공개 범위", "select-ref", [["private", "비공개"], ["teacher", "선생님/관리자 공개"], ["workspace", "워크스페이스 공개"], ["public", "공개"]]],
+    ["description", "설명", "textarea"], ["memo", "메모", "textarea"]
+  ];
+  if (key === "assignments") return [
+    ["title", "과제명", "text", true],
+    ["subjectId", "과목", "select-ref", learningSelectSpecV137("과목을 선택하세요", learningSubjectOptionsV137())],
+    ["teacherId", "선생님", "select-ref", learningSelectSpecV137("선생님을 선택하세요", learningTeacherOptionsV137())],
+    ["type", "유형", "select-ref", learningSelectSpecV137("유형을 선택하세요", ["개별", "모둠", "온라인", "기타"].map((value) => [value, value]))],
+    ["importance", "중요도", "select-ref", learningSelectSpecV137("중요도를 선택하세요", ["낮음", "보통", "높음", "매우 높음"].map((value) => [value, value]))],
+    ["startDate", "시작일", "date"], ["date", "마감일", "date"], ["place", "범위", "select-ref", learningSelectSpecV137("범위를 선택하세요", ["학교", "학원", "개인", "기타"].map((value) => [value, value]))],
+    ["content", "상세 내용", "textarea"], ["file_link", "파일/링크", "url"],
+    ["consentPublic", "학생 공개 동의", "select-ref", [["false", "동의 안 함"], ["true", "동의함"]]],
+    ["memo", "메모", "textarea"]
+  ];
+  if (key === "examSchedules") return [
+    ["title", "시험명", "text", true],
+    ["year", "시험 연도", "select-ref", learningSelectSpecV137("시험 연도를 선택하세요", Array.from({ length: 11 }, (_, index) => String(new Date().getFullYear() - 3 + index)).map((value) => [value, value]))],
+    ["date", "시험일", "date"], ["grade", "학년", "select-ref", learningSelectSpecV137("학년을 선택하세요", ["1학년", "2학년", "3학년", "기타"].map((value) => [value, value]))],
+    ["subjectId", "과목", "select-ref", learningSelectSpecV137("과목을 선택해 주세요", learningSubjectOptionsV137())],
+    ["teacherId", "선생님", "select-ref", learningSelectSpecV137("선생님을 선택하세요", learningTeacherOptionsV137())],
+    ["examType", "시험 유형", "text"], ["startTime", "시작 시간", "time"], ["endTime", "종료 시간", "time"],
+    ["place", "장소", "text"], ["scope", "시험 범위", "textarea"], ["memo", "메모", "textarea"],
+    ["visibility", "공개 범위", "select-ref", [["private", "비공개"], ["teacher", "선생님/관리자 공개"], ["workspace", "워크스페이스 공개"], ["public", "공개"]]],
+    ["status", "상태", "select-ref", learningSelectSpecV137("상태를 선택하세요", ["예정", "진행 중", "완료", "취소"].map((value) => [value, value]))]
+  ];
+  if (key === "records") return [
+    ["activity", "활동명", "text", true], ["subjectId", "과목", "select-ref", learningSelectSpecV137("과목을 선택해 주세요", learningSubjectOptionsV137())],
+    ["teacherId", "선생님", "select-ref", learningSelectSpecV137("선생님을 선택하세요", learningTeacherOptionsV137())], ["grade", "학년", "select-ref", learningSelectSpecV137("학년을 선택하세요", ["1학년", "2학년", "3학년", "기타"].map((value) => [value, value]))],
+    ["activityType", "활동 유형", "text"], ["activityFact", "활동 사실 기록", "textarea"], ["observation", "관찰 내용", "textarea"], ["competency", "역량", "textarea"], ["draft", "초안", "textarea"], ["feedback", "피드백", "textarea"], ["revisedDraft", "수정 초안", "textarea"], ["finalBody", "최종 본문", "textarea"], ["memo", "추가 메모", "textarea"], ["links", "관련 링크", "link-list"], ["attachments", "첨부 파일", "attachment-list"],
+    ["visibility", "공개 범위", "select-ref", [["private", "비공개"], ["teacher", "선생님/관리자 공개"], ["workspace", "워크스페이스 공개"], ["public", "공개"]]], ["status", "상태", "select-ref", learningSelectSpecV137("상태를 선택하세요", ["초안", "검토중", "완료"].map((value) => [value, value]))]
+  ];
+  return fieldsForV7BeforeV137(key);
+};
+
+const fieldsForV10BeforeV137 = fieldsForV10;
+fieldsForV10 = function fieldsForV10V137(key) {
+  if (key !== "lessons") return fieldsForV10BeforeV137(key);
+  return [
+    ["lessonDate", "수업일", "date"], ["day", "요일", "select-ref", learningSelectSpecV137("요일을 선택하세요", ["월", "화", "수", "목", "금", "토", "일"].map((value) => [value, value]))],
+    ["period", "교시", "text"], ["time", "수업 시간", "text"],
+    ["subjectId", "과목", "select-ref", learningSelectSpecV137("과목을 선택하세요", learningSubjectOptionsV137())],
+    ["teacherId", "선생님", "select-ref", learningSelectSpecV137("선생님을 선택하세요", learningTeacherOptionsV137())],
+    ["room", "교실/장소", "text"], ["unit", "단원", "text"], ["pageRange", "페이지", "text"],
+    ["progressContent", "수업 진도", "textarea"], ["homework", "과제", "textarea"], ["nextPlan", "다음 계획", "textarea"],
+    ["teacherMemo", "선생님 메모", "textarea"],
+    ["visibility", "공개 범위", "select-ref", [["private", "비공개"], ["teacher", "선생님/관리자 공개"], ["workspace", "워크스페이스 공개"], ["public", "공개"]]],
+    ["status", "상태", "select-ref", learningSelectSpecV137("상태를 선택하세요", ["자동생성", "작성중", "완료"].map((value) => [value, value]))]
+  ];
+};
+
+const fieldsForV7ClientValidationBeforeV137 = fieldsForV7;
+fieldsForV7 = function fieldsForV7ClientValidationV137(key) {
+  const fields = fieldsForV7ClientValidationBeforeV137(key);
+  if (!LEARNING_MANAGEMENT_KEYS_V137.has(key)) return fields;
+  return fields
+    .filter(([name]) => !(key === "subjects" && name === "location"))
+    .map((field) => (learningRequiredFieldV137(key, field[0]) && field[3] === true ? field.slice(0, 3) : field));
+};
+
+const inputNodeV4BeforeV137 = inputNodeV4;
+inputNodeV4 = function inputNodeV4V137(name, label, type, requiredOrOptions, value) {
+  const requiredKey = editing?.key || "";
+  const finish = (field) => markLearningRequiredFieldV137(requiredKey, name, label, field);
+  if (type === "multi-select-ref" && name === "subjectIds") {
+    const entries = (requiredOrOptions || []).filter(([optionValue]) => optionValue);
+    const selected = new Set(learningSubjectIdsV137({ subjectIds: value }));
+    const wrap = document.createElement("div");
+    wrap.className = "learning-subject-picker-v137";
+    const picker = document.createElement("select");
+    picker.dataset.learningSubjectPickerV137 = "true";
+    picker.append(option("", "연결할 과목을 선택하세요"));
+    const hidden = document.createElement("select");
+    hidden.name = name;
+    hidden.multiple = true;
+    hidden.hidden = true;
+    const chips = document.createElement("div");
+    chips.className = "learning-subject-chips-v137";
+    const duplicateNote = el("p", "muted", "");
+    duplicateNote.dataset.learningSubjectDuplicateV137 = "true";
+    duplicateNote.hidden = true;
+    const render = () => {
+      picker.replaceChildren(option("", "연결할 과목을 선택하세요"));
+      hidden.replaceChildren();
+      chips.replaceChildren();
+      entries.forEach(([optionValue, optionLabel]) => {
+        const id = String(optionValue);
+        const pickOption = option(id, optionLabel);
+        pickOption.disabled = selected.has(id);
+        picker.append(pickOption);
+        const stored = option(id, optionLabel);
+        stored.selected = selected.has(id);
+        hidden.append(stored);
+        if (!selected.has(id)) return;
+        const chip = document.createElement("span");
+        chip.className = "learning-subject-chip-v137";
+        chip.append(document.createTextNode(String(optionLabel)));
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "ghost";
+        remove.textContent = "제거";
+        remove.addEventListener("click", () => { selected.delete(id); render(); });
+        chip.append(remove);
+        chips.append(chip);
+      });
+      picker.value = "";
+    };
+    picker.addEventListener("change", () => {
+      const id = String(picker.value || "");
+      if (!id) return;
+      if (selected.has(id)) {
+        duplicateNote.textContent = "이미 선택된 과목입니다.";
+        duplicateNote.hidden = false;
+        picker.value = "";
+        return;
+      }
+      duplicateNote.textContent = "";
+      duplicateNote.hidden = true;
+      selected.add(id);
+      render();
+    });
+    wrap.setLearningSubjectRowV137 = (row) => {
+      selected.clear();
+      learningSubjectIdsV137(row || {}).forEach((id) => selected.add(id));
+      render();
+    };
+    render();
+    wrap.append(picker, duplicateNote, hidden, chips);
+    return finish(makeField(label, "field-subjectIds", wrap));
+  }
+  if (type === "supplementary-materials" || type === "link-list" || type === "attachment-list") {
+    const source = type === "supplementary-materials" ? learningSupplementaryMaterialsV137({ supplementaryMaterials: value }) : learningStructuredRowsV137(value);
+    const wrap = document.createElement("div");
+    wrap.className = `learning-${type}-v137`;
+    const hidden = document.createElement("input"); hidden.type = "hidden"; hidden.name = name;
+    const list = document.createElement("div"); list.className = "learning-repeat-list-v137";
+    const current = [...source];
+    const serialize = () => { hidden.value = JSON.stringify(current); };
+    const render = () => {
+      list.replaceChildren();
+      current.forEach((item, index) => {
+        const row = document.createElement("div"); row.className = "learning-repeat-row-v137";
+        if (type === "supplementary-materials") {
+          [["name", "보조교재명"], ["publisher", "출판사"], ["memo", "메모"]].forEach(([field, placeholder]) => {
+            const input = document.createElement("input"); input.type = "text"; input.placeholder = placeholder; input.value = item[field] || "";
+            input.addEventListener("input", () => { item[field] = input.value; serialize(); }); row.append(input);
+          });
+        } else if (type === "link-list") {
+          const input = document.createElement("input"); input.type = "url"; input.placeholder = "https://"; input.value = item.url || "";
+          input.addEventListener("input", () => { item.url = input.value; serialize(); }); row.append(input);
+        } else {
+          row.append(el("span", "", `${item.fileName || "파일"} · ${item.mimeType || "알 수 없음"} · ${item.size || 0}`));
+        }
+        const remove = button("제거", "ghost"); remove.type = "button"; remove.addEventListener("click", () => { current.splice(index, 1); serialize(); render(); }); row.append(remove); list.append(row);
+      });
+    };
+    const add = button(type === "supplementary-materials" ? "보조교재 추가" : type === "link-list" ? "링크 추가" : "파일 첨부", "ghost");
+    if (type === "attachment-list") {
+      const picker = document.createElement("input"); picker.type = "file"; picker.multiple = true; picker.hidden = true;
+      add.addEventListener("click", () => picker.click());
+      picker.addEventListener("change", () => {
+        [...(picker.files || [])].forEach((file) => {
+          const duplicate = current.some((item) => item.fileName === file.name && Number(item.size) === Number(file.size) && item.mimeType === (file.type || "application/octet-stream"));
+          if (!duplicate) current.push({ id: `local-${Date.now()}-${current.length}`, fileName: file.name, mimeType: file.type || "application/octet-stream", size: file.size || 0, mode: "local-reselect-required", status: "local-only", localAttachmentKey: `local-${Date.now()}-${current.length}` });
+        });
+        picker.value = ""; serialize(); render();
+      });
+      wrap.append(picker, el("p", "muted", "Google Drive 연동은 아직 연결되지 않았습니다. 파일 본문이나 로컬 경로는 저장하지 않으며, 다른 기기에서는 다시 선택이 필요합니다."));
+    } else add.addEventListener("click", () => { current.push(type === "supplementary-materials" ? { id: `supplement-${Date.now()}`, name: "", publisher: "", memo: "" } : { id: `link-${Date.now()}`, url: "" }); serialize(); render(); });
+    const clear = button("전체 제거", "ghost"); clear.addEventListener("click", () => { current.splice(0); serialize(); render(); });
+    [add, clear].forEach((control) => { control.type = "button"; });
+    wrap.setLearningStructuredRowsV137 = (rows) => {
+      current.splice(0, current.length, ...learningStructuredRowsV137(rows));
+      serialize();
+      render();
+    };
+    serialize(); render(); wrap.append(list, add, clear, hidden);
+    return finish(makeField(label, `field-${name}`, wrap));
+  }
+  if (type === "select-ref" || type === "multi-select-ref") {
+    const select = document.createElement("select");
+    select.name = name;
+    select.multiple = type === "multi-select-ref";
+    (requiredOrOptions || []).forEach(([optionValue, optionLabel]) => select.append(option(optionValue, optionLabel)));
+    if (select.multiple) {
+      const selected = new Set(Array.isArray(value) ? value.map(String) : []);
+      [...select.options].forEach((item) => { item.selected = selected.has(item.value); });
+    } else select.value = String(value || "");
+    return finish(makeField(label, `field-${name}`, select));
+  }
+  if (type === "email-composite") {
+    const parts = learningEmailPartsV137(value);
+    const wrap = document.createElement("div");
+    wrap.className = "email-composite-v137";
+    const local = document.createElement("input"); local.type = "text"; local.placeholder = "이메일 앞부분"; local.dataset.emailLocalV137 = "true"; local.value = parts.local;
+    const at = el("span", "", "@");
+    const domain = document.createElement("select"); domain.dataset.emailDomainV137 = "true";
+    domain.append(option("", "도메인을 선택하세요"));
+    LEARNING_EMAIL_DOMAINS_V137.forEach((item) => domain.append(option(item, item)));
+    domain.value = LEARNING_EMAIL_DOMAINS_V137.includes(parts.domain) ? parts.domain : (parts.domain ? "직접 입력" : "");
+    const direct = document.createElement("input"); direct.type = "text"; direct.placeholder = "직접 입력 도메인"; direct.dataset.emailDirectV137 = "true"; direct.value = LEARNING_EMAIL_DOMAINS_V137.includes(parts.domain) ? "" : parts.domain; direct.hidden = domain.value !== "직접 입력";
+    const hidden = document.createElement("input"); hidden.type = "hidden"; hidden.name = "email"; hidden.value = value || "";
+    const sync = () => { direct.hidden = domain.value !== "직접 입력"; hidden.value = learningTeacherEmailV137(local.value, domain.value === "직접 입력" ? direct.value : domain.value) || ""; };
+    local.addEventListener("input", sync); domain.addEventListener("change", sync); direct.addEventListener("input", sync);
+    wrap.append(local, at, domain, direct, hidden);
+    return finish(makeField(label, "field-email", wrap));
+  }
+  return finish(inputNodeV4BeforeV137(name, label, type, requiredOrOptions, value));
+};
+
+function learningStructuredRowsV137(value) {
+  if (Array.isArray(value)) return value.filter((item) => item && typeof item === "object");
+  if (typeof value === "string") { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === "object") : []; } catch {} }
+  return [];
+}
+
+function hydrateLearningEditorV137(key, row = {}) {
+  if (!LEARNING_MANAGEMENT_KEYS_V137.has(key)) return;
+  const refs = [["subjectId", "subjects", "subject"], ["teacherId", "teachers", "teacher"]];
+  refs.forEach(([field, source, legacy]) => {
+    const select = editorFields.querySelector(`[name="${field}"]`);
+    if (!select || select.value) return;
+    const id = row[field] || (source === "teachers" ? learningTeacherIdForLegacyV137(row[legacy]) : learningRowsV137(source).find((item) => learningDisplayNameV137(item) === String(row[legacy] || ""))?.id);
+    if (id && [...select.options].some((item) => item.value === String(id))) select.value = String(id);
+  });
+  const subjectPicker = editorFields.querySelector(".learning-subject-picker-v137");
+  if (subjectPicker?.setLearningSubjectRowV137) {
+    subjectPicker.setLearningSubjectRowV137(row);
+    const canonicalNames = new Set(learningCanonicalSubjectRowsV137().map((subject) => learningCanonicalOptionLabelV137(subject.name, "")));
+    const unresolvedSnapshots = learningTeacherSubjectSnapshotNamesV137(row).filter((name) => !canonicalNames.has(name));
+    if (unresolvedSnapshots.length && !subjectPicker.querySelector("[data-learning-legacy-subjects-v137]")) {
+      const note = el("p", "muted", `기존 담당 과목: ${unresolvedSnapshots.join(", ")}. 연결된 과목 문서가 없어 저장 전에 다시 선택해야 합니다.`);
+      note.dataset.learningLegacySubjectsV137 = "true";
+      subjectPicker.append(note);
+    }
+  }
+  if (key === "teachers") {
+    const fallbackValues = {
+      name: row.name || row.teacherName || "",
+      type: row.type || row.teacherType || "",
+      email: row.email || "",
+      memo: row.memo || row.notes || "",
+      exam_style: row.exam_style || row.examStyle || ""
+    };
+    Object.entries(fallbackValues).forEach(([field, value]) => {
+      if (!value) return;
+      const input = editorFields.querySelector(`[name="${field}"]`);
+      if (input && !input.value) input.value = String(value);
+    });
+  }
+  if (key === "examSchedules") {
+    const year = editorFields.querySelector('[name="year"]');
+    const date = editorFields.querySelector('[name="date"]');
+    const syncYear = () => {
+      const selectedYear = String(year?.value || "").trim();
+      if (!/^\d{4}$/.test(selectedYear) || !date) return;
+      date.min = `${selectedYear}-01-01`; date.max = `${selectedYear}-12-31`;
+      if (date.value && (date.value < date.min || date.value > date.max)) date.value = "";
+    };
+    year?.addEventListener("change", syncYear); syncYear();
+  }
+  if (key === "records") {
+    const fallbackValues = {
+      activity: row.activity || row.title || row.name || "",
+      activityType: row.activityType || row.type || "",
+      activityFact: row.activityFact || row.evidence || "",
+      observation: row.observation || "",
+      competency: row.competency || "",
+      draft: row.draft || "",
+      feedback: row.feedback || "",
+      revisedDraft: row.revisedDraft || "",
+      finalBody: row.finalBody || row.draft || row.content || "",
+      memo: row.memo || row.notes || ""
+    };
+    Object.entries(fallbackValues).forEach(([field, value]) => {
+      const input = editorFields.querySelector(`[name="${field}"]`);
+      if (input && !input.value && value) input.value = String(value);
+    });
+    const linkList = editorFields.querySelector(".learning-link-list-v137");
+    if (linkList?.setLearningStructuredRowsV137 && !learningStructuredRowsV137(row.links).length && learningSafeUrlV137(row.link || "")) {
+      linkList.setLearningStructuredRowsV137([{ id: `legacy-link-${row.id || "record"}`, url: learningSafeUrlV137(row.link) }]);
+    }
+    const attachmentList = editorFields.querySelector(".learning-attachment-list-v137");
+    if (attachmentList?.setLearningStructuredRowsV137 && !learningStructuredRowsV137(row.attachments).length && row.fileName) {
+      attachmentList.setLearningStructuredRowsV137([{
+        id: String(row.attachmentId || `legacy-${row.id || "record"}`),
+        fileName: String(row.fileName),
+        mimeType: String(row.mimeType || ""),
+        size: Number(row.size || 0),
+        mode: String(row.attachmentMode || "local-reselect-required"),
+        status: String(row.status || "local-only"),
+        localAttachmentKey: String(row.localAttachmentKey || "")
+      }]);
+    }
+  }
+  if (key === "materials") {
+    const attachmentList = editorFields.querySelector(".learning-attachment-list-v137");
+    const legacyAttachment = row.fileName ? [{
+      id: String(row.attachmentId || `legacy-${row.id || "attachment"}`),
+      fileName: String(row.fileName),
+      mimeType: String(row.mimeType || ""),
+      size: Number(row.size || 0),
+      mode: String(row.attachmentMode || "local-reselect-required"),
+      status: String(row.status || "local-only"),
+      localAttachmentKey: String(row.localAttachmentKey || "")
+    }] : [];
+    if (attachmentList?.setLearningStructuredRowsV137 && !learningStructuredRowsV137(row.attachments).length && legacyAttachment.length) {
+      attachmentList.setLearningStructuredRowsV137(legacyAttachment);
+    }
+  }
+  if (false && key === "materials" && !editorFields.querySelector("[data-material-file-v137]")) {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.dataset.materialFileV137 = "true";
+    const note = el("p", "muted", "Google Drive 업로드 연동은 아직 연결되지 않았습니다. 선택한 파일은 이 기기에서만 다시 선택할 수 있으며, 파일 경로나 본문은 저장하지 않습니다.");
+    const metadata = [["attachmentMode", row.attachmentMode || ""], ["fileName", row.fileName || ""], ["mimeType", row.mimeType || ""], ["size", row.size || ""], ["driveFileId", row.driveFileId || ""], ["webViewLink", row.webViewLink || ""], ["addedAt", row.addedAt || ""], ["addedBy", row.addedBy || ""]].map(([name, current]) => {
+      const hidden = document.createElement("input"); hidden.type = "hidden"; hidden.name = name; hidden.value = current; return hidden;
+    });
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      editorFields.querySelector('[name="attachmentMode"]').value = "local-reselect-required";
+      editorFields.querySelector('[name="fileName"]').value = file.name;
+      editorFields.querySelector('[name="mimeType"]').value = file.type || "application/octet-stream";
+      editorFields.querySelector('[name="size"]').value = String(file.size || 0);
+      editorFields.querySelector('[name="addedAt"]').value = new Date().toISOString();
+      note.textContent = `${file.name} 정보를 준비했습니다. 업로드 연결 전에는 실제 첨부로 저장되지 않습니다.`;
+    });
+    editorFields.append(makeField("파일 첨부", "learning-material-file-v137", input), ...metadata, note);
+  }
+}
+
+const openEditorV7BeforeV137 = openEditorV7;
+async function openTeacherEditorV137(id = null, origin = "teachers") {
+  if (id && !can("edit", "teachers")) return requestEdit("teachers", id);
+  if (!id) {
+    const result = openEditorV7BeforeV137("teachers", null, origin);
+    editing = { ...editing, mode: "create", editingDocumentId: "", originalTeacherSnapshot: null };
+    return result;
+  }
+  let row = learningRowsV137("teachers").find((item) => String(item.id) === String(id));
+  if (!row) {
+    try {
+      const { runtime, workspaceId } = await learningReadRuntimeV137("teacher-editor-source-read");
+      const snapshot = await runtime.db.collection("workspaces").doc(workspaceId).collection("teachers").doc(String(id)).get({ source: "server" });
+      if (snapshot.exists) {
+        row = { id: String(id), ...(snapshot.data() || {}) };
+        const rows = store.teachers || (store.teachers = []);
+        const index = rows.findIndex((item) => String(item.id) === String(id));
+        if (index >= 0) rows[index] = row; else rows.push(row);
+      }
+    } catch {}
+  }
+  if (!row) {
+    showMessage("수정 불가", "수정할 선생님 정보를 불러오지 못했습니다.");
+    return false;
+  }
+  const result = openEditorV7BeforeV137("teachers", row.id, origin);
+  editing = { ...editing, mode: "edit", editingDocumentId: String(row.id), originalTeacherSnapshot: { ...row } };
+  hydrateLearningEditorV137("teachers", row);
+  return result;
+}
+
+async function openRecordEditorV137(id = null, origin = "records") {
+  if (id && !can("edit", "records")) return requestEdit("records", id);
+  if (!id) {
+    const result = openEditorV7BeforeV137("records", null, origin);
+    prepareRecordEditorValidationV137();
+    bindRecordEditorSubmitV137();
+    return result;
+  }
+  let row = learningRowsV137("records").find((item) => String(item.id) === String(id));
+  if (!row) {
+    try {
+      const { runtime, workspaceId } = await learningReadRuntimeV137("record-editor-source-read");
+      const snapshot = await runtime.db.collection("workspaces").doc(workspaceId).collection("records").doc(String(id)).get({ source: "server" });
+      if (snapshot.exists) {
+        row = { id: String(id), ...(snapshot.data() || {}) };
+        const rows = store.records || (store.records = []);
+        const index = rows.findIndex((item) => String(item.id) === String(id));
+        if (index >= 0) rows[index] = row; else rows.push(row);
+      }
+    } catch {}
+  }
+  if (!row) {
+    showMessage("수정 불가", "수정할 기록부 정보를 불러오지 못했습니다.");
+    return false;
+  }
+  const result = openEditorV7BeforeV137("records", row.id, origin);
+  editing = { ...editing, mode: "edit", editingDocumentId: String(row.id), originalRecordSnapshot: { ...row } };
+  hydrateLearningEditorV137("records", row);
+  prepareRecordEditorValidationV137();
+  bindRecordEditorSubmitV137();
+  return result;
+}
+
+function prepareRecordEditorValidationV137() {
+  if (editing?.key !== "records" || !editorForm) return;
+  // The record form has one business-required field. Legacy editor builders
+  // can mark later optional controls required, which makes the browser focus
+  // a memo field before our server-confirm handler sees the first submit.
+  editorForm.noValidate = true;
+  editorForm.dataset.learningRecordValidationV137 = "custom";
+  editorForm.querySelectorAll("[required]").forEach((control) => {
+    if (control.name === "activity") return;
+    control.required = false;
+    control.removeAttribute("aria-required");
+  });
+  const submit = editorForm.querySelector('button[type="submit"]');
+  if (submit) {
+    submit.type = "submit";
+    submit.formNoValidate = true;
+  }
+}
+
+function bindRecordEditorSubmitV137() {
+  const form = document.getElementById("editorForm");
+  if (!form) return;
+  form.removeEventListener("submit", saveEditorWithAttendanceServerConfirmV132, true);
+  form.removeEventListener("submit", saveLearningEditorWithServerConfirmV137, true);
+  form.addEventListener("submit", saveLearningEditorWithServerConfirmV137, true);
+  form.dataset.recordServerConfirmV137 = "true";
+}
+
+openEditorV7 = function openEditorV7V137(key, id = null, origin = key) {
+  if (key === "teachers") return openTeacherEditorV137(id, origin);
+  if (key === "records") return openRecordEditorV137(id, origin);
+  const result = openEditorV7BeforeV137(key, id, origin);
+  if (LEARNING_MANAGEMENT_KEYS_V137.has(key)) hydrateLearningEditorV137(key, id ? learningRowsV137(key).find((row) => String(row.id) === String(id)) || {} : {});
+  return result;
+};
+
+const openEditorV10BeforeV137 = openEditorV10;
+openEditorV10 = function openEditorV10V137(key, id = null) {
+  const result = openEditorV10BeforeV137(key, id);
+  if (key === "lessons") hydrateLearningEditorV137(key, id ? learningRowsV137(key).find((row) => String(row.id) === String(id)) || {} : {});
+  return result;
+};
+
+function normalizeLearningPayloadV137(key, form) {
+  const payload = Object.fromEntries(new FormData(form).entries());
+  delete payload._confirm_password;
+  ["supplementaryMaterials", "attachments", "links"].forEach((field) => {
+    if (!(field in payload)) return;
+    const rows = learningStructuredRowsV137(payload[field]);
+    if (field === "links" && rows.some((item) => String(item.url || "").trim() && !learningSafeUrlV137(item.url))) {
+      editorError.textContent = "관련 링크는 http 또는 https 주소만 입력할 수 있습니다.";
+      throw learningWriteErrorV137("learning-link-invalid");
+    }
+    payload[field] = JSON.stringify(rows.filter((item) => {
+      if (field === "supplementaryMaterials") return String(item.name || "").trim() || String(item.publisher || "").trim() || String(item.memo || "").trim();
+      if (field === "links") return Boolean(learningSafeUrlV137(item.url));
+      return Boolean(String(item.fileName || "").trim());
+    }));
+  });
+  if (key === "teachers") {
+    const canonicalIds = new Set(learningCanonicalSubjectRowsV137().map((subject) => String(subject.id)));
+    const ids = [...new Set([...form.querySelectorAll('[name="subjectIds"] option:checked')]
+      .map((item) => String(item.value || ""))
+      .filter((id) => canonicalIds.has(id)))];
+    // The canonical membership contract is an array. Legacy string payloads
+    // remain readable, but edits must send only the currently selected IDs.
+    payload.subjectIds = ids;
+    payload.subject = ids.map((id) => learningReferenceLabelV137("subjects", id)).filter((label) => label !== "정보 미등록").join(" · ");
+    payload.subjectNamesSnapshot = ids.map((id) => learningReferenceLabelV137("subjects", id)).filter(Boolean);
+    const email = learningTeacherEmailV137(form.querySelector("[data-email-local-v137]")?.value, form.querySelector("[data-email-domain-v137]")?.value === "직접 입력" ? form.querySelector("[data-email-direct-v137]")?.value : form.querySelector("[data-email-domain-v137]")?.value);
+    if (email === null) throw Object.assign(new Error("teacher-email-invalid"), { code: "teacher-email-invalid" });
+    payload.email = email;
+  }
+  [["subjectId", "subjects", "subject"], ["teacherId", "teachers", "teacher"]].forEach(([field, source, snapshot]) => {
+    if (!(field in payload)) return;
+    payload[snapshot] = payload[field] ? learningReferenceLabelV137(source, payload[field]) : "";
+  });
+  if (key === "materials" && payload.link && !learningSafeUrlV137(payload.link)) throw Object.assign(new Error("material-link-invalid"), { code: "material-link-invalid" });
+  if (key === "assignments" && payload.file_link && !learningSafeUrlV137(payload.file_link)) throw Object.assign(new Error("assignment-link-invalid"), { code: "assignment-link-invalid" });
+  return payload;
+}
+
+function learningWriteErrorV137(code) {
+  const error = new Error(code); error.code = code; return error;
+}
+
+async function learningWriteRuntimeV137(reason) {
+  const safety = window.PMOperationalSafety?.status?.();
+  if (safety?.writeBlocked) throw learningWriteErrorV137("learning-write-blocked");
+  const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116(reason, { force: true });
+  if (!workspaceId) throw learningWriteErrorV137("learning-workspace-unresolved");
+  const readiness = window.PMWorkspaceDataService?.checkSaveReadiness?.(workspaceId, { canonicalWorkspaceId: workspaceId, record: true });
+  if (!readiness?.ok) throw learningWriteErrorV137(readiness?.reason || "learning-sync-not-started");
+  const runtime = await workspaceNoticeRuntimeV112();
+  if (!runtime?.db || !firebase?.auth?.().currentUser) throw learningWriteErrorV137("learning-auth-unavailable");
+  return { runtime, workspaceId };
+}
+
+async function learningReadRuntimeV137(reason) {
+  const workspaceId = await resolveCanonicalCurrentWorkspaceIdV116(reason, { force: true });
+  if (!workspaceId) throw learningWriteErrorV137("learning-workspace-unresolved");
+  const runtime = await workspaceNoticeRuntimeV112();
+  if (!runtime?.db || !firebase?.auth?.().currentUser) throw learningWriteErrorV137("learning-auth-unavailable");
+  return { runtime, workspaceId };
+}
+
+async function refreshLearningCollectionFromServerV137(key, runtime, workspaceId) {
+  const snapshot = await runtime.db.collection("workspaces").doc(workspaceId).collection(key).get({ source: "server" });
+  const rows = (snapshot.docs || [])
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .filter((row) => row && row.deleted !== true);
+  store[key] = rows;
+  if (key === "materials") {
+    learningManagementDiagnosticsV137.learningMaterialListRefreshCount += 1;
+    learningManagementDiagnosticsV137.lastLearningMaterialListCount = rows.length;
+  }
+  return rows;
+}
+
+function learningRowVisibleInCurrentViewV137(key, row) {
+  if (!learningFilterMatchesV137(key, row)) return false;
+  const query = String(globalSearch?.value || "").trim().toLowerCase();
+  return !query || JSON.stringify(row || {}).toLowerCase().includes(query);
+}
+
+function learningRecordListenerDiagnosticsV137(area, operation) {
+  const sync = window.PMWorkspaceDataService?.diagnostics?.() || {};
+  const transportErrors = Number(sync.listenTransportErrorCount || 0);
+  learningManagementDiagnosticsV137.firestoreListen400Count = transportErrors;
+  learningManagementDiagnosticsV137.firestoreListenerStartCount = Number(sync.startSuccessCount || 0);
+  learningManagementDiagnosticsV137.firestoreListenerStopCount = Number(sync.unsubscribeCount || 0);
+  learningManagementDiagnosticsV137.firestoreListenerRestartCount = Number(sync.listenerRestartSuccessCount || 0);
+  learningManagementDiagnosticsV137.firestoreListenerErrorCount = transportErrors;
+  if (transportErrors > 0) learningManagementDiagnosticsV137.learningMaterialListenerErrorCount += 1;
+  learningManagementDiagnosticsV137.lastFirestoreListenerArea = area;
+  learningManagementDiagnosticsV137.lastFirestoreListenerOperation = operation;
+  learningManagementDiagnosticsV137.lastFirestoreListenerErrorCode = String(sync.lastListenTransportErrorCode || "");
+}
+
+function learningAutoLessonKeyV137(row = {}) {
+  const direct = String(row.timetable_id || row.timetableId || "").trim();
+  if (direct) return direct;
+  const setId = String(row.setId || row.timetableSetId || "school").trim();
+  const day = String(row.day || "").trim();
+  const period = String(row.period || "").trim();
+  const subject = String(row.subject || "").trim();
+  return day || period || subject ? `${setId}-${day}-${period}-${subject}` : "";
+}
+
+function learningIsAutomaticLessonV137(row = {}) {
+  const source = String(row.sourceType || row.source || row.status || "").toLowerCase();
+  return Boolean(row.timetable_id || row.timetableId)
+    || /timetable|automatic|auto|자동생성|시간표/.test(source);
+}
+
+function learningIsAutoLessonSuppressedV137(key = "") {
+  return Boolean(key) && learningAutoLessonSuppressionKeysV137.has(String(key));
+}
+
+function learningSuppressionDocumentIdV137(key = "") {
+  let hash = 2166136261;
+  for (const char of String(key)) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `lesson-suppression-${(hash >>> 0).toString(36)}`;
+}
+
+async function refreshLearningLessonSuppressionsV137(reason = "lesson-screen") {
+  if (learningLessonSuppressionLoadV137) return learningLessonSuppressionLoadV137;
+  learningLessonSuppressionLoadV137 = (async () => {
+    const { runtime, workspaceId } = await learningReadRuntimeV137(reason);
+    const snapshot = await runtime.db.collection("workspaces").doc(workspaceId)
+      .collection("lessonRecordSuppressions").get({ source: "server" });
+    learningAutoLessonSuppressionKeysV137.clear();
+    (snapshot.docs || []).forEach((doc) => {
+      const key = String(doc.data()?.lessonKey || "").trim();
+      if (key) learningAutoLessonSuppressionKeysV137.add(key);
+    });
+    window.__PM_LESSON_SUPPRESSIONS_READY_V137__ = true;
+    return true;
+  })().catch((error) => {
+    learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteReason = String(error?.code || "lesson-suppression-read-failed");
+    window.__PM_LESSON_SUPPRESSIONS_READY_V137__ = false;
+    return false;
+  }).finally(() => { learningLessonSuppressionLoadV137 = null; });
+  return learningLessonSuppressionLoadV137;
+}
+
+function learningRefreshReferenceViewsV137(key) {
+  learningManagementDiagnosticsV137.learningReferenceRefreshCount += 1;
+  if (key === "subjects") learningManagementDiagnosticsV137.subjectReferenceRefreshCount += 1;
+  if (key === "teachers") learningManagementDiagnosticsV137.teacherReferenceRefreshCount += 1;
+  learningManagementDiagnosticsV137.referenceFilterRefreshCount += 1;
+}
+
+async function saveLearningEditorWithServerConfirmV137(event) {
+  event?.preventDefault?.();
+  event?.stopImmediatePropagation?.();
+  const key = editing?.key;
+  if (!LEARNING_MANAGEMENT_KEYS_V137.has(key)) return saveEditorWithAttendanceServerConfirmV132(event);
+  if (key === "records" && learningEditorSaveInFlightV137) {
+    learningManagementDiagnosticsV137.recordSaveBlockedCount += 1;
+    return;
+  }
+  const rows = store[key] || (store[key] = []);
+  const existing = editing.id ? rows.find((row) => String(row.id) === String(editing.id)) : null;
+  try {
+    validateLearningRequiredFieldsV137(key, editorForm);
+    if (key === "records") {
+      learningManagementDiagnosticsV137.recordSaveAttemptCount += 1;
+      learningManagementDiagnosticsV137.lastRecordSaveStage = "writing";
+      learningEditorSaveInFlightV137 = true;
+    }
+    if (key === "materials") {
+      learningManagementDiagnosticsV137.learningMaterialSaveAttemptCount += 1;
+      learningManagementDiagnosticsV137.lastLearningMaterialSaveStage = "validating";
+    }
+    const payload = normalizeLearningPayloadV137(key, editorForm);
+    if (key === "teachers") {
+      learningManagementDiagnosticsV137.teacherSubjectUpdateAttemptCount += 1;
+      learningManagementDiagnosticsV137.lastTeacherSubjectUpdateStage = "payload-ready";
+    }
+    const { runtime, workspaceId } = await learningWriteRuntimeV137(`${key}-editor-submit`);
+    const id = String(editing.id || `${key}-${Date.now()}`);
+    const FieldValue = firebase.firestore.FieldValue;
+    const row = cleanFirestoreObjectV52({ ...(existing || {}), ...payload, id, workspaceId, workspace_id: workspaceId, updatedAt: FieldValue.serverTimestamp() });
+    if (!existing?.createdAt) row.createdAt = FieldValue.serverTimestamp();
+    learningManagementDiagnosticsV137.serverConfirmAttemptCount += 1;
+    const ref = runtime.db.collection("workspaces").doc(workspaceId).collection(key).doc(id);
+    if (key === "teachers") learningManagementDiagnosticsV137.lastTeacherSubjectUpdateStage = "writing";
+    await ref.set(row, { merge: true });
+    if (key === "materials") learningManagementDiagnosticsV137.lastLearningMaterialSaveStage = "server-confirming";
+    const confirmed = await ref.get({ source: "server" });
+    if (!confirmed.exists || confirmed.metadata?.hasPendingWrites) throw learningWriteErrorV137("learning-server-confirm-failed");
+    if (key === "teachers") learningManagementDiagnosticsV137.lastTeacherSubjectUpdateStage = "server-confirmed";
+    const confirmedRow = { id, ...(confirmed.data() || {}) };
+    if (key === "materials" || LEARNING_REFERENCE_KEYS_V137.has(key)) {
+      if (key === "materials") learningManagementDiagnosticsV137.lastLearningMaterialSaveStage = "refreshing-list";
+      const refreshed = await refreshLearningCollectionFromServerV137(key, runtime, workspaceId);
+      if (!refreshed.some((item) => String(item.id) === id)) throw learningWriteErrorV137(key === "materials" ? "learning-material-list-refresh-missing" : "learning-reference-list-refresh-missing");
+      if (key === "materials") {
+        learningManagementDiagnosticsV137.learningMaterialSaveServerConfirmedCount += 1;
+        learningManagementDiagnosticsV137.lastLearningMaterialSaveStage = "list-refreshed";
+        if (!learningRowVisibleInCurrentViewV137(key, confirmedRow)) learningManagementDiagnosticsV137.learningMaterialHiddenByFilterCount += 1;
+        learningRecordListenerDiagnosticsV137("materials", "server-refresh-after-save");
+      } else learningRefreshReferenceViewsV137(key);
+    } else {
+      const index = rows.findIndex((item) => String(item.id) === id);
+      if (index >= 0) rows[index] = confirmedRow; else rows.unshift(confirmedRow);
+    }
+    window.PMWorkspaceDataService?.discardPendingRow?.(key, id);
+    saveStore({ skipRemote: true, syncReason: `${key}-server-confirmed-v137` });
+    learningManagementDiagnosticsV137.serverConfirmSuccessCount += 1;
+    if (key === "teachers") learningManagementDiagnosticsV137.teacherSubjectUpdateSuccessCount += 1;
+    if (key === "records") {
+      learningManagementDiagnosticsV137.recordSaveSuccessCount += 1;
+      learningManagementDiagnosticsV137.lastRecordSaveStage = "server-confirmed";
+    }
+    learningManagementDiagnosticsV137.lastLearningSaveResult = "server-confirmed";
+    const origin = editing.origin || key;
+    closeEditor(); renderPage(origin);
+    if (key === "materials" && !learningRowVisibleInCurrentViewV137(key, confirmedRow)) {
+      showMessage("저장 완료", "저장되었습니다. 현재 필터 조건 때문에 목록에는 표시되지 않습니다.");
+    } else showMessage("저장 완료", "서버 확인 후 저장했습니다.");
+  } catch (error) {
+    const code = String(error?.code || "");
+    const validationBlocked = [
+      "learning-required-field-missing",
+      "exam-schedule-year-date-mismatch",
+      "learning-link-invalid",
+      "material-link-invalid",
+      "assignment-link-invalid",
+      "teacher-email-invalid"
+    ].includes(code);
+    if (validationBlocked) {
+      learningManagementDiagnosticsV137.validationBlockedCount += 1;
+      learningManagementDiagnosticsV137.lastLearningValidationResult = "validation-blocked";
+      learningManagementDiagnosticsV137.lastLearningSaveResult = "validation-blocked";
+      if (key === "records") learningManagementDiagnosticsV137.lastRecordSaveStage = "validation-blocked";
+      if (!editorError.textContent) editorError.textContent = "입력 값을 확인해 주세요.";
+      return;
+    }
+    if (key === "teachers") {
+      learningManagementDiagnosticsV137.teacherSubjectUpdateFailureCount += 1;
+      learningManagementDiagnosticsV137.lastTeacherSubjectUpdateStage = code || "failed";
+    }
+    if (key === "records") learningManagementDiagnosticsV137.lastRecordSaveStage = code || "failed";
+    learningManagementDiagnosticsV137.serverConfirmFailureCount += 1;
+    learningManagementDiagnosticsV137.lastLearningSaveResult = error?.code || "learning-save-failed";
+    if (key === "materials") {
+      learningManagementDiagnosticsV137.learningMaterialSaveFailureCount += 1;
+      learningManagementDiagnosticsV137.lastLearningMaterialSaveStage = error?.code || "failed";
+    }
+    editorError.textContent = error?.code === "material-link-invalid" || error?.code === "assignment-link-invalid"
+      ? "링크는 http:// 또는 https:// 주소만 사용할 수 있습니다."
+      : error?.code === "teacher-email-invalid"
+        ? "이메일 형식을 확인해 주세요."
+        : "서버에 저장하지 못했습니다. 로그인, 워크스페이스, 권한 상태를 확인한 뒤 다시 시도해 주세요.";
+  } finally {
+    if (key === "records") learningEditorSaveInFlightV137 = false;
+  }
+}
+
+try {
+  const editorFormElV137 = document.getElementById("editorForm");
+  if (editorFormElV137 && editorFormElV137.dataset.learningServerConfirmV137 !== "true") {
+    editorFormElV137.dataset.learningServerConfirmV137 = "true";
+    editorFormElV137.removeEventListener("submit", saveEditorWithAttendanceServerConfirmV132, true);
+    editorFormElV137.addEventListener("submit", saveLearningEditorWithServerConfirmV137, true);
+  }
+} catch {}
+
+function learningLocalDatePartsV137(value) {
+  const date = value?.toDate?.() instanceof Date ? value.toDate() : value instanceof Date ? value : null;
+  if (date && !Number.isNaN(date.getTime())) return [date.getFullYear(), date.getMonth() + 1, date.getDate()];
+  const match = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+  if (!match) return null;
+  const parts = match.slice(1).map(Number);
+  const local = new Date(parts[0], parts[1] - 1, parts[2]);
+  return local.getFullYear() === parts[0] && local.getMonth() === parts[1] - 1 && local.getDate() === parts[2] ? parts : null;
+}
+
+function learningLocalExamDateV137(value, time = "") {
+  const parts = learningLocalDatePartsV137(value);
+  if (!parts) return null;
+  const timeMatch = String(time || "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!timeMatch) return new Date(parts[0], parts[1] - 1, parts[2]);
+  const hours = Number(timeMatch[1]);
+  const minutes = Number(timeMatch[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return new Date(parts[0], parts[1] - 1, parts[2], hours, minutes, 0, 0);
+}
+
+function learningExamLifecycleStateV137(row = {}, now = new Date()) {
+  const manual = String(row.status || "").trim().toLowerCase();
+  if (["cancelled", "canceled", "취소"].includes(manual)) return "취소";
+  if (["completed", "ended", "closed", "완료", "종료"].includes(manual) || row.completed === true || row.ended === true || row.closed === true) return "종료";
+  const dateValue = row.end_date || row.endDate || row.examDate || row.date || row.startDate || "";
+  const endTime = String(row.endTime || row.end_time || "").trim();
+  const dateParts = learningLocalDatePartsV137(dateValue);
+  if (!dateParts) return "진행/예정";
+  if (endTime) {
+    const endAt = learningLocalExamDateV137(dateValue, endTime);
+    return endAt && now.getTime() >= endAt.getTime() ? "종료" : "진행/예정";
+  }
+  const examDate = learningLocalExamDateV137(dateValue);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return examDate && examDate.getTime() < todayStart.getTime() ? "종료" : "진행/예정";
+}
+
+function learningExamTabV137() {
+  const tab = sessionStorage.getItem("learning-exam-tab-v137");
+  return tab === "ended" ? "ended" : "active";
+}
+
+const LEARNING_FILTER_CONFIG_V137 = {
+  subjects: [["name", "text", "과목명 검색"], ["teacher", "teacher", "선생님 전체"], ["publisher", "values", "출판사 전체"], ["textbook", "values", "교과서 전체"]],
+  teachers: [["name", "text", "이름 검색"], ["subject", "subject", "과목 전체"], ["type", "teacherType", "유형 전체"], ["email", "text", "이메일 검색"]],
+  materials: [["title", "text", "제목 검색"], ["subject", "subject", "과목 전체"], ["teacher", "teacher", "선생님 전체"], ["type", "values", "유형 전체"], ["tags", "text", "태그 검색"], ["visibility", "visibility", "공개 범위 전체"]],
+  assignments: [["title", "text", "제목 검색"], ["subject", "subject", "과목 전체"], ["teacher", "teacher", "선생님 전체"], ["type", "values", "유형 전체"], ["importance", "values", "중요도 전체"], ["place", "values", "범위 전체"]],
+  lessons: [["lessonDate", "text", "수업일 검색"], ["subject", "subject", "과목 전체"], ["teacher", "teacher", "선생님 전체"], ["status", "values", "상태 전체"]],
+  examSchedules: [["year", "values", "시험 연도 전체"], ["grade", "values", "학년 전체"], ["subject", "subject", "과목 전체"], ["teacher", "teacher", "선생님 전체"], ["examType", "values", "시험 유형 전체"], ["status", "values", "상태 전체"]],
+  records: [["activity", "text", "활동명 검색"], ["subject", "subject", "과목 전체"], ["teacher", "teacher", "선생님 전체"], ["grade", "values", "학년 전체"], ["status", "values", "상태 전체"]]
+};
+
+function learningFilterOptionsV137(key, field, kind, placeholder) {
+  if (kind === "subject") return learningSelectSpecV137(placeholder, learningSubjectOptionsV137());
+  if (kind === "teacher") return learningSelectSpecV137(placeholder, learningTeacherOptionsV137());
+  if (kind === "teacherType") return learningSelectSpecV137(placeholder, LEARNING_TEACHER_TYPES_V137.map((value) => [value, value]));
+  if (kind === "visibility") return [["", placeholder], ["private", "비공개"], ["teacher", "선생님/관리자 공개"], ["workspace", "워크스페이스 공개"], ["public", "공개"]];
+  return [["", placeholder], ...[...new Set(learningRowsV137(key).map((row) => String(row[field] || "").trim()).filter(Boolean))].map((value) => [value, value])];
+}
+
+function learningFilterBarV137(key) {
+  const bar = el("div", "toolbar compact-filter learning-filter-v137");
+  (LEARNING_FILTER_CONFIG_V137[key] || []).forEach(([field, kind, placeholder]) => {
+    const storageKey = `learning-filter:${key}:${field}`;
+    if (kind === "text") {
+      const input = document.createElement("input"); input.placeholder = placeholder; input.value = sessionStorage.getItem(storageKey) || "";
+      input.addEventListener("input", () => sessionStorage.setItem(storageKey, input.value));
+      input.addEventListener("keydown", (event) => { if (event.key === "Enter") renderPage(key); });
+      bar.append(input); return;
+    }
+    const select = document.createElement("select");
+    learningFilterOptionsV137(key, field, kind, placeholder).forEach(([value, text]) => select.append(option(value, text)));
+    select.value = sessionStorage.getItem(storageKey) || "";
+    select.addEventListener("change", () => sessionStorage.setItem(storageKey, select.value));
+    bar.append(select);
+  });
+  const apply = button("검색", "ghost"); apply.addEventListener("click", () => renderPage(key));
+  const reset = button("필터 초기화", "ghost"); reset.addEventListener("click", () => { (LEARNING_FILTER_CONFIG_V137[key] || []).forEach(([field]) => sessionStorage.removeItem(`learning-filter:${key}:${field}`)); renderPage(key); });
+  bar.append(apply, reset); return bar;
+}
+
+function learningFilterMatchesV137(key, row) {
+  return (LEARNING_FILTER_CONFIG_V137[key] || []).every(([field, kind]) => {
+    const value = sessionStorage.getItem(`learning-filter:${key}:${field}`) || "";
+    if (!value) return true;
+    if (kind === "subject") return String(row.subjectId || "") === value || String(row.subject || "") === learningReferenceLabelV137("subjects", value);
+    if (kind === "teacher") return String(row.teacherId || "") === value || String(row.teacher || "") === learningReferenceLabelV137("teachers", value);
+    return String(row[field] || "").toLowerCase().includes(String(value).toLowerCase());
+  });
+}
+
+const filterBarV7BeforeV137 = filterBarV7;
+filterBarV7 = function filterBarV7V137(key) { return LEARNING_FILTER_CONFIG_V137[key] ? learningFilterBarV137(key) : filterBarV7BeforeV137(key); };
+const filterBarV10BeforeV137 = filterBarV10;
+filterBarV10 = function filterBarV10V137(key) { return LEARNING_FILTER_CONFIG_V137[key] ? learningFilterBarV137(key) : filterBarV10BeforeV137(key); };
+const filteredRowsV7BeforeV137 = filteredRowsV7;
+filteredRowsV7 = function filteredRowsV7V137(key) {
+  let rows = filteredRowsV7BeforeV137(key);
+  if (key === "examSchedules") {
+    const tab = learningExamTabV137();
+    rows = rows.map((row) => ({ ...row, status: learningExamLifecycleStateV137(row) }))
+      .filter((row) => tab === "ended" ? row.status === "종료" : row.status !== "종료");
+  }
+  return LEARNING_FILTER_CONFIG_V137[key] ? rows.filter((row) => learningFilterMatchesV137(key, row)) : rows;
+};
+const filteredRowsV10BeforeV137 = filteredRowsV10;
+filteredRowsV10 = function filteredRowsV10V137(key) { const rows = filteredRowsV10BeforeV137(key); return LEARNING_FILTER_CONFIG_V137[key] ? rows.filter((row) => learningFilterMatchesV137(key, row)) : rows; };
+
+function learningBulkDeletePhraseV137(key) { return `${pageLabel(key)} 전체 삭제`; }
+function learningMayBulkDeleteV137() {
+  const roles = [currentUser?.role, currentUser?.currentRole, currentUser?.globalRole, currentUser?.workspaceRole]
+    .map((role) => String(role || ""));
+  return roles.includes("system_owner") || roles.includes("super_manager") || window.PMOperationalSafety?.isSystemOwner?.(currentUser) === true;
+}
+function learningLinkedReferenceCountV137(key, rows) {
+  if (!LEARNING_REFERENCE_KEYS_V137.has(key)) return 0;
+  const ids = new Set(rows.map((row) => String(row.id)));
+  const idField = key === "subjects" ? "subjectId" : "teacherId";
+  const legacyField = key === "subjects" ? "subject" : "teacher";
+  const names = new Set(rows.map((row) => learningDisplayNameV137(row)));
+  return ["materials", "lessons", "assignments", "examSchedules", "exams", "records", "portfolios", "timetable"].reduce((count, source) => count + learningRowsV137(source).filter((row) => ids.has(String(row[idField] || "")) || names.has(String(row[legacyField] || ""))).length, 0);
+}
+
+async function bulkDeleteAllLessonRecordsV137() {
+  if (learningBulkDeleteInFlightV137) return;
+  learningBulkDeleteInFlightV137 = true;
+  learningManagementDiagnosticsV137.bulkDeleteAttemptCount += 1;
+  learningManagementDiagnosticsV137.lessonRecordBulkDeleteAttemptCount += 1;
+  learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "preparing";
+  learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteReason = "";
+  try {
+    const { runtime, workspaceId } = await learningWriteRuntimeV137("lessons-bulk-delete");
+    const lessonsRef = runtime.db.collection("workspaces").doc(workspaceId).collection("lessons");
+    const snapshot = await lessonsRef.get({ source: "server" });
+    const docs = snapshot.docs || [];
+    const serverRows = docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+    const automaticRows = serverRows.filter(learningIsAutomaticLessonV137);
+    const directRows = serverRows.filter((row) => !learningIsAutomaticLessonV137(row));
+    const timetableKeys = (store.timetable || []).map(learningAutoLessonKeyV137).filter(Boolean);
+    const automaticKeys = new Set([...automaticRows.map(learningAutoLessonKeyV137), ...timetableKeys].filter(Boolean));
+    const pendingRows = learningRowsV137("lessons").filter((row) => !docs.some((doc) => String(doc.id) === String(row.id)));
+    learningManagementDiagnosticsV137.lessonRecordBulkDeleteTargetCount = docs.length + pendingRows.length;
+    learningManagementDiagnosticsV137.lessonRecordBulkDeleteDirectTargetCount = directRows.length;
+    learningManagementDiagnosticsV137.lessonRecordBulkDeleteAutomaticTargetCount = automaticRows.length + timetableKeys.length;
+    learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "server-target-read";
+    if (!docs.length && !pendingRows.length && !automaticKeys.size) {
+      learningManagementDiagnosticsV137.lastBulkDeleteResult = "server-empty";
+      learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "server-empty";
+      return showMessage("삭제할 데이터 없음", "삭제할 수업 기록이 없습니다.");
+    }
+    const phrase = learningBulkDeletePhraseV137("lessons");
+    const typed = window.prompt(`직접 등록 수업 기록: ${directRows.length}건\n자동 생성 수업 기록: ${automaticRows.length + timetableKeys.length}건\n전체 대상: ${docs.length + pendingRows.length}건\n원본 시간표는 삭제되지 않습니다.\n확인 문구를 입력하세요: ${phrase}`);
+    if (typed !== phrase) return;
+    if (!window.confirm("수업 기록만 삭제하고 원본 시간표는 유지합니다. 계속할까요?")) return;
+
+    const suppressionRef = runtime.db.collection("workspaces").doc(workspaceId).collection("lessonRecordSuppressions");
+    const suppressionKeys = [...automaticKeys];
+    for (let index = 0; index < suppressionKeys.length; index += LEARNING_BULK_DELETE_BATCH_SIZE_V137) {
+      const batch = runtime.db.batch();
+      suppressionKeys.slice(index, index + LEARNING_BULK_DELETE_BATCH_SIZE_V137).forEach((lessonKey) => {
+        batch.set(suppressionRef.doc(learningSuppressionDocumentIdV137(lessonKey)), {
+          lessonKey,
+          sourceType: "lesson-record-bulk-delete",
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      });
+      if (suppressionKeys.length) await batch.commit();
+    }
+    if (suppressionKeys.length) {
+      const suppressionSnapshot = await suppressionRef.get({ source: "server" });
+      const confirmedKeys = new Set((suppressionSnapshot.docs || []).map((doc) => String(doc.data()?.lessonKey || "")));
+      if (!suppressionKeys.every((lessonKey) => confirmedKeys.has(lessonKey))) throw learningWriteErrorV137("lesson-suppression-server-confirm-failed");
+      suppressionKeys.forEach((lessonKey) => learningAutoLessonSuppressionKeysV137.add(lessonKey));
+      learningManagementDiagnosticsV137.lessonRecordSuppressionConfirmedCount += suppressionKeys.length;
+    }
+    window.__PM_LESSON_SUPPRESSIONS_READY_V137__ = true;
+    for (let index = 0; index < docs.length; index += LEARNING_BULK_DELETE_BATCH_SIZE_V137) {
+      const group = docs.slice(index, index + LEARNING_BULK_DELETE_BATCH_SIZE_V137);
+      const batch = runtime.db.batch();
+      group.forEach((doc) => batch.delete(doc.ref));
+      await batch.commit();
+      learningManagementDiagnosticsV137.lessonRecordBulkDeleteCommittedCount += group.length;
+      learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "batch-committed";
+    }
+    const refreshed = await refreshLearningCollectionFromServerV137("lessons", runtime, workspaceId);
+    learningManagementDiagnosticsV137.lessonRecordBulkDeleteConfirmedRemainingCount = refreshed.length;
+    learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "server-remaining-checked";
+    if (refreshed.length !== 0) throw learningWriteErrorV137("learning-bulk-server-confirm-failed");
+    [...serverRows, ...pendingRows].forEach((row) => window.PMWorkspaceDataService?.discardPendingRow?.("lessons", row.id));
+    learningManagementDiagnosticsV137.lessonRecordBulkDeletePendingClearedCount += pendingRows.length;
+    store.lessons = [];
+    saveStore({ skipRemote: true, syncReason: "lessons-bulk-delete-server-confirmed-v137" });
+    learningManagementDiagnosticsV137.bulkDeleteSuccessCount += docs.length + pendingRows.length;
+    learningManagementDiagnosticsV137.lessonRecordBulkDeleteSuccessCount += docs.length + pendingRows.length;
+    learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "server-confirmed";
+    learningManagementDiagnosticsV137.lastBulkDeleteResult = "server-confirmed";
+    renderPage("lessons");
+    showMessage("전체 삭제 완료", `수업 기록 ${docs.length + pendingRows.length}건을 삭제했습니다. 원본 시간표는 유지됩니다.`);
+  } catch (error) {
+    learningManagementDiagnosticsV137.bulkDeleteFailureCount += 1;
+    learningManagementDiagnosticsV137.lessonRecordBulkDeleteFailureCount += 1;
+    learningManagementDiagnosticsV137.lastBulkDeleteResult = error?.code || "learning-bulk-delete-failed";
+    learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "failed";
+    learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteReason = String(error?.code || "learning-bulk-delete-failed");
+    showMessage("전체 삭제 실패", "서버 확인이 완료되지 않아 수업 기록을 삭제 완료로 처리하지 않았습니다.");
+  } finally {
+    learningBulkDeleteInFlightV137 = false;
+  }
+}
+
+async function bulkDeleteLearningRowsV137(key) {
+  if (!learningMayBulkDeleteV137()) return showMessage("권한 없음", "이 기능은 시스템 오너 또는 최고 관리자만 사용할 수 있습니다.");
+  if (learningBulkDeleteInFlightV137) return;
+  const safety = window.PMOperationalSafety?.status?.();
+  if (safety?.writeBlocked) return showMessage("삭제 차단", "현재 운영 상태에서는 삭제할 수 없습니다.");
+  if (key === "lessons") return bulkDeleteAllLessonRecordsV137();
+  const listedRows = learningRowsV137(key);
+  const phrase = learningBulkDeletePhraseV137(key);
+  const typed = window.prompt(`${pageLabel(key)} 전체 ${listedRows.length}건을 삭제합니다. 이 작업은 되돌릴 수 없습니다.\n확인 문구를 입력하세요: ${phrase}`);
+  if (typed !== phrase) return;
+  const linkedCount = learningLinkedReferenceCountV137(key, listedRows);
+  if (linkedCount) return showMessage("연결된 데이터 확인 필요", `연결된 문서 ${linkedCount}건이 있어 참조 문서를 유지한 채 자동 삭제하지 않습니다.`);
+  learningBulkDeleteInFlightV137 = true;
+  learningManagementDiagnosticsV137.bulkDeleteAttemptCount += 1;
+  if (key === "lessons") {
+    learningManagementDiagnosticsV137.lessonRecordBulkDeleteAttemptCount += 1;
+    learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "preparing";
+    learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteReason = "";
+  }
+  try {
+    const { runtime, workspaceId } = await learningWriteRuntimeV137(`${key}-bulk-delete`);
+    const snapshot = await runtime.db.collection("workspaces").doc(workspaceId).collection(key).get({ source: "server" });
+    const docs = snapshot.docs || [];
+    if (key === "lessons") {
+      learningManagementDiagnosticsV137.lessonRecordBulkDeleteTargetCount = docs.length;
+      learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "server-target-read";
+    }
+    if (!docs.length) {
+      learningManagementDiagnosticsV137.lastBulkDeleteResult = "server-empty";
+      if (key === "lessons") learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "server-empty";
+      return showMessage("삭제할 데이터 없음", "삭제할 수업 기록이 없습니다.");
+    }
+    const finalConfirm = window.confirm(`현재 워크스페이스의 ${pageLabel(key)} ${docs.length}건 전체를 삭제합니다. 계속할까요?`);
+    if (!finalConfirm) return;
+    let success = 0;
+    for (let index = 0; index < docs.length; index += LEARNING_BULK_DELETE_BATCH_SIZE_V137) {
+      const group = docs.slice(index, index + LEARNING_BULK_DELETE_BATCH_SIZE_V137);
+      const batch = runtime.db.batch(); group.forEach((doc) => batch.delete(doc.ref)); await batch.commit(); success += group.length;
+      if (key === "lessons") {
+        learningManagementDiagnosticsV137.lessonRecordBulkDeleteCommittedCount += group.length;
+        learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "batch-committed";
+      }
+    }
+    const refreshed = await refreshLearningCollectionFromServerV137(key, runtime, workspaceId);
+    if (key === "lessons") {
+      learningManagementDiagnosticsV137.lessonRecordBulkDeleteConfirmedRemainingCount = refreshed.length;
+      learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "server-remaining-checked";
+    }
+    if (refreshed.length !== 0) throw learningWriteErrorV137("learning-bulk-server-confirm-failed");
+    // The server refresh above is empty on success; clear pending state from the original target docs.
+    docs.forEach((doc) => window.PMWorkspaceDataService?.discardPendingRow?.(key, doc.id));
+    store[key] = [];
+    saveStore({ skipRemote: true, syncReason: `${key}-bulk-delete-server-confirmed-v137` });
+    learningManagementDiagnosticsV137.bulkDeleteSuccessCount += success;
+    if (key === "lessons") {
+      learningManagementDiagnosticsV137.lessonRecordBulkDeleteSuccessCount += success;
+      learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "server-confirmed";
+    }
+    learningManagementDiagnosticsV137.lastBulkDeleteResult = "server-confirmed";
+    renderPage(key); showMessage("전체 삭제 완료", `${success}건을 서버에서 확인 후 삭제했습니다.`);
+  } catch (error) {
+    learningManagementDiagnosticsV137.bulkDeleteFailureCount += 1;
+    learningManagementDiagnosticsV137.lastBulkDeleteResult = error?.code || "learning-bulk-delete-failed";
+    if (key === "lessons") {
+      learningManagementDiagnosticsV137.lessonRecordBulkDeleteFailureCount += 1;
+      learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteStage = "failed";
+      learningManagementDiagnosticsV137.lastLessonRecordBulkDeleteReason = String(error?.code || "learning-bulk-delete-failed");
+    }
+    showMessage("전체 삭제 실패", "서버 삭제를 확인하지 못했습니다. 목록은 유지됩니다.");
+  } finally { learningBulkDeleteInFlightV137 = false; }
+}
+
+async function deleteLearningRowWithServerConfirmV137(key, id) {
+  const rows = store[key] || [];
+  const row = rows.find((item) => String(item.id) === String(id));
+  if (!row) return;
+  const safety = window.PMOperationalSafety?.status?.();
+  if (safety?.writeBlocked) return showMessage("삭제 차단", "현재 운영 상태에서는 삭제할 수 없습니다.");
+  const linkedCount = learningLinkedReferenceCountV137(key, [row]);
+  if (linkedCount) return showMessage("연결된 데이터 확인 필요", `연결된 문서 ${linkedCount}건이 있어 자동으로 함께 삭제하지 않습니다.`);
+  try {
+    const { runtime, workspaceId } = await learningWriteRuntimeV137(`${key}-delete`);
+    const ref = runtime.db.collection("workspaces").doc(workspaceId).collection(key).doc(String(id));
+    await ref.delete();
+    const confirmed = await ref.get({ source: "server" });
+    if (confirmed.exists || confirmed.metadata?.hasPendingWrites) throw learningWriteErrorV137("learning-delete-server-confirm-failed");
+    window.PMWorkspaceDataService?.discardPendingRow?.(key, id);
+    store[key] = rows.filter((item) => String(item.id) !== String(id));
+    saveStore({ skipRemote: true, syncReason: `${key}-delete-server-confirmed-v137` });
+    renderPage(key); showMessage("삭제 완료", "서버 확인 후 삭제했습니다.");
+  } catch (error) {
+    showMessage("삭제 실패", "서버 삭제를 확인하지 못했습니다. 목록은 유지됩니다.");
+  }
+}
+
+const deleteRowBeforeV137 = deleteRow;
+deleteRow = function deleteRowV137(key, id) {
+  if (LEARNING_MANAGEMENT_KEYS_V137.has(key)) return void deleteLearningRowWithServerConfirmV137(key, id);
+  return deleteRowBeforeV137(key, id);
+};
+
+function appendLearningBulkDeleteButtonV137(key) {
+  if (!LEARNING_BULK_DELETE_KEYS_V137.has(key) || content.querySelector("[data-learning-bulk-delete-v137]")) return;
+  const head = content.querySelector(".panel .panel-head");
+  if (!head) return;
+  const action = button("전체 삭제", "danger"); action.dataset.learningBulkDeleteV137 = "true";
+  action.disabled = !learningMayBulkDeleteV137(); action.addEventListener("click", () => void bulkDeleteLearningRowsV137(key));
+  (head.querySelector(".row-actions") || head).append(action);
+}
+
+const renderCollectionV7BeforeV137 = renderCollectionV7;
+renderCollectionV7 = function renderCollectionV7V137(key) {
+  const result = renderCollectionV7BeforeV137(key);
+  if (key === "examSchedules" && !content.querySelector("[data-learning-exam-tabs-v137]")) {
+    const head = content.querySelector(".panel .panel-head");
+    const tabs = el("div", "row-actions");
+    tabs.dataset.learningExamTabsV137 = "true";
+    [["active", "예정/진행 시험"], ["ended", "종료된 시험"]].forEach(([value, label]) => {
+      const tab = button(label, learningExamTabV137() === value ? "primary" : "ghost");
+      tab.type = "button";
+      tab.addEventListener("click", () => { sessionStorage.setItem("learning-exam-tab-v137", value); renderPage("examSchedules"); });
+      tabs.append(tab);
+    });
+    (head?.querySelector(".row-actions") || head)?.append(tabs);
+  }
+  appendLearningBulkDeleteButtonV137(key);
+  if (key === "assignments" && !content.querySelector("[data-assignment-submissions-v137]")) {
+    const head = content.querySelector(".panel .panel-head");
+    const action = button("제출 현황", "ghost");
+    action.dataset.assignmentSubmissionsV137 = "true";
+    action.addEventListener("click", () => renderPage("assignment-submissions"));
+    (head?.querySelector(".row-actions") || head)?.append(action);
+  }
+  if (key === "materials") enhanceMaterialLinksV137(content);
+  return result;
+};
+const renderLessonsV10BeforeV137 = renderLessonsV10;
+renderLessonsV10 = function renderLessonsV10V137() {
+  if (window.__PM_LESSON_SUPPRESSIONS_READY_V137__ !== true && !learningLessonSuppressionLoadV137) {
+    void refreshLearningLessonSuppressionsV137("lesson-screen-open").then((ready) => {
+      if (ready && currentPage === "lessons") renderLessonsV10();
+    });
+  }
+  const result = renderLessonsV10BeforeV137();
+  appendLearningBulkDeleteButtonV137("lessons");
+  return result;
+};
+
+function enhanceMaterialLinksV137(root = document) {
+  root.querySelectorAll?.("table").forEach((table) => {
+    const headers = [...table.querySelectorAll("thead th")];
+    const linkIndex = headers.findIndex((header) => header.textContent === labelFor("link"));
+    if (linkIndex < 0) return;
+    table.querySelectorAll("tbody tr").forEach((row) => {
+      const cell = row.children[linkIndex];
+      const href = learningSafeUrlV137(cell?.textContent || "");
+      if (!cell || !href || cell.querySelector("a")) return;
+      const anchor = document.createElement("a"); anchor.href = href; anchor.target = "_blank"; anchor.rel = "noopener noreferrer"; anchor.textContent = href.length > 48 ? `${href.slice(0, 45)}...` : href;
+      cell.replaceChildren(anchor);
+    });
+  });
+}
+
+function renderLessonRecordDetailV137(row = {}) {
+  content.replaceChildren();
+  const section = panel("수업 기록 상세");
+  const head = section.querySelector(".panel-head");
+  const back = button("목록으로", "ghost"); back.addEventListener("click", () => renderPage("lessons")); head?.append(back);
+  const grid = el("div", "detail-grid");
+  [["lessonDate", "수업일"], ["subject", "과목"], ["teacher", "선생님"], ["period", "교시"], ["time", "수업 시간"], ["room", "교실/장소"], ["unit", "단원"], ["pageRange", "페이지"], ["progressContent", "수업 진도"], ["homework", "과제"], ["nextPlan", "다음 계획"], ["teacherMemo", "선생님 메모"], ["visibility", "공개 범위"], ["status", "상태"], ["content", "수업 내용"], ["summary", "수업 요약"]].forEach(([field, label]) => {
+    const value = field === "subject" ? learningReferenceLabelV137("subjects", row.subjectId, row.subject) : field === "teacher" ? learningReferenceLabelV137("teachers", row.teacherId, row.teacher) : row[field];
+    if (value === undefined || value === null || value === "") return;
+    const item = el("div", "info-box"); item.append(el("span", "", label), el("strong", "", field === "visibility" ? ({ private: "비공개", teacher: "선생님/관리자 공개", workspace: "워크스페이스 공개", public: "공개" }[value] || String(value)) : String(value))); grid.append(item);
+  });
+  section.append(grid, el("p", "muted", "시간표와 수업 기록의 자동 연결은 이번 단계에서 변경하지 않았습니다.")); content.append(section);
+}
+
+const showViewerV5BeforeV137 = showViewerV5;
+function showTeacherViewerV137(row = {}) {
+  messageTitle.textContent = "선생님 상세";
+  messageBody.replaceChildren();
+  const grid = el("div", "detail-grid");
+  const subjects = learningSubjectIdsV137(row).map((id) => learningReferenceLabelV137("subjects", id)).filter(Boolean);
+  const legacySubjects = subjects.length ? subjects : learningTeacherSubjectSnapshotNamesV137(row);
+  [
+    ["이름", row.name || row.teacherName],
+    ["유형", row.type || row.teacherType],
+    ["담당 과목", legacySubjects.join(", ") || "미등록"],
+    ["이메일", row.email || "미등록"],
+    ["시험 출제유형", row.exam_style || row.examStyle],
+    ["메모", row.memo || row.notes]
+  ].forEach(([label, value]) => {
+    if (value === undefined || value === null || String(value).trim() === "") return;
+    const item = el("div", "info-box"); item.append(el("span", "", label), el("strong", "", String(value))); grid.append(item);
+  });
+  if (!grid.children.length) grid.append(el("div", "empty", "표시할 선생님 정보가 없습니다."));
+  messageBody.append(grid); messageDialog.showModal();
+}
+
+function appendLearningViewerFieldV137(grid, label, value) {
+  const text = String(value ?? "").trim();
+  if (!text || /^(?:undefined|null|\[object\s+object\])$/i.test(text)) return;
+  const item = el("div", "info-box");
+  item.append(el("span", "", label), el("strong", "", text));
+  grid.append(item);
+}
+
+function learningAttachmentTypeLabelV137(mimeType = "") {
+  return {
+    "application/pdf": "PDF",
+    "image/png": "PNG 이미지",
+    "image/jpeg": "JPEG 이미지",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word 문서",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel 문서",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PowerPoint",
+    "text/plain": "텍스트"
+  }[String(mimeType || "").trim().toLowerCase()] || "파일";
+}
+
+function learningAttachmentSizeLabelV137(value) {
+  const size = Number(value);
+  if (!Number.isFinite(size) || size < 0) return "크기 정보 없음";
+  if (size < 1024) return `${Math.round(size)} B`;
+  if (size < 1024 ** 2) return `${(size / 1024).toFixed(size >= 10240 ? 0 : 1)} KB`;
+  return `${(size / (1024 ** 2)).toFixed(size >= 10 * 1024 ** 2 ? 0 : 1)} MB`;
+}
+
+function learningAttachmentStatusLabelV137(item = {}) {
+  if (item.mode === "local-reselect-required" || item.status === "local-only") return "이 기기에서 다시 선택해야 합니다.";
+  if (item.mode === "google-drive" || item.status === "drive-available") return "Google Drive에 저장됨";
+  return "파일을 사용할 수 없습니다.";
+}
+
+function appendLearningAttachmentViewerV137(grid, item = {}, index = 0) {
+  const card = el("div", "info-box");
+  card.dataset.learningAttachmentViewerV137 = "true";
+  card.append(el("span", "", `첨부파일 ${index + 1}`));
+  const details = document.createElement("div");
+  [["파일명", item.fileName || "파일명 정보 없음"], ["파일 형식", learningAttachmentTypeLabelV137(item.mimeType)], ["파일 크기", learningAttachmentSizeLabelV137(item.size)], ["상태", learningAttachmentStatusLabelV137(item)]].forEach(([label, value]) => {
+    const row = document.createElement("p");
+    row.append(document.createTextNode(`${label}: `), el("strong", "", value));
+    details.append(row);
+  });
+  const driveLink = learningSafeUrlV137(item.webViewLink || item.driveLink || "");
+  if (driveLink) {
+    const open = document.createElement("a");
+    open.href = driveLink; open.target = "_blank"; open.rel = "noopener"; open.textContent = "열기";
+    details.append(open);
+  }
+  card.append(details);
+  grid.append(card);
+}
+
+function showLearningViewerV137(kind, row = {}) {
+  messageBody.replaceChildren();
+  const grid = el("div", "detail-grid");
+  const subject = learningReferenceLabelV137("subjects", row.subjectId, row.subject);
+  const teacher = learningReferenceLabelV137("teachers", row.teacherId, row.teacher);
+  if (kind === "subjects") {
+    messageTitle.textContent = "과목 상세";
+    appendLearningViewerFieldV137(grid, "과목명", row.name);
+    appendLearningViewerFieldV137(grid, "선생님", teacher);
+    appendLearningViewerFieldV137(grid, "교과서", row.textbook);
+    appendLearningViewerFieldV137(grid, "교과서 출판사", row.publisher);
+    learningSupplementaryMaterialsV137(row).forEach((item, index) => {
+      appendLearningViewerFieldV137(grid, `보조교재 ${index + 1}`, [item.name, item.publisher && `출판사 ${item.publisher}`, item.memo && `메모: ${item.memo}`].filter(Boolean).join(" · "));
+    });
+    appendLearningViewerFieldV137(grid, "메모", row.memo);
+  } else if (kind === "materials") {
+    messageTitle.textContent = "수업 자료 상세";
+    [["제목", row.title], ["과목", subject], ["선생님", teacher], ["유형", row.type], ["설명", row.description], ["태그", row.tags], ["공개 범위", row.visibility], ["링크", learningSafeUrlV137(row.link || "")]].forEach(([label, value]) => appendLearningViewerFieldV137(grid, label, value));
+    learningStructuredRowsV137(row.attachments).forEach((item, index) => appendLearningAttachmentViewerV137(grid, item, index));
+  } else if (kind === "records") {
+    messageTitle.textContent = "기록부 상세";
+    [["활동명", row.activity], ["과목", subject], ["선생님", teacher], ["학년", row.grade], ["활동 유형", row.activityType], ["활동 사실", row.activityFact || row.evidence], ["관찰 내용", row.observation], ["역량", row.competency], ["초안", row.draft], ["피드백", row.feedback], ["수정 초안", row.revisedDraft], ["최종 본문", row.finalBody || row.content], ["메모", row.memo], ["공개 범위", row.visibility], ["상태", row.status]].forEach(([label, value]) => appendLearningViewerFieldV137(grid, label, value));
+  } else if (kind === "assignments") {
+    messageTitle.textContent = "과제 상세";
+    [["제목", row.title], ["과목", subject], ["선생님", teacher], ["유형", row.type], ["마감일", row.date], ["상세 내용", row.content], ["공개 범위", row.visibility], ["메모", row.memo]].forEach(([label, value]) => appendLearningViewerFieldV137(grid, label, value));
+  } else if (kind === "examSchedules") {
+    messageTitle.textContent = "시험 일정 상세";
+    [["시험명", row.title], ["시험 연도", row.year], ["시험일", row.date], ["종료일", row.end_date || row.endDate], ["학년", row.grade], ["과목", subject], ["선생님", teacher], ["시험 유형", row.examType], ["시작 시간", row.startTime], ["종료 시간", row.endTime], ["장소", row.place], ["범위", row.scope], ["상태", learningExamLifecycleStateV137(row)], ["메모", row.memo]].forEach(([label, value]) => appendLearningViewerFieldV137(grid, label, value));
+  } else return false;
+  if (!grid.children.length) grid.append(el("div", "empty", "표시할 정보가 없습니다."));
+  messageBody.append(grid); messageDialog.showModal();
+  return true;
+}
+showViewerV5 = function showViewerV5V137(title, row) {
+  if (title === pageLabel("lessons") || (row && ("lessonDate" in row || "progressContent" in row))) { lessonRecordDetailRowV137 = { ...row }; return renderPage("lesson-record-detail"); }
+  if (title === pageLabel("teachers")) return showTeacherViewerV137(row);
+  if (title === pageLabel("subjects")) return showLearningViewerV137("subjects", row);
+  if (title === pageLabel("materials")) return showLearningViewerV137("materials", row);
+  if (title === pageLabel("records")) return showLearningViewerV137("records", row);
+  if (title === pageLabel("assignments")) return showLearningViewerV137("assignments", row);
+  if (title === pageLabel("examSchedules")) return showLearningViewerV137("examSchedules", row);
+  return showViewerV5BeforeV137(title, row);
+};
+
+async function renderAssignmentSubmissionOverviewV137() {
+  content.replaceChildren(); const section = panel("과제 제출 현황");
+  const head = section.querySelector(".panel-head"); const back = button("과제 목록", "ghost"); back.addEventListener("click", () => renderPage("assignments")); head?.append(back);
+  if (!["system_owner", "super_manager", "manager", "teacher"].includes(String(currentUser?.role || ""))) { section.append(el("p", "muted", "이 화면을 볼 권한이 없습니다.")); content.append(section); return; }
+  section.append(el("p", "muted", "제출 문서는 assignmentSubmissions 컬렉션을 사용하도록 준비되어 있습니다. 현재 운영 모드는 integrated-unconfigured이며 학생 계정 수동 검증 전에는 읽기 전용입니다."));
+  try {
+    const { runtime, workspaceId } = await learningReadRuntimeV137("assignment-submission-overview-read");
+    const snapshot = await runtime.db.collection("workspaces").doc(workspaceId).collection("assignmentSubmissions").get({ source: "server" });
+    const rows = (snapshot.docs || []).map((doc) => doc.data() || {});
+    if (!rows.length) section.append(el("p", "muted", "제출 현황이 없습니다."));
+    else {
+      const list = el("div", "notice-list");
+      rows.forEach((row) => {
+        const line = el("div", "notice-card");
+        line.append(el("strong", "", String(row.assignmentTitleSnapshot || "과제")), el("p", "muted", [row.subjectSnapshot || "정보 미등록", row.studentDisplayNameSnapshot || "학생", row.submissionStatus || "미제출", row.submittedAt || ""].filter(Boolean).join(" · ")));
+        list.append(line);
+      });
+      section.append(list);
+    }
+  } catch { section.append(el("p", "muted", "제출 현황을 불러오지 못했습니다. 로그인과 권한 상태를 확인해 주세요.")); }
+  content.append(section);
+}
+
+const renderPageBeforeV137 = renderPage;
+renderPage = function renderPageV137(key) {
+  if (key === "lesson-record-detail") return renderLessonRecordDetailV137(lessonRecordDetailRowV137 || {});
+  if (key === "assignment-submissions") return void renderAssignmentSubmissionOverviewV137();
+  return renderPageBeforeV137(key);
+};
+
+// Batch 10C core: one-time, server-confirmed assessment management. These
+// collections intentionally stay outside workspaceDataService listeners until
+// Rules and an explicit sync contract are approved.
+const APP_PATCH_VERSION_V138 = "v138.0 - 2026-07-26";
+const EXAM_GRADE_COLLECTIONS_V138 = Object.freeze({
+  plans: "assessmentPlans",
+  assessments: "assessments",
+  results: "assessmentResults",
+  policies: "achievementPolicies",
+  questions: "examQuestions",
+  answers: "studentAnswers"
+});
+const EXAM_GRADE_TABS_V138 = Object.freeze([
+  ["plans", "평가 계획"], ["assessments", "고사·수행평가"], ["results", "학생별 성적"],
+  ["summary", "합산·석차·통계"], ["policies", "성취도"], ["grades", "5등급제"],
+  ["questions", "문항·정답"], ["answers", "학생 답안·오답"], ["export", "내보내기·로그"]
+]);
+let examGradeLoadV138 = null;
+let examGradeLoadedWorkspaceV138 = "";
+let examGradeWriteInFlightV138 = false;
+const examGradeDiagnosticsV138 = {
+  loadCount: 0, readCount: 0, writeAttemptCount: 0, writeConfirmedCount: 0, writeFailureCount: 0,
+  activeListenerCount: 0, auditLogWriteCount: 0, lastResult: "idle", lastErrorCode: "", lastTab: "plans"
+};
+
+function examGradeServiceV138() {
+  return window.PMExamGradeService || null;
+}
+
+function examGradeHashV138(value = "") {
+  let hash = 2166136261;
+  for (const char of String(value)) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+  return (hash >>> 0).toString(36);
+}
+
+function examGradeRowsV138(key) {
+  const storeKey = EXAM_GRADE_COLLECTIONS_V138[key] || key;
+  return Array.isArray(store[storeKey]) ? store[storeKey] : (store[storeKey] = []);
+}
+
+function examGradeReferenceRowsV138(key) {
+  const rows = Array.isArray(store[key]) ? store[key] : [];
+  return rows.filter((row) => row && row.deleted !== true && row.active !== false);
+}
+
+function examGradeReferenceLabelV138(key, row = {}) {
+  return String(row.name || row.displayName || row.studentName || row.title || row.email || "").trim();
+}
+
+function examGradeSelectedTabV138() {
+  const tab = sessionStorage.getItem("exam-grade-tab-v138");
+  return EXAM_GRADE_TABS_V138.some(([key]) => key === tab) ? tab : "plans";
+}
+
+function examGradeSetTabV138(tab) {
+  sessionStorage.setItem("exam-grade-tab-v138", tab);
+  examGradeDiagnosticsV138.lastTab = tab;
+  renderExamsV6();
+}
+
+function examGradeErrorMessageV138(code = "") {
+  return ({
+    "assessment-unauthorized": "이 작업을 수행할 권한이 없습니다.",
+    "assessment-workspace-unresolved": "현재 워크스페이스를 확인하지 못했습니다.",
+    "assessment-sync-unavailable": "저장 준비가 완료되지 않았습니다. 잠시 후 다시 시도해 주세요.",
+    "assessment-server-confirm-failed": "서버 확인에 실패하여 저장 완료로 처리하지 않았습니다.",
+    "assessment-result-duplicate": "같은 평가와 학생의 성적은 하나만 저장할 수 있습니다.",
+    "assessment-question-duplicate": "같은 평가의 문항 번호는 하나만 저장할 수 있습니다.",
+    "achievement-policy-invalid": "성취도 정책 구간을 확인해 주세요."
+  }[code] || "서버에 저장하지 못했습니다. 로그인, 권한, 워크스페이스 상태를 확인해 주세요.");
+}
+
+async function loadExamGradeDataV138(force = false) {
+  const { runtime, workspaceId } = await learningReadRuntimeV137("exam-grade-load-v138");
+  if (!force && examGradeLoadV138 && examGradeLoadedWorkspaceV138 === workspaceId) return examGradeLoadV138;
+  examGradeLoadedWorkspaceV138 = workspaceId;
+  examGradeLoadV138 = Promise.all(Object.entries(EXAM_GRADE_COLLECTIONS_V138).map(async ([key, collection]) => {
+    const snapshot = await runtime.db.collection("workspaces").doc(workspaceId).collection(collection).get({ source: "server" });
+    store[collection] = (snapshot.docs || []).map((doc) => ({ id: doc.id, ...(doc.data() || {}) })).filter((row) => row.deleted !== true);
+    examGradeDiagnosticsV138.readCount += 1;
+    return key;
+  })).then(() => {
+    examGradeDiagnosticsV138.loadCount += 1;
+    examGradeDiagnosticsV138.lastResult = "server-loaded";
+    return true;
+  }).catch((error) => {
+    examGradeDiagnosticsV138.lastErrorCode = String(error?.code || "assessment-load-failed");
+    examGradeDiagnosticsV138.lastResult = "load-failed";
+    throw error;
+  }).finally(() => { examGradeLoadV138 = null; });
+  return examGradeLoadV138;
+}
+
+async function writeExamGradeRowV138(kind, payload, existingId = "") {
+  if (examGradeWriteInFlightV138) throw learningWriteErrorV137("assessment-write-in-flight");
+  if (!can("create", "exams") && !can("edit", "exams")) throw learningWriteErrorV137("assessment-unauthorized");
+  examGradeWriteInFlightV138 = true;
+  examGradeDiagnosticsV138.writeAttemptCount += 1;
+  try {
+    const { runtime, workspaceId } = await learningWriteRuntimeV137(`assessment-${kind}-write-v138`);
+    if (!workspaceId) throw learningWriteErrorV137("assessment-workspace-unresolved");
+    const collection = EXAM_GRADE_COLLECTIONS_V138[kind];
+    if (!collection) throw learningWriteErrorV137("assessment-kind-invalid");
+    const deterministicId = kind === "results"
+      ? `assessment-result-${examGradeHashV138(`${payload.assessmentId}|${payload.studentId}`)}`
+      : kind === "questions"
+        ? `assessment-question-${examGradeHashV138(`${payload.assessmentId}|${payload.questionNumber}`)}`
+        : kind === "answers"
+          ? `student-answer-${examGradeHashV138(`${payload.assessmentId}|${payload.studentId}|${payload.questionNumber}`)}`
+          : `${collection}-${Date.now()}-${examGradeHashV138(Math.random())}`;
+    const id = String(existingId || deterministicId);
+    const FieldValue = firebase.firestore.FieldValue;
+    const ref = runtime.db.collection("workspaces").doc(workspaceId).collection(collection).doc(id);
+    const row = cleanFirestoreObjectV52({ ...payload, id, workspaceId, workspace_id: workspaceId, updatedAt: FieldValue.serverTimestamp() });
+    if (!existingId) row.createdAt = FieldValue.serverTimestamp();
+    await ref.set(row, { merge: true });
+    const confirmed = await ref.get({ source: "server" });
+    if (!confirmed.exists || confirmed.metadata?.hasPendingWrites) throw learningWriteErrorV137("assessment-server-confirm-failed");
+    const rows = examGradeRowsV138(kind);
+    const confirmedRow = { id, ...(confirmed.data() || {}) };
+    const index = rows.findIndex((item) => String(item.id) === id);
+    if (index >= 0) rows[index] = confirmedRow; else rows.unshift(confirmedRow);
+    window.PMWorkspaceDataService?.discardPendingRow?.(collection, id);
+    saveStore({ skipRemote: true, syncReason: `assessment-${kind}-server-confirmed-v138` });
+    examGradeDiagnosticsV138.writeConfirmedCount += 1;
+    examGradeDiagnosticsV138.lastResult = "server-confirmed";
+    return confirmedRow;
+  } catch (error) {
+    examGradeDiagnosticsV138.writeFailureCount += 1;
+    examGradeDiagnosticsV138.lastErrorCode = String(error?.code || "assessment-write-failed");
+    examGradeDiagnosticsV138.lastResult = "write-failed";
+    throw error;
+  } finally { examGradeWriteInFlightV138 = false; }
+}
+
+function examGradeFieldV138(label, name, type = "text", value = "", options = null) {
+  const input = options ? document.createElement("select") : document.createElement(type === "textarea" ? "textarea" : "input");
+  if (!options && type !== "textarea") input.type = type;
+  input.name = name;
+  if (options) {
+    input.append(option("", "선택하세요"));
+    options.forEach(([optionValue, optionLabel]) => input.append(option(optionValue, optionLabel)));
+  }
+  input.value = value ?? "";
+  return makeField(label, `exam-grade-v138-${name}`, input);
+}
+
+function examGradeFormV138(fields, submitLabel, onSubmit) {
+  const form = document.createElement("form");
+  form.className = "form-grid exam-grade-form-v138";
+  form.noValidate = true;
+  fields.forEach((field) => form.append(examGradeFieldV138(...field)));
+  const error = el("p", "wide muted", "");
+  const submit = document.createElement("button"); submit.type = "submit"; submit.textContent = submitLabel;
+  form.append(submit, error);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    submit.disabled = true; error.textContent = "저장 중...";
+    try { await onSubmit(Object.fromEntries(new FormData(form).entries())); error.textContent = "서버 확인 후 저장되었습니다."; renderExamsV6(); }
+    catch (cause) { error.textContent = examGradeErrorMessageV138(String(cause?.code || "")); }
+    finally { submit.disabled = false; }
+  });
+  return form;
+}
+
+function examGradePlanTabV138() {
+  const wrap = el("div", "exam-grade-tab-v138");
+  const rows = examGradeRowsV138("plans");
+  const subjectOptions = examGradeReferenceRowsV138("subjects").map((row) => [row.id, examGradeReferenceLabelV138("subjects", row)]).filter(([, label]) => label);
+  wrap.append(el("p", "muted", "확정 계획은 반영비율 합계 100%가 필수입니다. 자동 보정하지 않습니다."));
+  wrap.append(examGradeFormV138([
+    ["계획명", "name", "text"], ["학년도", "academicYear", "text"], ["학년", "gradeLevel", "text"], ["학기", "term", "text"],
+    ["반/수강그룹", "classId", "text"], ["과목", "subjectId", "select", "", subjectOptions], ["상태", "status", "text", "draft"]
+  ], "평가 계획 저장", async (payload) => {
+    if (!String(payload.name || "").trim()) throw learningWriteErrorV137("assessment-plan-name-required");
+    await writeExamGradeRowV138("plans", { ...payload, status: payload.status || "draft", included: true });
+  }));
+  const list = el("div", "list");
+  rows.forEach((row) => list.append(el("div", "list-item", `${row.name || "이름 없음"} · ${row.academicYear || ""} ${row.term || ""} · ${row.status || "draft"}`)));
+  if (!rows.length) list.append(el("div", "empty", "저장된 평가 계획이 없습니다."));
+  wrap.append(list); return wrap;
+}
+
+function examGradeAssessmentTabV138() {
+  const plans = examGradeRowsV138("plans"); const rows = examGradeRowsV138("assessments");
+  const planOptions = plans.map((row) => [row.id, row.name || "평가 계획"]);
+  const wrap = el("div", "exam-grade-tab-v138");
+  wrap.append(examGradeFormV138([
+    ["평가계획", "assessmentPlanId", "select", "", planOptions], ["평가명", "name", "text"], ["유형", "assessmentType", "text"], ["만점", "maxScore", "number"], ["반영비율", "weight", "number"], ["시행일", "date", "date"], ["상태", "status", "text", "draft"]
+  ], "고사·수행평가 저장", async (payload) => {
+    if (!String(payload.assessmentPlanId || "").trim() || !String(payload.name || "").trim()) throw learningWriteErrorV137("assessment-required-field-missing");
+    const max = Number(payload.maxScore); const weight = Number(payload.weight);
+    if (!Number.isFinite(max) || max <= 0 || !Number.isFinite(weight) || weight < 0 || weight > 100) throw learningWriteErrorV137("assessment-score-config-invalid");
+    const plan = plans.find((row) => String(row.id) === String(payload.assessmentPlanId));
+    if (!plan) throw learningWriteErrorV137("assessment-plan-not-found");
+    await writeExamGradeRowV138("assessments", { ...payload, academicYear: plan.academicYear || "", gradeLevel: plan.gradeLevel || "", term: plan.term || "", classId: plan.classId || "", subjectId: plan.subjectId || "", maxScore: max, weight, included: true, status: payload.status || "draft", planOptionCount: planOptions.length });
+  }));
+  const list = el("div", "list"); rows.forEach((row) => list.append(el("div", "list-item", `${row.name || "이름 없음"} · ${row.assessmentType || "기타"} · ${row.maxScore || ""}점 · ${row.weight || 0}%`)));
+  if (!rows.length) list.append(el("div", "empty", "저장된 고사·수행평가가 없습니다.")); wrap.append(list); return wrap;
+}
+
+function examGradeResultsTabV138() {
+  const assessments = examGradeRowsV138("assessments"); const people = examGradeReferenceRowsV138("people"); const wrap = el("div", "exam-grade-tab-v138");
+  const assessmentOptions = assessments.map((row) => [row.id, row.name || "평가"]);
+  const studentOptions = people.map((row) => [row.id, examGradeReferenceLabelV138("people", row)]).filter(([, label]) => label);
+  wrap.append(examGradeFormV138([
+    ["평가", "assessmentId", "select", "", assessmentOptions], ["학생", "studentId", "select", "", studentOptions], ["원점수", "rawScore", "number"], ["만점", "maxScore", "number"], ["응시 상태", "attendanceStatus", "text", "attended"], ["제출 상태", "submissionStatus", "text", "submitted"]
+  ], "학생 성적 저장", async (payload) => {
+    const assessment = assessments.find((row) => String(row.id) === String(payload.assessmentId));
+    if (!assessment || !String(payload.studentId || "").trim()) throw learningWriteErrorV137("assessment-required-field-missing");
+    const score = examGradeServiceV138()?.calculateAssessmentScore({ ...payload, maxScore: payload.maxScore || assessment.maxScore, weight: assessment.weight });
+    if (!score || score.status === "invalid") throw learningWriteErrorV137(score?.code || "assessment-score-invalid");
+    const existing = examGradeRowsV138("results").find((row) => String(row.assessmentId) === String(payload.assessmentId) && String(row.studentId) === String(payload.studentId));
+    await writeExamGradeRowV138("results", { ...payload, ...score, assessmentPlanId: assessment.assessmentPlanId || "", subjectId: assessment.subjectId || "", weight: assessment.weight, status: "draft" }, existing?.id || "");
+  }));
+  const list = el("div", "list"); examGradeRowsV138("results").forEach((row) => list.append(el("div", "list-item", `평가 결과 · ${row.rawScore ?? ""}/${row.maxScore ?? ""} · ${row.percentage === null ? "미산정" : `${Number(row.percentage || 0).toFixed(1)}%`}`)));
+  if (!people.length) wrap.append(el("p", "muted", "학생 참조 데이터의 권한·경로는 Rules 승인 전 직접 목록으로 노출하지 않습니다. 학생 선택 UI는 후속 권한 배치에서 표시명 allowlist로 연결합니다."));
+  if (!examGradeRowsV138("results").length) list.append(el("div", "empty", "저장된 학생 결과가 없습니다.")); wrap.append(list); return wrap;
+}
+
+function examGradeSummaryTabV138() {
+  const service = examGradeServiceV138(); const results = examGradeRowsV138("results"); const scores = results.map((row) => ({ ...row, score: row.weightedScore })); const totals = service?.calculateSubjectTermTotals(results) || []; const ranked = service?.calculateRanks(scores, "competition") || []; const stats = service?.calculateStatistics(scores) || {};
+  const wrap = el("div", "exam-grade-tab-v138");
+  wrap.append(el("p", "muted", `유효 응시 ${stats.participantCount || 0}명 · 평균 ${stats.average === null || stats.average === undefined ? "-" : Number(stats.average).toFixed(2)} · 중앙값 ${stats.median ?? "-"} · 표준편차 ${stats.standardDeviation === null || stats.standardDeviation === undefined ? "-" : Number(stats.standardDeviation).toFixed(2)}`));
+  const list = el("div", "list"); totals.forEach((row) => list.append(el("div", "list-item", `과목 종합 · ${Number(row.subjectTermTotal || 0).toFixed(2)} · 반영 평가 ${row.assessmentCount}`)));
+  ranked.forEach((row) => list.append(el("div", "list-item", `평가 결과 · 공동석차 ${row.tiedRank}/${row.participantCount} · ${Number(row.score || 0).toFixed(2)}`)));
+  if (!list.children.length) list.append(el("div", "empty", "합산할 학생 결과가 없습니다.")); wrap.append(list); return wrap;
+}
+
+function examGradePolicyTabV138() {
+  const service = examGradeServiceV138(); const rows = examGradeRowsV138("policies"); const wrap = el("div", "exam-grade-tab-v138");
+  wrap.append(el("p", "muted", "성취도는 정책 구간으로 자동 산정합니다. 학생별 직접 선택과 override는 제공하지 않습니다."));
+  wrap.append(examGradeFormV138([
+    ["정책명", "name", "text"], ["점수 원천", "scoreSource", "text", "percentage"], ["A 최저점", "thresholdA", "number"], ["B 최저점", "thresholdB", "number"], ["C 최저점", "thresholdC", "number"], ["D 최저점", "thresholdD", "number"], ["범위", "scope", "text", "workspace"]
+  ], "성취도 정책 저장", async (payload) => {
+    const policy = { name: payload.name, scope: payload.scope, scoreSource: payload.scoreSource, status: "draft", version: 1, thresholds: [
+      ["A", payload.thresholdA], ["B", payload.thresholdB], ["C", payload.thresholdC], ["D", payload.thresholdD]
+    ].map(([label, minimumScore], index) => ({ label, minimumScore: Number(minimumScore), inclusive: true, order: index + 1 })).concat([{ label: "E", minimumScore: null, inclusive: true, order: 5, fallback: true }]) };
+    const validated = service?.validateAchievementPolicy(policy); if (!validated?.ok) throw learningWriteErrorV137("achievement-policy-invalid");
+    await writeExamGradeRowV138("policies", validated.policy);
+  }));
+  rows.forEach((policy) => {
+    const preview = service?.previewAchievementPolicy(policy, examGradeRowsV138("results")) || { affectedCount: 0, changedCount: 0 };
+    const card = el("div", "list-item", `${policy.name || "이름 없음"} · ${policy.scoreSource || ""} · 영향 ${preview.affectedCount}명 · 변경 예상 ${preview.changedCount}명`);
+    const buttonEl = button("영향 미리보기", "ghost"); buttonEl.addEventListener("click", () => showMessage("성취도 영향 미리보기", `영향 ${preview.affectedCount}명, 변경 예상 ${preview.changedCount}명입니다. 정책 저장만으로 학생 결과를 변경하지 않습니다.`)); card.append(buttonEl); wrap.append(card);
+  });
+  wrap.append(el("p", "muted", "전체 재계산은 다중 문서 Rules·감사 로그·server-confirm 계약이 승인되기 전까지 HOLD입니다.")); return wrap;
+}
+
+function examGradeGradesTabV138() {
+  const service = examGradeServiceV138(); const rows = examGradeRowsV138("results").map((row) => ({ ...row, score: row.weightedScore })); const preview = service?.previewFiveGrade(rows, { gradePolicy: "official-five-grade", tiePolicy: "competition" }) || { rows: [] };
+  const wrap = el("div", "exam-grade-tab-v138"); wrap.append(el("p", "muted", "공식 5등급 10/24/32/24/10 기준의 미리보기입니다. 공동석차 경계와 학교 정책 확인 전 확정하지 않습니다."));
+  const list = el("div", "list"); preview.rows.forEach((row) => list.append(el("div", "list-item", `계산 등급 ${row.calculatedGrade || "-"} · 공동석차 ${row.tiedRank}/${row.participantCount}`)));
+  if (!preview.rows.length) list.append(el("div", "empty", "등급을 미리볼 결과가 없습니다.")); wrap.append(list, el("p", "muted", "최종 등급 확정과 학생 결과 write는 Rules·잠금·감사 로그 계약이 확정될 때까지 HOLD입니다.")); return wrap;
+}
+
+function examGradeQuestionTabV138(kind) {
+  const isAnswer = kind === "answers"; const title = isAnswer ? "학생 답안·오답" : "문항·정답"; const wrap = el("div", "exam-grade-tab-v138");
+  const assessmentOptions = examGradeRowsV138("assessments").map((row) => [row.id, row.name || "평가"]);
+  const studentOptions = examGradeReferenceRowsV138("people").map((row) => [row.id, examGradeReferenceLabelV138("people", row)]).filter(([, label]) => label);
+  const fields = isAnswer ? [["평가", "assessmentId", "select", "", assessmentOptions], ["학생", "studentId", "select", "", studentOptions], ["문항 번호", "questionNumber", "number"], ["학생 답안", "studentAnswer", "textarea"], ["획득 점수", "earnedScore", "number"], ["오답 유형", "wrongAnswerType", "text"], ["피드백", "feedback", "textarea"]] : [["평가", "assessmentId", "select", "", assessmentOptions], ["문항 번호", "questionNumber", "number"], ["유형", "questionType", "text"], ["문제", "content", "textarea"], ["정답", "answer", "text"], ["배점", "points", "number"], ["해설", "explanation", "textarea"]];
+  wrap.append(examGradeFormV138(fields, `${title} 저장`, async (payload) => {
+    if (!String(payload.assessmentId || "").trim() || !String(payload.questionNumber || "").trim()) throw learningWriteErrorV137("assessment-required-field-missing");
+    if (!isAnswer && examGradeRowsV138("questions").some((row) => String(row.assessmentId || "") === String(payload.assessmentId) && String(row.questionNumber || "") === String(payload.questionNumber))) {
+      throw learningWriteErrorV137("assessment-question-duplicate");
+    }
+    await writeExamGradeRowV138(isAnswer ? "answers" : "questions", payload);
+  }));
+  const list = el("div", "list"); examGradeRowsV138(kind).forEach((row) => list.append(el("div", "list-item", `${title} · 문항 ${row.questionNumber || ""}`))); if (!list.children.length) list.append(el("div", "empty", `저장된 ${title}이 없습니다.`)); wrap.append(list); return wrap;
+}
+
+function examGradeExportTabV138() {
+  const wrap = el("div", "exam-grade-tab-v138"); const service = examGradeServiceV138();
+  const csv = service?.buildCsv([{ key: "rawScore", label: "원점수" }, { key: "maxScore", label: "만점" }, { key: "percentage", label: "백분율" }, { key: "weightedScore", label: "반영점수" }, { key: "calculatedAchievement", label: "성취도" }], examGradeRowsV138("results")) || "";
+  const download = button("CSV 내보내기", "ghost"); download.addEventListener("click", () => { const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" }); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "assessment-results.csv"; anchor.click(); URL.revokeObjectURL(url); });
+  wrap.append(el("p", "muted", "현재 설치된 라이브러리에 실제 xlsx 생성기가 없어 CSV만 제공합니다. CSV를 Excel로 표기하지 않으며, xlsx 구현은 패키지·권한 검토 후 HOLD입니다."), download, el("p", "muted", "접속·조회·변경 감사 로그의 영구 저장은 Rules와 보존 정책이 승인되기 전까지 HOLD입니다. 이 화면은 가짜 감사 로그를 생성하지 않습니다.")); return wrap;
+}
+
+function renderExamGradeTabV138(tab) {
+  if (tab === "plans") return examGradePlanTabV138(); if (tab === "assessments") return examGradeAssessmentTabV138(); if (tab === "results") return examGradeResultsTabV138(); if (tab === "summary") return examGradeSummaryTabV138(); if (tab === "policies") return examGradePolicyTabV138(); if (tab === "grades") return examGradeGradesTabV138(); if (tab === "questions") return examGradeQuestionTabV138("questions"); if (tab === "answers") return examGradeQuestionTabV138("answers"); return examGradeExportTabV138();
+}
+
+const renderExamsBeforeV138 = renderExamsV6;
+renderExamsV6 = function renderExamsV138() {
+  content.replaceChildren();
+  const tab = examGradeSelectedTabV138(); const head = panel("시험·성적"); const tabs = el("div", "toolbar");
+  EXAM_GRADE_TABS_V138.forEach(([key, label]) => { const item = button(label, key === tab ? "primary" : "ghost"); item.addEventListener("click", () => examGradeSetTabV138(key)); tabs.append(item); });
+  const refresh = button("서버 새로고침", "ghost"); refresh.addEventListener("click", async () => { refresh.disabled = true; try { await loadExamGradeDataV138(true); renderExamsV6(); } catch (error) { showMessage("조회 실패", examGradeErrorMessageV138(String(error?.code || ""))); } finally { refresh.disabled = false; } }); tabs.append(refresh); head.append(tabs); content.append(head);
+  const body = panel(EXAM_GRADE_TABS_V138.find(([key]) => key === tab)?.[1] || "시험·성적"); body.append(el("div", "empty", "서버 데이터를 불러오는 중입니다.")); content.append(body);
+  loadExamGradeDataV138().then(() => { if (currentPage === "exams" && examGradeSelectedTabV138() === tab) { body.replaceChildren(renderExamGradeTabV138(tab)); } }).catch((error) => { body.replaceChildren(el("div", "empty", examGradeErrorMessageV138(String(error?.code || "")))); });
+};
+
+window.PMExamGradeDiagnostics = window.PMExamGradeDiagnostics || { snapshot: () => ({ ...examGradeDiagnosticsV138, activeListenerCount: 0, auditLogWriteCount: 0, sensitiveValueDetected: false }) };
+
+// Batch 10C/10D operational UI completion. This layer only exposes the
+// existing server-confirmed paths; it intentionally does not add listeners,
+// background writes, Drive uploads, or a replacement authentication system.
+const APP_PATCH_VERSION_V139 = "v139.0 - 2026-07-26";
+const EXAM_GRADE_TABS_V139 = Object.freeze([
+  ["list", "성적 목록"], ["plans", "평가 계획"], ["assessments", "고사·수행평가"], ["entry", "성적 입력"],
+  ["summary", "과목별 종합"], ["grades", "석차·등급"], ["policies", "성취도 정책"],
+  ["questions", "문항·정답"], ["answers", "답안·오답"], ["analysis", "성적 분석"], ["export", "CSV 내보내기"]
+]);
+const examGradeSelectionV139 = new Map();
+let examGradeDeleteInFlightV139 = false;
+
+function examGradeModeV139() {
+  const snapshot = typeof ownerPreviewModeSnapshotV128 === "function" ? ownerPreviewModeSnapshotV128() : {};
+  return String(snapshot?.mode || "integrated-unconfigured");
+}
+
+function examGradeIsPersonalModeV139() {
+  return examGradeModeV139() === "personal";
+}
+
+function examGradeServiceReadyV139() {
+  const ready = !!examGradeServiceV138();
+  examGradeDiagnosticsV138.serviceLoaded = ready;
+  examGradeDiagnosticsV138.serviceState = ready ? "ready" : "unavailable";
+  return ready;
+}
+
+function examGradeSelectedTabV139() {
+  const tab = sessionStorage.getItem("exam-grade-tab-v139");
+  return EXAM_GRADE_TABS_V139.some(([key]) => key === tab) ? tab : "list";
+}
+
+function examGradeSetTabV139(tab) {
+  if (!EXAM_GRADE_TABS_V139.some(([key]) => key === tab)) return;
+  sessionStorage.setItem("exam-grade-tab-v139", tab);
+  examGradeDiagnosticsV138.lastTab = tab;
+  renderExamsV6();
+}
+
+function examGradeSafeLabelV139(row = {}, fallback = "정보 미등록") {
+  const text = String(row.name || row.title || row.displayName || row.studentName || "").trim();
+  return !text || /\b(uid|ws_|assessment-|student-answer-|exam-question-)/i.test(text) ? fallback : text;
+}
+
+function examGradeRowsForKindV139(kind) {
+  return examGradeRowsV138(kind).filter((row) => row && row.deleted !== true);
+}
+
+function examGradeSelectedIdsV139(kind) {
+  return examGradeSelectionV139.get(kind) || new Set();
+}
+
+function examGradeToggleSelectionV139(kind, id, selected) {
+  const ids = new Set(examGradeSelectedIdsV139(kind));
+  if (selected) ids.add(String(id)); else ids.delete(String(id));
+  examGradeSelectionV139.set(kind, ids);
+}
+
+function examGradeDependenciesV139(kind, ids) {
+  const selected = new Set(ids.map(String));
+  if (kind === "plans") {
+    return examGradeRowsForKindV139("assessments").filter((row) => selected.has(String(row.assessmentPlanId))).length;
+  }
+  if (kind === "assessments") {
+    return ["results", "questions", "answers"].reduce((count, child) => count + examGradeRowsForKindV139(child)
+      .filter((row) => selected.has(String(row.assessmentId))).length, 0);
+  }
+  return 0;
+}
+
+function requestSensitiveDeleteV139(title, count, action) {
+  if (!count || !window.confirm(`${title} ${count}건을 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
+  // requirePassword already routes Google-only accounts directly to the existing
+  // Google popup reauthentication path and email/password accounts to its dialog.
+  requirePassword(async () => {
+    await action();
+  });
+}
+
+async function deleteExamGradeRowsWithServerConfirmV139(kind, ids) {
+  const collection = EXAM_GRADE_COLLECTIONS_V138[kind];
+  const uniqueIds = [...new Set(ids.map(String).filter(Boolean))];
+  if (!collection || !uniqueIds.length || examGradeDeleteInFlightV139) return;
+  const linked = examGradeDependenciesV139(kind, uniqueIds);
+  if (linked) return showMessage("삭제 차단", `연결된 항목 ${linked}건이 있어 자동 연쇄삭제하지 않습니다.`);
+  examGradeDeleteInFlightV139 = true;
+  try {
+    const { runtime, workspaceId } = await learningWriteRuntimeV137(`assessment-${kind}-delete-v139`);
+    let success = 0;
+    for (const id of uniqueIds) {
+      const ref = runtime.db.collection("workspaces").doc(workspaceId).collection(collection).doc(id);
+      await ref.delete();
+      const confirmed = await ref.get({ source: "server" });
+      if (confirmed.exists || confirmed.metadata?.hasPendingWrites) throw learningWriteErrorV137("assessment-delete-server-confirm-failed");
+      success += 1;
+    }
+    store[collection] = examGradeRowsForKindV139(kind).filter((row) => !uniqueIds.includes(String(row.id)));
+    examGradeSelectionV139.delete(kind);
+    saveStore({ skipRemote: true, syncReason: `assessment-${kind}-delete-server-confirmed-v139` });
+    examGradeDiagnosticsV138.lastResult = "delete-server-confirmed";
+    renderExamsV6();
+    showMessage("삭제 완료", `서버 확인 후 ${success}건을 삭제했습니다.`);
+  } catch (error) {
+    examGradeDiagnosticsV138.lastErrorCode = String(error?.code || "assessment-delete-failed");
+    showMessage("삭제 실패", "서버 삭제를 확인하지 못했습니다. 목록은 유지됩니다.");
+  } finally { examGradeDeleteInFlightV139 = false; }
+}
+
+function examGradeSelectionActionsV139(kind, label, rows) {
+  const actions = el("div", "row-actions exam-grade-selection-actions-v139");
+  if (!can("del", "exams")) return actions;
+  const selectAll = button("전체 선택", "ghost");
+  selectAll.type = "button";
+  selectAll.addEventListener("click", () => {
+    const ids = examGradeSelectedIdsV139(kind);
+    const all = rows.length > 0 && rows.every((row) => ids.has(String(row.id)));
+    examGradeSelectionV139.set(kind, new Set(all ? [] : rows.map((row) => String(row.id))));
+    renderExamsV6();
+  });
+  const selected = button("선택 삭제", "danger"); selected.type = "button";
+  selected.addEventListener("click", () => requestSensitiveDeleteV139(`${label} 선택`, examGradeSelectedIdsV139(kind).size, () => deleteExamGradeRowsWithServerConfirmV139(kind, [...examGradeSelectedIdsV139(kind)])));
+  const allDelete = button(`${label} 전체 삭제`, "danger"); allDelete.type = "button";
+  allDelete.addEventListener("click", () => requestSensitiveDeleteV139(`${label} 전체`, rows.length, () => deleteExamGradeRowsWithServerConfirmV139(kind, rows.map((row) => row.id))));
+  actions.append(selectAll, selected, allDelete);
+  return actions;
+}
+
+function examGradeSelectableListV139(kind, label, rows, describe) {
+  const list = el("div", "list exam-grade-list-v139");
+  const selected = examGradeSelectedIdsV139(kind);
+  rows.forEach((row) => {
+    const item = el("div", "list-item");
+    if (can("del", "exams")) {
+      const check = document.createElement("input"); check.type = "checkbox"; check.checked = selected.has(String(row.id));
+      check.addEventListener("change", () => examGradeToggleSelectionV139(kind, row.id, check.checked));
+      item.append(check);
+    }
+    item.append(el("span", "", describe(row)));
+    if (can("del", "exams")) {
+      const del = button("삭제", "danger"); del.type = "button";
+      del.addEventListener("click", () => requestSensitiveDeleteV139(label, 1, () => deleteExamGradeRowsWithServerConfirmV139(kind, [row.id])));
+      item.append(del);
+    }
+    list.append(item);
+  });
+  if (!rows.length) list.append(el("div", "empty", `저장된 ${label}이 없습니다.`));
+  return list;
+}
+
+function examGradeListTabV139() {
+  const rows = examGradeRowsForKindV139("results");
+  const wrap = el("div", "exam-grade-tab-v139");
+  wrap.append(el("p", "muted", examGradeIsPersonalModeV139() ? "본인 성적만 표시합니다. 다른 학생 선택 기능은 없습니다." : "현재 운영 모드에서는 서버 권한이 허용한 성적만 표시합니다."));
+  wrap.append(examGradeSelectionActionsV139("results", "성적", rows));
+  wrap.append(examGradeSelectableListV139("results", "성적", rows, (row) => `평가 결과 · ${row.rawScore ?? ""}/${row.maxScore ?? ""} · 반영 ${row.weightedScore ?? "-"} · 상태 ${row.status || "draft"}`));
+  const analysis = button("성적 분석", "ghost"); analysis.type = "button"; analysis.addEventListener("click", () => examGradeSetTabV139("analysis")); wrap.append(analysis);
+  return wrap;
+}
+
+const examGradePlanTabBeforeV139 = examGradePlanTabV138;
+examGradePlanTabV138 = function examGradePlanTabV139() {
+  const wrap = examGradePlanTabBeforeV139(); const rows = examGradeRowsForKindV139("plans");
+  wrap.prepend(examGradeSelectionActionsV139("plans", "평가 계획", rows));
+  const list = wrap.querySelector(".list"); if (list) list.replaceWith(examGradeSelectableListV139("plans", "평가 계획", rows, (row) => `${examGradeSafeLabelV139(row)} · ${row.academicYear || ""} ${row.term || ""} · ${row.status || "draft"}`));
+  return wrap;
+};
+
+const examGradeAssessmentTabBeforeV139 = examGradeAssessmentTabV138;
+examGradeAssessmentTabV138 = function examGradeAssessmentTabV139() {
+  const wrap = examGradeAssessmentTabBeforeV139(); const rows = examGradeRowsForKindV139("assessments");
+  wrap.prepend(examGradeSelectionActionsV139("assessments", "고사·수행평가", rows));
+  const list = wrap.querySelector(".list"); if (list) list.replaceWith(examGradeSelectableListV139("assessments", "고사·수행평가", rows, (row) => `${examGradeSafeLabelV139(row)} · ${row.assessmentType || "기타"} · ${row.maxScore || ""}점 · ${row.weight || 0}%`));
+  return wrap;
+};
+
+function examGradeManagedListTabV139(kind, label, build, describe) {
+  const wrap = build(); const rows = examGradeRowsForKindV139(kind);
+  wrap.prepend(examGradeSelectionActionsV139(kind, label, rows));
+  const list = wrap.querySelector(".list");
+  if (list) list.replaceWith(examGradeSelectableListV139(kind, label, rows, describe));
+  return wrap;
+}
+
+function examGradePolicyTabV139() {
+  return examGradeManagedListTabV139("policies", "achievement policy", examGradePolicyTabV138, (row) => `${examGradeSafeLabelV139(row)} - ${row.scoreSource || ""} - ${row.status || "draft"}`);
+}
+
+function examGradeQuestionTabV139(kind) {
+  const isAnswer = kind === "answers";
+  return examGradeManagedListTabV139(kind, isAnswer ? "student answer" : "question", () => examGradeQuestionTabV138(kind), (row) => `${isAnswer ? "student answer" : "question"} - ${row.questionNumber || ""} - ${row.status || "draft"}`);
+}
+
+function examGradeEntryTabV139() {
+  const mode = examGradeModeV139();
+  if (!examGradeIsPersonalModeV139() && !examGradeReferenceRowsV138("people").length) {
+    const wrap = el("div", "exam-grade-tab-v139");
+    wrap.append(el("p", "muted", `학생 관리 source가 확인되지 않아 ${mode} 모드의 학생 선택 입력을 표시하지 않습니다.`), el("p", "muted", "후속 연결: 학생 조회 → 학생 상세 → 성적 분석. 가짜 학생 목록이나 내부 ID는 표시하지 않습니다."));
+    return wrap;
+  }
+  const wrap = examGradeResultsTabV138();
+  wrap.prepend(el("p", "muted", "단건 입력입니다. 일괄 입력은 원자성·Rules 계약이 확정되기 전까지 미리보기만 지원합니다."));
+  return wrap;
+}
+
+function examGradeAnalysisTabV139() {
+  const service = examGradeServiceV138(); const rows = examGradeRowsForKindV139("results").map((row) => ({ ...row, score: row.weightedScore }));
+  const stats = service?.calculateStatistics(rows) || {}; const ranked = service?.calculateRanks(rows, "competition") || [];
+  const wrap = el("div", "exam-grade-tab-v139");
+  wrap.append(el("p", "muted", examGradeIsPersonalModeV139() ? "본인 성적 분석" : "관리자용 전체 성적 분석입니다. 학생별 분석은 학생 관리 연결 후 제공됩니다."));
+  const grid = el("div", "list");
+  [["응시 인원", stats.participantCount], ["평균", stats.average], ["중앙값", stats.median], ["표준편차", stats.standardDeviation], ["최고점", stats.highest], ["최저점", stats.lowest], ["공동석차 대상", ranked.length]].forEach(([label, value]) => grid.append(el("div", "list-item", `${label}: ${value ?? "-"}`)));
+  wrap.append(grid, el("p", "muted", "성취도·등급은 미리보기이며 확정 write는 하지 않습니다.")); return wrap;
+}
+
+const fieldsForV7BeforeV139 = fieldsForV7;
+fieldsForV7 = function fieldsForV139(key) {
+  if (key !== "portfolios") return fieldsForV7BeforeV139(key);
+  return [
+    ["title", "제목", "text", true], ["category", "카테고리", "select-ref", learningSelectSpecV137("카테고리를 선택하세요", ["학교 활동", "프로젝트", "발표", "수행평가", "기타"].map((value) => [value, value]))], ["date", "날짜", "date"],
+    ["description", "설명", "textarea"], ["skills", "사용 기술/역량", "text"], ["links", "관련 링크", "link-list"], ["attachments", "파일 첨부", "attachment-list"],
+    ["reflection", "느낀 점", "textarea"], ["visibility", "공개 범위", "select-ref", [["private", "비공개"], ["teacher", "선생님/관리자 공개"], ["workspace", "워크스페이스 공개"], ["public", "공개"]]]
+  ];
+};
+
+function normalizePortfolioUrlV139(value = "") {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^(javascript|data|file|vbscript):/i.test(raw) || /^[a-z]:\\/i.test(raw) || /\s/.test(raw)) return null;
+  const candidate = /^https?:\/\//i.test(raw) ? raw : (/^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#].*)?$/i.test(raw) ? `https://${raw}` : "");
+  return candidate && learningSafeUrlV137(candidate) ? learningSafeUrlV137(candidate) : null;
+}
+
+const normalizeLearningPayloadBeforeV139 = normalizeLearningPayloadV137;
+normalizeLearningPayloadV137 = function normalizeLearningPayloadV139(key, form) {
+  // Normalize the editor value before the shared payload validator reads it.
+  // This keeps the portfolio's structured link field compatible with the
+  // existing safe-URL validation without retaining a raw legacy value.
+  if (key === "portfolios") {
+    const linkField = form?.querySelector?.('[name="links"]');
+    const normalizedLinks = learningStructuredRowsV137(linkField?.value).map((item) => ({ ...item, url: normalizePortfolioUrlV139(item.url) }));
+    if (normalizedLinks.some((item) => item.url === null)) throw learningWriteErrorV137("portfolio-link-invalid");
+    if (linkField) linkField.value = JSON.stringify(normalizedLinks.filter((item) => item.url));
+  }
+  const payload = normalizeLearningPayloadBeforeV139(key, form);
+  if (key !== "portfolios") return payload;
+  payload.links = JSON.stringify(learningStructuredRowsV137(payload.links));
+  return payload;
+};
+
+const hydrateLearningEditorBeforeV139 = hydrateLearningEditorV137;
+hydrateLearningEditorV137 = function hydrateLearningEditorV139(key, row = {}) {
+  hydrateLearningEditorBeforeV139(key, row);
+  if (key !== "portfolios") return;
+  const linkList = editorFields.querySelector(".learning-link-list-v137");
+  if (linkList?.setLearningStructuredRowsV137 && !learningStructuredRowsV137(row.links).length) {
+    const legacyUrls = [row.file_link, row.image_link, row.video_link, row.result_link]
+      .map((value) => normalizePortfolioUrlV139(value))
+      .filter(Boolean);
+    if (legacyUrls.length) linkList.setLearningStructuredRowsV137(legacyUrls.map((url, index) => ({ id: `legacy-portfolio-link-${index}`, url })));
+  }
+  const attachmentList = editorFields.querySelector(".learning-attachment-list-v137");
+  if (attachmentList?.setLearningStructuredRowsV137 && !learningStructuredRowsV137(row.attachments).length && row.fileName) {
+    attachmentList.setLearningStructuredRowsV137([{
+      id: String(row.attachmentId || `legacy-portfolio-${row.id || "attachment"}`),
+      fileName: String(row.fileName), mimeType: String(row.mimeType || ""), size: Number(row.size || 0),
+      mode: String(row.attachmentMode || "local-reselect-required"), status: String(row.status || "local-only"),
+      localAttachmentKey: String(row.localAttachmentKey || "")
+    }]);
+  }
+};
+
+const portfolioSelectionV139 = new Set();
+let portfolioDeleteInFlightV139 = false;
+const portfolioDeleteDiagnosticsV139 = {
+  phase: "idle", requestedCount: 0, writeCount: 0, serverConfirmedCount: 0,
+  refreshCount: 0, selectionCleared: false, lastErrorCode: ""
+};
+
+function setPortfolioDeletePhaseV139(phase, detail = {}) {
+  Object.assign(portfolioDeleteDiagnosticsV139, { phase, ...detail });
+}
+
+function portfolioRowsV139() {
+  return Array.isArray(store.portfolios) ? store.portfolios.filter((row) => row && row.deleted !== true) : [];
+}
+
+async function refreshPortfolioRowsFromServerV139(runtime, workspaceId) {
+  const snapshot = await runtime.db.collection("workspaces").doc(workspaceId).collection("portfolios").get({ source: "server" });
+  store.portfolios = snapshot.docs.map((document) => ({ id: document.id, ...document.data() }));
+  setPortfolioDeletePhaseV139("refreshed", { refreshCount: portfolioDeleteDiagnosticsV139.refreshCount + 1 });
+}
+
+async function deletePortfolioRowsWithServerConfirmV139(ids) {
+  const requestedIds = [...new Set((ids || []).map(String).filter(Boolean))];
+  if (!requestedIds.length || portfolioDeleteInFlightV139) return;
+  setPortfolioDeletePhaseV139("requested", {
+    requestedCount: requestedIds.length, writeCount: 0, serverConfirmedCount: 0,
+    refreshCount: 0, selectionCleared: false, lastErrorCode: ""
+  });
+  const candidates = portfolioRowsV139().filter((row) => requestedIds.includes(String(row.id)));
+  const linked = learningLinkedReferenceCountV137("portfolios", candidates);
+  if (linked) {
+    setPortfolioDeletePhaseV139("blocked-linked-reference");
+    return showMessage("삭제 차단", `연결된 문서 ${linked}건이 있어 자동으로 함께 삭제하지 않습니다.`);
+  }
+  portfolioDeleteInFlightV139 = true;
+  try {
+    const { runtime, workspaceId } = await learningWriteRuntimeV137("portfolio-bulk-delete-v139");
+    const targets = candidates.filter((row) => !row.workspaceId && !row.workspace_id || row.workspaceId === workspaceId || row.workspace_id === workspaceId);
+    setPortfolioDeletePhaseV139("targets-resolved", { requestedCount: targets.length });
+    if (!targets.length) throw learningWriteErrorV137("portfolio-delete-targets-unavailable");
+    for (const row of targets) {
+      const ref = runtime.db.collection("workspaces").doc(workspaceId).collection("portfolios").doc(String(row.id));
+      setPortfolioDeletePhaseV139("delete-writing", { writeCount: portfolioDeleteDiagnosticsV139.writeCount + 1 });
+      await ref.delete();
+      const confirmed = await ref.get({ source: "server" });
+      if (confirmed.exists || confirmed.metadata?.hasPendingWrites) throw learningWriteErrorV137("portfolio-delete-server-confirm-failed");
+      setPortfolioDeletePhaseV139("delete-server-confirmed", { serverConfirmedCount: portfolioDeleteDiagnosticsV139.serverConfirmedCount + 1 });
+    }
+    setPortfolioDeletePhaseV139("refreshing");
+    await refreshPortfolioRowsFromServerV139(runtime, workspaceId);
+    portfolioSelectionV139.clear();
+    setPortfolioDeletePhaseV139("selection-cleared", { selectionCleared: true });
+    saveStore({ skipRemote: true, syncReason: "portfolio-delete-server-confirmed-v139" });
+    renderPage("portfolios");
+    setPortfolioDeletePhaseV139("completed");
+    showMessage("삭제 완료", `서버 확인 후 ${targets.length}건을 삭제했습니다.`);
+  } catch (error) {
+    setPortfolioDeletePhaseV139("failed", { lastErrorCode: String(error?.code || "unknown") });
+    showMessage("삭제 실패", "삭제 처리 중 알 수 없는 오류가 발생했습니다. 삭제 여부를 확인한 뒤 다시 시도해 주세요.");
+  } finally {
+    portfolioDeleteInFlightV139 = false;
+  }
+}
+
+function requestPortfolioDeleteV139(title, ids) {
+  const uniqueIds = [...new Set((ids || []).map(String).filter(Boolean))];
+  if (!uniqueIds.length) return;
+  setPortfolioDeletePhaseV139("confirmation-shown", { requestedCount: uniqueIds.length });
+  if (!window.confirm(`${title} ${uniqueIds.length}건을 삭제할까요? 이 작업은 되돌릴 수 없습니다.`)) return;
+  setPortfolioDeletePhaseV139("reauth-started");
+  requirePassword(async () => {
+    setPortfolioDeletePhaseV139("reauth-confirmed");
+    await deletePortfolioRowsWithServerConfirmV139(uniqueIds);
+  });
+}
+
+window.PMPortfolioDeleteDiagnostics = window.PMPortfolioDeleteDiagnostics || {
+  snapshot: () => ({ ...portfolioDeleteDiagnosticsV139 })
+};
+
+function renderPortfolioV139() {
+  content.replaceChildren(); const rows = filteredRowsV7("portfolios"); const section = panel("포트폴리오"); const head = section.querySelector(".panel-head"); const actions = el("div", "row-actions");
+  const add = button("포트폴리오 추가"); add.type = "button"; add.disabled = !can("create", "portfolios"); add.addEventListener("click", () => openEditorV7("portfolios", null, "portfolios")); actions.append(add);
+  if (can("del", "portfolios")) {
+    const selectAll = button("전체 선택", "ghost"); selectAll.type = "button"; selectAll.addEventListener("click", () => { const all = rows.length && rows.every((row) => portfolioSelectionV139.has(String(row.id))); if (all) portfolioSelectionV139.clear(); else rows.forEach((row) => portfolioSelectionV139.add(String(row.id))); renderPage("portfolios"); });
+    const selected = button("선택 삭제", "danger"); selected.type = "button"; selected.addEventListener("click", () => requestPortfolioDeleteV139("포트폴리오 선택", [...portfolioSelectionV139]));
+    const allDelete = button("포트폴리오 전체 삭제", "danger"); allDelete.type = "button"; allDelete.addEventListener("click", () => requestPortfolioDeleteV139("현재 워크스페이스 포트폴리오 전체", rows.map((row) => row.id))); actions.append(selectAll, selected, allDelete);
+  }
+  (head?.querySelector(".row-actions") || head)?.append(actions); section.append(filterBarV7("portfolios"));
+  const list = el("div", "list"); rows.forEach((row) => { const item = el("div", "list-item"); if (can("del", "portfolios")) { const check = document.createElement("input"); check.type = "checkbox"; check.checked = portfolioSelectionV139.has(String(row.id)); check.addEventListener("change", () => { if (check.checked) portfolioSelectionV139.add(String(row.id)); else portfolioSelectionV139.delete(String(row.id)); }); item.append(check); } item.append(el("span", "", `${examGradeSafeLabelV139(row)} · ${row.category || "기타"}`)); const view = button("보기", "ghost"); view.type = "button"; view.addEventListener("click", () => showViewerV5(pageLabel("portfolios"), row)); item.append(view); const edit = button(can("edit", "portfolios") ? "수정" : "수정 요청", "ghost"); edit.type = "button"; edit.addEventListener("click", () => can("edit", "portfolios") ? openEditorV7("portfolios", row.id, "portfolios") : requestEdit("portfolios", row.id)); item.append(edit); if (can("del", "portfolios")) { const del = button("삭제", "danger"); del.type = "button"; del.addEventListener("click", () => requestPortfolioDeleteV139("포트폴리오", [row.id])); item.append(del); } list.append(item); }); if (!rows.length) list.append(el("div", "empty", "저장된 포트폴리오가 없습니다.")); section.append(list, el("p", "muted", "파일 첨부는 메타데이터만 저장합니다. Google Drive 업로드·Viewer·미리보기는 제공하지 않습니다.")); content.append(section);
+}
+
+const renderCollectionV7BeforeV139 = renderCollectionV7;
+renderCollectionV7 = function renderCollectionV7V139(key) {
+  if (key === "portfolios") return renderPortfolioV139();
+  return renderCollectionV7BeforeV139(key);
+};
+
+const renderExamsBeforeV139 = renderExamsV6;
+renderExamsV6 = function renderExamsV139() {
+  content.replaceChildren();
+  const serviceReady = examGradeServiceReadyV139(); const tab = examGradeSelectedTabV139(); const head = panel("시험·성적 관리"); const tabs = el("div", "toolbar exam-grade-tabs-v139");
+  EXAM_GRADE_TABS_V139.forEach(([key, label]) => { const item = button(label, key === tab ? "primary" : "ghost"); item.type = "button"; item.addEventListener("click", () => examGradeSetTabV139(key)); tabs.append(item); });
+  const refresh = button("서버 새로고침", "ghost"); refresh.type = "button"; refresh.addEventListener("click", async () => { refresh.disabled = true; try { await loadExamGradeDataV138(true); renderExamsV6(); } catch (error) { showMessage("조회 실패", examGradeErrorMessageV138(String(error?.code || ""))); } finally { refresh.disabled = false; } }); tabs.append(refresh); head.append(tabs); content.append(head);
+  const body = panel(EXAM_GRADE_TABS_V139.find(([key]) => key === tab)?.[1] || "시험·성적");
+  if (!serviceReady) { body.append(el("div", "empty", "성적 계산 기능을 준비하지 못했습니다. 새로고침 후 다시 시도해 주세요.")); content.append(body); return; }
+  body.append(el("div", "empty", "서버 데이터를 불러오는 중입니다.")); content.append(body);
+  loadExamGradeDataV138().then(() => { if (currentPage === "exams" && examGradeSelectedTabV139() === tab) { const views = { list: examGradeListTabV139, plans: examGradePlanTabV138, assessments: examGradeAssessmentTabV138, entry: examGradeEntryTabV139, summary: examGradeSummaryTabV138, grades: examGradeGradesTabV138, policies: examGradePolicyTabV139, questions: () => examGradeQuestionTabV139("questions"), answers: () => examGradeQuestionTabV139("answers"), analysis: examGradeAnalysisTabV139, export: examGradeExportTabV138 }; body.replaceChildren(views[tab]()); } }).catch((error) => { body.replaceChildren(el("div", "empty", examGradeErrorMessageV138(String(error?.code || "")))); });
+};
+
+window.PMExamGradeDiagnostics = { snapshot: () => ({ ...examGradeDiagnosticsV138, appVersion: APP_PATCH_VERSION_V139, serviceLoaded: examGradeServiceReadyV139(), serviceGlobalPresent: !!window.PMExamGradeService, activeListenerCount: 0, auditLogWriteCount: 0, sensitiveValueDetected: false }) };
+
+// V140 closes the last active-path gaps. The shell remains the existing
+// static application; this does not introduce a second renderer or listener.
+const APP_PATCH_VERSION_V140 = "v140.0 - 2026-07-27";
+
+function learningAttachmentKindLabelV140(mimeType = "") {
+  const type = String(mimeType || "").toLowerCase();
+  if (type === "application/pdf") return "PDF";
+  if (type === "image/png") return "PNG image";
+  if (type === "image/jpeg") return "JPEG image";
+  if (type.includes("word")) return "Word document";
+  if (type.includes("excel") || type.includes("spreadsheet")) return "Excel document";
+  if (type.includes("powerpoint") || type.includes("presentation")) return "PowerPoint document";
+  if (type === "text/plain") return "Text file";
+  return "File";
+}
+
+function learningAttachmentSizeLabelV140(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return "Unknown size";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1).replace(/\.0$/, "")} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, "")} MB`;
+}
+
+function learningAttachmentDisplayV140(item = {}) {
+  const name = String(item.name || item.fileName || "Attachment").trim() || "Attachment";
+  const mimeType = String(item.mimeType || "");
+  const size = item.sizeBytes ?? item.size;
+  return `${name} - ${learningAttachmentKindLabelV140(mimeType)} - ${learningAttachmentSizeLabelV140(size)} - Select again on this device`;
+}
+
+function canonicalPortfolioAttachmentsV140(value) {
+  const rows = learningStructuredRowsV137(value);
+  return rows.map((item) => {
+    const name = String(item?.name || item?.fileName || "").trim();
+    const rawSize = Number(item?.sizeBytes ?? item?.size);
+    if (!name || !Number.isFinite(rawSize) || rawSize < 0) return null;
+    const mimeType = String(item?.mimeType || "application/octet-stream").trim() || "application/octet-stream";
+    return {
+      name,
+      mimeType,
+      sizeBytes: rawSize,
+      kind: learningAttachmentKindLabelV140(mimeType),
+      status: "metadata-only",
+      needsReselection: true
+    };
+  }).filter(Boolean);
+}
+
+const normalizeLearningPayloadBeforeV140 = normalizeLearningPayloadV137;
+normalizeLearningPayloadV137 = function normalizeLearningPayloadV140(key, form) {
+  const payload = normalizeLearningPayloadBeforeV140(key, form);
+  if (key === "portfolios") payload.attachments = JSON.stringify(canonicalPortfolioAttachmentsV140(payload.attachments));
+  return payload;
+};
+
+const inputNodeV4BeforeV140 = inputNodeV4;
+inputNodeV4 = function inputNodeV4V140(name, label, type, requiredOrOptions, value) {
+  const node = inputNodeV4BeforeV140(name, label, type, requiredOrOptions, value);
+  if (type !== "attachment-list") return node;
+  const refreshDisplay = () => {
+    const hidden = node.querySelector(`input[type="hidden"][name="${name}"]`);
+    const items = learningStructuredRowsV137(hidden?.value);
+    node.querySelectorAll(".learning-repeat-row-v137 > span").forEach((span, index) => { span.textContent = learningAttachmentDisplayV140(items[index] || {}); });
+  };
+  refreshDisplay();
+  node.addEventListener("change", () => queueMicrotask(refreshDisplay));
+  node.addEventListener("click", () => queueMicrotask(refreshDisplay));
+  return node;
+};
+
+const renderPageBeforeV140 = renderPage;
+renderPage = function renderPageV140(key) {
+  const result = renderPageBeforeV140(key);
+  // The final operational dispatcher historically sent portfolios to V8.
+  // Replace only that completed surface with the server-confirmed V139 view.
+  if (key === "portfolios" && currentPage === "portfolios") renderPortfolioV139();
+  return result;
+};
+
+// Earlier initialization can render the legacy exam page before V139 is
+// defined. Re-render once after all final overrides are registered.
+if (currentUser && ["exams", "portfolios"].includes(currentPage)) {
+  queueMicrotask(() => { if (["exams", "portfolios"].includes(currentPage)) renderPage(currentPage); });
+}
+
+window.PMExamGradeDiagnostics = {
+  snapshot: () => ({
+    ...examGradeDiagnosticsV138,
+    appVersion: APP_PATCH_VERSION_V140,
+    serviceLoaded: examGradeServiceReadyV139(),
+    serviceGlobalPresent: !!window.PMExamGradeService,
+    serviceScriptPresent: !!document.getElementById("pm-exam-grade-service"),
+    activeListenerCount: 0,
+    auditLogWriteCount: 0,
+    sensitiveValueDetected: false
+  })
+};
+
+// V149 keeps the existing persistence contract and adds only presentation and
+// input guidance for the active exam/grade and portfolio surfaces.
+const APP_PATCH_VERSION_V149 = "v149.0 - 2026-07-28";
+
+function examGradeModeInfoV149() {
+  const raw = String(examGradeModeV139() || "").trim().toLowerCase();
+  if (["personal", "개인"].includes(raw)) return { key: "personal", label: "개인 모드", configured: true };
+  if (["school", "학교"].includes(raw)) return { key: "school", label: "학교 모드", configured: true };
+  if (["academy", "학원"].includes(raw)) return { key: "academy", label: "학원 모드", configured: true };
+  return { key: "integrated-unconfigured", label: "운영 모드 설정 필요", configured: false };
+}
+
+function examGradeStudentAdapterV149() {
+  const directStudents = examGradeReferenceRowsV138("students");
+  if (directStudents.length) return { source: "students", rows: directStudents };
+  const studentPeople = examGradeReferenceRowsV138("people").filter((row) => (
+    row.studentName || row.studentNo || String(row.role || "").toLowerCase() === "student" || row.isStudent === true
+  ));
+  return studentPeople.length ? { source: "people-student-profile", rows: studentPeople } : { source: "unavailable", rows: [] };
+}
+
+function examGradeStudentLabelV149(row = {}) {
+  const name = String(row.studentName || row.name || row.displayName || "").trim();
+  const grade = String(row.gradeLevel || row.grade || "").trim();
+  const group = String(row.className || row.class || row.cohort || "").trim();
+  return [name, grade, group].filter(Boolean).join(" · ");
+}
+
+function examGradeCurrentPersonIdV149() {
+  return String(currentUser?.uid || currentUser?.id || window.authStateV31?.user?.uid || "").trim();
+}
+
+function examGradeScopeLabelV149(value = "") {
+  return ({ workspace: "현재 워크스페이스 전체", subject: "특정 과목", "class-subject": "특정 반/그룹·과목" }[String(value)] || "적용 범위 미설정");
+}
+
+function examGradeScoreSourceLabelV149(value = "") {
+  return ({ percentage: "백분율 점수", rawScore: "원점수", weightedScore: "반영 점수", subjectTermTotal: "과목 종합 점수" }[String(value)] || "점수 기준 미설정");
+}
+
+function portfolioDetailValueV149(value = "") {
+  const text = String(value ?? "").trim();
+  return !text || /^(?:undefined|null|\[\]|\[object\s+object\])$/i.test(text) ? "" : text;
+}
+
+function showPortfolioViewerV149(row = {}) {
+  messageTitle.textContent = "포트폴리오 상세";
+  messageBody.replaceChildren();
+  const grid = el("div", "detail-grid");
+  [
+    ["제목", row.title], ["카테고리", row.category], ["날짜", row.date], ["설명", row.description],
+    ["사용 기술·역량", row.skills], ["느낀 점", row.reflection], ["공개 범위", row.visibility]
+  ].forEach(([label, value]) => {
+    const text = portfolioDetailValueV149(value);
+    if (!text) return;
+    const item = el("div", "info-box"); item.append(el("span", "", label), el("strong", "", text)); grid.append(item);
+  });
+  const links = learningStructuredRowsV137(row.links).map((item) => learningSafeUrlV137(item.url)).filter(Boolean);
+  const linkCard = el("div", "info-box"); linkCard.append(el("span", "", "관련 링크"));
+  if (!links.length) linkCard.append(el("strong", "", "등록된 자료 링크가 없습니다."));
+  else links.forEach((url, index) => { const link = document.createElement("a"); link.href = url; link.target = "_blank"; link.rel = "noopener"; link.textContent = `관련 링크 ${index + 1}`; linkCard.append(link); });
+  grid.append(linkCard);
+  const attachmentCard = el("div", "info-box"); attachmentCard.append(el("span", "", "첨부 파일"));
+  const attachments = canonicalPortfolioAttachmentsV140(row.attachments);
+  if (!attachments.length) attachmentCard.append(el("strong", "", "첨부된 파일이 없습니다."));
+  else attachments.forEach((item) => {
+    const entry = document.createElement("div");
+    entry.append(
+      el("strong", "", item.name),
+      el("p", "muted", `형식: ${learningAttachmentKindLabelV140(item.mimeType)}`),
+      el("p", "muted", `크기: ${learningAttachmentSizeLabelV140(item.sizeBytes)}`),
+      el("p", "muted", "보관 상태: 파일 정보만 저장됨"),
+      el("p", "muted", "다른 기기에서는 파일을 다시 선택해야 합니다.")
+    );
+    attachmentCard.append(entry);
+  });
+  grid.append(attachmentCard);
+  messageBody.append(grid); messageDialog.showModal();
+}
+
+const showViewerBeforeV149 = showViewerV5;
+showViewerV5 = function showViewerV149(title, row = {}) {
+  if (currentPage === "portfolios" || title === pageLabel("portfolios")) return showPortfolioViewerV149(row);
+  return showViewerBeforeV149(title, row);
+};
+
+function examGradeStartGuideV149() {
+  const mode = examGradeModeInfoV149();
+  const section = el("section", "exam-grade-start-guide-v149");
+  section.append(el("h3", "", "처음 사용 안내"));
+  const text = mode.key === "personal"
+    ? "개인 모드에서는 본인 성적을 입력하고 분석할 수 있습니다. 학생 선택은 표시하지 않습니다."
+    : mode.configured
+      ? `${mode.label}에서는 학년도·학기·과목을 선택한 뒤 학생별 성적을 조회합니다.`
+      : "먼저 운영 모드를 설정해 주세요. 현재 화면에서는 기존 데이터의 읽기와 미리보기만 안전하게 제공합니다.";
+  section.append(el("p", "muted", text));
+  const steps = [
+    ["plans", "1. 과목과 담당 교사를 먼저 등록한 뒤 평가 계획을 설정합니다."],
+    ["assessments", "2. 고사 또는 수행평가의 만점과 반영 비율을 등록합니다."],
+    ["entry", "3. 성적 입력에서 평가와 학생을 선택해 점수를 입력합니다."],
+    ["summary", "4. 과목별 종합에서 반영 점수와 총점을 확인합니다."],
+    ["policies", "5. 성취도 정책에서 점수 구간을 설정하고 미리보기를 확인합니다."],
+    ["grades", "6. 석차·등급과 성적 분석을 확인한 뒤 필요한 자료를 CSV로 내려받습니다."],
+    ["export", "7. CSV 파일은 Excel 또는 Google Sheets에서 열 수 있습니다."]
+  ];
+  const list = el("div", "list");
+  steps.forEach(([tab, label]) => { const action = button(label, "ghost"); action.type = "button"; action.addEventListener("click", () => examGradeSetTabV139(tab)); list.append(action); });
+  section.append(list); return section;
+}
+
+function examGradeEntryTabV149() {
+  const mode = examGradeModeInfoV149();
+  const assessments = examGradeRowsForKindV139("assessments");
+  const students = examGradeStudentAdapterV149();
+  const wrap = el("div", "exam-grade-tab-v149");
+  wrap.append(el("p", "muted", mode.key === "personal"
+    ? "평가를 선택하고 본인 점수를 입력합니다. 학생 선택은 필요하지 않습니다."
+    : "평가를 선택한 뒤 학생별 점수를 입력합니다. 학생 데이터가 없으면 입력을 시작하지 않습니다."));
+  if (mode.key !== "personal" && !students.rows.length) {
+    wrap.append(el("div", "empty", "등록된 학생이 없습니다. 학생 관리에서 학생을 먼저 등록해 주세요."));
+    return wrap;
+  }
+  const assessmentOptions = assessments.map((row) => [row.id, examGradeSafeLabelV139(row, "평가")]);
+  const studentOptions = students.rows.map((row) => [row.id || row.uid || row.studentUid, examGradeStudentLabelV149(row)]).filter(([id, label]) => id && label);
+  const fields = [["평가", "assessmentId", "select", "", assessmentOptions]];
+  if (mode.key !== "personal") fields.push(["학생", "studentId", "select", "", studentOptions]);
+  fields.push(["점수", "rawScore", "number"], ["만점", "maxScore", "number"], ["응시 상태", "attendanceStatus", "text", "attended"], ["제출 상태", "submissionStatus", "text", "submitted"]);
+  wrap.append(examGradeFormV138(fields, "성적 저장", async (payload) => {
+    const studentId = mode.key === "personal" ? examGradeCurrentPersonIdV149() : String(payload.studentId || "");
+    const assessment = assessments.find((row) => String(row.id) === String(payload.assessmentId));
+    if (!assessment || !studentId) throw learningWriteErrorV137("assessment-required-field-missing");
+    const score = examGradeServiceV138()?.calculateAssessmentScore({ ...payload, maxScore: payload.maxScore || assessment.maxScore, weight: assessment.weight });
+    if (!score || score.status === "invalid") throw learningWriteErrorV137(score?.code || "assessment-score-invalid");
+    const existing = examGradeRowsV138("results").find((row) => String(row.assessmentId) === String(payload.assessmentId) && String(row.studentId) === studentId);
+    await writeExamGradeRowV138("results", { ...payload, ...score, studentId, assessmentPlanId: assessment.assessmentPlanId || "", academicYear: assessment.academicYear || "", gradeLevel: assessment.gradeLevel || "", term: assessment.term || "", classId: assessment.classId || "", subjectId: assessment.subjectId || "", weight: assessment.weight, status: "draft" }, existing?.id || "");
+  }));
+  return wrap;
+}
+
+function examGradePolicyTabV149() {
+  const service = examGradeServiceV138(); const mode = examGradeModeInfoV149(); const rows = examGradeRowsForKindV139("policies"); const subjects = examGradeReferenceRowsV138("subjects");
+  const subjectOptions = subjects.map((row) => [row.id, examGradeReferenceLabelV138("subjects", row)]).filter(([id, label]) => id && label);
+  const wrap = el("div", "exam-grade-tab-v149");
+  wrap.append(el("p", "muted", "설정한 점수 구간에 따라 성취도가 자동으로 계산됩니다. 학생별 성취도를 직접 바꾸는 기능은 제공하지 않습니다."));
+  wrap.append(el("p", "muted", "입력 순서: 적용 대상 선택 → 정책 이름 → 점수 기준 → A~D 최소 점수 → 계산 미리보기 → 저장. E는 D 미만 점수에 자동 적용됩니다."));
+  const fields = [
+    ["적용 학년도", "academicYear", "text"], ["적용 학년", "gradeLevel", "text"], ["적용 학기", "term", "text"],
+    ["과목", "subjectId", "select", "", subjectOptions], ["반/그룹", "classId", "text"], ["정책 이름", "name", "text"],
+    ["점수 기준", "scoreSource", "select", "", [["percentage", "백분율 점수"], ["rawScore", "원점수"], ["weightedScore", "반영 점수"], ["subjectTermTotal", "과목 종합 점수"]]],
+    ["적용 범위", "scope", "select", "", [["workspace", "현재 워크스페이스 전체"], ["subject", "특정 과목"], ["class-subject", "특정 반/그룹·과목"]]],
+    ["A 최소 점수", "thresholdA", "number", "90"], ["B 최소 점수", "thresholdB", "number", "80"], ["C 최소 점수", "thresholdC", "number", "70"], ["D 최소 점수", "thresholdD", "number", "60"]
+  ];
+  wrap.append(examGradeFormV138(fields, "성취도 정책 저장", async (payload) => {
+    const needsContext = ["school", "academy"].includes(mode.key);
+    if (!String(payload.name || "").trim() || !String(payload.scoreSource || "").trim() || !String(payload.scope || "").trim()) throw learningWriteErrorV137("achievement-policy-invalid");
+    if (needsContext && (!String(payload.academicYear || "").trim() || !String(payload.gradeLevel || "").trim() || !String(payload.term || "").trim() || !String(payload.subjectId || "").trim())) throw learningWriteErrorV137("achievement-policy-invalid");
+    if (["subject", "class-subject"].includes(payload.scope) && !String(payload.subjectId || "").trim()) throw learningWriteErrorV137("achievement-policy-invalid");
+    if (payload.scope === "class-subject" && !String(payload.classId || "").trim()) throw learningWriteErrorV137("achievement-policy-invalid");
+    const policy = {
+      name: String(payload.name).trim(), academicYear: String(payload.academicYear || "").trim(), gradeLevel: String(payload.gradeLevel || "").trim(), term: String(payload.term || "").trim(),
+      subjectId: String(payload.subjectId || "").trim(), classId: String(payload.classId || "").trim(), scope: payload.scope, scoreSource: payload.scoreSource, status: "draft", version: 1,
+      thresholds: [["A", payload.thresholdA], ["B", payload.thresholdB], ["C", payload.thresholdC], ["D", payload.thresholdD]].map(([label, minimumScore], index) => ({ label, minimumScore: Number(minimumScore), inclusive: true, order: index + 1 })).concat([{ label: "E", minimumScore: null, inclusive: true, order: 5, fallback: true }])
+    };
+    const validated = service?.validateAchievementPolicy(policy); if (!validated?.ok) throw learningWriteErrorV137("achievement-policy-invalid");
+    await writeExamGradeRowV138("policies", validated.policy);
+  }));
+  rows.forEach((policy) => {
+    const preview = service?.previewAchievementPolicy(policy, examGradeRowsV138("results")) || { affectedCount: 0, changedCount: 0 };
+    const subject = subjects.find((row) => String(row.id) === String(policy.subjectId));
+    const title = [policy.name, subject ? examGradeReferenceLabelV138("subjects", subject) : "전체 과목", examGradeScopeLabelV149(policy.scope), examGradeScoreSourceLabelV149(policy.scoreSource)].filter(Boolean).join(" · ");
+    const card = el("div", "list-item", `${title} · 영향 대상 ${preview.affectedCount}명 · 변경 예상 ${preview.changedCount}명`);
+    const previewButton = button("계산 미리보기", "ghost"); previewButton.type = "button"; previewButton.addEventListener("click", () => showMessage("성취도 영향 미리보기", `영향 대상 ${preview.affectedCount}명, 변경 예상 ${preview.changedCount}명입니다. 정책을 저장해도 기존 결과는 자동으로 바뀌지 않습니다.`)); card.append(previewButton); wrap.append(card);
+  });
+  wrap.append(el("p", "muted", "기존 성적에 새 정책을 일괄 적용하는 기능은 현재 제공하지 않습니다.")); return wrap;
+}
+
+function examGradeExportTabV149() {
+  const rows = examGradeRowsForKindV139("results"); const service = examGradeServiceV138(); const wrap = el("div", "exam-grade-tab-v149");
+  wrap.append(el("h3", "", "성적 CSV 내보내기"), el("p", "muted", "현재 조회 중인 성적을 CSV 파일로 내려받습니다. 내려받은 파일은 Microsoft Excel 또는 Google Sheets에서 열 수 있습니다."), el("p", "muted", "전용 XLSX 파일 내려받기는 현재 제공하지 않습니다."));
+  if (!rows.length) { wrap.append(el("div", "empty", "내보낼 성적 데이터가 없습니다. 학년도·학기·과목 또는 학생을 선택해 주세요.")); return wrap; }
+  const csv = service?.buildCsv([{ key: "rawScore", label: "원점수" }, { key: "maxScore", label: "만점" }, { key: "percentage", label: "백분율" }, { key: "weightedScore", label: "반영 점수" }, { key: "calculatedAchievement", label: "성취도" }], rows) || "";
+  const download = button("CSV 내려받기", "ghost"); download.type = "button"; download.addEventListener("click", () => { const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" }); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "assessment-results.csv"; anchor.click(); URL.revokeObjectURL(url); }); wrap.append(download); return wrap;
+}
+
+const renderExamsBeforeV149 = renderExamsV6;
+renderExamsV6 = function renderExamsV149() {
+  const result = renderExamsBeforeV149();
+  if (currentPage === "exams") content.querySelector(".panel")?.append(examGradeStartGuideV149());
+  return result;
+};
+
+examGradeEntryTabV139 = examGradeEntryTabV149;
+examGradePolicyTabV138 = examGradePolicyTabV149;
+examGradeExportTabV138 = examGradeExportTabV149;
+
+window.PMExamGradeDiagnostics = {
+  snapshot: () => ({
+    ...examGradeDiagnosticsV138,
+    appVersion: APP_PATCH_VERSION_V149,
+    mode: examGradeModeInfoV149().key,
+    studentSource: examGradeStudentAdapterV149().source,
+    studentCount: examGradeStudentAdapterV149().rows.length,
+    activeSurface: currentPage === "exams" ? "exam-grade-management" : "inactive",
+    serviceLoaded: examGradeServiceReadyV139(),
+    activeListenerCount: 0,
+    auditLogWriteCount: 0,
+    sensitiveValueDetected: false
+  })
+};
+
+const ownerPreviewCriticalRepairSnapshotBeforeV137 = window.PMOwnerPreviewCriticalRepairDiagnostics?.snapshot;
+window.PMOwnerPreviewCriticalRepairDiagnostics = {
+  snapshot: () => ({ ...(ownerPreviewCriticalRepairSnapshotBeforeV137?.() || {}), appVersion: APP_PATCH_VERSION_V137, learningManagement: { ...learningManagementDiagnosticsV137 }, sensitiveValueDetected: false })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V137;
+
+// Batch 10E keeps operation mode as a workspace presentation setting. It does
+// not migrate, delete, or reinterpret any existing workspace data.
+const APP_PATCH_VERSION_V150 = "v150.0 - 2026-07-28";
+const OPERATION_MODE_OPTIONS_V150 = Object.freeze([
+  ["integrated_unconfigured", "운영 모드 미설정"],
+  ["personal", "개인 모드"],
+  ["school", "학교 모드"],
+  ["academy", "학원 모드"]
+]);
+const ASSESSMENT_PLAN_STATUS_OPTIONS_V150 = Object.freeze([
+  ["draft", "초안"], ["review_requested", "검토 요청"], ["under_review", "검토 중"],
+  ["approved", "승인"], ["rejected", "반려"], ["finalized", "확정"], ["archived", "폐기"]
+]);
+const GRADE_APPROVAL_STATUS_OPTIONS_V150 = Object.freeze([
+  ["draft", "초안"], ["review_requested", "결재 요청"], ["under_review", "검토 중"],
+  ["approved", "승인"], ["rejected", "반려"], ["withdrawn", "회수"], ["finalized", "확정"], ["archived", "폐기"]
+]);
+const APP_PATCH_VERSION_V153 = "v153.0 - 2026-07-30";
+const APP_PATCH_VERSION_V154 = "v154.0 - 2026-07-31";
+let operationModeHistoryRowsV150 = [];
+const operationModeEntryStateV153 = {
+  currentRequestPromise: null,
+  requestToken: 0,
+  workspaceRows: [],
+  loaded: false,
+  isRendering: false,
+  isLoading: false
+};
+const operationModeDiagnosticsV153 = {
+  renderCount: 0,
+  workspaceLoadCount: 0,
+  modeLoadCount: 0,
+  historyLoadCount: 0,
+  activeRequestCount: 0,
+  lastLoadReason: "not-started",
+  lastErrorCode: "",
+  lastDurationMs: 0,
+  isRendering: false,
+  isLoading: false,
+  lastSuccessfulRenderAt: "",
+  normalizedOperationMode: "integrated_unconfigured",
+  menuResolveCount: 0,
+  visibleMenuCount: 0,
+  hiddenMenuCount: 0,
+  disabledMenuCount: 0,
+  routeGuardCount: 0,
+  lastBlockedMenuId: "",
+  modeCacheHitCount: 0,
+  modeCacheMissCount: 0,
+  modeServerLoadCount: 0,
+  appTarget: "main",
+  modeSource: "unresolved",
+  adminSystemMenuCount: 0,
+  workspaceFeatureMenuCount: 0,
+  sensitiveValueDetected: false
+};
+const operationModeUiStateV154 = {
+  workspaceId: "",
+  selectedAdminWorkspaceId: "",
+  normalizedMode: "integrated_unconfigured",
+  source: "unresolved",
+  loadedWorkspaceId: "",
+  metadataVerifiedWorkspaceId: "",
+  loadPromise: null,
+  resolutionSignature: "",
+  resolution: null
+};
+
+function isSystemOwnerV150(user = currentUser) {
+  return user?.isSystemOwner === true || user?.role === "system_owner" || user?.currentRole === "system_owner" || user?.globalRole === "system_owner";
+}
+
+function operationModeLabelV150(value = "") {
+  return OPERATION_MODE_OPTIONS_V150.find(([key]) => key === String(value || ""))?.[1] || "운영 모드 미설정";
+}
+
+function assessmentPlanStatusLabelV150(value = "") {
+  return ASSESSMENT_PLAN_STATUS_OPTIONS_V150.find(([key]) => key === String(value || ""))?.[1] || "초안";
+}
+
+function gradeApprovalStatusLabelV150(value = "") {
+  return GRADE_APPROVAL_STATUS_OPTIONS_V150.find(([key]) => key === String(value || ""))?.[1] || "초안";
+}
+
+function operationModeWorkspaceV150(workspaceId = "") {
+  const target = String(workspaceId || userWorkspaceIdV54?.(currentUser) || "");
+  const rows = operationModeEntryStateV153.workspaceRows.length
+    ? operationModeEntryStateV153.workspaceRows
+    : (systemOwnerStateV54?.workspaces || []);
+  return rows.find((row) => String(row.id || row.workspaceId || "") === target) || null;
+}
+
+function operationModeForWorkspaceV150(workspaceId = "") {
+  const workspace = operationModeWorkspaceV150(workspaceId);
+  const mode = workspace?.operationMode || workspace?.settings?.operationMode || "";
+  return OPERATION_MODE_OPTIONS_V150.some(([key]) => key === mode) ? mode : "integrated_unconfigured";
+}
+
+function operationModeDataLabelsV150() {
+  return ["학생", "평가계획", "평가", "성적", "포트폴리오", "과목", "교사"];
+}
+
+function operationModeImpactTextV150(mode = "") {
+  if (mode === "personal") return "학생 선택 없이 현재 로그인 사용자의 일정·과제·성적·분석을 중심으로 표시합니다.";
+  if (mode === "school") return "학년도·학년·반·학생·과목·평가계획 중심의 학교 업무 화면을 표시합니다.";
+  if (mode === "academy") return "운영연도·반 또는 수업·학생·담당 강사·과목 중심의 학원 업무 화면을 표시합니다. 수납 기능은 별도입니다.";
+  return "현재 데이터는 유지하며, 모드를 정한 뒤 해당 업무 흐름에 맞는 선택 항목을 표시합니다.";
+}
+
+function normalizeOperationModeV154(value = "") {
+  const normalized = String(value || "").trim().toLowerCase().replace(/-/g, "_");
+  return ["personal", "school", "academy", "integrated_unconfigured"].includes(normalized)
+    ? normalized
+    : "integrated_unconfigured";
+}
+
+function resolveOperationModeUiV154({
+  appTarget = "main",
+  operationMode = "",
+  globalRole = "",
+  workspaceRole = "",
+  availableFeatures = []
+} = {}) {
+  const normalizedAppTarget = String(appTarget || "") === "admin-standalone"
+    ? "admin-standalone"
+    : "main";
+  const normalizedMode = normalizeOperationModeV154(operationMode);
+  const commonMenuIds = [
+    "dashboard", "personal", "schedules", "notices", "materials", "portfolios",
+    "requests", "workspaceUpdates", "chat", "accounts", "admin", "site", "system"
+  ];
+  const modeMenuIds = {
+    personal: [
+      "subjects", "lessons", "assignments", "examSchedules", "exams", "records",
+      "projects", "print"
+    ],
+    school: [
+      "attendance", "academic", "schoolNotices", "homeLetters", "meals",
+      "mealApplications", "timetable", "subjects", "teachers", "lessons",
+      "assignments", "examSchedules", "exams", "records", "projects",
+      "afterschool", "specialLectures", "clubs", "people", "friendAwards",
+      "penalties", "budget", "masterData", "omrForms", "print"
+    ],
+    academy: [
+      "attendance", "timetable", "subjects", "teachers", "lessons", "assignments",
+      "examSchedules", "exams", "records", "projects", "people", "penalties",
+      "masterData", "omrForms", "print"
+    ],
+    integrated_unconfigured: []
+  };
+  const ownerMenuIds = ["systemOwner", "system", "accounts", "admin", "site"];
+  const systemManagementMenuIds = [
+    "system-status", "workspace-management", "operation-mode", "user-permissions",
+    "approval-requests", "system-notices", "maintenance", "audit-logs",
+    "api-integrations", "operations-diagnostics", "security-checks"
+  ];
+  const allowed = new Set([
+    ...commonMenuIds,
+    ...(modeMenuIds[normalizedMode] || []),
+    ...(globalRole === "system_owner" ? ownerMenuIds : [])
+  ]);
+  const available = [...new Set((availableFeatures || []).map((key) => String(key || "")).filter(Boolean))];
+  const workspaceFeatureMenuIds = available.filter((key) => (modeMenuIds[normalizedMode] || []).includes(key));
+  const visibleMenuIds = normalizedAppTarget === "admin-standalone"
+    ? available.filter((key) => key === "systemOwner" && globalRole === "system_owner")
+    : available.filter((key) => allowed.has(key));
+  const disabledMenuIds = [];
+  const hiddenMenuIds = available.filter((key) => !visibleMenuIds.includes(key));
+  const labels = {
+    personal: ["개인 모드", "개인 학습·일정·기록을 중심으로 화면을 표시합니다."],
+    school: ["학교 모드", "학생·교사·학년·반·과목·평가계획을 중심으로 학교 업무 화면을 표시합니다."],
+    academy: ["학원 모드", "학생·반·수업·강사·출결을 중심으로 학원 업무 화면을 표시합니다."],
+    integrated_unconfigured: ["운영 모드 미설정", "워크스페이스 운영 모드가 아직 설정되지 않았습니다."]
+  };
+  return {
+    appTarget: normalizedAppTarget,
+    normalizedMode,
+    visibleMenuIds,
+    disabledMenuIds,
+    hiddenMenuIds,
+    systemManagementMenuIds: normalizedAppTarget === "admin-standalone" && globalRole === "system_owner"
+      ? systemManagementMenuIds
+      : [],
+    workspaceFeatureMenuIds,
+    dashboardVariant: normalizedMode,
+    modeLabel: labels[normalizedMode][0],
+    modeDescription: labels[normalizedMode][1],
+    globalRole: String(globalRole || ""),
+    workspaceRole: String(workspaceRole || "")
+  };
+}
+
+function operationModeCanonicalWorkspaceIdV154() {
+  return String(
+    canonicalWorkspaceCacheV116?.workspaceId
+    || authWorkspaceStateV36?.currentWorkspaceId
+    || currentUser?.currentWorkspaceId
+    || userWorkspaceIdV54?.(currentUser)
+    || ""
+  ).trim();
+}
+
+function operationModeWorkspaceIdV154() {
+  if (isStandaloneAdminSiteV60() && operationModeUiStateV154.selectedAdminWorkspaceId) {
+    return operationModeUiStateV154.selectedAdminWorkspaceId;
+  }
+  return operationModeCanonicalWorkspaceIdV154();
+}
+
+function selectAdminStandaloneOperationModeWorkspaceV154(workspaceId = "") {
+  if (!isStandaloneAdminSiteV60()) return;
+  const nextWorkspaceId = String(workspaceId || "").trim();
+  if (operationModeUiStateV154.selectedAdminWorkspaceId === nextWorkspaceId) return;
+  operationModeUiStateV154.selectedAdminWorkspaceId = nextWorkspaceId;
+  operationModeUiStateV154.loadedWorkspaceId = "";
+  operationModeUiStateV154.metadataVerifiedWorkspaceId = "";
+  operationModeUiStateV154.loadPromise = null;
+  invalidateOperationModeUiV154("admin-workspace-selected");
+  queueMicrotask(() => {
+    ensureOperationModeLoadedV154();
+    syncAdminStandaloneOperationModePanelV154();
+  });
+}
+
+function operationModeCandidateV154(workspaceId = operationModeWorkspaceIdV154()) {
+  const workspace = operationModeWorkspaceV150?.(workspaceId);
+  const workspaceCandidates = [
+    ["workspace-metadata", workspace?.operationMode],
+    ["workspace-metadata", workspace?.settings?.operationMode]
+  ];
+  const selectedDifferentWorkspace = isStandaloneAdminSiteV60()
+    && operationModeUiStateV154.selectedAdminWorkspaceId
+    && String(workspaceId || "") !== operationModeCanonicalWorkspaceIdV154();
+  const candidates = selectedDifferentWorkspace
+    ? workspaceCandidates
+    : [
+      ...workspaceCandidates,
+      ["workspace-store", store?.workspace?.operationMode],
+      ["workspace-store", store?.settings?.operationMode],
+      ["app-session", authWorkspaceStateV36?.operationMode],
+      ["app-session", currentUser?.operationMode],
+      ["app-session", currentUser?.workspace?.operationMode]
+    ];
+  const found = candidates.find(([, value]) => value !== null && value !== undefined && String(value).trim());
+  return found
+    ? { found: true, mode: normalizeOperationModeV154(found[1]), source: found[0] }
+    : { found: false, mode: "integrated_unconfigured", source: "unresolved" };
+}
+
+function invalidateOperationModeUiV154(reason = "mode-changed") {
+  operationModeUiStateV154.resolutionSignature = "";
+  operationModeUiStateV154.resolution = null;
+  recordOperationModeDiagnosticV153({ lastLoadReason: reason });
+}
+
+function cacheOperationModeV154(workspaceId, mode, source, metadataVerified = false) {
+  operationModeUiStateV154.workspaceId = String(workspaceId || "");
+  operationModeUiStateV154.loadedWorkspaceId = String(workspaceId || "");
+  operationModeUiStateV154.normalizedMode = normalizeOperationModeV154(mode);
+  operationModeUiStateV154.source = String(source || "unresolved");
+  if (metadataVerified) operationModeUiStateV154.metadataVerifiedWorkspaceId = String(workspaceId || "");
+  operationModeDiagnosticsV153.normalizedOperationMode = operationModeUiStateV154.normalizedMode;
+  operationModeDiagnosticsV153.modeSource = operationModeUiStateV154.source;
+}
+
+function refreshOperationModeUiV154() {
+  if (typeof buildNav === "function") buildNav();
+  const currentDecision = operationModeRouteDecisionV154(currentPage || "dashboard");
+  if (!currentDecision.allowed) renderPage("dashboard");
+  else if (currentPage === "dashboard") renderPage("dashboard");
+  if (isStandaloneAdminSiteV60()) syncAdminStandaloneOperationModePanelV154();
+}
+
+function ensureOperationModeLoadedV154() {
+  const workspaceId = operationModeWorkspaceIdV154();
+  const candidate = operationModeCandidateV154(workspaceId);
+  if (candidate.found && candidate.source === "workspace-metadata") {
+    cacheOperationModeV154(workspaceId, candidate.mode, candidate.source, true);
+    operationModeDiagnosticsV153.modeCacheHitCount += 1;
+    return Promise.resolve(candidate.mode);
+  }
+  if (candidate.found) cacheOperationModeV154(workspaceId, candidate.mode, candidate.source);
+  if (!workspaceId) {
+    cacheOperationModeV154("", "integrated_unconfigured", "workspace-missing");
+    return Promise.resolve("integrated_unconfigured");
+  }
+  if (operationModeUiStateV154.metadataVerifiedWorkspaceId === workspaceId) {
+    operationModeDiagnosticsV153.modeCacheHitCount += 1;
+    return Promise.resolve(operationModeUiStateV154.normalizedMode);
+  }
+  if (operationModeUiStateV154.loadPromise && operationModeUiStateV154.workspaceId === workspaceId) {
+    operationModeDiagnosticsV153.modeCacheHitCount += 1;
+    return operationModeUiStateV154.loadPromise;
+  }
+  operationModeUiStateV154.workspaceId = workspaceId;
+  operationModeDiagnosticsV153.modeCacheMissCount += 1;
+  const reader = window.PMSystemAdminService?.getWorkspaceById;
+  if (typeof reader !== "function") {
+    const fallbackMode = candidate.found ? candidate.mode : "integrated_unconfigured";
+    cacheOperationModeV154(workspaceId, fallbackMode, candidate.found ? candidate.source : "reader-unavailable");
+    return Promise.resolve(fallbackMode);
+  }
+  operationModeDiagnosticsV153.modeServerLoadCount += 1;
+  operationModeUiStateV154.loadPromise = Promise.resolve(reader(workspaceId))
+    .then((workspace) => {
+      const mode = normalizeOperationModeV154(workspace?.operationMode || workspace?.settings?.operationMode || "");
+      cacheOperationModeV154(workspaceId, mode, "workspace-metadata-read", true);
+      if (!isStandaloneAdminSiteV60() || workspaceId === operationModeCanonicalWorkspaceIdV154()) {
+        store.settings ??= {};
+        store.settings.operationMode = mode;
+      }
+      invalidateOperationModeUiV154("workspace-metadata-read");
+      queueMicrotask(refreshOperationModeUiV154);
+      return mode;
+    })
+    .catch((cause) => {
+      const fallbackMode = candidate.found ? candidate.mode : "integrated_unconfigured";
+      cacheOperationModeV154(workspaceId, fallbackMode, candidate.found ? candidate.source : "workspace-metadata-read-failed");
+      operationModeDiagnosticsV153.lastErrorCode = operationModeLoadErrorCodeV153(cause);
+      return fallbackMode;
+    })
+    .finally(() => {
+      operationModeUiStateV154.loadPromise = null;
+    });
+  return operationModeUiStateV154.loadPromise;
+}
+
+function operationModeUiForCurrentUserV154(availableFeatures = []) {
+  const workspaceId = operationModeWorkspaceIdV154();
+  const candidate = operationModeCandidateV154(workspaceId);
+  if (candidate.found) {
+    if (operationModeUiStateV154.normalizedMode !== candidate.mode
+      || operationModeUiStateV154.workspaceId !== workspaceId
+      || (candidate.source === "workspace-metadata" && operationModeUiStateV154.metadataVerifiedWorkspaceId !== workspaceId)) {
+      cacheOperationModeV154(workspaceId, candidate.mode, candidate.source, candidate.source === "workspace-metadata");
+      invalidateOperationModeUiV154("loaded-mode-changed");
+    } else {
+      operationModeDiagnosticsV153.modeCacheHitCount += 1;
+    }
+    if (candidate.source !== "workspace-metadata"
+      && operationModeUiStateV154.metadataVerifiedWorkspaceId !== workspaceId
+      && !operationModeUiStateV154.loadPromise) {
+      queueMicrotask(() => ensureOperationModeLoadedV154());
+    }
+  } else if (operationModeUiStateV154.metadataVerifiedWorkspaceId !== workspaceId && !operationModeUiStateV154.loadPromise) {
+    queueMicrotask(() => ensureOperationModeLoadedV154());
+  }
+  const mode = candidate.found
+    ? candidate.mode
+    : operationModeUiStateV154.loadedWorkspaceId === workspaceId
+      ? operationModeUiStateV154.normalizedMode
+      : "integrated_unconfigured";
+  const globalRole = isSystemOwnerV150?.() ? "system_owner" : String(currentUser?.globalRole || "user");
+  const workspaceRole = String(currentUser?.workspaceRole || currentUser?.currentRole || currentUser?.role || "");
+  const features = [...new Set((availableFeatures || []).map(String))];
+  const appTarget = appTargetV60();
+  const signature = JSON.stringify([appTarget, mode, globalRole, workspaceRole, features]);
+  if (operationModeUiStateV154.resolution && operationModeUiStateV154.resolutionSignature === signature) {
+    return operationModeUiStateV154.resolution;
+  }
+  const resolution = resolveOperationModeUiV154({
+    appTarget,
+    operationMode: mode,
+    globalRole,
+    workspaceRole,
+    availableFeatures: features
+  });
+  operationModeUiStateV154.resolutionSignature = signature;
+  operationModeUiStateV154.resolution = resolution;
+  operationModeDiagnosticsV153.menuResolveCount += 1;
+  operationModeDiagnosticsV153.normalizedOperationMode = resolution.normalizedMode;
+  operationModeDiagnosticsV153.visibleMenuCount = resolution.visibleMenuIds.length;
+  operationModeDiagnosticsV153.hiddenMenuCount = resolution.hiddenMenuIds.length;
+  operationModeDiagnosticsV153.disabledMenuCount = resolution.disabledMenuIds.length;
+  operationModeDiagnosticsV153.appTarget = resolution.appTarget;
+  operationModeDiagnosticsV153.adminSystemMenuCount = resolution.systemManagementMenuIds.length;
+  operationModeDiagnosticsV153.workspaceFeatureMenuCount = resolution.workspaceFeatureMenuIds.length;
+  return resolution;
+}
+
+function operationModeRouteDecisionV154(menuId = "") {
+  const requested = String(menuId || "dashboard");
+  if (!currentUser) return { allowed: true, menuId: requested, reason: "signed-out-flow" };
+  operationModeDiagnosticsV153.routeGuardCount += 1;
+  if (requested === "systemOwner" && isSystemOwnerV150()) return { allowed: true, menuId: requested, reason: "system-owner-console" };
+  const available = authMenuKeysV31();
+  const resolution = operationModeUiForCurrentUserV154(available);
+  if (resolution.visibleMenuIds.includes(requested)) return { allowed: true, menuId: requested, reason: "mode-visible" };
+  operationModeDiagnosticsV153.lastBlockedMenuId = requested;
+  return {
+    allowed: false,
+    menuId: requested,
+    fallback: resolution.appTarget === "admin-standalone" ? "systemOwner" : "dashboard",
+    reason: resolution.appTarget === "admin-standalone"
+      ? "admin-standalone-system-menu-only"
+      : "operation-mode-blocked"
+  };
+}
+
+function operationModePrimaryLinksV154(mode = "") {
+  return ({
+    personal: ["schedules", "subjects", "assignments", "exams", "records"],
+    school: ["people", "teachers", "timetable", "attendance", "exams", "records"],
+    academy: ["people", "teachers", "lessons", "attendance", "exams"],
+    integrated_unconfigured: []
+  }[normalizeOperationModeV154(mode)] || []);
+}
+
+function renderOperationModeDashboardNoticeV154() {
+  const available = authMenuKeysV31();
+  const resolution = operationModeUiForCurrentUserV154(available);
+  const box = panel(resolution.modeLabel);
+  box.classList.add("operation-mode-dashboard-v154");
+  box.append(el("p", "muted", resolution.modeDescription));
+  const actions = el("div", "row-actions");
+  operationModePrimaryLinksV154(resolution.normalizedMode)
+    .filter((key) => resolution.visibleMenuIds.includes(key))
+    .slice(0, 6)
+    .forEach((key) => {
+      const link = button(pageLabel(key), "ghost");
+      link.type = "button";
+      link.addEventListener("click", () => renderPage(key));
+      actions.append(link);
+    });
+  if (resolution.normalizedMode === "academy") {
+    box.append(el("p", "muted", "수납·미납·영수증 기능은 준비 중이며 아직 사용할 수 없습니다."));
+  } else if (resolution.normalizedMode === "integrated_unconfigured") {
+    box.append(el("p", "muted", isSystemOwnerV150()
+      ? "운영 모드를 설정한 뒤 해당 업무 메뉴를 사용할 수 있습니다."
+      : "시스템 소유자가 운영 모드를 설정해야 합니다."));
+  }
+  if (isSystemOwnerV150() && resolution.normalizedMode === "integrated_unconfigured") {
+    const configure = button("운영 모드 설정", "ghost");
+    configure.type = "button";
+    configure.addEventListener("click", () => {
+      sessionStorage.setItem("systemOwnerTabV54", "operationMode");
+      renderPage("systemOwner");
+    });
+    actions.append(configure);
+  }
+  if (actions.children.length) box.append(actions);
+  return box;
+}
+
+function operationModeSystemManagementLabelV154(menuId = "") {
+  return ({
+    "system-status": "시스템 상태",
+    "workspace-management": "워크스페이스 관리",
+    "operation-mode": "운영 모드 설정",
+    "user-permissions": "사용자·권한 관리",
+    "approval-requests": "승인 요청",
+    "system-notices": "시스템 공지",
+    maintenance: "장애·점검 관리",
+    "audit-logs": "감사 로그",
+    "api-integrations": "API 연동 관리",
+    "operations-diagnostics": "운영 진단",
+    "security-checks": "보안 점검"
+  }[String(menuId || "")] || "시스템 관리");
+}
+
+function renderAdminStandaloneOperationModePanelV154() {
+  if (!isStandaloneAdminSiteV60() || !isSystemOwnerV150()) return null;
+  const resolution = operationModeUiForCurrentUserV154(defaultRoleMenusV31().system_owner);
+  const box = panel("선택 워크스페이스 운영 모드");
+  box.dataset.adminStandaloneOperationModeV154 = "true";
+  box.append(
+    el("p", "eyebrow", resolution.modeLabel),
+    el("p", "muted", resolution.modeDescription)
+  );
+  const systemMeta = el("div", "card-meta");
+  resolution.systemManagementMenuIds.forEach((menuId) => {
+    systemMeta.append(el("span", "pill private", operationModeSystemManagementLabelV154(menuId)));
+  });
+  box.append(el("strong", "", "항상 유지되는 시스템 관리"), systemMeta);
+  const workspaceMeta = el("div", "card-meta");
+  resolution.workspaceFeatureMenuIds.slice(0, 14).forEach((menuId) => {
+    workspaceMeta.append(el("span", "pill", `${pageLabel(menuId)} 관리`));
+  });
+  if (workspaceMeta.children.length) {
+    box.append(el("strong", "", "모드별 워크스페이스 관리"), workspaceMeta);
+  } else {
+    box.append(el("div", "empty", "운영 모드가 아직 설정되지 않았습니다."));
+  }
+  if (resolution.normalizedMode === "academy") {
+    box.append(el("p", "muted", "상담·수납·미납·영수증 관리는 준비 중이며 실제 기능처럼 표시하지 않습니다."));
+  }
+  const actions = el("div", "row-actions");
+  const configure = button("운영 모드 설정", "ghost");
+  configure.type = "button";
+  configure.addEventListener("click", () => {
+    sessionStorage.setItem("systemOwnerTabV54", "operationMode");
+    renderSystemOwnerConsoleV54();
+  });
+  actions.append(configure);
+  box.append(actions);
+  return box;
+}
+
+function syncAdminStandaloneOperationModePanelV154() {
+  if (!isStandaloneAdminSiteV60() || !content || currentPage !== "systemOwner") return;
+  content.querySelector("[data-admin-standalone-operation-mode-v154]")?.remove();
+  const tabs = content.querySelector(".system-owner-tabs");
+  const modePanel = renderAdminStandaloneOperationModePanelV154();
+  if (tabs && modePanel) content.insertBefore(modePanel, tabs);
+}
+
+function applyOperationModeUiChangeV154(workspaceId, mode) {
+  const currentWorkspaceId = operationModeWorkspaceIdV154();
+  if (!currentWorkspaceId || String(workspaceId || "") !== currentWorkspaceId) return;
+  const normalizedMode = normalizeOperationModeV154(mode);
+  if (!isStandaloneAdminSiteV60() || currentWorkspaceId === operationModeCanonicalWorkspaceIdV154()) {
+    store.settings ??= {};
+    store.settings.operationMode = normalizedMode;
+  }
+  cacheOperationModeV154(currentWorkspaceId, normalizedMode, "server-confirmed-change", true);
+  invalidateOperationModeUiV154("server-confirmed-mode-change");
+  refreshOperationModeUiV154();
+}
+
+function operationModeHistoryMillisV154(row = {}) {
+  const value = row.occurredAt || row.createdAt || row.timestamp || row.confirmedAt || row.updatedAt;
+  if (typeof value?.toMillis === "function") return Number(value.toMillis()) || 0;
+  if (typeof value?.toDate === "function") return Number(value.toDate()?.getTime?.()) || 0;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function operationModeHistoryTimeLabelV154(row = {}) {
+  const millis = operationModeHistoryMillisV154(row);
+  if (!millis) return "시각 확인 불가";
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(millis));
+}
+
+function maskOperationModeActorEmailV154(value = "") {
+  const [local, domain] = String(value || "").trim().split("@");
+  if (!local || !domain) return "";
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
+function operationModeActorLabelV154(row = {}) {
+  const direct = row.actorDisplayName || row.actorName || row.requestedByName;
+  if (String(direct || "").trim()) return String(direct).trim();
+  const email = maskOperationModeActorEmailV154(row.actorEmail);
+  if (email) return email;
+  const actorId = String(row.actorUid || row.actorId || row.requestedBy || "");
+  const currentId = String(currentUser?.uid || currentUser?.id || "");
+  if (actorId && currentId && actorId === currentId) return "시스템 소유자";
+  return "확인되지 않은 사용자";
+}
+
+async function loadOperationModeHistoryV150(force = false) {
+  if (!isSystemOwnerV150()) return [];
+  if (!force && operationModeHistoryRowsV150.length) return operationModeHistoryRowsV150;
+  operationModeHistoryRowsV150 = (systemOwnerStateV54?.adminLogs || [])
+    .filter((row) => row.action === "workspace_operation_mode_changed")
+    .sort((left, right) => operationModeHistoryMillisV154(right) - operationModeHistoryMillisV154(left));
+  return operationModeHistoryRowsV150;
+}
+
+function operationModeWorkspaceIsUsableV153(row = {}) {
+  const status = String(row.status || "").trim().toLowerCase();
+  return Boolean(row.id || row.workspaceId)
+    && row.deleted !== true
+    && row.disabled !== true
+    && row.archived !== true
+    && !["deleted", "disabled", "archived"].includes(status);
+}
+
+function operationModeWorkspaceRowsV153() {
+  const unique = new Map();
+  (systemOwnerStateV54?.workspaces || [])
+    .filter(operationModeWorkspaceIsUsableV153)
+    .forEach((row) => {
+      const id = String(row.id || row.workspaceId || "");
+      if (id && !unique.has(id)) unique.set(id, row);
+    });
+  return [...unique.values()];
+}
+
+function operationModeCanonicalWorkspaceIdV153() {
+  return String(
+    canonicalWorkspaceCacheV116?.workspaceId
+    || currentUser?.currentWorkspaceId
+    || authWorkspaceStateV36?.currentWorkspaceId
+    || ""
+  ).trim();
+}
+
+function operationModeLoadErrorCodeV153(cause) {
+  const code = String(cause?.code || cause?.message || "").replace(/^firestore\//, "");
+  if (code.includes("permission-denied")) return "permission-denied";
+  if (code.includes("resource-exhausted")) return "resource-exhausted";
+  if (code.includes("unavailable") || code.includes("network")) return "unavailable";
+  if (code.includes("workspace-service-unavailable")) return "operation-mode-workspace-service-unavailable";
+  return "operation-mode-workspace-load-failed";
+}
+
+function recordOperationModeDiagnosticV153(patch = {}) {
+  Object.assign(operationModeDiagnosticsV153, patch);
+  operationModeDiagnosticsV153.isRendering = operationModeEntryStateV153.isRendering;
+  operationModeDiagnosticsV153.isLoading = operationModeEntryStateV153.isLoading;
+}
+
+async function loadOperationModeWorkspaceRowsV153(options = {}) {
+  const liveRows = operationModeWorkspaceRowsV153();
+  if (liveRows.length) {
+    if (operationModeEntryStateV153.currentRequestPromise) {
+      operationModeEntryStateV153.requestToken += 1;
+      operationModeEntryStateV153.currentRequestPromise = null;
+      operationModeEntryStateV153.isLoading = false;
+      operationModeDiagnosticsV153.activeRequestCount = 0;
+    }
+    operationModeEntryStateV153.workspaceRows = liveRows;
+    operationModeEntryStateV153.loaded = true;
+    if (!operationModeDiagnosticsV153.workspaceLoadCount) {
+      operationModeDiagnosticsV153.workspaceLoadCount = 1;
+      operationModeDiagnosticsV153.modeLoadCount = 1;
+    }
+    recordOperationModeDiagnosticV153({ lastLoadReason: "owner-workspace-list", lastErrorCode: "" });
+    return liveRows;
+  }
+  if (operationModeEntryStateV153.loaded && !options.force) {
+    return operationModeEntryStateV153.workspaceRows;
+  }
+  if (operationModeEntryStateV153.currentRequestPromise) {
+    return operationModeEntryStateV153.currentRequestPromise;
+  }
+
+  const requestToken = ++operationModeEntryStateV153.requestToken;
+  const startedAt = Date.now();
+  operationModeEntryStateV153.isLoading = true;
+  operationModeDiagnosticsV153.workspaceLoadCount += 1;
+  operationModeDiagnosticsV153.activeRequestCount = 1;
+  recordOperationModeDiagnosticV153({ lastLoadReason: "workspace-load-started", lastErrorCode: "" });
+
+  operationModeEntryStateV153.currentRequestPromise = (async () => {
+    try {
+      let canonicalWorkspaceId = operationModeCanonicalWorkspaceIdV153();
+      if (!canonicalWorkspaceId && typeof resolveCanonicalCurrentWorkspaceIdV116 === "function") {
+        canonicalWorkspaceId = String(await resolveCanonicalCurrentWorkspaceIdV116("operation-mode-entry-v153") || "");
+      }
+      if (!canonicalWorkspaceId) {
+        if (requestToken === operationModeEntryStateV153.requestToken) {
+          operationModeEntryStateV153.workspaceRows = [];
+          operationModeEntryStateV153.loaded = true;
+          recordOperationModeDiagnosticV153({ lastLoadReason: "workspace-empty", lastErrorCode: "" });
+        }
+        return [];
+      }
+      const reader = window.PMSystemAdminService?.getWorkspaceById;
+      if (typeof reader !== "function") {
+        const error = new Error("operation-mode-workspace-service-unavailable");
+        error.code = "operation-mode-workspace-service-unavailable";
+        throw error;
+      }
+      const fallbackWorkspace = await reader(canonicalWorkspaceId);
+      const rows = operationModeWorkspaceIsUsableV153(fallbackWorkspace) ? [fallbackWorkspace] : [];
+      if (requestToken === operationModeEntryStateV153.requestToken) {
+        operationModeEntryStateV153.workspaceRows = rows;
+        operationModeEntryStateV153.loaded = true;
+        operationModeDiagnosticsV153.modeLoadCount += rows.length ? 1 : 0;
+        recordOperationModeDiagnosticV153({
+          lastLoadReason: rows.length ? "canonical-workspace-fallback" : "workspace-empty",
+          lastErrorCode: ""
+        });
+      }
+      return rows;
+    } catch (cause) {
+      const code = operationModeLoadErrorCodeV153(cause);
+      if (requestToken === operationModeEntryStateV153.requestToken) {
+        operationModeEntryStateV153.loaded = false;
+        recordOperationModeDiagnosticV153({ lastLoadReason: "workspace-load-failed", lastErrorCode: code });
+      }
+      throw cause;
+    } finally {
+      if (requestToken === operationModeEntryStateV153.requestToken) {
+        operationModeEntryStateV153.isLoading = false;
+        operationModeDiagnosticsV153.activeRequestCount = 0;
+        operationModeDiagnosticsV153.lastDurationMs = Date.now() - startedAt;
+        operationModeEntryStateV153.currentRequestPromise = null;
+        recordOperationModeDiagnosticV153();
+      }
+    }
+  })();
+  return operationModeEntryStateV153.currentRequestPromise;
+}
+
+function operationModeErrorMessageV150(code = "") {
+  return ({
+    "operation-mode-system-owner-required": "시스템관리자만 운영 모드를 변경할 수 있습니다.",
+    "operation-mode-workspace-required": "변경할 워크스페이스를 선택해 주세요.",
+    "operation-mode-workspace-not-found": "선택한 워크스페이스를 서버에서 찾을 수 없습니다.",
+    "operation-mode-workspace-service-unavailable": "워크스페이스 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "operation-mode-workspace-load-failed": "워크스페이스 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "operation-mode-reason-required": "변경 사유를 입력해 주세요.",
+    "operation-mode-server-confirm-failed": "운영 모드 변경 후 서버 확인에 실패했습니다. 변경 완료로 처리하지 않았습니다.",
+    "operation-mode-data-preservation-failed": "데이터 건수 보존 확인에 실패했습니다. 운영 모드를 다시 확인해 주세요.",
+    "permission-denied": "현재 권한으로 운영 모드와 이력을 함께 저장할 수 없습니다. RULES-BLOCKED 상태입니다.",
+    "operation-mode-auth-unavailable": "인증 상태를 확인하지 못했습니다. 다시 로그인한 뒤 시도해 주세요."
+  }[String(code || "")] || "운영 모드 변경을 완료하지 못했습니다. 권한과 서버 상태를 확인해 주세요.");
+}
+
+function populateOperationModeAdminV153(host, rows) {
+  host.replaceChildren();
+  if (!rows.length) {
+    host.append(el("div", "empty", "변경할 수 있는 워크스페이스가 없습니다."));
+    return;
+  }
+  const form = document.createElement("form"); form.className = "form-grid"; form.noValidate = true;
+  const workspace = document.createElement("select"); workspace.name = "workspaceId";
+  rows.forEach((row) => {
+    const id = String(row.id || row.workspaceId || "");
+    if (id) workspace.append(option(id, workspaceNameV60?.(row) || "워크스페이스"));
+  });
+  const canonical = String(userWorkspaceIdV54?.(currentUser) || "");
+  if (canonical && [...workspace.options].some((item) => item.value === canonical)) workspace.value = canonical;
+  selectAdminStandaloneOperationModeWorkspaceV154(workspace.value);
+  const mode = document.createElement("select"); mode.name = "operationMode";
+  OPERATION_MODE_OPTIONS_V150.forEach(([key, label]) => mode.append(option(key, label)));
+  const reason = document.createElement("textarea"); reason.name = "reason"; reason.placeholder = "변경 사유를 입력해 주세요.";
+  const current = el("p", "wide muted", "");
+  const impact = el("p", "wide muted", "");
+  const preserved = el("p", "wide muted", `보존 데이터: ${operationModeDataLabelsV150().join(", ")}. 모드 변경은 데이터 삭제·이동·변환을 하지 않습니다.`);
+  const error = el("p", "wide muted", "");
+  const refreshDescription = () => {
+    const selected = operationModeForWorkspaceV150(workspace.value);
+    current.textContent = `현재 운영 모드: ${operationModeLabelV150(selected)}`;
+    if (!mode.dataset.userSelected) mode.value = selected;
+    impact.textContent = `변경 시 화면 영향: ${operationModeImpactTextV150(mode.value)}`;
+  };
+  workspace.addEventListener("change", () => {
+    selectAdminStandaloneOperationModeWorkspaceV154(workspace.value);
+    delete mode.dataset.userSelected;
+    refreshDescription();
+  });
+  mode.addEventListener("change", () => { mode.dataset.userSelected = "true"; refreshDescription(); });
+  refreshDescription();
+  const submit = button("운영 모드 적용", "primary"); submit.type = "submit";
+  form.append(makeField("워크스페이스", "operation-mode-workspace-v150", workspace), makeField("변경할 운영 모드", "operation-mode-value-v150", mode), makeField("변경 사유", "operation-mode-reason-v150", reason), current, impact, preserved, submit, error);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(form).entries());
+    if (!String(payload.reason || "").trim()) { error.textContent = "변경 사유를 입력해 주세요."; return; }
+    if (!window.confirm("운영 모드를 변경할까요? 기존 데이터는 삭제·이동·변환되지 않습니다.")) return;
+    error.textContent = "계정 확인 후 서버에 적용합니다.";
+    requirePassword(async () => {
+      submit.disabled = true;
+      try {
+        if (!isSystemOwnerV150()) throw learningWriteErrorV137("operation-mode-system-owner-required");
+        const result = await window.PMSystemAdminService?.changeWorkspaceOperationMode?.(payload);
+        if (!result?.dataPreserved) throw learningWriteErrorV137("operation-mode-data-preservation-failed");
+        const target = operationModeWorkspaceV150(payload.workspaceId);
+        if (target) Object.assign(target, { operationMode: result.nextMode, operationModeReason: String(payload.reason).trim() });
+        if (String(payload.workspaceId) === canonical) store.settings.operationMode = result.nextMode;
+        operationModeHistoryRowsV150 = [];
+        applyOperationModeUiChangeV154(payload.workspaceId, result.nextMode);
+        showMessage("운영 모드 적용 완료", `${operationModeLabelV150(result.nextMode)}로 변경했고 데이터 건수 보존을 확인했습니다.`);
+        renderSystemOwnerConsoleV54();
+      } catch (cause) {
+        error.textContent = operationModeErrorMessageV150(String(cause?.code || ""));
+      } finally { submit.disabled = false; }
+    });
+  });
+  host.append(form);
+  const historyHeading = el("div", "row-actions");
+  const historyTitle = el("h3", "", "변경 이력");
+  const historyButton = button("변경 이력 보기", "ghost");
+  historyButton.type = "button";
+  const history = el("div", "list");
+  history.append(el("div", "empty", "변경 이력을 보려면 버튼을 눌러 주세요."));
+  historyButton.addEventListener("click", async () => {
+    historyButton.disabled = true;
+    operationModeDiagnosticsV153.historyLoadCount += 1;
+    try {
+      const historyRows = await loadOperationModeHistoryV150(true);
+      history.replaceChildren();
+      if (!historyRows.length) history.append(el("div", "empty", "표시할 운영 모드 변경 이력이 없습니다."));
+      historyRows.slice(0, 20).forEach((row) => {
+        const item = el("div", "list-item");
+        item.append(
+          el("strong", "", `${operationModeLabelV150(row.previousMode)} → ${operationModeLabelV150(row.nextMode)}`),
+          el("p", "muted", `${operationModeHistoryTimeLabelV154(row)} · 변경자 ${operationModeActorLabelV154(row)}`),
+          el("p", "", String(row.reason || "사유 없음")),
+          el("p", "muted", row.serverConfirmed === true && row.dataPreserved === true ? "서버 확인 완료" : "서버 확인 대기")
+        );
+        history.append(item);
+      });
+    } catch (cause) {
+      error.textContent = operationModeErrorMessageV150(String(cause?.code || ""));
+    } finally {
+      historyButton.disabled = false;
+    }
+  });
+  historyHeading.append(historyTitle, historyButton);
+  host.append(historyHeading, history);
+}
+
+function renderOperationModeAdminV153() {
+  operationModeDiagnosticsV153.renderCount += 1;
+  const box = panel("워크스페이스 운영 모드");
+  if (!isSystemOwnerV150()) {
+    box.append(el("div", "restricted", "시스템관리자만 접근할 수 있습니다."));
+    return box;
+  }
+  const host = el("div", "operation-mode-entry-v153");
+  host.append(el("div", "empty", "워크스페이스 정보를 불러오는 중입니다."));
+  box.append(host);
+  loadOperationModeWorkspaceRowsV153()
+    .then((rows) => {
+      if (!host.isConnected || currentPage !== "systemOwner" || (sessionStorage.getItem("systemOwnerTabV54") || "") !== "operationMode") return;
+      operationModeEntryStateV153.isRendering = true;
+      recordOperationModeDiagnosticV153();
+      try {
+        populateOperationModeAdminV153(host, rows);
+        recordOperationModeDiagnosticV153({
+          lastSuccessfulRenderAt: new Date().toISOString(),
+          lastErrorCode: ""
+        });
+      } finally {
+        operationModeEntryStateV153.isRendering = false;
+        recordOperationModeDiagnosticV153();
+      }
+    })
+    .catch((cause) => {
+      if (!host.isConnected) return;
+      const code = operationModeLoadErrorCodeV153(cause);
+      const retry = button("다시 시도", "ghost");
+      retry.type = "button";
+      retry.addEventListener("click", () => {
+        operationModeEntryStateV153.loaded = false;
+        host.replaceChildren(el("div", "empty", "워크스페이스 정보를 불러오는 중입니다."));
+        renderOperationModeAdminContentV153(host);
+      }, { once: true });
+      host.replaceChildren(
+        el("div", "empty", "워크스페이스 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."),
+        retry
+      );
+      recordOperationModeDiagnosticV153({ lastErrorCode: code });
+    });
+  return box;
+}
+
+function renderOperationModeAdminContentV153(host) {
+  return loadOperationModeWorkspaceRowsV153({ force: true })
+    .then((rows) => {
+      if (!host.isConnected) return;
+      operationModeEntryStateV153.isRendering = true;
+      recordOperationModeDiagnosticV153();
+      try {
+        populateOperationModeAdminV153(host, rows);
+        recordOperationModeDiagnosticV153({
+          lastSuccessfulRenderAt: new Date().toISOString(),
+          lastErrorCode: ""
+        });
+      } finally {
+        operationModeEntryStateV153.isRendering = false;
+        recordOperationModeDiagnosticV153();
+      }
+    })
+    .catch((cause) => {
+      if (!host.isConnected) return;
+      host.replaceChildren(el("div", "empty", "워크스페이스 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."));
+      recordOperationModeDiagnosticV153({ lastErrorCode: operationModeLoadErrorCodeV153(cause) });
+    });
+}
+
+const renderSystemOwnerConsoleBeforeV150 = renderSystemOwnerConsoleV54;
+renderSystemOwnerConsoleV54 = function renderSystemOwnerConsoleV153() {
+  const selected = sessionStorage.getItem("systemOwnerTabV54") || "join";
+  if (selected !== "operationMode") {
+    const result = renderSystemOwnerConsoleBeforeV150.apply(this, arguments);
+    const tabs = content.querySelector(".system-owner-tabs");
+    if (tabs && isSystemOwnerV150() && !tabs.querySelector("[data-operation-mode-tab-v150]")) {
+      const modeButton = button("워크스페이스 운영 모드", "ghost"); modeButton.type = "button"; modeButton.dataset.operationModeTabV150 = "true";
+      modeButton.addEventListener("click", () => { sessionStorage.setItem("systemOwnerTabV54", "operationMode"); renderSystemOwnerConsoleV54(); });
+      tabs.append(modeButton);
+    }
+    syncAdminStandaloneOperationModePanelV154();
+    return result;
+  }
+  sessionStorage.setItem("systemOwnerTabV54", "logs");
+  const result = renderSystemOwnerConsoleBeforeV150.apply(this, arguments);
+  sessionStorage.setItem("systemOwnerTabV54", "operationMode");
+  if (!isSystemOwnerV150()) return result;
+  const tabs = content.querySelector(".system-owner-tabs");
+  if (!tabs) return result;
+  content.lastElementChild?.remove();
+  tabs.querySelectorAll("button").forEach((item) => item.classList.remove("active"));
+  const modeButton = button("워크스페이스 운영 모드", "ghost"); modeButton.type = "button"; modeButton.dataset.operationModeTabV150 = "true"; modeButton.classList.add("active");
+  modeButton.addEventListener("click", () => { sessionStorage.setItem("systemOwnerTabV54", "operationMode"); renderSystemOwnerConsoleV54(); });
+  tabs.append(modeButton);
+  syncAdminStandaloneOperationModePanelV154();
+  content.append(renderOperationModeAdminV153());
+  return result;
+};
+
+window.PMModeDiagnostics = {
+  snapshot: () => ({ ...operationModeDiagnosticsV153 })
+};
+store.settings.appVersion = APP_PATCH_VERSION_V154;
+
+const ownerPreviewModeSnapshotBeforeV150 = ownerPreviewModeSnapshotV128;
+ownerPreviewModeSnapshotV128 = function ownerPreviewModeSnapshotV150() {
+  const previous = ownerPreviewModeSnapshotBeforeV150?.() || {};
+  const workspaceId = String(userWorkspaceIdV54?.(currentUser) || "");
+  const stored = operationModeForWorkspaceV150(workspaceId);
+  const fallback = String(previous.mode || "").replace(/-/g, "_");
+  const mode = stored !== "integrated_unconfigured" ? stored : OPERATION_MODE_OPTIONS_V150.some(([key]) => key === fallback) ? fallback : "integrated_unconfigured";
+  return { ...previous, mode, modeSource: mode === "integrated_unconfigured" ? "unresolved" : "workspace-operation-mode", modeSwitchImplemented: mode !== "integrated_unconfigured", menuModeFilterApplied: true };
+};
+
+function examGradeModeInfoV150() {
+  const mode = String(ownerPreviewModeSnapshotV128()?.mode || "integrated_unconfigured").replace(/-/g, "_");
+  return ({ personal: { key: "personal", label: "개인 모드", configured: true }, school: { key: "school", label: "학교 모드", configured: true }, academy: { key: "academy", label: "학원 모드", configured: true } }[mode] || { key: "integrated_unconfigured", label: "운영 모드 미설정", configured: false });
+}
+
+examGradeModeInfoV149 = examGradeModeInfoV150;
+
+function examGradeModeContractV150() {
+  const mode = examGradeModeInfoV150();
+  const wrap = el("section", "exam-grade-mode-contract-v150");
+  const lines = mode.key === "personal"
+    ? ["학생 선택 없이 현재 로그인 사용자의 성적과 분석을 표시합니다.", "내부 전자결재는 기본적으로 표시하지 않습니다."]
+    : mode.key === "school"
+      ? ["학년도·학년·반·학생·과목·평가계획을 기준으로 입력합니다.", "평가계획, 성취도 정책, 성적 정정은 내부 검토·승인 흐름을 사용합니다."]
+      : mode.key === "academy"
+        ? ["운영연도·반 또는 수업·학생·담당 강사·과목을 기준으로 입력합니다.", "수납과 금전 결제는 이 화면의 범위가 아닙니다."]
+        : ["운영 모드를 설정하면 화면의 선택 항목과 안내 문구가 해당 업무 흐름에 맞춰집니다.", "기존 데이터는 유지되며 모드 변경만으로 문서가 삭제되거나 이동하지 않습니다."];
+  wrap.append(el("h3", "", mode.label), ...lines.map((line) => el("p", "muted", line)), el("p", "muted", "학교 내부 평가업무를 보조하기 위한 관리 기능이며, 공식 NEIS 입력과 학교 규정에 따른 최종 확인은 별도로 필요합니다."));
+  return wrap;
+}
+
+function examGradeStatusFieldV150() {
+  return ["상태", "status", "select", "draft", ASSESSMENT_PLAN_STATUS_OPTIONS_V150];
+}
+
+function examGradePlanDetailsV150(row = {}) {
+  const detail = [
+    ["계획명", row.name], ["학년도", row.academicYear], ["학년", row.gradeLevel], ["학기", row.term], ["과목", examGradeReferenceLabelV138("subjects", examGradeReferenceRowsV138("subjects").find((item) => String(item.id) === String(row.subjectId)) || {})],
+    ["반/그룹", row.classId], ["상태", assessmentPlanStatusLabelV150(row.status)], ["버전", row.version || 1]
+  ].filter(([, value]) => value !== undefined && value !== null && String(value) !== "").map(([label, value]) => `${label}: ${value}`).join("\n");
+  showMessage("평가계획 상세", detail || "표시할 평가계획 정보가 없습니다.");
+}
+
+function examGradeCreateApprovalV150(plan) {
+  if (!plan?.id) return;
+  const reason = window.prompt("결재 요청 사유를 입력해 주세요.", "");
+  if (reason === null || !String(reason).trim()) return;
+  requirePassword(async () => {
+    try {
+      const { runtime, workspaceId } = await learningWriteRuntimeV137("grade-approval-request-v150");
+      const reviewers = examGradeReferenceRowsV138("people").filter((row) => ["manager", "teacher"].includes(String(row.role || row.currentRole || ""))).map((row) => ({ displayName: examGradeStudentLabelV149(row) || examGradeReferenceLabelV138("people", row), role: String(row.role || row.currentRole || "") })).filter((row) => row.displayName).slice(0, 3);
+      const ref = runtime.db.collection("workspaces").doc(workspaceId).collection("gradeApprovals").doc(`grade-approval-${Date.now()}-${examGradeHashV138(plan.id)}`);
+      await ref.set(cleanFirestoreObjectV52({ documentType: "assessment_plan", title: String(plan.name || "평가계획"), assessmentPlanId: String(plan.id), academicYear: String(plan.academicYear || ""), term: String(plan.term || ""), subjectId: String(plan.subjectId || ""), classId: String(plan.classId || ""), reason: String(reason).trim(), status: "review_requested", reviewers, operationMode: examGradeModeInfoV150().key, version: Number(plan.version || 1), requestedByName: String(currentUser?.displayName || currentUser?.name || "작성자"), reauthenticated: true, createdAt: firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }), { merge: true });
+      const confirmed = await ref.get({ source: "server" });
+      if (!confirmed.exists || confirmed.metadata?.hasPendingWrites) throw learningWriteErrorV137("grade-approval-server-confirm-failed");
+      await writeExamGradeRowV138("plans", { ...plan, status: "review_requested", approvalStatus: "review_requested", version: Number(plan.version || 1) + 1 }, plan.id);
+      showMessage("결재 요청 완료", "서버 확인을 마친 내부 결재 요청을 등록했습니다.");
+      renderExamsV6();
+    } catch (cause) {
+      showMessage("결재 요청 실패", String(cause?.code || "") === "permission-denied" ? "RULES-BLOCKED: 현재 권한으로 결재 요청을 저장할 수 없습니다." : "결재 요청을 서버에서 확인하지 못했습니다.");
+    }
+  });
+}
+
+const examGradePlanTabBeforeV150 = examGradePlanTabV138;
+examGradePlanTabV138 = function examGradePlanTabV150() {
+  const wrap = examGradePlanTabBeforeV150();
+  const form = wrap.querySelector("form");
+  const status = form?.querySelector('[name="status"]');
+  if (status && status.tagName !== "SELECT") {
+    const select = document.createElement("select"); select.name = "status"; ASSESSMENT_PLAN_STATUS_OPTIONS_V150.forEach(([key, label]) => select.append(option(key, label))); select.value = String(status.value || "draft"); status.replaceWith(select);
+  }
+  const list = wrap.querySelector(".exam-grade-list-v139, .list");
+  if (list) {
+    examGradeRowsForKindV139("plans").forEach((row) => {
+      const actions = el("div", "row-actions");
+      const detail = button("상세보기", "ghost"); detail.type = "button"; detail.addEventListener("click", () => examGradePlanDetailsV150(row));
+      const approval = button("결재 요청", "ghost"); approval.type = "button"; approval.addEventListener("click", () => examGradeCreateApprovalV150(row));
+      actions.append(detail, approval);
+      const target = [...list.children].find((item) => item.textContent?.includes(examGradeSafeLabelV139(row)));
+      target?.append(actions);
+    });
+  }
+  return wrap;
+};
+
+const examGradeFormBeforeV150 = examGradeFormV138;
+examGradeFormV138 = function examGradeFormV150(fields, submitLabel, onSubmit) {
+  const form = document.createElement("form"); form.className = "form-grid exam-grade-form-v138"; form.noValidate = true;
+  fields.forEach((field) => form.append(examGradeFieldV138(...field)));
+  const error = el("p", "wide muted", "성적 관련 저장은 계정 확인 후 서버에서 확인됩니다.");
+  const submit = document.createElement("button"); submit.type = "submit"; submit.textContent = submitLabel;
+  form.append(submit, error);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    error.textContent = "계정 확인을 진행합니다.";
+    requirePassword(async () => {
+      if (submit.disabled) return;
+      submit.disabled = true;
+      try { await onSubmit(Object.fromEntries(new FormData(form).entries())); error.textContent = "서버 확인 후 저장했습니다."; renderExamsV6(); }
+      catch (cause) { error.textContent = examGradeErrorMessageV138(String(cause?.code || "")); }
+      finally { submit.disabled = false; }
+    });
+  });
+  return form;
+};
+
+const renderExamsBeforeV150 = renderExamsV6;
+renderExamsV6 = function renderExamsV150() {
+  const result = renderExamsBeforeV150();
+  if (currentPage === "exams") content.querySelector(".panel")?.append(examGradeModeContractV150());
+  return result;
+};
+
+window.PMExamGradeDiagnostics = {
+  snapshot: () => ({
+    ...examGradeDiagnosticsV138,
+    appVersion: APP_PATCH_VERSION_V150,
+    operationMode: examGradeModeInfoV150().key,
+    studentSource: examGradeStudentAdapterV149().source,
+    studentCount: examGradeStudentAdapterV149().rows.length,
+    approvalFlow: "server-confirmed-when-rules-allow",
+    activeListenerCount: 0,
+    auditLogWriteCount: 0,
+    sensitiveValueDetected: false
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V154;
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V150;
+
+// Batch 10E follow-up: the grade surface owns only explicit, server-confirmed
+// mutations. It never creates sample students, changes a workspace mode, or
+// relies on the workspace sync queue for these records.
+const APP_PATCH_VERSION_V151 = "v151.0 - 2026-07-28";
+const GRADE_POLICY_SCOPE_OPTIONS_V151 = Object.freeze([
+  ["workspace", "현재 워크스페이스 전체"], ["academic-year", "특정 학년도"],
+  ["academic-year-term", "특정 학년도·학기"], ["subject", "특정 과목"],
+  ["academic-year-term-subject", "특정 학년도·학기·과목"], ["grade-subject", "특정 학년·과목"],
+  ["class-subject", "특정 반·그룹·과목"], ["assessment-plan", "특정 평가계획"]
+]);
+const GRADE_SCORE_SOURCE_OPTIONS_V151 = Object.freeze([
+  ["percentage", "백분율 점수"], ["raw_score", "원점수"], ["weighted_score", "반영 점수"], ["course_total", "과목 종합 점수"]
+]);
+
+function examGradeAuditPayloadV151(action, kind, row = {}, before = {}) {
+  return cleanFirestoreObjectV52({
+    action, documentType: String(kind || ""), documentTitle: examGradeSafeLabelV139(row, "성적 관리 문서"),
+    operationMode: examGradeModeInfoV150().key, academicYear: String(row.academicYear || before.academicYear || ""),
+    term: String(row.term || before.term || ""), subjectId: String(row.subjectId || before.subjectId || ""),
+    assessmentPlanId: String(row.assessmentPlanId || before.assessmentPlanId || ""),
+    previousVersion: Number(before.version || 0), nextVersion: Number(row.version || before.version || 1),
+    reauthenticated: true, serverConfirmed: false, appVersion: APP_PATCH_VERSION_V151
+  });
+}
+
+function examGradeAuditRefV151(runtime, workspaceId, action, kind, rowId) {
+  return runtime.db.collection("workspaces").doc(workspaceId).collection("gradeAuditLogs")
+    .doc(`grade-audit-${Date.now()}-${examGradeHashV138(`${action}|${kind}|${rowId}|${Math.random()}`)}`);
+}
+
+const writeExamGradeRowBeforeV151 = writeExamGradeRowV138;
+writeExamGradeRowV138 = async function writeExamGradeRowV151(kind, payload, existingId = "") {
+  if (examGradeWriteInFlightV138) throw learningWriteErrorV137("assessment-write-in-flight");
+  if (!can("create", "exams") && !can("edit", "exams")) throw learningWriteErrorV137("assessment-unauthorized");
+  examGradeWriteInFlightV138 = true;
+  examGradeDiagnosticsV138.writeAttemptCount += 1;
+  try {
+    const { runtime, workspaceId } = await learningWriteRuntimeV137(`assessment-${kind}-write-v151`);
+    const collection = EXAM_GRADE_COLLECTIONS_V138[kind];
+    if (!workspaceId || !collection) throw learningWriteErrorV137(!workspaceId ? "assessment-workspace-unresolved" : "assessment-kind-invalid");
+    const deterministicId = kind === "results"
+      ? `assessment-result-${examGradeHashV138(`${payload.assessmentId}|${payload.studentId}`)}`
+      : kind === "questions" ? `assessment-question-${examGradeHashV138(`${payload.assessmentId}|${payload.questionNumber}`)}`
+        : kind === "answers" ? `student-answer-${examGradeHashV138(`${payload.assessmentId}|${payload.studentId}|${payload.questionNumber}`)}`
+          : `${collection}-${Date.now()}-${examGradeHashV138(Math.random())}`;
+    const id = String(existingId || deterministicId);
+    const previous = examGradeRowsV138(kind).find((item) => String(item.id) === id) || {};
+    const FieldValue = firebase.firestore.FieldValue;
+    const row = cleanFirestoreObjectV52({ ...payload, id, workspaceId, workspace_id: workspaceId, version: Number(previous.version || payload.version || 0) + 1, updatedAt: FieldValue.serverTimestamp() });
+    if (!existingId) row.createdAt = FieldValue.serverTimestamp();
+    const ref = runtime.db.collection("workspaces").doc(workspaceId).collection(collection).doc(id);
+    const auditRef = examGradeAuditRefV151(runtime, workspaceId, existingId ? "grade_update" : "grade_create", kind, id);
+    const batch = runtime.db.batch();
+    batch.set(ref, row, { merge: true });
+    batch.set(auditRef, { ...examGradeAuditPayloadV151(existingId ? "grade_update" : "grade_create", kind, row, previous), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    await batch.commit();
+    const [confirmed, audit] = await Promise.all([ref.get({ source: "server" }), auditRef.get({ source: "server" })]);
+    if (!confirmed.exists || !audit.exists || confirmed.metadata?.hasPendingWrites || audit.metadata?.hasPendingWrites) throw learningWriteErrorV137("assessment-server-confirm-failed");
+    const confirmedRow = { id, ...(confirmed.data() || {}) };
+    const rows = examGradeRowsV138(kind); const index = rows.findIndex((item) => String(item.id) === id);
+    if (index >= 0) rows[index] = confirmedRow; else rows.unshift(confirmedRow);
+    window.PMWorkspaceDataService?.discardPendingRow?.(collection, id);
+    saveStore({ skipRemote: true, syncReason: `assessment-${kind}-server-confirmed-v151` });
+    examGradeDiagnosticsV138.writeConfirmedCount += 1; examGradeDiagnosticsV138.auditLogWriteCount += 1; examGradeDiagnosticsV138.lastResult = "server-confirmed";
+    return confirmedRow;
+  } catch (error) {
+    examGradeDiagnosticsV138.writeFailureCount += 1; examGradeDiagnosticsV138.lastErrorCode = String(error?.code || "assessment-write-failed"); examGradeDiagnosticsV138.lastResult = "write-failed";
+    throw error;
+  } finally { examGradeWriteInFlightV138 = false; }
+};
+
+const deleteExamGradeRowsBeforeV151 = deleteExamGradeRowsWithServerConfirmV139;
+deleteExamGradeRowsWithServerConfirmV139 = async function deleteExamGradeRowsWithServerConfirmV151(kind, ids) {
+  const collection = EXAM_GRADE_COLLECTIONS_V138[kind]; const uniqueIds = [...new Set(ids.map(String).filter(Boolean))];
+  if (!collection || !uniqueIds.length || examGradeDeleteInFlightV139) return;
+  const linked = examGradeDependenciesV139(kind, uniqueIds);
+  if (linked) return showMessage("삭제 차단", `연결된 항목 ${linked}건이 있어 자동 연쇄 삭제하지 않습니다.`);
+  examGradeDeleteInFlightV139 = true;
+  try {
+    const { runtime, workspaceId } = await learningWriteRuntimeV137(`assessment-${kind}-delete-v151`);
+    const FieldValue = firebase.firestore.FieldValue;
+    for (const id of uniqueIds) {
+      const previous = examGradeRowsForKindV139(kind).find((row) => String(row.id) === id) || { id };
+      const ref = runtime.db.collection("workspaces").doc(workspaceId).collection(collection).doc(id);
+      const auditRef = examGradeAuditRefV151(runtime, workspaceId, "grade_delete", kind, id);
+      const batch = runtime.db.batch();
+      batch.delete(ref);
+      batch.set(auditRef, { ...examGradeAuditPayloadV151("grade_delete", kind, previous, previous), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      await batch.commit();
+      const [confirmed, audit] = await Promise.all([ref.get({ source: "server" }), auditRef.get({ source: "server" })]);
+      if (confirmed.exists || !audit.exists || confirmed.metadata?.hasPendingWrites || audit.metadata?.hasPendingWrites) throw learningWriteErrorV137("assessment-delete-server-confirm-failed");
+      examGradeDiagnosticsV138.auditLogWriteCount += 1;
+    }
+    store[collection] = examGradeRowsForKindV139(kind).filter((row) => !uniqueIds.includes(String(row.id)));
+    examGradeSelectionV139.delete(kind); saveStore({ skipRemote: true, syncReason: `assessment-${kind}-delete-server-confirmed-v151` });
+    examGradeDiagnosticsV138.lastResult = "delete-server-confirmed"; renderExamsV6(); showMessage("삭제 완료", `서버 확인 후 ${uniqueIds.length}건을 삭제했습니다.`);
+  } catch (error) {
+    examGradeDiagnosticsV138.lastErrorCode = String(error?.code || "assessment-delete-failed");
+    showMessage("삭제 실패", String(error?.code || "") === "permission-denied" ? "RULES-BLOCKED: 감사 로그 권한을 포함한 삭제 권한을 확인해 주세요." : "서버 삭제와 감사 기록을 함께 확인하지 못했습니다. 목록은 유지합니다.");
+  } finally { examGradeDeleteInFlightV139 = false; }
+};
+
+function examGradePlanFieldsV151(subjectOptions) {
+  return [["계획명", "name", "text"], ["학년도", "academicYear", "text"], ["학년", "gradeLevel", "text"], ["학기", "term", "text"], ["반·그룹", "classId", "text"], ["과목", "subjectId", "select", "", subjectOptions], ["상태", "status", "select", "draft", ASSESSMENT_PLAN_STATUS_OPTIONS_V150], ["평가 목적", "purpose", "textarea"], ["평가 방식", "method", "textarea"], ["결시 처리", "absencePolicy", "text"], ["동점자 처리", "tiePolicy", "text"]];
+}
+
+function examGradeFillFormV151(form, row = {}) {
+  [...form.elements].forEach((input) => { if (input?.name && Object.prototype.hasOwnProperty.call(row, input.name)) input.value = String(row[input.name] ?? ""); });
+  form.dataset.editId = String(row.id || "");
+  form.querySelector('button[type="submit"]')?.replaceChildren(document.createTextNode(row.id ? "평가계획 수정 저장" : "평가계획 저장"));
+}
+
+examGradePlanTabV138 = function examGradePlanTabV151() {
+  const rows = examGradeRowsForKindV139("plans"); const subjects = examGradeReferenceRowsV138("subjects");
+  const subjectOptions = subjects.map((row) => [row.id, examGradeReferenceLabelV138("subjects", row)]).filter(([id, label]) => id && label);
+  const wrap = el("div", "exam-grade-tab-v151");
+  wrap.append(el("p", "muted", "평가계획은 승인 요청 뒤에는 바로 수정할 수 없습니다. 회수 또는 새 변경 요청 절차를 사용해 주세요."));
+  let form;
+  form = examGradeFormV138(examGradePlanFieldsV151(subjectOptions), "평가계획 저장", async (payload) => {
+    const editing = rows.find((row) => String(row.id) === String(form.dataset.editId || ""));
+    if (editing && ["review_requested", "under_review", "approved", "finalized"].includes(String(editing.status || ""))) throw learningWriteErrorV137("assessment-plan-locked");
+    if (!String(payload.name || "").trim() || !String(payload.subjectId || "").trim()) throw learningWriteErrorV137("assessment-required-field-missing");
+    await writeExamGradeRowV138("plans", { ...editing, ...payload, status: payload.status || "draft", included: true }, editing?.id || "");
+  });
+  wrap.append(form, examGradeSelectionActionsV139("plans", "평가계획", rows));
+  const list = el("div", "list exam-grade-list-v151");
+  rows.forEach((row) => {
+    const card = el("div", "list-item"); card.append(el("span", "", `${examGradeSafeLabelV139(row, "평가계획")} · ${assessmentPlanStatusLabelV150(row.status)}`));
+    const actions = el("div", "row-actions");
+    const detail = button("상세보기", "ghost"); detail.type = "button"; detail.addEventListener("click", () => examGradePlanDetailsV150(row));
+    const edit = button("수정", "ghost"); edit.type = "button"; edit.disabled = ["review_requested", "under_review", "approved", "finalized"].includes(String(row.status || "")); edit.addEventListener("click", () => examGradeFillFormV151(form, row));
+    const request = button("결재 요청", "ghost"); request.type = "button"; request.disabled = !["draft", "rejected"].includes(String(row.status || "draft")); request.addEventListener("click", () => examGradeCreateApprovalV151(row));
+    const remove = button("삭제", "danger"); remove.type = "button"; remove.disabled = edit.disabled; remove.addEventListener("click", () => requestSensitiveDeleteV139("평가계획", 1, () => deleteExamGradeRowsWithServerConfirmV139("plans", [row.id])));
+    actions.append(detail, edit, request, remove); card.append(actions); list.append(card);
+  });
+  if (!rows.length) list.append(el("div", "empty", "등록된 평가계획이 없습니다.")); wrap.append(list); return wrap;
+};
+
+function examGradeCreateApprovalV151(plan) {
+  if (!plan?.id || !["draft", "rejected"].includes(String(plan.status || "draft"))) return;
+  const reason = window.prompt("결재 요청 사유를 입력해 주세요.", ""); if (reason === null || !String(reason).trim()) return;
+  requirePassword(async () => {
+    try {
+      const { runtime, workspaceId } = await learningWriteRuntimeV137("grade-approval-request-v151");
+      const FieldValue = firebase.firestore.FieldValue; const approvalId = `grade-approval-${examGradeHashV138(plan.id)}`;
+      const approvalRef = runtime.db.collection("workspaces").doc(workspaceId).collection("gradeApprovals").doc(approvalId);
+      const planRef = runtime.db.collection("workspaces").doc(workspaceId).collection("assessmentPlans").doc(String(plan.id));
+      const auditRef = examGradeAuditRefV151(runtime, workspaceId, "approval_request", "plans", String(plan.id));
+      const reviewers = examGradeReferenceRowsV138("people").filter((row) => ["super_manager", "manager", "teacher"].includes(String(row.workspaceRole || row.currentRole || row.role || ""))).map((row) => ({ displayName: examGradeStudentLabelV149(row) || examGradeReferenceLabelV138("people", row), role: String(row.workspaceRole || row.currentRole || row.role || "") })).filter((row) => row.displayName).slice(0, 3);
+      const batch = runtime.db.batch();
+      batch.set(approvalRef, cleanFirestoreObjectV52({ documentType: "assessment_plan", documentTitle: examGradeSafeLabelV139(plan, "평가계획"), assessmentPlanId: String(plan.id), status: "review_requested", reason: String(reason).trim(), reviewers, operationMode: examGradeModeInfoV150().key, version: Number(plan.version || 1), reauthenticated: true, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }), { merge: true });
+      batch.set(planRef, { status: "review_requested", approvalStatus: "review_requested", approvalId, version: Number(plan.version || 1) + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      batch.set(auditRef, { ...examGradeAuditPayloadV151("approval_request", "plans", plan, plan), reason: String(reason).trim(), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      await batch.commit();
+      const [approval, confirmedPlan, audit] = await Promise.all([approvalRef.get({ source: "server" }), planRef.get({ source: "server" }), auditRef.get({ source: "server" })]);
+      if (!approval.exists || !confirmedPlan.exists || !audit.exists || approval.metadata?.hasPendingWrites || confirmedPlan.metadata?.hasPendingWrites || audit.metadata?.hasPendingWrites) throw learningWriteErrorV137("grade-approval-server-confirm-failed");
+      const index = examGradeRowsV138("plans").findIndex((row) => String(row.id) === String(plan.id)); if (index >= 0) examGradeRowsV138("plans")[index] = { id: plan.id, ...(confirmedPlan.data() || {}) };
+      examGradeDiagnosticsV138.auditLogWriteCount += 1; showMessage("결재 요청 완료", "서버 확인 후 내부 결재 요청을 등록했습니다."); renderExamsV6();
+    } catch (cause) { showMessage("결재 요청 실패", String(cause?.code || "") === "permission-denied" ? "RULES-BLOCKED: 결재와 감사 로그 권한이 필요합니다." : "결재 요청을 서버에서 확인하지 못했습니다."); }
+  });
+}
+
+examGradeAssessmentTabV138 = function examGradeAssessmentTabV151() {
+  const plans = examGradeRowsForKindV139("plans"); const rows = examGradeRowsForKindV139("assessments"); const subjects = examGradeReferenceRowsV138("subjects");
+  const wrap = el("div", "exam-grade-tab-v151"); const subject = document.createElement("select"); subject.name = "subjectFilter"; subject.append(option("", "과목을 먼저 선택해 주세요.")); subjects.forEach((row) => subject.append(option(row.id, examGradeReferenceLabelV138("subjects", row))));
+  const plan = document.createElement("select"); plan.name = "assessmentPlanId";
+  const refreshPlans = () => { const keep = plan.value; plan.replaceChildren(option("", "평가계획을 선택해 주세요.")); plans.filter((row) => !subject.value || String(row.subjectId) === String(subject.value)).forEach((row) => plan.append(option(row.id, examGradeSafeLabelV139(row, "평가계획")))); if ([...plan.options].some((item) => item.value === keep)) plan.value = keep; };
+  subject.addEventListener("change", refreshPlans); refreshPlans();
+  const form = document.createElement("form"); form.className = "form-grid exam-grade-form-v151"; form.noValidate = true;
+  form.append(makeField("과목", "assessment-subject-v151", subject), makeField("평가계획", "assessment-plan-v151", plan), examGradeFieldV138("평가명", "name", "text"), examGradeFieldV138("평가 유형", "assessmentType", "select", "", [["written", "지필평가"], ["performance", "수행평가"]]), examGradeFieldV138("만점", "maxScore", "number"), examGradeFieldV138("반영 비율", "weight", "number"), examGradeFieldV138("시행일", "date", "date"));
+  const submit = button("평가 저장", "primary"); submit.type = "submit"; const error = el("p", "wide muted", ""); form.append(submit, error);
+  form.addEventListener("submit", (event) => { event.preventDefault(); if (submit.disabled) return; requirePassword(async () => { submit.disabled = true; try { const payload = Object.fromEntries(new FormData(form).entries()); const selectedPlan = plans.find((row) => String(row.id) === String(payload.assessmentPlanId)); if (!selectedPlan || String(selectedPlan.subjectId) !== String(subject.value)) throw learningWriteErrorV137("assessment-plan-not-found"); const maxScore = Number(payload.maxScore); const weight = Number(payload.weight); if (!String(payload.name || "").trim() || !Number.isFinite(maxScore) || maxScore <= 0 || !Number.isFinite(weight) || weight < 0 || weight > 100) throw learningWriteErrorV137("assessment-score-config-invalid"); await writeExamGradeRowV138("assessments", { ...payload, academicYear: selectedPlan.academicYear || "", gradeLevel: selectedPlan.gradeLevel || "", term: selectedPlan.term || "", classId: selectedPlan.classId || "", subjectId: selectedPlan.subjectId || "", maxScore, weight, status: "draft", included: true }); error.textContent = "서버 확인 후 저장했습니다."; renderExamsV6(); } catch (cause) { error.textContent = examGradeErrorMessageV138(String(cause?.code || "")); } finally { submit.disabled = false; } }); });
+  wrap.append(form, examGradeSelectionActionsV139("assessments", "평가", rows), examGradeSelectableListV139("assessments", "평가", rows, (row) => `${examGradeSafeLabelV139(row, "평가")} · ${row.assessmentType === "performance" ? "수행평가" : "지필평가"} · ${row.maxScore || ""}점`)); return wrap;
+};
+
+function examGradePolicyScopeNeedsV151(scope = "") {
+  return ({ workspace: [], "academic-year": ["academicYear"], "academic-year-term": ["academicYear", "term"], subject: ["subjectId"], "academic-year-term-subject": ["academicYear", "term", "subjectId"], "grade-subject": ["academicYear", "gradeLevel", "subjectId"], "class-subject": ["academicYear", "gradeLevel", "classId", "subjectId"], "assessment-plan": ["academicYear", "term", "subjectId", "assessmentPlanId"] }[scope] || []);
+}
+
+examGradePolicyTabV138 = function examGradePolicyTabV151() {
+  const service = examGradeServiceV138(); const rows = examGradeRowsForKindV139("policies"); const subjects = examGradeReferenceRowsV138("subjects"); const plans = examGradeRowsForKindV139("plans");
+  const subjectOptions = subjects.map((row) => [row.id, examGradeReferenceLabelV138("subjects", row)]).filter(([id, label]) => id && label); const planOptions = plans.map((row) => [row.id, examGradeSafeLabelV139(row, "평가계획")]);
+  const fields = [["정책명", "name", "text"], ["적용 범위", "scope", "select", "workspace", GRADE_POLICY_SCOPE_OPTIONS_V151], ["점수 기준", "scoreSource", "select", "percentage", GRADE_SCORE_SOURCE_OPTIONS_V151], ["학년도", "academicYear", "text"], ["학년", "gradeLevel", "text"], ["학기", "term", "text"], ["반·그룹", "classId", "text"], ["과목", "subjectId", "select", "", subjectOptions], ["평가계획", "assessmentPlanId", "select", "", planOptions], ["A 최소 점수", "thresholdA", "number", "90"], ["B 최소 점수", "thresholdB", "number", "80"], ["C 최소 점수", "thresholdC", "number", "70"], ["D 최소 점수", "thresholdD", "number", "60"]];
+  const wrap = el("div", "exam-grade-tab-v151"); let form; form = examGradeFormV138(fields, "성취도 정책 저장", async (payload) => { const needs = examGradePolicyScopeNeedsV151(payload.scope); const clean = { name: String(payload.name || "").trim(), scope: payload.scope, scoreSource: payload.scoreSource, status: "draft", version: 1 }; ["academicYear", "gradeLevel", "term", "classId", "subjectId", "assessmentPlanId"].forEach((key) => { if (needs.includes(key)) clean[key] = String(payload[key] || "").trim(); }); if (!clean.name || !clean.scope || !clean.scoreSource || needs.some((key) => !clean[key])) throw learningWriteErrorV137("achievement-policy-invalid"); const policy = { ...clean, thresholds: [["A", payload.thresholdA], ["B", payload.thresholdB], ["C", payload.thresholdC], ["D", payload.thresholdD]].map(([label, minimumScore], index) => ({ label, minimumScore: Number(minimumScore), inclusive: true, order: index + 1 })).concat([{ label: "E", minimumScore: null, inclusive: true, order: 5, fallback: true }]) }; const validated = service?.validateAchievementPolicy(policy); if (!validated?.ok) throw learningWriteErrorV137("achievement-policy-invalid"); await writeExamGradeRowV138("policies", validated.policy, form.dataset.editId || ""); });
+  const scopeInput = form.querySelector('[name="scope"]'); const sync = () => { const needs = new Set(examGradePolicyScopeNeedsV151(scopeInput.value)); ["academicYear", "gradeLevel", "term", "classId", "subjectId", "assessmentPlanId"].forEach((key) => { const field = form.querySelector(`[name="${key}"]`)?.closest("label, .field, div"); const input = form.querySelector(`[name="${key}"]`); if (field) field.hidden = !needs.has(key); if (!needs.has(key) && input) input.value = ""; }); }; scopeInput.addEventListener("change", sync); sync();
+  wrap.append(el("p", "muted", "성취도는 학생별로 직접 바꾸지 않습니다. 정책 변경은 미리보기 후 별도 전체 재계산 절차가 필요합니다."), form);
+  rows.forEach((policy) => { const preview = service?.previewAchievementPolicy(policy, examGradeRowsV138("results")) || { affectedCount: 0, changedCount: 0 }; const card = el("div", "list-item", `${policy.name || "성취도 정책"} · ${examGradeScoreSourceLabelV149(policy.scoreSource)} · 영향 ${preview.affectedCount}명 · 변경 예상 ${preview.changedCount}명`); const previewButton = button("영향 미리보기", "ghost"); previewButton.type = "button"; previewButton.addEventListener("click", () => showMessage("성취도 영향 미리보기", `영향 대상 ${preview.affectedCount}명, 변경 예상 ${preview.changedCount}명입니다. 저장만으로 기존 결과는 변경되지 않습니다.`)); const edit = button("수정", "ghost"); edit.type = "button"; edit.addEventListener("click", () => { examGradeFillFormV151(form, policy); sync(); }); const remove = button("삭제", "danger"); remove.type = "button"; remove.addEventListener("click", () => requestSensitiveDeleteV139("성취도 정책", 1, () => deleteExamGradeRowsWithServerConfirmV139("policies", [policy.id]))); card.append(previewButton, edit, remove); wrap.append(card); });
+  return wrap;
+};
+
+function examGradeParseCsvV151(text = "") {
+  const lines = String(text || "").replace(/^\uFEFF/, "").split(/\r?\n/).filter((line) => line.trim());
+  const parse = (line) => { const cells = []; let value = ""; let quoted = false; for (let index = 0; index < line.length; index += 1) { const char = line[index]; if (char === '"') { if (quoted && line[index + 1] === '"') { value += '"'; index += 1; } else quoted = !quoted; } else if (char === "," && !quoted) { cells.push(value.trim()); value = ""; } else value += char; } cells.push(value.trim()); return cells; };
+  const [header = [], ...body] = lines.map(parse); return body.map((cells) => Object.fromEntries(header.map((key, index) => [key, cells[index] || ""])));
+}
+
+const examGradeExportTabBeforeV151 = examGradeExportTabV149;
+examGradeExportTabV149 = function examGradeExportTabV151() {
+  const wrap = examGradeExportTabBeforeV151(); const students = examGradeStudentAdapterV149(); const assessments = examGradeRowsForKindV139("assessments"); let parsed = [];
+  const heading = el("h3", "", "성적 CSV 일괄 입력"); const note = el("p", "muted", "CSV만 지원합니다. 학생 이름만으로 자동 연결하지 않으며, 파일·원문은 저장하지 않습니다."); const template = button("CSV 양식 내려받기", "ghost"); template.type = "button"; template.addEventListener("click", () => { const csv = "학년도,학기,학년,반·수업,학생 식별값,학생명,과목,평가계획,평가 유형,평가 항목,원점수,만점,결시 상태,비고\r\n"; const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" }); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = "grade-import-template.csv"; anchor.click(); URL.revokeObjectURL(url); }); const input = document.createElement("input"); input.type = "file"; input.accept = ".csv,text/csv"; const result = el("p", "muted", "파일을 선택하면 검증 결과만 미리 보여 줍니다."); const preview = el("div", "list");
+  input.addEventListener("change", () => { const file = input.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { parsed = examGradeParseCsvV151(String(reader.result || "")); const errors = parsed.filter((row) => { const studentId = String(row["학생 식별값"] || ""); const student = students.rows.find((item) => [item.id, item.studentId, item.studentNo, item.uid].map(String).includes(studentId)); const assessment = assessments.find((item) => String(item.name || "") === String(row["평가 항목"] || "") && String(item.assessmentType || "") === String(row["평가 유형"] || "")); return !student || !assessment || !Number.isFinite(Number(row["원점수"])) || !Number.isFinite(Number(row["만점"])); }); result.textContent = `분석 ${parsed.length}건 · 오류 ${errors.length}건 · 이름만으로 연결하지 않습니다.`; preview.replaceChildren(...parsed.slice(0, 20).map((row) => el("div", "list-item", `${row["학생 식별값"] || "식별값 없음"} · ${row["평가 항목"] || "평가 없음"} · ${row["원점수"] || ""}/${row["만점"] || ""}`))); }; reader.readAsText(file, "utf-8"); });
+  wrap.append(heading, note, template, input, result, preview); return wrap;
+};
+examGradeExportTabV138 = examGradeExportTabV149;
+
+window.PMExamGradeDiagnostics = {
+  snapshot: () => ({ ...examGradeDiagnosticsV138, appVersion: APP_PATCH_VERSION_V151, operationMode: examGradeModeInfoV150().key, studentSource: examGradeStudentAdapterV149().source, studentCount: examGradeStudentAdapterV149().rows.length, approvalFlow: "server-confirmed-when-rules-allow", activeListenerCount: 0, sensitiveValueDetected: false })
+};
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V151;
+
+const examGradeScoreSourceLabelBeforeV151 = examGradeScoreSourceLabelV149;
+examGradeScoreSourceLabelV149 = function examGradeScoreSourceLabelV151(value = "") {
+  return ({ raw_score: "원점수", weighted_score: "반영 점수", course_total: "과목 종합 점수" }[String(value)] || examGradeScoreSourceLabelBeforeV151(value));
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V150;
+
+// V148 is deliberately a final dispatcher-only repair.  It keeps the legacy
+// exam schedule page separate while ensuring the operational exam/grade shell
+// wins after every completed page render.
+const APP_PATCH_VERSION_V148 = "v148.0 - 2026-07-27";
+const renderPageBeforeV148 = renderPage;
+renderPage = function renderPageV148(key) {
+  const result = renderPageBeforeV148(key);
+  if (key === "exams" && currentPage === "exams") renderExamsV6();
+  return result;
+};
+
+window.PMExamGradeDiagnostics = {
+  snapshot: () => ({
+    ...examGradeDiagnosticsV138,
+    appVersion: APP_PATCH_VERSION_V148,
+    activeSurface: currentPage === "exams" ? "exam-grade-management" : "inactive",
+    serviceLoaded: examGradeServiceReadyV139(),
+    serviceGlobalPresent: !!window.PMExamGradeService,
+    serviceScriptPresent: !!document.getElementById("pm-exam-grade-service"),
+    activeListenerCount: 0,
+    auditLogWriteCount: 0,
+    sensitiveValueDetected: false
+  })
+};
+
+// Keep the final diagnostic assignment after older dispatcher patches.
+window.PMExamGradeDiagnostics = {
+  snapshot: () => ({
+    ...examGradeDiagnosticsV138,
+    appVersion: APP_PATCH_VERSION_V150,
+    operationMode: examGradeModeInfoV150().key,
+    studentSource: examGradeStudentAdapterV149().source,
+    studentCount: examGradeStudentAdapterV149().rows.length,
+    approvalFlow: "server-confirmed-when-rules-allow",
+    activeSurface: currentPage === "exams" ? "exam-grade-management" : "inactive",
+    activeListenerCount: 0,
+    auditLogWriteCount: 0,
+    sensitiveValueDetected: false
+  })
+};
+
+// Batch 10G keeps V154 as the final operational UI/cache marker.
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V154;

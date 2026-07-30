@@ -2221,6 +2221,34 @@ dialog {
   font-weight: 800;
 }
 
+.learning-subject-picker-v137 {
+  display: grid;
+  gap: 8px;
+}
+
+.learning-subject-chips-v137 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.learning-subject-chip-v137 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 6px;
+  background: #f8fafc;
+  overflow-wrap: anywhere;
+}
+
+.learning-subject-chip-v137 button {
+  min-width: auto;
+  padding: 2px 6px;
+}
+
 .program-timetable-preview {
   overflow-x: auto;
   border: 1px solid #15223a;
