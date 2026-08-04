@@ -544,7 +544,13 @@
     const now = firestore.serverTimestamp();
     const userRef = firestore.doc(runtime.db, "users", uid);
     const userSnap = await runFirestoreStep("get current user document", `users/${uid}`, () => firestore.getDoc(userRef));
-    const userData = userSnap.exists() ? userSnap.data() : {};
+    if (!userSnap.exists()) {
+      const profileMissingError = new Error("Current user profile is missing.");
+      profileMissingError.code = "profile-missing";
+      noteBootstrap("profile-missing");
+      throw profileMissingError;
+    }
+    const userData = userSnap.data() || {};
     let isSystemOwnerDoc = false;
     try {
       const ownerRef = firestore.doc(runtime.db, "systemOwners", uid);
@@ -553,11 +559,6 @@
     } catch (error) {
       console.info("[PM system owner lookup skipped]", error?.code || "", error?.message || String(error));
     }
-    if (!userSnap.exists()) {
-      await firebaseCreateBaseUserDocument(user, displayName, { role: "normal", status: "pending" });
-      return { workspaceId: "", role: "normal", status: "pending", pendingWorkspaceId: "", pendingInviteCodeId: "" };
-    }
-
     const discoveredMembership = await findActiveWorkspaceMembership(runtime, uid);
     const workspaceId = userData.workspaceId || userData.currentWorkspaceId || discoveredMembership?.workspaceId || "";
     const status = userData.disabled === true ? "disabled" : (userData.status || (workspaceId ? "active" : "pending"));

@@ -196,8 +196,8 @@ test("read-only pilot services remain write and listener free", () => {
   }
 });
 
-test("manifest contains operational 35 page keys and app-next 17 routes", () => {
-  assert.equal(manifest.features.filter((item) => item.system === "operational" && item.pageKey).length, 35);
+test("manifest contains operational 36 page keys and app-next 17 routes", () => {
+  assert.equal(manifest.features.filter((item) => item.system === "operational" && item.pageKey).length, 36);
   assert.equal(manifest.features.filter((item) => item.system === "app-next" && item.route).length, 17);
 });
 

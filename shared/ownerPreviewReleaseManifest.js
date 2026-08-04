@@ -141,6 +141,12 @@
       manualTestEvidence: "timetable V111/V120 browser checks",
       firstOwnerPreviewIncluded: true,
     }),
+    operationalFeature("students", "Read-only canonical student roster.", {
+      workspaceRoles: teacherWorkspaceRoles,
+      hasWrite: false,
+      automaticTestEvidence: "scripts/test-auth-modules.mjs",
+      manualTestEvidence: "docs/owner-preview-student-roster-adapter-manual-checklist.md",
+    }),
     operationalFeature("subjects", "Subject catalog.", {}),
     operationalFeature("teachers", "Teacher catalog.", { workspaceRoles: teacherWorkspaceRoles }),
     operationalFeature("materials", "Materials.", { hasWrite: true }),

@@ -136,6 +136,7 @@ const pageMeta = {
   materials: ["↗", "수업 자료"],
   assignments: ["☑", "과제 관리"],
   exams: ["◇", "시험/성적 관리"],
+  students: ["학", "학생관리"],
   portfolios: ["★", "포트폴리오"],
   penalties: ["!", "벌점 관리"],
   people: ["◎", "친구/인물 관리"],
@@ -155,6 +156,7 @@ const permissions = {
   materials: { create: ["admin"], edit: ["admin"], del: ["admin"] },
   assignments: { create: ["admin", "user"], edit: ["admin", "user"], del: ["admin"] },
   exams: { create: ["admin", "user"], edit: ["admin"], del: ["admin"] },
+  students: { create: [], edit: [], del: [] },
   portfolios: { create: ["admin", "user"], edit: ["admin"], del: ["admin"] },
   penalties: { create: ["admin", "user"], edit: ["admin"], del: ["admin"] },
   people: { create: ["admin"], edit: ["admin"], del: ["admin"] },
@@ -268,6 +270,9 @@ function startWorkspaceDataSyncV45(workspaceId) {
     store,
     onRemoteChange(change = {}) {
       if (!store || store.workspace_id !== workspaceId) return;
+      if (change?.key === "people") {
+        window.PMStudentRosterService?.invalidateStudentRosterForWorkspace?.(workspaceId);
+      }
       saveStore({ skipRemote: true });
       applySettings();
       if (["timetable", "timetableSets", "periodTimes"].includes(change?.key || "")) {
@@ -1230,6 +1235,14 @@ function renderSiteV2() {
 }
 
 function makeField(labelText, id, element) {
+  if (!element || typeof element.tagName !== "string") {
+    window.PMSchoolUiDiagnostics?.recordInvalidField?.();
+    const invalid = document.createElement("div");
+    invalid.className = "wide error school-field-error-v156";
+    invalid.dataset.errorCode = "SCHOOL_SYNC_FIELD_DESCRIPTOR_INVALID";
+    invalid.textContent = `${labelText || "학교 연동 필드"}을(를) 표시하지 못했습니다.`;
+    return invalid;
+  }
   const label = document.createElement("label");
   label.textContent = labelText;
   if (element.tagName === "TEXTAREA" || element.multiple) label.className = "wide";
@@ -10331,11 +10344,18 @@ function completeLoginV34(user) {
 }
 
 async function logout() {
+  const explicitLogout = adminExplicitLogoutRequestedV159 === true;
+  if (isStandaloneAdminSiteV60() && explicitLogout) adminAuthDiagnosticsV159.explicitLogoutCallCount += 1;
   clearAdminStandaloneAuthV62();
   try {
-    if (window.PMFirebaseRuntime?.hasConfig?.()) await window.PMAuthService?.firebaseLogout?.();
+    if (window.PMFirebaseRuntime?.hasConfig?.()) {
+      if (firebaseAuthUserV159()) adminAuthDiagnosticsV159.firebaseSignOutCallCount += 1;
+      await window.PMAuthService?.firebaseLogout?.();
+    }
   } catch (error) {
     console.warn("Firebase logout failed", error);
+  } finally {
+    adminExplicitLogoutRequestedV159 = false;
   }
   authStateV31.auth.currentUserId = null;
   saveAuthStateV31();
@@ -10359,7 +10379,7 @@ async function restoreFirebaseSessionV34() {
         if (currentUser?.provider === "firebase") logout();
         return;
       }
-      if (!canRestoreAdminStandaloneAuthV62()) {
+      if (!isStandaloneAdminSiteV60() && !canRestoreAdminStandaloneAuthV62()) {
         await runtime.sdk.auth.signOut(runtime.auth);
         showLoggedOutScreenV62();
         return;
@@ -10417,6 +10437,164 @@ function isAdminSurfaceV60() {
 
 const ADMIN_STANDALONE_SESSION_KEY_V62 = "pm-admin-standalone-session";
 const ADMIN_STANDALONE_AUTH_ATTEMPT_KEY_V62 = "pm-admin-standalone-auth-attempt";
+
+const adminAuthDiagnosticsV159 = {
+  appTarget: appTargetV60(),
+  authObserverTriggered: 0,
+  authUserPresent: false,
+  authRestoreCompleted: false,
+  firebaseSignOutCallCount: 0,
+  explicitLogoutCallCount: 0,
+  freshLoadSignOutBlockedCount: 0,
+  explicitSessionPresent: false,
+  profileBootstrapCount: 0,
+  profileBootstrapResult: "idle",
+  profilePermissionDeniedCount: 0,
+  profileMissingCount: 0,
+  loginRendererCount: 0,
+  blockedRendererCount: 0,
+  lastErrorCode: "none",
+  lastLoadReason: "none",
+  activeRequestCount: 0,
+  lastDurationMs: 0
+};
+let adminProfileBootstrapPromiseV159 = null;
+let adminExplicitLogoutRequestedV159 = false;
+
+function firebaseAuthUserV159() {
+  return window.__pmFirebaseRuntime?.auth?.currentUser || null;
+}
+
+function classifyAdminProfileBootstrapErrorV159(error) {
+  const rawCode = String(error?.code || "").toLowerCase();
+  const code = rawCode.replace(/^firestore\//, "").replace(/^auth\//, "");
+  const message = String(error?.message || "").toLowerCase();
+  if (code === "profile-missing" || code === "user-profile-missing") return "profile-missing";
+  if (code === "permission-denied" || message.includes("permission-denied") || message.includes("insufficient permissions")) return "permission-denied";
+  if (code === "unauthenticated") return "unauthenticated";
+  if (code === "unavailable") return "unavailable";
+  if (code === "network-request-failed" || message.includes("network")) return "network-error";
+  if (code === "admin-role-required") return "admin-role-required";
+  return "unknown";
+}
+
+function clearAdminProfileBlockedV159() {
+  document.getElementById("adminProfileBlockedV159")?.remove();
+  if (loginForm) loginForm.hidden = false;
+}
+
+function showAdminProfileBlockedV159(error) {
+  if (!isStandaloneAdminSiteV60()) return false;
+  const code = classifyAdminProfileBootstrapErrorV159(error);
+  adminAuthDiagnosticsV159.profileBootstrapResult = code;
+  adminAuthDiagnosticsV159.lastErrorCode = code;
+  if (code === "permission-denied") adminAuthDiagnosticsV159.profilePermissionDeniedCount += 1;
+  if (code === "profile-missing") adminAuthDiagnosticsV159.profileMissingCount += 1;
+  adminAuthDiagnosticsV159.blockedRendererCount += 1;
+  app?.classList.add("hidden");
+  loginScreen?.classList.remove("hidden");
+  if (loginForm) loginForm.hidden = true;
+
+  let blocked = document.getElementById("adminProfileBlockedV159");
+  if (!blocked) {
+    blocked = el("section", "login-form");
+    blocked.id = "adminProfileBlockedV159";
+    const title = el("h2", "", "계정 정보 접근 권한 오류");
+    const description = el("p", "muted", "로그인은 유지되어 있지만 사용자 프로필과 권한을 확인할 수 없습니다.");
+    const detail = el("p", "error", code === "profile-missing"
+      ? "계정 프로필을 찾을 수 없습니다. 관리자에게 문의해 주세요."
+      : code === "permission-denied"
+        ? "현재 배포된 접근 권한을 확인한 뒤 다시 시도해 주세요."
+        : "잠시 후 다시 시도해 주세요.");
+    const actions = el("div", "row-actions");
+    const retry = button("다시 시도", "primary");
+    retry.type = "button";
+    retry.addEventListener("click", retryAdminProfileBootstrapV159);
+    const signOutButton = button("로그아웃", "ghost");
+    signOutButton.type = "button";
+    signOutButton.addEventListener("click", async () => {
+      adminExplicitLogoutRequestedV159 = true;
+      clearAdminProfileBlockedV159();
+      await logout();
+    });
+    actions.append(retry, signOutButton);
+    blocked.append(title, description, detail, actions);
+    loginScreen?.querySelector(".login-panel")?.append(blocked);
+  }
+  return true;
+}
+
+async function bootstrapAdminFirebaseUserV159(firebaseUser, reason = "auth-observer") {
+  if (!firebaseUser) {
+    clearAdminProfileBlockedV159();
+    showLoginOnlyV80();
+    return null;
+  }
+  if (adminProfileBootstrapPromiseV159) return adminProfileBootstrapPromiseV159;
+  const startedAt = Date.now();
+  adminAuthDiagnosticsV159.profileBootstrapCount += 1;
+  adminAuthDiagnosticsV159.profileBootstrapResult = "loading";
+  adminAuthDiagnosticsV159.lastErrorCode = "none";
+  adminAuthDiagnosticsV159.lastLoadReason = reason;
+  adminAuthDiagnosticsV159.activeRequestCount = 1;
+  adminProfileBootstrapPromiseV159 = (async () => {
+    try {
+      const membership = await window.PMAuthService.firebaseEnsureUserStructure(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
+      if (isStandaloneAdminSiteV60() && membership?.role !== "system_owner") {
+        const roleError = new Error("Administrator access requires a verified system owner role.");
+        roleError.code = "admin-role-required";
+        throw roleError;
+      }
+      firebaseUser.pmWorkspaceId = membership.workspaceId;
+      firebaseUser.pmRole = membership.role;
+      firebaseUser.pmWorkspaceRole = membership.workspaceRole || membership.role;
+      firebaseUser.pmStatus = membership.status;
+      firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+      firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
+      await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
+      const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
+      authStateV31 = window.PMAuthService.loadAuthState();
+      clearAdminProfileBlockedV159();
+      completeLoginV34(user);
+      adminAuthDiagnosticsV159.profileBootstrapResult = "success";
+      adminAuthDiagnosticsV159.authRestoreCompleted = true;
+      return user;
+    } catch (error) {
+      adminAuthDiagnosticsV159.authRestoreCompleted = true;
+      showAdminProfileBlockedV159(error);
+      return null;
+    } finally {
+      adminAuthDiagnosticsV159.activeRequestCount = 0;
+      adminAuthDiagnosticsV159.lastDurationMs = Date.now() - startedAt;
+      adminProfileBootstrapPromiseV159 = null;
+    }
+  })();
+  return adminProfileBootstrapPromiseV159;
+}
+
+async function retryAdminProfileBootstrapV159() {
+  const retryButton = document.querySelector("#adminProfileBlockedV159 button.primary");
+  if (retryButton) retryButton.disabled = true;
+  try {
+    await bootstrapAdminFirebaseUserV159(firebaseAuthUserV159(), "manual-retry");
+  } finally {
+    if (retryButton?.isConnected) retryButton.disabled = false;
+  }
+}
+
+window.PMAdminAuthDiagnostics = {
+  snapshot() {
+    return {
+      ...adminAuthDiagnosticsV159,
+      appTarget: appTargetV60(),
+      authUserPresent: Boolean(firebaseAuthUserV159()),
+      explicitSessionPresent: Boolean(
+        sessionStorage.getItem(ADMIN_STANDALONE_SESSION_KEY_V62)
+        || sessionStorage.getItem(ADMIN_STANDALONE_AUTH_ATTEMPT_KEY_V62)
+      )
+    };
+  }
+};
 
 function adminStandaloneRequiresExplicitLoginV62() {
   return isStandaloneAdminSiteV60();
@@ -10487,10 +10665,10 @@ function roleDefinitionsV31() {
 
 function defaultRoleMenusV31() {
   return {
-    system_owner: ["systemOwner", "dashboard", "personal", "attendance", "requests", "schedules", "academic", "notices", "schoolNotices", "homeLetters", "meals", "mealApplications", "timetable", "subjects", "teachers", "materials", "lessons", "assignments", "examSchedules", "exams", "records", "portfolios", "projects", "afterschool", "specialLectures", "clubs", "people", "friendAwards", "penalties", "budget", "site", "accounts", "admin", "system", "print"],
-    super_manager: ["dashboard", "personal", "attendance", "requests", "schedules", "academic", "notices", "schoolNotices", "homeLetters", "meals", "mealApplications", "timetable", "subjects", "teachers", "materials", "lessons", "assignments", "examSchedules", "exams", "records", "portfolios", "projects", "afterschool", "specialLectures", "clubs", "people", "friendAwards", "penalties", "budget", "site", "accounts", "admin", "system", "print"],
-    manager: ["dashboard", "personal", "attendance", "requests", "schedules", "academic", "notices", "schoolNotices", "homeLetters", "meals", "mealApplications", "timetable", "subjects", "teachers", "materials", "lessons", "assignments", "examSchedules", "exams", "records", "portfolios", "projects", "afterschool", "specialLectures", "clubs", "penalties", "budget", "site", "accounts", "admin", "print"],
-    teacher: ["dashboard", "personal", "attendance", "requests", "schedules", "academic", "notices", "meals", "timetable", "subjects", "materials", "lessons", "assignments", "examSchedules", "exams", "records", "projects", "afterschool", "specialLectures", "clubs"],
+    system_owner: ["systemOwner", "dashboard", "personal", "attendance", "requests", "schedules", "academic", "notices", "schoolNotices", "homeLetters", "meals", "mealApplications", "timetable", "students", "subjects", "teachers", "materials", "lessons", "assignments", "examSchedules", "exams", "records", "portfolios", "projects", "afterschool", "specialLectures", "clubs", "people", "friendAwards", "penalties", "budget", "site", "accounts", "admin", "system", "print"],
+    super_manager: ["dashboard", "personal", "attendance", "requests", "schedules", "academic", "notices", "schoolNotices", "homeLetters", "meals", "mealApplications", "timetable", "students", "subjects", "teachers", "materials", "lessons", "assignments", "examSchedules", "exams", "records", "portfolios", "projects", "afterschool", "specialLectures", "clubs", "people", "friendAwards", "penalties", "budget", "site", "accounts", "admin", "system", "print"],
+    manager: ["dashboard", "personal", "attendance", "requests", "schedules", "academic", "notices", "schoolNotices", "homeLetters", "meals", "mealApplications", "timetable", "students", "subjects", "teachers", "materials", "lessons", "assignments", "examSchedules", "exams", "records", "portfolios", "projects", "afterschool", "specialLectures", "clubs", "penalties", "budget", "site", "accounts", "admin", "print"],
+    teacher: ["dashboard", "personal", "attendance", "requests", "schedules", "academic", "notices", "meals", "timetable", "students", "subjects", "materials", "lessons", "assignments", "examSchedules", "exams", "records", "projects", "afterschool", "specialLectures", "clubs"],
     normal: ["dashboard", "personal", "attendance", "requests", "schedules", "academic", "notices", "meals", "mealApplications", "timetable", "materials", "assignments", "examSchedules", "exams", "records", "projects", "portfolios", "afterschool", "specialLectures", "clubs"],
     viewer: ["dashboard", "personal", "requests", "schedules", "academic", "notices", "schoolNotices", "homeLetters", "meals", "timetable", "materials", "examSchedules", "records", "projects", "portfolios"],
     print_account: ["print", "examSchedules"],
@@ -10603,7 +10781,7 @@ function navGroupsV28() {
     { id: "system-owner", label: "시스템 관리자", keys: ["systemOwner"] },
     { id: "home", label: "기본", keys: ["dashboard", "personal", "attendance", "requests"] },
     { id: "schedule", label: "일정/생활", keys: ["schedules", "academic", "notices", "schoolNotices", "homeLetters", "meals", "mealApplications", "timetable"] },
-    { id: "study", label: "학습 관리", keys: ["subjects", "teachers", "materials", "lessons", "assignments", "examSchedules", "exams", "records", "portfolios"] },
+    { id: "study", label: "학습 관리", keys: ["students", "subjects", "teachers", "materials", "lessons", "assignments", "examSchedules", "exams", "records", "portfolios"] },
     { id: "activity", label: "활동/프로젝트", keys: ["projects", "afterschool", "specialLectures", "clubs"] },
     { id: "admin", label: "관리자", keys: ["people", "friendAwards", "penalties", "budget", "site", "accounts", "admin", "system"] },
     { id: "print", label: "출력", keys: ["print"] }
@@ -11033,12 +11211,17 @@ async function restoreFirebaseSessionV34() {
     const runtime = await window.PMFirebaseRuntime.init();
     if (!runtime) return;
     runtime.sdk.auth.onAuthStateChanged(runtime.auth, async (firebaseUser) => {
+      adminAuthDiagnosticsV159.authObserverTriggered += 1;
+      adminAuthDiagnosticsV159.authUserPresent = Boolean(firebaseUser);
       if (!firebaseUser) {
+        clearAdminProfileBlockedV159();
+        if (isStandaloneAdminSiteV60()) adminAuthDiagnosticsV159.loginRendererCount += 1;
         if (currentUser?.provider === "firebase") logout();
         return;
       }
       if (typeof canUseBrowserAuthSessionV80 === "function"
         && typeof hasPendingExplicitAuthV80 === "function"
+        && !isStandaloneAdminSiteV60()
         && !canUseBrowserAuthSessionV80()
         && !hasPendingExplicitAuthV80()) {
         try {
@@ -11050,16 +11233,24 @@ async function restoreFirebaseSessionV34() {
         return;
       }
       if (currentUser) return;
-      const membership = await window.PMAuthService.firebaseEnsureUserStructure(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
-      firebaseUser.pmWorkspaceId = membership.workspaceId;
-      firebaseUser.pmRole = membership.role;
-      firebaseUser.pmStatus = membership.status;
-      firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
-      firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
-      await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
-      const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
-      authStateV31 = window.PMAuthService.loadAuthState();
-      completeLoginV34(user);
+      if (isStandaloneAdminSiteV60()) {
+        await bootstrapAdminFirebaseUserV159(firebaseUser, "auth-observer");
+        return;
+      }
+      try {
+        const membership = await window.PMAuthService.firebaseEnsureUserStructure(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
+        firebaseUser.pmWorkspaceId = membership.workspaceId;
+        firebaseUser.pmRole = membership.role;
+        firebaseUser.pmStatus = membership.status;
+        firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+        firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
+        await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
+        const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
+        authStateV31 = window.PMAuthService.loadAuthState();
+        completeLoginV34(user);
+      } catch (error) {
+        console.warn("Firebase session restore failed", error?.code || "unknown");
+      }
     });
   } catch (error) {
     console.warn("Firebase session restore failed", error);
@@ -11222,6 +11413,7 @@ function renderPage(key) {
   else if (key === "schoolNotices") renderSchoolNoticesV19();
   else if (key === "homeLetters") renderHomeLettersV18();
   else if (key === "dashboard") renderDashboardV8();
+  else if (key === "students") renderStudentManagementV156();
   else if (key === "personal") renderPersonalV8();
   else if (key === "schedules") renderSchedulesV10();
   else if (key === "lessons") renderLessonsV10();
@@ -14352,14 +14544,40 @@ function schoolSyncPanelV64(context = "all") {
 
   const range = selectedSchoolMonthV64();
   const grid = el("div", "form-grid");
+  const rangeControls = el("div", "inline-row");
+  const rangeYear = document.createElement("input");
+  rangeYear.id = "schoolSyncYearV64";
+  rangeYear.type = "number";
+  rangeYear.min = "2020";
+  rangeYear.max = "2100";
+  rangeYear.value = String(range.year);
+  const rangeMonth = document.createElement("input");
+  rangeMonth.id = "schoolSyncMonthV64";
+  rangeMonth.type = "number";
+  rangeMonth.min = "1";
+  rangeMonth.max = "12";
+  rangeMonth.value = String(range.month);
+  rangeControls.append(rangeYear, rangeMonth);
+  const autoSyncControl = el("label", "inline-check");
+  const autoSyncInput = document.createElement("input");
+  autoSyncInput.id = "schoolAutoSyncEnabledV64";
+  autoSyncInput.type = "checkbox";
+  autoSyncInput.checked = store.settings.schoolAutoSyncEnabled !== false;
+  autoSyncControl.append(autoSyncInput, document.createTextNode(" 12시간마다 자동 동기화"));
   grid.append(
     makeTextField("학교명", "schoolNameV64", store.settings.schoolName || "동아고등학교"),
     makeTextField("교육청 코드", "schoolOfficeCodeV64", store.settings.neisOfficeCode || "C10"),
     makeTextField("학교 코드", "schoolCodeV64", store.settings.neisSchoolCode || ""),
     makeTextField("NEIS API Key", "schoolNeisApiKeyV64", store.settings.neisApiKey || window.PMSchoolIntegrationService?.publicNeisKey?.() || ""),
-    makeField("동기화 연도/월", `<div class="inline-row"><input id="schoolSyncYearV64" type="number" min="2020" max="2100" value="${range.year}" /><input id="schoolSyncMonthV64" type="number" min="1" max="12" value="${range.month}" /></div>`),
-    makeField("자동 동기화", `<label class="inline-check"><input id="schoolAutoSyncEnabledV64" type="checkbox" ${store.settings.schoolAutoSyncEnabled !== false ? "checked" : ""} /> 12시간마다 자동 동기화</label>`)
+    makeField("동기화 연도/월", "schoolSyncRangeFieldV64", rangeControls),
+    makeField("자동 동기화", "schoolAutoSyncFieldV64", autoSyncControl)
   );
+  const proxyState = window.PMSchoolIntegrationService?.diagnostics?.() || {};
+  if (proxyState.schoolProxyConfigured !== true) {
+    window.PMSchoolUiDiagnostics?.recordApiNotConfigured?.();
+    syncTarget.disabled = true;
+    box.append(el("p", "muted school-proxy-not-configured-v156", "학교 게시판 연동 서버가 구성되지 않아 자동 동기화 요청을 보내지 않습니다."));
+  }
   const saveButton = button("연동 설정 저장", "ghost");
   saveButton.addEventListener("click", () => {
     const config = schoolConfigV64();
@@ -14915,6 +15133,10 @@ function openQuickCreateV70(key) {
 
 renderDashboardV8 = function renderDashboardV70() {
   store.settings.dashboardCards ??= [...DASHBOARD_CARD_KEYS_V70];
+  const operationModeUi = operationModeUiForCurrentUserV154(authMenuKeysV31());
+  if (operationModeUi.normalizedMode === "school") {
+    return renderSchoolDashboardV156(operationModeUi);
+  }
   content.replaceChildren();
   content.append(renderOperationModeDashboardNoticeV154());
   if (typeof renderSystemNoticesPanelV54 === "function") {
@@ -14927,7 +15149,6 @@ renderDashboardV8 = function renderDashboardV70() {
 
   const quick = panel("빠른 등록");
   const actions = el("div", "quick-actions");
-  const operationModeUi = operationModeUiForCurrentUserV154(authMenuKeysV31());
   (store.settings.quickButtons || []).filter((key) => operationModeUi.visibleMenuIds.includes(key)).forEach((key) => {
     const btn = button(`${pageLabel(key)} 추가`);
     btn.disabled = !can("create", key);
@@ -15104,7 +15325,8 @@ function showLoginOnlyV80() {
 const completeLoginBeforeV80 = completeLoginV34;
 completeLoginV34 = function completeLoginV80(user) {
   const explicitSession = canUseBrowserAuthSessionV80() || hasPendingExplicitAuthV80();
-  if (!explicitSession) {
+  const restoredAdminFirebaseSession = isStandaloneAdminSiteV60() && Boolean(firebaseAuthUserV159());
+  if (!explicitSession && !restoredAdminFirebaseSession) {
     showLoginOnlyV80();
     return;
   }
@@ -15166,7 +15388,7 @@ restoreFirebaseSessionV34 = async function restoreFirebaseSessionV80() {
         if (currentUser?.provider === "firebase") logout();
         return;
       }
-      if (!canUseBrowserAuthSessionV80() && !hasPendingExplicitAuthV80()) {
+      if (!isStandaloneAdminSiteV60() && !canUseBrowserAuthSessionV80() && !hasPendingExplicitAuthV80()) {
         await runtime.sdk.auth.signOut(runtime.auth);
         showLoginOnlyV80();
         return;
@@ -17256,23 +17478,17 @@ programAttendanceV26 = function programAttendanceV86(type, program) {
 
 const canRestoreAdminStandaloneBeforeV86 = canRestoreAdminStandaloneAuthV62;
 canRestoreAdminStandaloneAuthV62 = function canRestoreAdminStandaloneAuthV86() {
-  if (isStandaloneAdminSiteV60()) return typeof hasPendingExplicitAuthV80 === "function" && hasPendingExplicitAuthV80();
+  if (isStandaloneAdminSiteV60()) {
+    return Boolean(firebaseAuthUserV159())
+      || (typeof hasPendingExplicitAuthV80 === "function" && hasPendingExplicitAuthV80());
+  }
   return canRestoreAdminStandaloneBeforeV86();
 };
 
 function forceAdminStandaloneLoginOnFreshLoadV86() {
   if (!isStandaloneAdminSiteV60()) return;
   if (typeof hasPendingExplicitAuthV80 === "function" && hasPendingExplicitAuthV80()) return;
-  try { liveAuthSessionV83 = false; } catch {}
-  try { clearAdminStandaloneAuthV62(); } catch {}
-  try { clearBrowserAuthSessionV80(); } catch {}
-  try { clearPersistedCurrentUserV80(); } catch {}
-  try { showLoginOnlyV80(); } catch { showLoggedOutScreenV62(); }
-  if (window.PMFirebaseRuntime?.hasConfig?.()) {
-    window.PMFirebaseRuntime.init()
-      .then((runtime) => runtime?.sdk?.auth?.signOut?.(runtime.auth))
-      .catch((error) => console.info("[admin standalone signout skipped]", error?.message || String(error)));
-  }
+  adminAuthDiagnosticsV159.freshLoadSignOutBlockedCount += 1;
 }
 
 function masterSubjectsV86() {
@@ -17429,6 +17645,10 @@ const APP_PATCH_VERSION_V87 = "v87.0 - 2026-06-19";
 function requireAdminStandaloneLoginV87(reason = "navigation") {
   if (!isStandaloneAdminSiteV60()) return;
   if (typeof hasPendingExplicitAuthV80 === "function" && hasPendingExplicitAuthV80()) return;
+  if (!window.__pmFirebaseRuntime || firebaseAuthUserV159()) {
+    adminAuthDiagnosticsV159.freshLoadSignOutBlockedCount += 1;
+    return;
+  }
   try { liveAuthSessionV83 = false; } catch {}
   try { clearAdminStandaloneAuthV62(); } catch {}
   try { clearBrowserAuthSessionV80(); } catch {}
@@ -23921,7 +24141,7 @@ restoreFirebaseSessionV34 = async function restoreFirebaseSessionV108() {
         if (currentUser?.provider === "firebase") logout();
         return;
       }
-      if (!canUseBrowserAuthSessionV80() && !hasPendingExplicitAuthV80()) {
+      if (!isStandaloneAdminSiteV60() && !canUseBrowserAuthSessionV80() && !hasPendingExplicitAuthV80()) {
         try {
           await runtime.sdk.auth.signOut(runtime.auth);
         } catch (error) {
@@ -35161,7 +35381,10 @@ async function saveLearningEditorWithServerConfirmV137(event) {
       "learning-link-invalid",
       "material-link-invalid",
       "assignment-link-invalid",
-      "teacher-email-invalid"
+      "teacher-email-invalid",
+      "STUDENT_ROSTER_INVALID_RECORD",
+      "STUDENT_ROSTER_LEGACY_READ_ONLY",
+      "STUDENT_ROSTER_WRITE_BLOCKED"
     ].includes(code);
     if (validationBlocked) {
       learningManagementDiagnosticsV137.validationBlockedCount += 1;
@@ -36530,18 +36753,15 @@ function examGradeModeInfoV149() {
 }
 
 function examGradeStudentAdapterV149() {
-  const directStudents = examGradeReferenceRowsV138("students");
-  if (directStudents.length) return { source: "students", rows: directStudents };
-  const studentPeople = examGradeReferenceRowsV138("people").filter((row) => (
-    row.studentName || row.studentNo || String(row.role || "").toLowerCase() === "student" || row.isStudent === true
-  ));
-  return studentPeople.length ? { source: "people-student-profile", rows: studentPeople } : { source: "unavailable", rows: [] };
+  const workspaceId = studentRosterWorkspaceIdV155();
+  const cached = window.PMStudentRosterService?.getCachedStudentRoster?.(workspaceId);
+  return cached || { source: "unavailable", rows: [] };
 }
 
 function examGradeStudentLabelV149(row = {}) {
-  const name = String(row.studentName || row.name || row.displayName || "").trim();
-  const grade = String(row.gradeLevel || row.grade || "").trim();
-  const group = String(row.className || row.class || row.cohort || "").trim();
+  const name = String(row.displayName || row.studentName || row.name || "").trim();
+  const grade = String(row.grade || row.gradeLevel || "").trim();
+  const group = String(row.className || row.classId || row.class || row.cohort || "").trim();
   return [name, grade, group].filter(Boolean).join(" · ");
 }
 
@@ -36635,24 +36855,37 @@ function examGradeEntryTabV149() {
   wrap.append(el("p", "muted", mode.key === "personal"
     ? "평가를 선택하고 본인 점수를 입력합니다. 학생 선택은 필요하지 않습니다."
     : "평가를 선택한 뒤 학생별 점수를 입력합니다. 학생 데이터가 없으면 입력을 시작하지 않습니다."));
-  if (mode.key !== "personal" && !students.rows.length) {
-    wrap.append(el("div", "empty", "등록된 학생이 없습니다. 학생 관리에서 학생을 먼저 등록해 주세요."));
-    return wrap;
-  }
+  if (mode.key !== "personal") wrap.append(studentRosterStatusNoteV155(students));
   const assessmentOptions = assessments.map((row) => [row.id, examGradeSafeLabelV139(row, "평가")]);
-  const studentOptions = students.rows.map((row) => [row.id || row.uid || row.studentUid, examGradeStudentLabelV149(row)]).filter(([id, label]) => id && label);
+  const studentOptions = students.rows.length
+    ? students.rows.map((row) => [row.key, examGradeStudentLabelV149(row)]).filter(([id, label]) => id && label)
+    : [["", "등록된 학생이 없습니다"]];
   const fields = [["평가", "assessmentId", "select", "", assessmentOptions]];
   if (mode.key !== "personal") fields.push(["학생", "studentId", "select", "", studentOptions]);
   fields.push(["점수", "rawScore", "number"], ["만점", "maxScore", "number"], ["응시 상태", "attendanceStatus", "text", "attended"], ["제출 상태", "submissionStatus", "text", "submitted"]);
-  wrap.append(examGradeFormV138(fields, "성적 저장", async (payload) => {
-    const studentId = mode.key === "personal" ? examGradeCurrentPersonIdV149() : String(payload.studentId || "");
+  const entryForm = examGradeFormV138(fields, "성적 저장", async (payload) => {
+    const selectedStudent = mode.key === "personal"
+      ? null
+      : window.PMStudentRosterService?.resolveStudentSelection?.(payload.studentId, { workspaceId: studentRosterWorkspaceIdV155() });
+    if (mode.key !== "personal" && !selectedStudent) throw learningWriteErrorV137("STUDENT_ROSTER_INVALID_RECORD");
+    if (mode.key !== "personal" && !window.PMStudentRosterService?.canUseStudentForWrite?.(selectedStudent)) {
+      throw learningWriteErrorV137(selectedStudent?.canonical ? "STUDENT_ROSTER_WRITE_BLOCKED" : "STUDENT_ROSTER_LEGACY_READ_ONLY");
+    }
+    const studentId = mode.key === "personal" ? examGradeCurrentPersonIdV149() : String(selectedStudent.studentId || "");
     const assessment = assessments.find((row) => String(row.id) === String(payload.assessmentId));
     if (!assessment || !studentId) throw learningWriteErrorV137("assessment-required-field-missing");
     const score = examGradeServiceV138()?.calculateAssessmentScore({ ...payload, maxScore: payload.maxScore || assessment.maxScore, weight: assessment.weight });
     if (!score || score.status === "invalid") throw learningWriteErrorV137(score?.code || "assessment-score-invalid");
     const existing = examGradeRowsV138("results").find((row) => String(row.assessmentId) === String(payload.assessmentId) && String(row.studentId) === studentId);
     await writeExamGradeRowV138("results", { ...payload, ...score, studentId, assessmentPlanId: assessment.assessmentPlanId || "", academicYear: assessment.academicYear || "", gradeLevel: assessment.gradeLevel || "", term: assessment.term || "", classId: assessment.classId || "", subjectId: assessment.subjectId || "", weight: assessment.weight, status: "draft" }, existing?.id || "");
-  }));
+  });
+  if (mode.key !== "personal" && !students.rows.length) {
+    const select = entryForm.querySelector('[name="studentId"]');
+    if (select) select.disabled = true;
+    entryForm.querySelector('button[type="submit"]')?.setAttribute("disabled", "disabled");
+    entryForm.append(el("p", "muted student-selector-empty-v156", "등록된 학생이 없어 학생 대상 성적을 저장할 수 없습니다."));
+  }
+  wrap.append(entryForm);
   return wrap;
 }
 
@@ -36787,6 +37020,13 @@ const operationModeDiagnosticsV153 = {
   modeServerLoadCount: 0,
   appTarget: "main",
   modeSource: "unresolved",
+  operationModeSource: "unresolved",
+  requestedWorkspaceFingerprint: "-",
+  resolvedWorkspaceFingerprint: "-",
+  rawOperationModePresent: false,
+  workspaceModeLoadCount: 0,
+  workspaceModeCacheHitCount: 0,
+  workspaceModeMismatchDetected: false,
   adminSystemMenuCount: 0,
   workspaceFeatureMenuCount: 0,
   sensitiveValueDetected: false
@@ -36799,6 +37039,7 @@ const operationModeUiStateV154 = {
   loadedWorkspaceId: "",
   metadataVerifiedWorkspaceId: "",
   loadPromise: null,
+  workspaceMetadata: null,
   resolutionSignature: "",
   resolution: null
 };
@@ -36851,6 +37092,11 @@ function normalizeOperationModeV154(value = "") {
     : "integrated_unconfigured";
 }
 
+function operationModeWorkspaceFingerprintV156(value = "") {
+  const text = String(value || "").trim();
+  return text ? maskIdentifierV114(text) : "-";
+}
+
 function resolveOperationModeUiV154({
   appTarget = "main",
   operationMode = "",
@@ -36873,13 +37119,13 @@ function resolveOperationModeUiV154({
     ],
     school: [
       "attendance", "academic", "schoolNotices", "homeLetters", "meals",
-      "mealApplications", "timetable", "subjects", "teachers", "lessons",
+      "mealApplications", "timetable", "students", "subjects", "teachers", "lessons",
       "assignments", "examSchedules", "exams", "records", "projects",
       "afterschool", "specialLectures", "clubs", "people", "friendAwards",
       "penalties", "budget", "masterData", "omrForms", "print"
     ],
     academy: [
-      "attendance", "timetable", "subjects", "teachers", "lessons", "assignments",
+      "attendance", "timetable", "students", "subjects", "teachers", "lessons", "assignments",
       "examSchedules", "exams", "records", "projects", "people", "penalties",
       "masterData", "omrForms", "print"
     ],
@@ -36951,6 +37197,7 @@ function selectAdminStandaloneOperationModeWorkspaceV154(workspaceId = "") {
   operationModeUiStateV154.selectedAdminWorkspaceId = nextWorkspaceId;
   operationModeUiStateV154.loadedWorkspaceId = "";
   operationModeUiStateV154.metadataVerifiedWorkspaceId = "";
+  operationModeUiStateV154.workspaceMetadata = null;
   operationModeUiStateV154.loadPromise = null;
   invalidateOperationModeUiV154("admin-workspace-selected");
   queueMicrotask(() => {
@@ -36968,15 +37215,19 @@ function operationModeCandidateV154(workspaceId = operationModeWorkspaceIdV154()
   const selectedDifferentWorkspace = isStandaloneAdminSiteV60()
     && operationModeUiStateV154.selectedAdminWorkspaceId
     && String(workspaceId || "") !== operationModeCanonicalWorkspaceIdV154();
+  const canonicalWorkspaceId = operationModeCanonicalWorkspaceIdV154();
+  const storeWorkspaceId = String(store?.workspace_id || "").trim();
+  const sameCanonicalWorkspace = Boolean(workspaceId && String(workspaceId) === canonicalWorkspaceId);
+  const sameStoreWorkspace = Boolean(workspaceId && String(workspaceId) === storeWorkspaceId);
   const candidates = selectedDifferentWorkspace
     ? workspaceCandidates
     : [
       ...workspaceCandidates,
-      ["workspace-store", store?.workspace?.operationMode],
-      ["workspace-store", store?.settings?.operationMode],
-      ["app-session", authWorkspaceStateV36?.operationMode],
-      ["app-session", currentUser?.operationMode],
-      ["app-session", currentUser?.workspace?.operationMode]
+      ["workspace-store", sameStoreWorkspace ? store?.workspace?.operationMode : ""],
+      ["workspace-store", sameStoreWorkspace ? store?.settings?.operationMode : ""],
+      ["app-session", sameCanonicalWorkspace ? authWorkspaceStateV36?.operationMode : ""],
+      ["app-session", sameCanonicalWorkspace ? currentUser?.operationMode : ""],
+      ["app-session", sameCanonicalWorkspace ? currentUser?.workspace?.operationMode : ""]
     ];
   const found = candidates.find(([, value]) => value !== null && value !== undefined && String(value).trim());
   return found
@@ -36998,6 +37249,13 @@ function cacheOperationModeV154(workspaceId, mode, source, metadataVerified = fa
   if (metadataVerified) operationModeUiStateV154.metadataVerifiedWorkspaceId = String(workspaceId || "");
   operationModeDiagnosticsV153.normalizedOperationMode = operationModeUiStateV154.normalizedMode;
   operationModeDiagnosticsV153.modeSource = operationModeUiStateV154.source;
+  operationModeDiagnosticsV153.operationModeSource = operationModeUiStateV154.source;
+  operationModeDiagnosticsV153.requestedWorkspaceFingerprint = operationModeWorkspaceFingerprintV156(workspaceId);
+  operationModeDiagnosticsV153.resolvedWorkspaceFingerprint = operationModeWorkspaceFingerprintV156(operationModeUiStateV154.loadedWorkspaceId);
+  operationModeDiagnosticsV153.rawOperationModePresent = Boolean(String(mode || "").trim());
+  operationModeDiagnosticsV153.workspaceModeMismatchDetected = Boolean(
+    workspaceId && operationModeUiStateV154.loadedWorkspaceId && String(workspaceId) !== operationModeUiStateV154.loadedWorkspaceId
+  );
 }
 
 function refreshOperationModeUiV154() {
@@ -37014,6 +37272,7 @@ function ensureOperationModeLoadedV154() {
   if (candidate.found && candidate.source === "workspace-metadata") {
     cacheOperationModeV154(workspaceId, candidate.mode, candidate.source, true);
     operationModeDiagnosticsV153.modeCacheHitCount += 1;
+    operationModeDiagnosticsV153.workspaceModeCacheHitCount += 1;
     return Promise.resolve(candidate.mode);
   }
   if (candidate.found) cacheOperationModeV154(workspaceId, candidate.mode, candidate.source);
@@ -37023,10 +37282,12 @@ function ensureOperationModeLoadedV154() {
   }
   if (operationModeUiStateV154.metadataVerifiedWorkspaceId === workspaceId) {
     operationModeDiagnosticsV153.modeCacheHitCount += 1;
+    operationModeDiagnosticsV153.workspaceModeCacheHitCount += 1;
     return Promise.resolve(operationModeUiStateV154.normalizedMode);
   }
   if (operationModeUiStateV154.loadPromise && operationModeUiStateV154.workspaceId === workspaceId) {
     operationModeDiagnosticsV153.modeCacheHitCount += 1;
+    operationModeDiagnosticsV153.workspaceModeCacheHitCount += 1;
     return operationModeUiStateV154.loadPromise;
   }
   operationModeUiStateV154.workspaceId = workspaceId;
@@ -37038,8 +37299,11 @@ function ensureOperationModeLoadedV154() {
     return Promise.resolve(fallbackMode);
   }
   operationModeDiagnosticsV153.modeServerLoadCount += 1;
+  operationModeDiagnosticsV153.workspaceModeLoadCount += 1;
   operationModeUiStateV154.loadPromise = Promise.resolve(reader(workspaceId))
     .then((workspace) => {
+      const resolvedWorkspaceId = String(workspace?.id || workspace?.workspaceId || "").trim();
+      operationModeUiStateV154.workspaceMetadata = resolvedWorkspaceId === String(workspaceId) ? workspace : null;
       const mode = normalizeOperationModeV154(workspace?.operationMode || workspace?.settings?.operationMode || "");
       cacheOperationModeV154(workspaceId, mode, "workspace-metadata-read", true);
       if (!isStandaloneAdminSiteV60() || workspaceId === operationModeCanonicalWorkspaceIdV154()) {
@@ -37065,7 +37329,11 @@ function ensureOperationModeLoadedV154() {
 function operationModeUiForCurrentUserV154(availableFeatures = []) {
   const workspaceId = operationModeWorkspaceIdV154();
   const candidate = operationModeCandidateV154(workspaceId);
-  if (candidate.found) {
+  const metadataVerified = operationModeUiStateV154.metadataVerifiedWorkspaceId === workspaceId;
+  if (metadataVerified) {
+    operationModeDiagnosticsV153.modeCacheHitCount += 1;
+    operationModeDiagnosticsV153.workspaceModeCacheHitCount += 1;
+  } else if (candidate.found) {
     if (operationModeUiStateV154.normalizedMode !== candidate.mode
       || operationModeUiStateV154.workspaceId !== workspaceId
       || (candidate.source === "workspace-metadata" && operationModeUiStateV154.metadataVerifiedWorkspaceId !== workspaceId)) {
@@ -37082,8 +37350,10 @@ function operationModeUiForCurrentUserV154(availableFeatures = []) {
   } else if (operationModeUiStateV154.metadataVerifiedWorkspaceId !== workspaceId && !operationModeUiStateV154.loadPromise) {
     queueMicrotask(() => ensureOperationModeLoadedV154());
   }
-  const mode = candidate.found
-    ? candidate.mode
+  const mode = metadataVerified
+    ? operationModeUiStateV154.normalizedMode
+    : candidate.found
+      ? candidate.mode
     : operationModeUiStateV154.loadedWorkspaceId === workspaceId
       ? operationModeUiStateV154.normalizedMode
       : "integrated_unconfigured";
@@ -37250,6 +37520,8 @@ function applyOperationModeUiChangeV154(workspaceId, mode) {
     store.settings.operationMode = normalizedMode;
   }
   cacheOperationModeV154(currentWorkspaceId, normalizedMode, "server-confirmed-change", true);
+  window.PMStudentRosterService?.invalidateStudentRosterForWorkspace?.(currentWorkspaceId);
+  studentRosterSurfaceErrorsV155?.delete?.(currentWorkspaceId);
   invalidateOperationModeUiV154("server-confirmed-mode-change");
   refreshOperationModeUiV154();
 }
@@ -37656,7 +37928,14 @@ ownerPreviewModeSnapshotV128 = function ownerPreviewModeSnapshotV150() {
 };
 
 function examGradeModeInfoV150() {
-  const mode = String(ownerPreviewModeSnapshotV128()?.mode || "integrated_unconfigured").replace(/-/g, "_");
+  const workspaceId = operationModeWorkspaceIdV154();
+  const verified = operationModeUiStateV154.metadataVerifiedWorkspaceId === workspaceId;
+  const candidate = operationModeCandidateV154(workspaceId);
+  const mode = verified
+    ? operationModeUiStateV154.normalizedMode
+    : candidate.found
+      ? candidate.mode
+      : "integrated_unconfigured";
   return ({ personal: { key: "personal", label: "개인 모드", configured: true }, school: { key: "school", label: "학교 모드", configured: true }, academy: { key: "academy", label: "학원 모드", configured: true } }[mode] || { key: "integrated_unconfigured", label: "운영 모드 미설정", configured: false });
 }
 
@@ -37776,6 +38055,207 @@ window.PMExamGradeDiagnostics = {
 
 store.settings ??= {};
 store.settings.appVersion = APP_PATCH_VERSION_V154;
+
+// Batch 10H adds a read-only, workspace-scoped student roster adapter.
+// It does not add student writes, listeners, migrations, or fallback IDs.
+const APP_PATCH_VERSION_V155 = "v155.0 - 2026-07-31";
+const studentRosterSurfaceLoadsV155 = new Map();
+const studentRosterSurfaceErrorsV155 = new Map();
+
+function studentRosterWorkspaceIdV155() {
+  return String(
+    (typeof operationModeWorkspaceIdV154 === "function" && operationModeWorkspaceIdV154())
+      || currentWorkspaceIdV52?.()
+      || ""
+  ).trim();
+}
+
+function studentRosterOperationModeV155() {
+  const workspaceId = studentRosterWorkspaceIdV155();
+  const mode = operationModeUiStateV154.metadataVerifiedWorkspaceId === workspaceId
+    ? operationModeUiStateV154.normalizedMode
+    : operationModeCandidateV154(workspaceId).mode;
+  return String(mode || "integrated_unconfigured").replace(/-/g, "_");
+}
+
+function studentRosterAuthorizedV155(surface = "exams") {
+  if (typeof isSystemOwnerV150 === "function" && isSystemOwnerV150()) return true;
+  return typeof can === "function" && can("view", surface);
+}
+
+function studentRosterContextV155(surface = "exams", force = false) {
+  const workspaceId = studentRosterWorkspaceIdV155();
+  const candidate = operationModeCandidateV154(workspaceId);
+  return {
+    workspaceId,
+    operationMode: studentRosterOperationModeV155(),
+    operationModeSource: operationModeUiStateV154.metadataVerifiedWorkspaceId === workspaceId
+      ? operationModeUiStateV154.source
+      : candidate.source,
+    rawOperationModePresent: candidate.found,
+    workspaceModeLoadCount: Number(operationModeDiagnosticsV153.workspaceModeLoadCount || 0),
+    workspaceModeCacheHitCount: Number(operationModeDiagnosticsV153.workspaceModeCacheHitCount || 0),
+    appTarget: appTargetV60(),
+    authorized: studentRosterAuthorizedV155(surface),
+    people: Array.isArray(store?.people) ? store.people : [],
+    force
+  };
+}
+
+function studentRosterCachedV155() {
+  const workspaceId = studentRosterWorkspaceIdV155();
+  const cached = window.PMStudentRosterService?.getCachedStudentRoster?.(workspaceId);
+  if (cached) return cached;
+  const errorCode = studentRosterSurfaceErrorsV155.get(workspaceId) || "";
+  return {
+    workspaceId,
+    operationMode: studentRosterOperationModeV155(),
+    source: errorCode ? "error" : "loading",
+    rows: [],
+    canonicalCount: 0,
+    fallbackCount: 0,
+    rejectedCount: 0,
+    writableCount: 0,
+    readOnlyCount: 0,
+    errorCode
+  };
+}
+
+function loadStudentRosterForSurfaceV155(surface = "exams", force = false) {
+  const service = window.PMStudentRosterService;
+  if (!service?.loadStudentRoster) {
+    return Promise.reject(learningWriteErrorV137("STUDENT_ROSTER_LOAD_FAILED"));
+  }
+  return ensureOperationModeLoadedV154().then((resolvedMode) => {
+    const context = studentRosterContextV155(surface, force);
+    context.operationMode = resolvedMode;
+    context.operationModeSource = operationModeUiStateV154.source;
+    if (force) studentRosterSurfaceErrorsV155.delete(context.workspaceId);
+    return service.loadStudentRoster(context);
+  });
+}
+
+function ensureStudentRosterForSurfaceV155(surface = "exams") {
+  const workspaceId = studentRosterWorkspaceIdV155();
+  if (!workspaceId || window.PMStudentRosterService?.getCachedStudentRoster?.(workspaceId)) {
+    return Promise.resolve(studentRosterCachedV155());
+  }
+  if (studentRosterSurfaceErrorsV155.has(workspaceId)) {
+    return Promise.resolve(studentRosterCachedV155());
+  }
+  if (studentRosterSurfaceLoadsV155.has(workspaceId)) {
+    return studentRosterSurfaceLoadsV155.get(workspaceId);
+  }
+  let request;
+  request = loadStudentRosterForSurfaceV155(surface)
+    .then((result) => {
+      studentRosterSurfaceErrorsV155.delete(workspaceId);
+      if (surface === "portfolios" && currentPage === "portfolios") renderPortfolioV139();
+      if (surface === "students" && currentPage === "students") renderStudentManagementV156();
+      if (surface === "students" && currentPage === "dashboard") renderDashboardV8();
+      return result;
+    })
+    .catch((error) => {
+      studentRosterSurfaceErrorsV155.set(workspaceId, String(error?.code || "STUDENT_ROSTER_LOAD_FAILED"));
+      if (surface === "portfolios" && currentPage === "portfolios") renderPortfolioV139();
+      if (surface === "students" && currentPage === "students") renderStudentManagementV156();
+      if (surface === "students" && currentPage === "dashboard") renderDashboardV8();
+      return studentRosterCachedV155();
+    })
+    .finally(() => {
+      if (studentRosterSurfaceLoadsV155.get(workspaceId) === request) {
+        studentRosterSurfaceLoadsV155.delete(workspaceId);
+      }
+    });
+  studentRosterSurfaceLoadsV155.set(workspaceId, request);
+  return request;
+}
+
+function studentRosterStatusNoteV155(result = studentRosterCachedV155()) {
+  const note = el("p", "muted student-roster-status-v155");
+  if (result.source === "students") {
+    note.textContent = `정식 학생 명부 ${result.canonicalCount || result.rows?.length || 0}명을 읽기 전용으로 표시합니다.`;
+  } else if (result.source === "people_fallback") {
+    note.textContent = "이 학생은 기존 인물 목록에서 임시로 표시되고 있습니다. 정식 학생 명부 연결 전에는 성적 또는 포트폴리오를 저장할 수 없습니다.";
+  } else if (result.source === "loading") {
+    note.textContent = "학생 명부를 불러오는 중입니다.";
+  } else if (result.source === "error") {
+    note.textContent = "학생 명부를 불러오지 못했습니다. 권한과 현재 워크스페이스를 확인해 주세요.";
+  } else if (result.source === "blocked") {
+    note.textContent = "현재 운영 모드에서는 학생 명부를 사용할 수 없습니다.";
+  } else {
+    note.textContent = "등록된 정식 학생 명부가 없습니다.";
+  }
+  return note;
+}
+
+const loadExamGradeDataBeforeV155 = loadExamGradeDataV138;
+loadExamGradeDataV138 = function loadExamGradeDataV155(force = false) {
+  return Promise.all([
+    loadExamGradeDataBeforeV155(force),
+    loadStudentRosterForSurfaceV155("exams", force)
+  ]).then(([result]) => result);
+};
+
+const examGradeErrorMessageBeforeV155 = examGradeErrorMessageV138;
+examGradeErrorMessageV138 = function examGradeErrorMessageV155(code = "") {
+  if (code === "STUDENT_ROSTER_LEGACY_READ_ONLY" || code === "STUDENT_ROSTER_WRITE_BLOCKED") {
+    return "정식 학생 명부 연결 전에는 성적을 저장할 수 없습니다.";
+  }
+  if (code === "STUDENT_ROSTER_INVALID_RECORD") return "정식 학생 명부에서 학생을 다시 선택해 주세요.";
+  if (code === "STUDENT_ROSTER_PERMISSION_DENIED") return "학생 명부를 조회할 권한이 없습니다.";
+  if (code === "STUDENT_ROSTER_WORKSPACE_REQUIRED") return "현재 워크스페이스를 확인할 수 없습니다.";
+  if (code === "STUDENT_ROSTER_LOAD_FAILED") return "학생 명부를 불러오지 못했습니다.";
+  return examGradeErrorMessageBeforeV155(code);
+};
+
+function studentRosterOptionsV155() {
+  const result = studentRosterCachedV155();
+  return [
+    ["", "대상 학생을 선택해 주세요"],
+    ...(result.rows || []).map((row) => [row.key, examGradeStudentLabelV149(row)])
+  ];
+}
+
+const fieldsForV7BeforeV155 = fieldsForV7;
+fieldsForV7 = function fieldsForV155(key) {
+  const fields = fieldsForV7BeforeV155(key);
+  if (!["portfolios", "records"].includes(key) || !["school", "academy"].includes(studentRosterOperationModeV155())) return fields;
+  return fields.filter(([name]) => !["targetStudentId", "studentSelectionKey"].includes(name));
+};
+
+const normalizeLearningPayloadBeforeV155 = normalizeLearningPayloadV137;
+normalizeLearningPayloadV137 = function normalizeLearningPayloadV155(key, form) {
+  const payload = normalizeLearningPayloadBeforeV155(key, form);
+  if (!["portfolios", "records"].includes(key) || !["school", "academy"].includes(studentRosterOperationModeV155())) return payload;
+  delete payload.studentSelectionKey;
+  delete payload.targetStudentId;
+  delete payload.ownerUid;
+  delete payload.studentUid;
+  return payload;
+};
+
+const renderPortfolioBeforeV155 = renderPortfolioV139;
+renderPortfolioV139 = function renderPortfolioV155() {
+  ensureStudentRosterForSurfaceV155("portfolios");
+  const result = renderPortfolioBeforeV155();
+  if (currentPage === "portfolios") {
+    const section = content.querySelector(".panel");
+    const head = section?.querySelector(".panel-head");
+    if (section && !section.querySelector(".student-roster-status-v155")) {
+      section.insertBefore(studentRosterStatusNoteV155(), head?.nextSibling || section.firstChild);
+    }
+  }
+  return result;
+};
+
+const logoutBeforeV155 = logout;
+logout = function logoutV155() {
+  window.PMStudentRosterService?.clearStudentRosterCache?.();
+  studentRosterSurfaceLoadsV155.clear();
+  studentRosterSurfaceErrorsV155.clear();
+  return logoutBeforeV155.apply(this, arguments);
+};
 
 store.settings ??= {};
 store.settings.appVersion = APP_PATCH_VERSION_V150;
@@ -38043,3 +38523,686 @@ window.PMExamGradeDiagnostics = {
 // Batch 10G keeps V154 as the final operational UI/cache marker.
 store.settings ??= {};
 store.settings.appVersion = APP_PATCH_VERSION_V154;
+
+// Keep Batch 10H diagnostics and cache marker after all legacy assignments.
+window.PMExamGradeDiagnostics = {
+  snapshot: () => ({
+    ...examGradeDiagnosticsV138,
+    appVersion: APP_PATCH_VERSION_V155,
+    operationMode: examGradeModeInfoV150().key,
+    studentSource: examGradeStudentAdapterV149().source,
+    studentCount: examGradeStudentAdapterV149().rows.length,
+    studentRosterReadOnly: true,
+    activeSurface: currentPage === "exams" ? "exam-grade-management" : "inactive",
+    activeListenerCount: 0,
+    auditLogWriteCount: 0,
+    sensitiveValueDetected: false
+  })
+};
+store.settings.appVersion = APP_PATCH_VERSION_V155;
+
+// Batch 10H2 repairs canonical school-mode reads and exposes the roster through
+// read-only school surfaces. It adds no student or operation-mode writes.
+const APP_PATCH_VERSION_V156 = "v156.0 - 2026-08-02";
+const schoolUiDiagnosticsV156 = {
+  invalidFieldDescriptorCount: 0,
+  lastErrorCode: "",
+  schoolDashboardRenderCount: 0,
+  studentManagementRenderCount: 0,
+  studentSelectorRenderCount: 0,
+  apiNotConfiguredCount: 0,
+  sensitiveValueDetected: false
+};
+
+window.PMSchoolUiDiagnostics = {
+  recordInvalidField() {
+    schoolUiDiagnosticsV156.invalidFieldDescriptorCount += 1;
+    schoolUiDiagnosticsV156.lastErrorCode = "SCHOOL_SYNC_FIELD_DESCRIPTOR_INVALID";
+  },
+  recordApiNotConfigured() {
+    schoolUiDiagnosticsV156.apiNotConfiguredCount += 1;
+  },
+  recordStudentSelector() {
+    schoolUiDiagnosticsV156.studentSelectorRenderCount += 1;
+  },
+  snapshot() {
+    const proxy = window.PMSchoolIntegrationService?.diagnostics?.() || {};
+    return {
+      ...schoolUiDiagnosticsV156,
+      operationMode: studentRosterOperationModeV155(),
+      operationModeSource: operationModeUiStateV154.source,
+      appTarget: appTargetV60(),
+      schoolProxyConfigured: proxy.schoolProxyConfigured === true,
+      schoolProxyRequestCount: Number(proxy.schoolProxyRequestCount || 0),
+      schoolProxyRequestSent: Number(proxy.schoolProxyRequestCount || 0) > 0
+    };
+  }
+};
+
+function studentRosterSelectorStateTextV156(roster = studentRosterCachedV155()) {
+  if (roster.source === "students") return "정식 학생 명부 · 읽기 전용";
+  if (roster.source === "people_fallback") return "임시 학생 목록 · 읽기 전용이며 저장할 수 없습니다.";
+  if (roster.source === "blocked") return "현재 운영 모드에서 학생을 사용할 수 없습니다.";
+  if (roster.source === "error") return "학생 명부 조회 권한 또는 연결 상태를 확인해 주세요.";
+  if (roster.source === "loading") return "학생 명부를 불러오는 중입니다.";
+  return "등록된 학생이 없습니다.";
+}
+
+function schoolWorkspaceDisplayNameV156() {
+  const workspaceId = studentRosterWorkspaceIdV155();
+  const workspace = operationModeWorkspaceV150(workspaceId);
+  return String(workspace?.displayName || workspace?.name || store?.settings?.workspaceName || "현재 워크스페이스");
+}
+
+function studentRosterSourceLabelV157(source = "") {
+  return ({
+    students: "정식 학생 명부",
+    people_fallback: "임시 학생 명부",
+    empty: "등록된 학생 없음",
+    blocked: "현재 모드에서 사용할 수 없음",
+    permission_denied: "접근 권한 없음",
+    error: "학생 명부를 불러오지 못함",
+    load_failed: "학생 명부를 불러오지 못함",
+    loading: "학생 명부 불러오는 중"
+  })[String(source || "").toLowerCase()] || "등록된 학생 없음";
+}
+
+function rosterStatusCardsV156(roster = studentRosterCachedV155()) {
+  const cards = el("div", "stats student-roster-stats-v156");
+  [
+    ["학생 원본", studentRosterSourceLabelV157(roster.source || "loading")],
+    ["정식 학생", `${Number(roster.canonicalCount || 0)}명`],
+    ["임시 학생", `${Number(roster.fallbackCount || 0)}명`],
+    ["표시 학생", `${Number(roster.rows?.length || 0)}명`],
+    ["제공 상태", "읽기 전용"]
+  ].forEach(([label, value]) => {
+    const card = el("div", "stat");
+    card.append(el("span", "", label), el("strong", "", value));
+    cards.append(card);
+  });
+  return cards;
+}
+
+function renderSchoolDashboardV156(operationModeUi = operationModeUiForCurrentUserV154(authMenuKeysV31())) {
+  schoolUiDiagnosticsV156.schoolDashboardRenderCount += 1;
+  ensureStudentRosterForSurfaceV155("students");
+  const roster = studentRosterCachedV155();
+  content.replaceChildren();
+  pageTitle.textContent = "학교 운영 대시보드";
+  const hero = el("section", "panel school-dashboard-v156");
+  const head = el("div", "panel-head");
+  const title = el("div", "");
+  title.append(el("span", "pill private", "학교 모드"), el("h3", "", "학교 운영 대시보드"));
+  head.append(title);
+  hero.append(
+    head,
+    el("p", "muted", `현재 워크스페이스: ${schoolWorkspaceDisplayNameV156()}`),
+    el("p", "muted", "학생·교사·학년·반과 학교 업무 상태를 읽기 전용으로 확인합니다."),
+    rosterStatusCardsV156(roster)
+  );
+  content.append(hero);
+  if (typeof renderSystemNoticesPanelV54 === "function") content.append(renderSystemNoticesPanelV54());
+
+  const workflow = panel("학교 업무");
+  const grid = el("div", "dashboard-grid school-workflow-grid-v156");
+  const rows = [
+    ["students", "학생 명부", studentRosterSelectorStateTextV156(roster)],
+    ["teachers", "교사", `${(store.teachers || []).length}명`],
+    ["timetable", "시간표", "현재 시간표 확인"],
+    ["attendance", "출결", "출결 화면으로 이동"],
+    ["exams", "시험·성적", "학생 selector 연동"],
+    ["records", "기록", "학생 대상 기록"],
+    ["notices", "공지", "워크스페이스 공지"]
+  ];
+  rows.forEach(([key, label, detail]) => {
+    const card = el("section", "card");
+    const action = button(label, "ghost");
+    action.type = "button";
+    const available = operationModeUi.visibleMenuIds.includes(key);
+    action.disabled = !available;
+    action.addEventListener("click", () => renderPage(key));
+    card.append(el("h4", "", label), el("p", "muted", available ? detail : "준비 중"), action);
+    grid.append(card);
+  });
+  workflow.append(grid);
+  content.append(workflow);
+}
+
+function renderStudentManagementV156() {
+  schoolUiDiagnosticsV156.studentManagementRenderCount += 1;
+  ensureStudentRosterForSurfaceV155("students");
+  const roster = studentRosterCachedV155();
+  content.replaceChildren();
+  const section = panel("학생관리");
+  const head = section.querySelector(".panel-head");
+  const actions = el("div", "row-actions");
+  ["학생 추가", "학생 수정", "학생 삭제", "CSV 가져오기"].forEach((label) => {
+    const action = button(label, "ghost");
+    action.type = "button";
+    action.disabled = true;
+    action.title = "정식 학생 데이터 규칙과 생성 절차가 확정되기 전까지 사용할 수 없습니다.";
+    actions.append(action);
+  });
+  head?.append(actions);
+  section.append(
+    el("p", "muted", "정식 학생 데이터 규칙과 생성 절차가 확정되기 전까지 학생 명부는 읽기 전용으로 제공됩니다."),
+    rosterStatusCardsV156(roster),
+    el("p", "muted student-roster-result-v156", `${studentRosterSelectorStateTextV156(roster)}${roster.errorCode ? ` · ${roster.errorCode}` : ""}`)
+  );
+  if (!roster.rows?.length) {
+    section.append(el("div", "empty", roster.source === "loading" ? "학생 명부를 불러오는 중입니다." : "등록된 학생이 없습니다."));
+  } else {
+    const wrap = el("div", "table-wrap");
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>이름</th><th>학년</th><th>반</th><th>학번</th><th>원본</th></tr></thead>";
+    const body = document.createElement("tbody");
+    roster.rows.forEach((row) => {
+      const tr = document.createElement("tr");
+      [row.displayName, row.grade || "-", row.className || "-", row.studentNumber || "-", row.canonical ? "정식 명부" : "임시 목록"]
+        .forEach((value) => tr.append(el("td", "", value)));
+      body.append(tr);
+    });
+    table.append(body);
+    wrap.append(table);
+    section.append(wrap);
+  }
+  content.append(section);
+}
+
+window.PMExamGradeDiagnostics = {
+  snapshot: () => ({
+    ...examGradeDiagnosticsV138,
+    appVersion: APP_PATCH_VERSION_V156,
+    operationMode: examGradeModeInfoV150().key,
+    operationModeSource: operationModeUiStateV154.source,
+    studentSource: examGradeStudentAdapterV149().source,
+    studentCount: examGradeStudentAdapterV149().rows.length,
+    studentRosterReadOnly: true,
+    activeSurface: currentPage === "exams" ? "exam-grade-management" : "inactive",
+    activeListenerCount: 0,
+    auditLogWriteCount: 0,
+    sensitiveValueDetected: false
+  })
+};
+store.settings.appVersion = APP_PATCH_VERSION_V156;
+
+// Batch 10H2B closes school read surfaces around cached, in-memory filters.
+// These helpers do not start reads, listeners, or writes.
+const APP_PATCH_VERSION_V157 = "v157.0 - 2026-08-03";
+const SCHOOL_READ_FILTER_KEYS_V157 = new Set(["students", "portfolios", "records", "assignments"]);
+const schoolReadFilterStateV157 = new Map();
+const schoolReadOptionTokensV157 = new Map();
+const schoolReadOptionValuesV157 = new Map();
+let schoolReadOptionSequenceV157 = 0;
+const schoolReadFilterDiagnosticsV157 = {
+  filterRenderCount: 0,
+  filterChangeCount: 0,
+  rosterCacheFilterCount: 0,
+  learningCacheFilterCount: 0,
+  serverReadCount: 0,
+  firestoreWriteAttemptCount: 0,
+  activeListenerCount: 0,
+  rawEnumExposureDetected: false,
+  lastSurface: ""
+};
+
+const SCHOOL_READ_STATUS_LABELS_V157 = Object.freeze({
+  attended: "응시",
+  absent: "결시",
+  submitted: "제출",
+  not_submitted: "미제출",
+  pending: "대기",
+  active: "재학",
+  inactive: "비활성",
+  read_only: "읽기 전용",
+  students: "정식 학생 명부",
+  people_fallback: "임시 학생 명부",
+  empty: "등록된 학생 없음",
+  blocked: "현재 모드에서 사용할 수 없음",
+  permission_denied: "접근 권한 없음",
+  load_failed: "학생 명부를 불러오지 못함"
+});
+
+const SCHOOL_READ_FILTERS_V157 = Object.freeze({
+  students: [
+    ["academicYear", "학년도"], ["grade", "학년"], ["className", "반"],
+    ["status", "재학 상태"], ["studentType", "학생 유형"]
+  ],
+  portfolios: [
+    ["academicYear", "학년도"], ["grade", "학년"], ["className", "반"],
+    ["subject", "과목"], ["student", "학생"], ["materialType", "자료 유형"], ["visibility", "공개 범위"]
+  ],
+  records: [
+    ["academicYear", "학년도"], ["grade", "학년"], ["className", "반"],
+    ["subject", "과목"], ["student", "학생"], ["recordType", "기록 유형"]
+  ],
+  assignments: [
+    ["academicYear", "학년도"], ["grade", "학년"], ["className", "반"],
+    ["subject", "과목"], ["student", "학생"], ["submissionStatus", "제출 상태"], ["deadlineStatus", "마감 상태"]
+  ]
+});
+
+const SCHOOL_READ_SCOPES_V157 = Object.freeze({
+  students: [["assigned", "내 담당만 보기"]],
+  portfolios: [["assigned", "내 담당만 보기"], ["homeroom", "내 담임반만 보기"]],
+  records: [["subjects", "내 담당 과목만 보기"], ["homeroom", "내 담임반만 보기"]],
+  assignments: [["subjects", "내 과목만 보기"], ["assignedClasses", "내 담당반만 보기"]]
+});
+
+function schoolReadModeV157() {
+  return studentRosterOperationModeV155() === "school";
+}
+
+function schoolReadRoleV157() {
+  const user = (typeof authCurrentUserV31 === "function" ? authCurrentUserV31() : null) || currentUser;
+  return typeof effectiveMenuRoleV59 === "function" ? effectiveMenuRoleV59(user) : String(user?.workspaceRole || user?.role || "");
+}
+
+function schoolReadStateV157(key) {
+  const workspaceKey = `${studentRosterWorkspaceIdV155() || "no-workspace"}:${key}`;
+  if (!schoolReadFilterStateV157.has(workspaceKey)) schoolReadFilterStateV157.set(workspaceKey, { scope: "all", query: "" });
+  return schoolReadFilterStateV157.get(workspaceKey);
+}
+
+function schoolReadLabelV157(value = "") {
+  const text = String(value ?? "").trim();
+  return SCHOOL_READ_STATUS_LABELS_V157[text.toLowerCase()] || text;
+}
+
+function schoolReadTokenV157(surface, field, value) {
+  const source = `${surface}|${field}|${String(value ?? "")}`;
+  if (!schoolReadOptionTokensV157.has(source)) {
+    const token = `school-filter-${++schoolReadOptionSequenceV157}`;
+    schoolReadOptionTokensV157.set(source, token);
+    schoolReadOptionValuesV157.set(token, value);
+  }
+  return schoolReadOptionTokensV157.get(source);
+}
+
+function schoolReadRawRowsV157(key) {
+  if (key === "students") return [...(studentRosterCachedV155().rows || [])];
+  return [...(Array.isArray(store[key]) ? store[key] : [])];
+}
+
+function schoolReadArrayV157(value) {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  return String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function schoolReadValueV157(row = {}, field = "") {
+  if (field === "academicYear") return row.academicYear || row.schoolYear || row.year || "";
+  if (field === "grade") return row.grade || row.gradeLevel || "";
+  if (field === "className") return row.className || row.class || row.classLabel || "";
+  if (field === "subject") return row.subject || row.subjectName || row.subjectId || "";
+  if (field === "materialType") return row.materialType || row.portfolioType || row.category || row.type || "";
+  if (field === "recordType") return row.recordType || row.category || row.type || "";
+  if (field === "submissionStatus") return row.submissionStatus || row.submitStatus || row.status || "";
+  if (field === "deadlineStatus") {
+    const explicit = row.deadlineStatus || row.dueStatus;
+    if (explicit) return explicit;
+    const deadline = row.deadline || row.dueDate || row.endDate;
+    if (!deadline) return "";
+    const parsed = new Date(deadline);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return parsed.getTime() < Date.now() ? "마감" : "진행 중";
+  }
+  return row[field] || "";
+}
+
+function schoolReadStudentRowsV157() {
+  return [...(studentRosterCachedV155().rows || [])];
+}
+
+function schoolReadStudentMatchesV157(row = {}, selectedKey = "") {
+  if (!selectedKey) return true;
+  const selected = schoolReadStudentRowsV157().find((student) => String(student.key || "") === String(selectedKey));
+  if (!selected) return false;
+  const selectedIds = new Set([selected.studentId, selected.id, selected.legacySourceId].map(String).filter(Boolean));
+  return [row.studentId, row.targetStudentId, row.learnerId, row.legacyStudentId]
+    .map(String).filter(Boolean).some((value) => selectedIds.has(value));
+}
+
+function schoolReadViewerAssignmentV157(rows = []) {
+  const user = (typeof authCurrentUserV31 === "function" ? authCurrentUserV31() : null) || currentUser || {};
+  const uid = String(user.uid || user.id || "");
+  const subjectIds = new Set([...schoolReadArrayV157(user.subjectIds), ...schoolReadArrayV157(user.assignedSubjectIds)]);
+  const classIds = new Set([...schoolReadArrayV157(user.classIds), ...schoolReadArrayV157(user.assignedClassIds)]);
+  const homeroomClassIds = new Set([...schoolReadArrayV157(user.homeroomClassIds), ...schoolReadArrayV157(user.homeroomClassId)]);
+  const departmentIds = new Set([...schoolReadArrayV157(user.departmentIds), ...schoolReadArrayV157(user.departmentId)]);
+  const rowHas = (fields) => rows.some((row) => fields.some((field) => String(row?.[field] || "")));
+  return {
+    uid, subjectIds, classIds, homeroomClassIds, departmentIds,
+    assignedAvailable: !!uid && (subjectIds.size > 0 || classIds.size > 0 || departmentIds.size > 0 || rowHas(["assignedTeacherUid", "subjectTeacherUid", "classTeacherUid"])),
+    subjectsAvailable: !!uid && (subjectIds.size > 0 || rowHas(["subjectTeacherUid", "assignedTeacherUid"])),
+    homeroomAvailable: !!uid && (homeroomClassIds.size > 0 || rowHas(["homeroomTeacherUid"])),
+    assignedClassesAvailable: !!uid && (classIds.size > 0 || rowHas(["classTeacherUid", "assignedTeacherUid"]))
+  };
+}
+
+function schoolReadScopeAvailableV157(scope, assignment) {
+  if (scope === "assigned") return assignment.assignedAvailable;
+  if (scope === "subjects") return assignment.subjectsAvailable;
+  if (scope === "homeroom") return assignment.homeroomAvailable;
+  if (scope === "assignedClasses") return assignment.assignedClassesAvailable;
+  return true;
+}
+
+function schoolReadScopeMatchesV157(row = {}, scope = "all", assignment) {
+  if (scope === "all") return true;
+  const teacherMatch = (...fields) => !!assignment.uid && fields.some((field) => String(row[field] || "") === assignment.uid);
+  const subjectMatch = assignment.subjectIds.has(String(row.subjectId || ""));
+  const classMatch = assignment.classIds.has(String(row.classId || ""));
+  const homeroomMatch = assignment.homeroomClassIds.has(String(row.classId || ""));
+  const departmentMatch = assignment.departmentIds.has(String(row.departmentId || ""));
+  if (scope === "subjects") return teacherMatch("subjectTeacherUid", "assignedTeacherUid") || subjectMatch;
+  if (scope === "homeroom") return teacherMatch("homeroomTeacherUid") || homeroomMatch;
+  if (scope === "assignedClasses") return teacherMatch("classTeacherUid", "assignedTeacherUid") || classMatch;
+  return teacherMatch("assignedTeacherUid", "subjectTeacherUid", "classTeacherUid", "homeroomTeacherUid") || subjectMatch || classMatch || departmentMatch;
+}
+
+function schoolReadFilteredRowsV157(key, rows = schoolReadRawRowsV157(key)) {
+  const state = schoolReadStateV157(key);
+  const assignment = schoolReadViewerAssignmentV157(rows);
+  const query = String(state.query || "").trim().toLowerCase();
+  const filtered = rows.filter((row) => {
+    if (query) {
+      const searchText = [row.displayName, row.name, row.studentNumber, row.studentNo].map((value) => String(value || "").toLowerCase());
+      if (!searchText.some((value) => value.includes(query))) return false;
+    }
+    for (const [field] of SCHOOL_READ_FILTERS_V157[key] || []) {
+      const selected = state[field];
+      if (!selected) continue;
+      if (field === "student") {
+        if (!schoolReadStudentMatchesV157(row, selected)) return false;
+      } else if (String(schoolReadValueV157(row, field)) !== String(selected)) return false;
+    }
+    return schoolReadScopeAvailableV157(state.scope, assignment) && schoolReadScopeMatchesV157(row, state.scope, assignment);
+  });
+  if (key === "students") schoolReadFilterDiagnosticsV157.rosterCacheFilterCount += 1;
+  else schoolReadFilterDiagnosticsV157.learningCacheFilterCount += 1;
+  return filtered;
+}
+
+function schoolReadFilterOptionsV157(key, field, rows) {
+  if (field === "student") {
+    return schoolReadStudentRowsV157().map((student) => [student.key, examGradeStudentLabelV149(student)]);
+  }
+  const values = [...new Set(rows.map((row) => String(schoolReadValueV157(row, field) || "").trim()).filter(Boolean))];
+  return values.sort((a, b) => a.localeCompare(b, "ko", { numeric: true })).map((value) => [value, schoolReadLabelV157(value)]);
+}
+
+function schoolReadFilterBarV157(key, sourceRows = schoolReadRawRowsV157(key)) {
+  schoolReadFilterDiagnosticsV157.filterRenderCount += 1;
+  schoolReadFilterDiagnosticsV157.lastSurface = key;
+  const state = schoolReadStateV157(key);
+  const bar = el("div", "toolbar compact-filter school-read-filter-v157");
+  (SCHOOL_READ_FILTERS_V157[key] || []).forEach(([field, label]) => {
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", label);
+    select.append(option("", `전체 ${label}`));
+    const values = schoolReadFilterOptionsV157(key, field, sourceRows);
+    values.forEach(([value, text]) => select.append(option(schoolReadTokenV157(key, field, value), text)));
+    const selectedToken = state[field] ? schoolReadTokenV157(key, field, state[field]) : "";
+    select.value = selectedToken;
+    select.disabled = field === "student" && values.length === 0;
+    select.addEventListener("change", () => {
+      state[field] = schoolReadOptionValuesV157.get(select.value) ?? "";
+      schoolReadFilterDiagnosticsV157.filterChangeCount += 1;
+      renderPage(key);
+    });
+    bar.append(select);
+  });
+  if (key === "students") {
+    const search = document.createElement("input");
+    search.type = "search";
+    search.placeholder = "이름·학번 검색";
+    search.value = state.query || "";
+    search.addEventListener("change", () => { state.query = search.value; schoolReadFilterDiagnosticsV157.filterChangeCount += 1; renderPage(key); });
+    search.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); search.dispatchEvent(new Event("change")); } });
+    bar.append(search);
+  }
+  const scopeActions = el("div", "row-actions school-read-scope-actions-v157");
+  const all = button("전체 보기", state.scope === "all" ? "primary" : "ghost");
+  all.type = "button";
+  all.addEventListener("click", () => { state.scope = "all"; schoolReadFilterDiagnosticsV157.filterChangeCount += 1; renderPage(key); });
+  scopeActions.append(all);
+  const assignment = schoolReadViewerAssignmentV157(sourceRows);
+  let unavailable = false;
+  (SCHOOL_READ_SCOPES_V157[key] || []).forEach(([scope, label]) => {
+    const action = button(label, state.scope === scope ? "primary" : "ghost");
+    action.type = "button";
+    action.disabled = !schoolReadScopeAvailableV157(scope, assignment);
+    unavailable ||= action.disabled;
+    action.addEventListener("click", () => { state.scope = scope; schoolReadFilterDiagnosticsV157.filterChangeCount += 1; renderPage(key); });
+    scopeActions.append(action);
+  });
+  bar.append(scopeActions);
+  if (unavailable) bar.append(el("p", "muted wide school-assignment-unavailable-v157", "담당 과목·반 배치가 아직 연결되지 않았습니다."));
+  return bar;
+}
+
+const filteredRowsBeforeV157 = filteredRowsV7;
+filteredRowsV7 = function filteredRowsV157(key) {
+  if (schoolReadModeV157() && ["portfolios", "records", "assignments"].includes(key)) return schoolReadFilteredRowsV157(key);
+  return filteredRowsBeforeV157(key);
+};
+
+const filterBarBeforeV157 = filterBarV7;
+filterBarV7 = function filterBarV157(key) {
+  if (schoolReadModeV157() && ["portfolios", "records", "assignments"].includes(key)) return schoolReadFilterBarV157(key);
+  return filterBarBeforeV157(key);
+};
+
+const tableBeforeV157 = tableV7;
+tableV7 = function tableV157(key, rows) {
+  const result = tableBeforeV157(key, rows);
+  if (schoolReadModeV157() && ["records", "assignments"].includes(key)) {
+    result.querySelectorAll?.("td").forEach((cell) => {
+      const localized = schoolReadLabelV157(cell.textContent);
+      if (localized !== cell.textContent) cell.textContent = localized;
+    });
+  }
+  return result;
+};
+
+const canBeforeV157 = can;
+can = function canV157(action, key) {
+  if (schoolReadModeV157() && ["create", "edit", "del"].includes(action)) {
+    const role = schoolReadRoleV157();
+    const user = (typeof authCurrentUserV31 === "function" ? authCurrentUserV31() : null) || currentUser || {};
+    const explicit = user.extraPermissions?.[`${key}:${action}`] === true;
+    if (["portfolios", "records"].includes(key) && role === "teacher") return false;
+    if (["portfolios", "records"].includes(key) && role === "manager" && !explicit) return false;
+    if (key === "subjects" && ["manager", "teacher"].includes(role)) return false;
+    if (key === "timetable" && ["manager", "teacher"].includes(role)) {
+      return user.extraPermissions?.timetable_manager === true
+        || user.extraPermissions?.["timetable:manage"] === true
+        || explicit;
+    }
+  }
+  return canBeforeV157(action, key);
+};
+
+renderStudentManagementV156 = function renderStudentManagementV157() {
+  schoolUiDiagnosticsV156.studentManagementRenderCount += 1;
+  ensureStudentRosterForSurfaceV155("students");
+  const roster = studentRosterCachedV155();
+  const rows = schoolReadFilteredRowsV157("students", roster.rows || []);
+  content.replaceChildren();
+  const section = panel("학생관리");
+  const head = section.querySelector(".panel-head");
+  const actions = el("div", "row-actions");
+  ["학생 추가", "학생 수정", "학생 삭제", "CSV 가져오기"].forEach((label) => {
+    const action = button(label, "ghost");
+    action.type = "button";
+    action.disabled = true;
+    action.title = "정식 학생 데이터 규칙과 생성 절차가 확정되기 전까지 사용할 수 없습니다.";
+    actions.append(action);
+  });
+  head?.append(actions);
+  section.append(
+    el("p", "muted", "정식 학생 데이터 규칙과 생성 절차가 확정되기 전까지 학생 명부는 읽기 전용으로 제공됩니다."),
+    rosterStatusCardsV156(roster),
+    schoolReadFilterBarV157("students", roster.rows || []),
+    el("p", "muted student-roster-result-v156", `${studentRosterSelectorStateTextV156(roster)}${roster.errorCode ? ` · ${roster.errorCode}` : ""}`)
+  );
+  if (!rows.length) section.append(el("div", "empty", roster.source === "loading" ? "학생 명부를 불러오는 중입니다." : "등록된 학생이 없습니다."));
+  else {
+    const wrap = el("div", "table-wrap");
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>이름</th><th>학년</th><th>반</th><th>학번</th><th>상태</th><th>원본</th></tr></thead>";
+    const body = document.createElement("tbody");
+    rows.forEach((row) => {
+      const tr = document.createElement("tr");
+      [row.displayName, row.grade || "-", row.className || "-", row.studentNumber || "-", schoolReadLabelV157(row.status || "active"), row.canonical ? "정식 명부" : "임시 목록"]
+        .forEach((value) => tr.append(el("td", "", value)));
+      body.append(tr);
+    });
+    table.append(body); wrap.append(table); section.append(wrap);
+  }
+  content.append(section);
+};
+
+const renderPortfolioBeforeV157 = renderPortfolioV139;
+renderPortfolioV139 = function renderPortfolioV157() {
+  const result = renderPortfolioBeforeV157();
+  if (schoolReadModeV157() && currentPage === "portfolios") {
+    const role = schoolReadRoleV157();
+    if (["teacher", "manager"].includes(role) && !can("create", "portfolios")) {
+      content.querySelectorAll("button").forEach((node) => { if (node.textContent.trim() === "포트폴리오 추가") node.remove(); });
+    }
+    content.querySelectorAll(".list-item span").forEach((node) => {
+      const localized = schoolReadLabelV157(node.textContent);
+      if (localized !== node.textContent) node.textContent = localized;
+    });
+  }
+  return result;
+};
+
+function schoolTimetableWriteAllowedV157() {
+  const role = schoolReadRoleV157();
+  if (!["manager", "teacher"].includes(role)) return true;
+  const user = (typeof authCurrentUserV31 === "function" ? authCurrentUserV31() : null) || currentUser || {};
+  return user.extraPermissions?.timetable_manager === true
+    || user.extraPermissions?.["timetable:manage"] === true
+    || user.extraPermissions?.["timetable:edit"] === true;
+}
+
+function applySchoolTimetableReadOnlyV157() {
+  if (!schoolReadModeV157() || schoolTimetableWriteAllowedV157()) return;
+  const section = content.querySelector(".panel");
+  if (!section) return;
+  section.prepend(el("p", "muted school-timetable-read-only-v157", "시간표 담당 권한이 없어 읽기 전용으로 표시됩니다."));
+  section.querySelectorAll(".modern-period-editor, .manual-timetable-form, .timetable-management-panel-v104").forEach((node) => node.remove());
+  section.querySelectorAll(".tt-cell").forEach((node) => { node.style.pointerEvents = "none"; node.removeAttribute("title"); });
+  const mutationLabel = /(추가|등록|수정|삭제|저장|보관|복사|재활성화|되살리기|복원)/;
+  section.querySelectorAll("button").forEach((node) => {
+    if (mutationLabel.test(node.textContent || "")) { node.disabled = true; node.title = "시간표 담당 권한이 필요합니다."; }
+  });
+}
+
+const renderTimetableBeforeV157 = renderTimetableV29;
+renderTimetableV29 = function renderTimetableV157() {
+  const result = renderTimetableBeforeV157.apply(this, arguments);
+  applySchoolTimetableReadOnlyV157();
+  return result;
+};
+
+window.PMSchoolReadFilterDiagnostics = {
+  snapshot: () => ({
+    ...schoolReadFilterDiagnosticsV157,
+    operationMode: studentRosterOperationModeV155(),
+    activeSurface: SCHOOL_READ_FILTER_KEYS_V157.has(currentPage) ? currentPage : "inactive",
+    studentCount: Number(studentRosterCachedV155().rows?.length || 0),
+    filterStateStorage: "memory",
+    writeApiImported: false,
+    sensitiveValueDetected: false
+  })
+};
+
+store.settings ??= {};
+store.settings.appVersion = APP_PATCH_VERSION_V157;
+
+// Batch 10H2C uses the existing operation-mode metadata response for the
+// school dashboard name. It never starts an additional workspace read.
+const APP_PATCH_VERSION_V158 = "v158.0 - 2026-08-04";
+const schoolWorkspaceNameDiagnosticsV158 = {
+  workspaceDisplayNameResolved: false,
+  workspaceDisplayNameSource: "unresolved",
+  workspaceDisplayNameFallbackUsed: true,
+  workspaceFingerprint: "-"
+};
+
+function isWorkspaceDisplayNameCandidateV158(value, workspaceId = "", user = {}) {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return false;
+  if (["현재 워크스페이스", "워크스페이스", "이름 없음", "undefined", "null", "[object Object]"].includes(text)) return false;
+  if (workspaceId && text === String(workspaceId)) return false;
+  if (text === String(user?.uid || "") || text === String(user?.id || "")) return false;
+  return true;
+}
+
+function resolveWorkspaceDisplayNameV158(workspace = {}, { workspaceId = "", user = currentUser } = {}) {
+  const candidates = [
+    ["displayName", workspace?.displayName],
+    ["name", workspace?.name],
+    ["workspaceName", workspace?.workspaceName],
+    ["title", workspace?.title],
+    ["schoolName", workspace?.schoolName],
+    ["organizationName", workspace?.organizationName]
+  ];
+  const found = candidates.find(([, value]) => isWorkspaceDisplayNameCandidateV158(value, workspaceId, user));
+  return found
+    ? { value: String(found[1]).trim(), source: found[0], resolved: true, fallbackUsed: false }
+    : { value: "이름 미설정", source: "fallback", resolved: false, fallbackUsed: true };
+}
+
+function schoolWorkspaceMetadataV158(workspaceId = "") {
+  const target = String(workspaceId || "");
+  const listed = operationModeWorkspaceV150(target);
+  if (listed) return listed;
+  const cached = operationModeUiStateV154.workspaceMetadata;
+  return String(cached?.id || cached?.workspaceId || "") === target ? cached : null;
+}
+
+function schoolWorkspaceDisplayNameV158() {
+  const workspaceId = studentRosterWorkspaceIdV155();
+  const resolved = resolveWorkspaceDisplayNameV158(schoolWorkspaceMetadataV158(workspaceId), { workspaceId });
+  schoolWorkspaceNameDiagnosticsV158.workspaceDisplayNameResolved = resolved.resolved;
+  schoolWorkspaceNameDiagnosticsV158.workspaceDisplayNameSource = resolved.source;
+  schoolWorkspaceNameDiagnosticsV158.workspaceDisplayNameFallbackUsed = resolved.fallbackUsed;
+  schoolWorkspaceNameDiagnosticsV158.workspaceFingerprint = operationModeWorkspaceFingerprintV156(workspaceId);
+  return resolved.value;
+}
+
+const schoolUiDiagnosticsBeforeV158 = window.PMSchoolUiDiagnostics;
+window.PMSchoolUiDiagnostics = {
+  ...schoolUiDiagnosticsBeforeV158,
+  snapshot() {
+    return {
+      ...(schoolUiDiagnosticsBeforeV158?.snapshot?.() || {}),
+      ...schoolWorkspaceNameDiagnosticsV158
+    };
+  }
+};
+
+const renderSchoolDashboardBeforeV158 = renderSchoolDashboardV156;
+renderSchoolDashboardV156 = function renderSchoolDashboardV158(operationModeUi) {
+  const result = renderSchoolDashboardBeforeV158(operationModeUi);
+  const label = content.querySelector(".school-dashboard-v156 > .muted");
+  if (label) label.textContent = `현재 워크스페이스: ${schoolWorkspaceDisplayNameV158()}`;
+  return result;
+};
+
+store.settings.appVersion = APP_PATCH_VERSION_V158;
+
+// P0 V159: admin standalone restores Firebase Auth first and treats profile
+// bootstrap failures as a retryable access block, never as an automatic logout.
+const APP_PATCH_VERSION_V159 = "v159.0 - 2026-08-04";
+
+document.addEventListener("click", (event) => {
+  if (!isStandaloneAdminSiteV60()) return;
+  if (event.target?.closest?.("#logoutBtn")) adminExplicitLogoutRequestedV159 = true;
+}, true);
+
+store.settings.appVersion = APP_PATCH_VERSION_V159;

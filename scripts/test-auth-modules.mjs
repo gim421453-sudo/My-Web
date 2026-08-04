@@ -4846,6 +4846,76 @@ const tests = [
     assert.match(source, /bootstrap-skipped-backoff-active/);
     assert.equal(/setTimeout\s*\([^)]*firebaseEnsureUserStructure/.test(source), false);
   }],
+  ["admin standalone restores Firebase auth without a fresh-load signout", () => {
+    const source = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const forceStart = source.indexOf("function forceAdminStandaloneLoginOnFreshLoadV86");
+    const forceEnd = source.indexOf("function masterSubjectsV86", forceStart);
+    const forceBody = source.slice(forceStart, forceEnd);
+    assert.match(forceBody, /freshLoadSignOutBlockedCount/);
+    assert.equal(/signOut|clearAdminStandaloneAuthV62|clearBrowserAuthSessionV80|showLoginOnlyV80/.test(forceBody), false);
+    assert.match(source, /restoredAdminFirebaseSession = isStandaloneAdminSiteV60\(\) && Boolean\(firebaseAuthUserV159\(\)\)/);
+    assert.match(source, /!explicitSession && !restoredAdminFirebaseSession/);
+    assert.ok((source.match(/!isStandaloneAdminSiteV60\(\) && !canUseBrowserAuthSessionV80\(\)/g) || []).length >= 2);
+  }],
+  ["admin profile bootstrap errors keep auth and render a retryable block", () => {
+    const source = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const bootstrapStart = source.indexOf("async function bootstrapAdminFirebaseUserV159");
+    const bootstrapEnd = source.indexOf("async function retryAdminProfileBootstrapV159", bootstrapStart);
+    const bootstrapBody = source.slice(bootstrapStart, bootstrapEnd);
+    assert.match(source, /classifyAdminProfileBootstrapErrorV159/);
+    assert.match(source, /permission-denied/);
+    assert.match(source, /profile-missing/);
+    assert.match(source, /계정 정보 접근 권한 오류/);
+    assert.match(source, /다시 시도/);
+    assert.match(source, /로그아웃/);
+    assert.match(bootstrapBody, /adminProfileBootstrapPromiseV159/);
+    assert.match(bootstrapBody, /membership\?\.role !== "system_owner"/);
+    assert.equal(/signOut|firebaseLogout/.test(bootstrapBody), false);
+    assert.match(bootstrapBody, /if \(!firebaseUser\)[\s\S]*showLoginOnlyV80\(\)/);
+  }],
+  ["admin auth diagnostics expose state without identifiers", () => {
+    const source = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const diagnosticsStart = source.indexOf("window.PMAdminAuthDiagnostics =");
+    const diagnosticsEnd = source.indexOf("function adminStandaloneRequiresExplicitLoginV62", diagnosticsStart);
+    const diagnosticsBody = source.slice(diagnosticsStart, diagnosticsEnd);
+    for (const field of [
+      "appTarget",
+      "authUserPresent",
+      "authRestoreCompleted",
+      "firebaseSignOutCallCount",
+      "explicitLogoutCallCount",
+      "freshLoadSignOutBlockedCount",
+      "profileBootstrapCount",
+      "profileBootstrapResult",
+      "profilePermissionDeniedCount",
+      "profileMissingCount",
+      "loginRendererCount",
+      "blockedRendererCount",
+      "lastErrorCode",
+      "activeRequestCount",
+      "lastDurationMs",
+    ]) assert.match(source, new RegExp(`\\b${field}\\b`));
+    assert.equal(/\buid\b|\bemail\b|token|credential|workspaceId/.test(diagnosticsBody), false);
+  }],
+  ["missing operational profile is blocked without automatic document creation", () => {
+    const source = readFileSync(path.resolve(projectRoot, "services/authService.js"), "utf8");
+    const bootstrapStart = source.indexOf("async function firebaseEnsureUserStructureInternal");
+    const bootstrapEnd = source.indexOf("async function firebaseRegisterDevice", bootstrapStart);
+    const bootstrapBody = source.slice(bootstrapStart, bootstrapEnd);
+    assert.match(bootstrapBody, /profileMissingError\.code = "profile-missing"/);
+    assert.match(bootstrapBody, /throw profileMissingError/);
+    assert.equal(/firebaseCreateBaseUserDocument/.test(bootstrapBody), false);
+    const registrationStart = source.indexOf("async function firebaseRegisterWithEmail");
+    const registrationEnd = source.indexOf("async function firebaseCreateBaseUserDocument", registrationStart);
+    assert.match(source.slice(registrationStart, registrationEnd), /firebaseCreateBaseUserDocument/);
+  }],
+  ["admin auth P0 cache versions are current", () => {
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    assert.match(indexHtml, /services\/authService\.js\?v=17/);
+    assert.match(indexHtml, /app\.js\?v=159/);
+    assert.doesNotMatch(indexHtml, /services\/authService\.js\?v=16/);
+    assert.doesNotMatch(indexHtml, /app\.js\?v=158/);
+  }],
   ["operational auth post-login tasks read before write", () => {
     const source = readFileSync(path.resolve(projectRoot, "services/authService.js"), "utf8");
     assert.match(source, /get login device/);
@@ -6692,7 +6762,7 @@ const tests = [
     assert.match(serviceSource, /notice-empty-remote-bootstrap-blocked/);
     const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     assert.match(indexHtml, /services\/workspaceDataService\.js\?v=10/);
-    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(indexHtml, /app\.js\?v=159/);
   }],
   ["operational schedule editor save blocks duplicate clicks and avoids stale editing state", () => {
     const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
@@ -7747,7 +7817,7 @@ const tests = [
     const htmlSource = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     assert.match(appSource, /function renderDashboardV8\(\)/);
     assert.match(appSource, /function visibleNotices\(\)/);
-    assert.match(htmlSource, /app\.js\?v=154/);
+    assert.match(htmlSource, /app\.js\?v=159/);
     assert.equal(appSource.includes("AppNextDashboardReadOnly"), false);
     assert.equal(htmlSource.includes("AppNextDashboardReadOnly"), false);
   }],
@@ -8724,7 +8794,7 @@ const tests = [
     const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
     const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     const v148 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V148"));
-    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(indexHtml, /app\.js\?v=159/);
     assert.match(v148, /renderPage = function renderPageV148/);
     assert.match(v148, /key === "exams" && currentPage === "exams"/);
     assert.match(v148, /renderExamsV6\(\)/);
@@ -8755,7 +8825,7 @@ const tests = [
     assert.match(v149, /1\. 과목과 담당 교사를 먼저 등록/);
     assert.match(v149, /function examGradeStudentAdapterV149/);
     assert.match(v149, /source: "unavailable"/);
-    assert.match(v149, /등록된 학생이 없습니다\. 학생 관리에서 학생을 먼저 등록해 주세요/);
+    assert.match(v149, /student-selector-empty-v156/);
     assert.match(v149, /function examGradePolicyTabV149/);
     assert.match(v149, /현재 워크스페이스 전체/);
     assert.match(v149, /특정 반\/그룹·과목/);
@@ -8770,7 +8840,7 @@ const tests = [
     const adminSource = readFileSync(path.resolve(projectRoot, "services/systemAdminService.js"), "utf8");
     const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     const v150 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V150"));
-    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(indexHtml, /app\.js\?v=159/);
     assert.match(indexHtml, /systemAdminService\.js\?v=15/);
     assert.match(v150, /function renderOperationModeAdminV153/);
     assert.match(v150, /function isSystemOwnerV150/);
@@ -8795,7 +8865,7 @@ const tests = [
     const end = appSource.indexOf("const ownerPreviewModeSnapshotBeforeV150", start);
     assert.ok(start >= 0 && end > start);
     const v153 = appSource.slice(start, end);
-    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(indexHtml, /app\.js\?v=159/);
     assert.match(indexHtml, /systemAdminService\.js\?v=15/);
     assert.match(indexHtml, /examGradeService\.js\?v=2/);
     assert.equal((v153.match(/function renderOperationModeAdminV153/g) || []).length, 1);
@@ -8882,7 +8952,7 @@ const tests = [
     const nonOwnerAdmin = resolver({ appTarget: "admin-standalone", operationMode: "school", globalRole: "user", workspaceRole: "manager", availableFeatures: features });
     assert.equal(nonOwnerAdmin.visibleMenuIds.length, 0);
     assert.equal(nonOwnerAdmin.systemManagementMenuIds.length, 0);
-    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(indexHtml, /app\.js\?v=159/);
     assert.match(appSource, /const APP_PATCH_VERSION_V154 = "v154\.0 - 2026-07-31"/);
     assert.match(appSource, /return operationModeUiForCurrentUserV154\(available\)\.visibleMenuIds/);
     assert.match(appSource, /const modeDecision = operationModeRouteDecisionV154\(key\)/);
@@ -8902,10 +8972,12 @@ const tests = [
     assert.match(appSource, /syncAdminStandaloneOperationModePanelV154/);
     assert.match(appSource, /window\.PMSystemAdminService\?\.changeWorkspaceOperationMode/);
     assert.equal((appSource.match(/changeWorkspaceOperationMode\?\.\(payload\)/g) || []).length, 1);
-    assert.equal((indexHtml.match(/src="app\.js\?v=154"/g) || []).length, 1);
+    assert.equal((indexHtml.match(/src="app\.js\?v=159"/g) || []).length, 1);
     assert.equal((indexHtml.match(/src="services\/systemAdminService\.js\?v=15"/g) || []).length, 1);
     assert.match(packageJson, /"build:admin":\s*"tsc --noEmit && vite build --outDir dist-admin"/);
-    assert.match(firebaseConfigGenerator, /lifecycleEvent\.includes\("admin"\) \? "admin-standalone" : "main"/);
+    assert.match(packageJson, /"postbuild:admin":\s*"[^"]*--exclude-runtime-env[^"]*--target admin-standalone[^"]*dist-admin\/pm-env\.js"/);
+    assert.match(firebaseConfigGenerator, /const appTarget = cli\.target \|\| "main"/);
+    assert.doesNotMatch(firebaseConfigGenerator, /npm_lifecycle_event|inferredAppTarget/);
     assert.match(firebaseConfigGenerator, /window\.PM_APP_TARGET/);
     assert.match(appSource, /historyLoadCount \+= 1/);
     assert.doesNotMatch(appSource.slice(appSource.indexOf("function populateOperationModeAdminV153"), appSource.indexOf("function renderOperationModeAdminV153")), /loadOperationModeHistoryV150\(true\).*renderSystemOwnerConsole/);
@@ -8936,7 +9008,7 @@ const tests = [
     const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
     const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     const v151 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V151"));
-    assert.match(indexHtml, /app\.js\?v=154/);
+    assert.match(indexHtml, /app\.js\?v=159/);
     assert.match(v151, /function examGradeAuditPayloadV151/);
     assert.match(v151, /gradeAuditLogs/);
     assert.match(v151, /batch\.set\(auditRef/);
@@ -8949,6 +9021,348 @@ const tests = [
     assert.match(v151, /function examGradeParseCsvV151/);
     assert.match(v151, /학생 식별값/);
     assert.doesNotMatch(v151, /onSnapshot/);
+  }],
+  ["Batch 10H provides a workspace-scoped read-only canonical student roster adapter", async () => {
+    const serviceSource = readFileSync(path.resolve(projectRoot, "services/studentRosterService.js"), "utf8");
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    const context = { console };
+    vm.runInNewContext(serviceSource, context, { filename: "studentRosterService.js" });
+    const service = context.PMStudentRosterService;
+    assert.ok(service);
+    assert.equal(context.PMStudentRosterDiagnostics.snapshot().sensitiveValueDetected, false);
+
+    let releaseCanonical;
+    let canonicalReads = 0;
+    const canonicalFetch = () => {
+      canonicalReads += 1;
+      return new Promise((resolve) => { releaseCanonical = resolve; });
+    };
+    const canonicalOptions = {
+      workspaceId: "workspace-a",
+      operationMode: "school",
+      authorized: true,
+      people: [{ id: "legacy-student", role: "student", name: "Legacy Student" }],
+      fetchStudents: canonicalFetch
+    };
+    const firstLoad = service.loadStudentRoster(canonicalOptions);
+    const reusedLoad = service.loadStudentRoster(canonicalOptions);
+    assert.strictEqual(firstLoad, reusedLoad);
+    releaseCanonical([
+      { id: "student-2", displayName: "Beta", grade: "2", className: "1", studentNumber: "2", authUid: "optional-auth-link" },
+      { id: "student-1", displayName: "Alpha", grade: "1", className: "2", studentNumber: "10" },
+      { id: "student-inactive", displayName: "Inactive", active: false },
+      { id: "student-deleted", displayName: "Deleted", deleted: true },
+      { id: "student-other-workspace", displayName: "Other", workspaceId: "workspace-b" }
+    ]);
+    const canonical = await firstLoad;
+    assert.equal(canonicalReads, 1);
+    assert.equal(canonical.source, "students");
+    assert.equal(canonical.canonicalCount, 2);
+    assert.equal(canonical.fallbackCount, 0);
+    assert.equal(canonical.rows.length, 2);
+    assert.equal(canonical.rows[0].studentId, "student-1");
+    assert.equal(canonical.rows.every((row) => row.canonical === true && row.writable === false), true);
+    assert.equal(canonical.rows.some((row) => row.legacySourceId === "legacy-student"), false);
+    assert.equal(canonical.rows[1].authUid, "optional-auth-link");
+    assert.equal(service.canUseStudentForWrite(canonical.rows[0]), false);
+    assert.equal(service.resolveStudentSelection(canonical.rows[0].key, { workspaceId: "workspace-a" }).studentId, "student-1");
+    assert.equal(service.resolveStudentSelection(canonical.rows[0].studentId, { workspaceId: "workspace-b" }), null);
+    const cachedCanonical = await service.loadStudentRoster(canonicalOptions);
+    assert.strictEqual(cachedCanonical, canonical);
+    assert.equal(canonicalReads, 1);
+
+    service.invalidateStudentRosterForWorkspace("workspace-a");
+    const fallback = await service.loadStudentRoster({
+      workspaceId: "workspace-a",
+      operationMode: "academy",
+      authorized: true,
+      fetchStudents: async () => [],
+      people: [
+        { id: "person-student-role", role: "student", name: "Role Student", studentNo: "100" },
+        { id: "person-student-flag", isStudent: true, name: "Flag Student" },
+        { id: "person-friend", role: "student", relationship: "friend", name: "Friend" },
+        { id: "person-family", isStudent: true, relationship: "가족", name: "Family" },
+        { id: "person-teacher", role: "teacher", isStudent: true, name: "Teacher" },
+        { id: "person-manager", role: "manager", isStudent: true, name: "Manager" },
+        { id: "person-uncertain", name: "Uncertain", grade: "3" },
+        { id: "person-inactive", role: "student", active: false, name: "Inactive" },
+        { id: "person-deleted", role: "student", deleted: true, name: "Deleted" },
+        { id: "person-other-workspace", role: "student", workspaceId: "workspace-b", name: "Other" }
+      ]
+    });
+    assert.equal(fallback.source, "people_fallback");
+    assert.equal(fallback.canonicalCount, 0);
+    assert.equal(fallback.fallbackCount, 2);
+    assert.equal(fallback.rows.every((row) => row.studentId === null && row.writable === false && row.canonical === false), true);
+    assert.equal(fallback.rows.every((row) => row.key.startsWith("legacy-person:")), true);
+    assert.equal(fallback.rows.some((row) => ["Role Student", "Flag Student"].includes(row.studentId)), false);
+    assert.equal(service.canUseStudentForWrite(fallback.rows[0]), false);
+
+    let unauthorizedReads = 0;
+    await assert.rejects(() => service.loadStudentRoster({
+      workspaceId: "workspace-unauthorized",
+      operationMode: "school",
+      authorized: false,
+      people: [{ id: "fallback", role: "student" }],
+      fetchStudents: async () => { unauthorizedReads += 1; return []; }
+    }), (error) => error.code === "STUDENT_ROSTER_PERMISSION_DENIED");
+    assert.equal(unauthorizedReads, 0);
+
+    await assert.rejects(() => service.loadStudentRoster({
+      workspaceId: "workspace-denied",
+      operationMode: "school",
+      authorized: true,
+      people: [{ id: "must-not-fallback", role: "student" }],
+      fetchStudents: async () => { throw Object.assign(new Error("denied"), { code: "permission-denied" }); }
+    }), (error) => error.code === "STUDENT_ROSTER_PERMISSION_DENIED");
+    assert.equal(service.getCachedStudentRoster("workspace-denied"), null);
+
+    let blockedModeReads = 0;
+    const personal = await service.loadStudentRoster({
+      workspaceId: "workspace-personal",
+      operationMode: "personal",
+      authorized: true,
+      fetchStudents: async () => { blockedModeReads += 1; return []; }
+    });
+    const unconfigured = await service.loadStudentRoster({
+      workspaceId: "workspace-unconfigured",
+      operationMode: "integrated_unconfigured",
+      authorized: true,
+      fetchStudents: async () => { blockedModeReads += 1; return []; }
+    });
+    assert.equal(personal.source, "blocked");
+    assert.equal(unconfigured.source, "blocked");
+    assert.equal(blockedModeReads, 0);
+
+    let workspaceAReads = 0;
+    let workspaceBReads = 0;
+    service.clearStudentRosterCache();
+    await service.loadStudentRoster({
+      workspaceId: "workspace-a",
+      operationMode: "school",
+      authorized: true,
+      fetchStudents: async () => { workspaceAReads += 1; return [{ id: "student-a", displayName: "A" }]; }
+    });
+    await service.loadStudentRoster({
+      workspaceId: "workspace-b",
+      operationMode: "academy",
+      authorized: true,
+      fetchStudents: async () => { workspaceBReads += 1; return [{ id: "student-b", displayName: "B" }]; }
+    });
+    assert.equal(workspaceAReads, 1);
+    assert.equal(workspaceBReads, 1);
+    assert.equal(service.getCachedStudentRoster("workspace-a").rows[0].studentId, "student-a");
+    assert.equal(service.getCachedStudentRoster("workspace-b").rows[0].studentId, "student-b");
+
+    const diagnosticsJson = JSON.stringify(context.PMStudentRosterDiagnostics.snapshot());
+    assert.doesNotMatch(diagnosticsJson, /Role Student|Flag Student|optional-auth-link|student-a|student-b|@/);
+    assert.doesNotMatch(serviceSource, /onSnapshot|localStorage|sessionStorage|addDoc|setDoc|updateDoc|deleteDoc|writeBatch/);
+    assert.equal((indexHtml.match(/services\/studentRosterService\.js\?v=2/g) || []).length, 1);
+    assert.ok(indexHtml.indexOf("services/studentRosterService.js?v=2") < indexHtml.indexOf("app.js?v=159"));
+    assert.equal((indexHtml.match(/app\.js\?v=159/g) || []).length, 1);
+    assert.match(appSource, /const APP_PATCH_VERSION_V155 = "v155\.0 - 2026-07-31"/);
+    assert.match(appSource, /PMStudentRosterService\?\.getCachedStudentRoster/);
+    assert.match(appSource, /PMStudentRosterService\?\.resolveStudentSelection/);
+    assert.match(appSource, /PMStudentRosterService\?\.canUseStudentForWrite/);
+    assert.match(appSource, /delete payload\.studentSelectionKey/);
+    assert.match(appSource, /STUDENT_ROSTER_LEGACY_READ_ONLY/);
+    assert.match(appSource, /STUDENT_ROSTER_WRITE_BLOCKED/);
+    assert.match(appSource, /invalidateStudentRosterForWorkspace/);
+    assert.match(appSource, /function resolveOperationModeUiV154/);
+    assert.match(appSource, /function requestPortfolioDeleteV139/);
+    const v155Source = appSource.slice(appSource.indexOf("// Batch 10H adds"));
+    assert.doesNotMatch(v155Source, /onSnapshot|setInterval|currentUser\?\.uid|currentUser\.uid/);
+  }],
+  ["Batch 10H2 resolves school mode before roster UI and keeps unconfigured APIs request-free", async () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const rosterSource = readFileSync(path.resolve(projectRoot, "services/studentRosterService.js"), "utf8");
+    const schoolSource = readFileSync(path.resolve(projectRoot, "services/schoolIntegrationService.js"), "utf8");
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    const manifestSource = readFileSync(path.resolve(projectRoot, "shared/ownerPreviewReleaseManifest.js"), "utf8");
+
+    assert.match(appSource, /return ensureOperationModeLoadedV154\(\)\.then\(\(resolvedMode\)/);
+    assert.match(appSource, /metadataVerifiedWorkspaceId === workspaceId/);
+    assert.match(appSource, /sameStoreWorkspace \? store\?\.settings\?\.operationMode : ""/);
+    assert.match(appSource, /sameCanonicalWorkspace \? authWorkspaceStateV36\?\.operationMode : ""/);
+    assert.match(appSource, /operationModeSource/);
+    assert.match(appSource, /workspaceModeMismatchDetected/);
+    assert.match(appSource, /requestedWorkspaceFingerprint/);
+    assert.match(appSource, /resolvedWorkspaceFingerprint/);
+    assert.match(rosterSource, /normalizedOperationMode/);
+    assert.match(rosterSource, /appTarget/);
+
+    const makeFieldStart = appSource.indexOf("function makeField(labelText, id, element)");
+    const makeFieldEnd = appSource.indexOf("function makeTextField", makeFieldStart);
+    const invalidEvents = [];
+    const makeField = vm.runInNewContext(`(() => {
+      const window = { PMSchoolUiDiagnostics: { recordInvalidField: () => invalidEvents.push("invalid") } };
+      const document = { createElement: (tag) => ({ tagName: String(tag).toUpperCase(), dataset: {}, append() {} }) };
+      const invalidEvents = globalThis.invalidEvents;
+      ${appSource.slice(makeFieldStart, makeFieldEnd)}
+      return makeField;
+    })()`, { invalidEvents });
+    const invalidField = makeField("invalid", "bad", undefined);
+    assert.equal(invalidField.dataset.errorCode, "SCHOOL_SYNC_FIELD_DESCRIPTOR_INVALID");
+    assert.deepEqual(invalidEvents, ["invalid"]);
+    assert.match(appSource, /makeField\("동기화 연도\/월", "schoolSyncRangeFieldV64", rangeControls\)/);
+    assert.match(appSource, /makeField\("자동 동기화", "schoolAutoSyncFieldV64", autoSyncControl\)/);
+
+    assert.match(appSource, /function renderSchoolDashboardV156/);
+    assert.match(appSource, /학교 운영 대시보드/);
+    assert.match(appSource, /function renderStudentManagementV156/);
+    assert.match(appSource, /students: \["학", "학생관리"\]/);
+    assert.match(appSource, /\["students", "subjects", "teachers"/);
+    assert.match(appSource, /\["portfolios", "records"\]\.includes\(key\)/);
+    assert.match(appSource, /fields\.filter\(\(\[name\]\) => !\["targetStudentId", "studentSelectionKey"\]\.includes\(name\)\)/);
+    assert.match(appSource, /등록된 학생이 없습니다/);
+    assert.match(appSource, /임시 학생 목록 · 읽기 전용/);
+    const v156Source = appSource.slice(appSource.indexOf("// Batch 10H2 repairs"), appSource.indexOf("// Batch 10H2B closes"));
+    assert.doesNotMatch(v156Source, /currentUser\?\.uid|currentUser\.uid|onSnapshot/);
+    assert.match(manifestSource, /operationalFeature\("students"/);
+
+    let fetchCount = 0;
+    const schoolContext = {
+      window: {},
+      location: { origin: "http://127.0.0.1:2801", protocol: "http:", hostname: "127.0.0.1" },
+      fetch: async () => { fetchCount += 1; throw new Error("unexpected fetch"); },
+      URL,
+      console,
+      setTimeout,
+      clearTimeout
+    };
+    schoolContext.globalThis = schoolContext;
+    vm.runInNewContext(schoolSource, schoolContext, { filename: "schoolIntegrationService.js" });
+    await assert.rejects(
+      () => schoolContext.window.PMSchoolIntegrationService.fetchProxyPayload("https://example.com/board"),
+      (error) => error.code === "school-proxy-not-configured"
+    );
+    assert.equal(fetchCount, 0);
+    const proxyDiagnostics = schoolContext.window.PMSchoolIntegrationService.diagnostics();
+    assert.equal(proxyDiagnostics.schoolProxyConfigured, false);
+    assert.equal(proxyDiagnostics.schoolProxyRequestSent, false);
+    assert.equal(proxyDiagnostics.schoolProxyRequestCount, 0);
+    assert.doesNotMatch(schoolSource, /isLocalDevelopment\(\)/);
+    assert.equal((indexHtml.match(/services\/schoolIntegrationService\.js\?v=6/g) || []).length, 1);
+    assert.equal((indexHtml.match(/services\/studentRosterService\.js\?v=2/g) || []).length, 1);
+    assert.equal((indexHtml.match(/app\.js\?v=159/g) || []).length, 1);
+  }],
+  ["Batch 10H2B keeps school filters read-only and closes teacher mutation UI", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    const v157 = appSource.slice(appSource.indexOf("// Batch 10H2B closes"));
+
+    assert.match(v157, /const APP_PATCH_VERSION_V157 = "v157\.0 - 2026-08-03"/);
+    assert.match(appSource, /학교 운영 대시보드/);
+    assert.match(v157, /학년도/);
+    assert.match(v157, /이름·학번 검색/);
+    assert.match(v157, /내 담당만 보기/);
+    assert.match(v157, /내 담임반만 보기/);
+    assert.match(v157, /내 담당 과목만 보기/);
+    assert.match(v157, /내 과목만 보기/);
+    assert.match(v157, /내 담당반만 보기/);
+    assert.match(v157, /담당 과목·반 배치가 아직 연결되지 않았습니다/);
+    assert.match(v157, /filterStateStorage: "memory"/);
+    assert.match(v157, /serverReadCount: 0/);
+    assert.match(v157, /firestoreWriteAttemptCount: 0/);
+    assert.match(v157, /activeListenerCount: 0/);
+    assert.doesNotMatch(v157, /sessionStorage\.getItem\(`learning-filter|sessionStorage\.setItem\(`learning-filter/);
+    assert.doesNotMatch(v157, /authorUid|createdByUid/);
+    assert.match(v157, /assignedTeacherUid/);
+    assert.match(v157, /subjectTeacherUid/);
+    assert.match(v157, /homeroomTeacherUid/);
+    assert.match(v157, /classTeacherUid/);
+    assert.match(v157, /attended: "응시"/);
+    assert.match(v157, /submitted: "제출"/);
+    assert.match(v157, /not_submitted: "미제출"/);
+    assert.match(v157, /people_fallback: "임시 학생 명부"/);
+    assert.match(v157, /\["portfolios", "records"\]\.includes\(key\) && role === "teacher"/);
+    assert.match(v157, /user\.extraPermissions\?\.timetable_manager === true/);
+    assert.match(v157, /시간표 담당 권한이 없어 읽기 전용으로 표시됩니다/);
+    const scopeStart = v157.indexOf("function schoolReadScopeMatchesV157");
+    const scopeEnd = v157.indexOf("function schoolReadFilteredRowsV157", scopeStart);
+    const scopeMatches = vm.runInNewContext(`(() => { ${v157.slice(scopeStart, scopeEnd)} return schoolReadScopeMatchesV157; })()`);
+    const assignment = {
+      uid: "teacher-current",
+      subjectIds: new Set(["subject-assigned"]),
+      classIds: new Set(["class-assigned"]),
+      homeroomClassIds: new Set(["class-home"]),
+      departmentIds: new Set(["department-assigned"])
+    };
+    assert.equal(scopeMatches({ subjectId: "subject-assigned" }, "subjects", assignment), true);
+    assert.equal(scopeMatches({ classId: "class-home" }, "homeroom", assignment), true);
+    assert.equal(scopeMatches({ classTeacherUid: "teacher-current" }, "assignedClasses", assignment), true);
+    assert.equal(scopeMatches({ authorUid: "teacher-current" }, "assigned", assignment), false);
+    assert.match(v157, /store\.settings\.appVersion = APP_PATCH_VERSION_V157/);
+    assert.equal((indexHtml.match(/app\.js\?v=159/g) || []).length, 1);
+    assert.equal((indexHtml.match(/studentRosterService\.js\?v=2/g) || []).length, 1);
+    assert.equal((indexHtml.match(/schoolIntegrationService\.js\?v=6/g) || []).length, 1);
+    assert.equal((indexHtml.match(/systemAdminService\.js\?v=15/g) || []).length, 1);
+    assert.equal((indexHtml.match(/examGradeService\.js\?v=2/g) || []).length, 1);
+  }],
+  ["Batch 10H2C resolves a same-workspace dashboard name without exposing it in diagnostics", () => {
+    const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
+    const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
+    const v158 = appSource.slice(appSource.indexOf("// Batch 10H2C uses"));
+    const resolverStart = v158.indexOf("function isWorkspaceDisplayNameCandidateV158");
+    const resolverEnd = v158.indexOf("function schoolWorkspaceMetadataV158", resolverStart);
+    const resolveName = vm.runInNewContext(`(() => { ${v158.slice(resolverStart, resolverEnd)} return resolveWorkspaceDisplayNameV158; })()`);
+
+    const displayName = resolveName({ displayName: "School A" }, { workspaceId: "workspace-a", user: {} });
+    assert.equal(displayName.value, "School A");
+    assert.equal(displayName.source, "displayName");
+    assert.equal(displayName.resolved, true);
+    assert.equal(displayName.fallbackUsed, false);
+    assert.equal(resolveName({ name: "Academy A" }, { workspaceId: "workspace-a", user: {} }).source, "name");
+    assert.equal(resolveName({ schoolName: "Campus A" }, { workspaceId: "workspace-a", user: {} }).source, "schoolName");
+    assert.equal(resolveName({ name: "현재 워크스페이스" }, { workspaceId: "workspace-a", user: {} }).value, "이름 미설정");
+    assert.equal(resolveName({ name: "workspace-a" }, { workspaceId: "workspace-a", user: {} }).value, "이름 미설정");
+    assert.equal(resolveName({ name: "user-a" }, { workspaceId: "workspace-a", user: { uid: "user-a" } }).value, "이름 미설정");
+    assert.match(v158, /String\(cached\?\.id \|\| cached\?\.workspaceId \|\| ""\) === target/);
+    assert.match(v158, /workspaceDisplayNameResolved/);
+    assert.match(v158, /workspaceDisplayNameSource/);
+    assert.match(v158, /workspaceDisplayNameFallbackUsed/);
+    assert.match(v158, /workspaceFingerprint/);
+    assert.doesNotMatch(v158, /workspaceDisplayName:\s*resolved\.value/);
+    assert.doesNotMatch(v158, /addDoc|setDoc|updateDoc|deleteDoc|writeBatch|onSnapshot|fetch\(/);
+    assert.match(v158, /const APP_PATCH_VERSION_V158 = "v158\.0 - 2026-08-04"/);
+    assert.match(v158, /store\.settings\.appVersion = APP_PATCH_VERSION_V158/);
+    assert.equal((indexHtml.match(/app\.js\?v=159/g) || []).length, 1);
+    assert.equal((indexHtml.match(/studentRosterService\.js\?v=2/g) || []).length, 1);
+    assert.equal((indexHtml.match(/schoolIntegrationService\.js\?v=6/g) || []).length, 1);
+    assert.equal((indexHtml.match(/systemAdminService\.js\?v=15/g) || []).length, 1);
+    assert.equal((indexHtml.match(/examGradeService\.js\?v=2/g) || []).length, 1);
+  }],
+  ["Batch 10H2 Docker development is loopback-only and excludes local secrets", () => {
+    const dockerfile = readFileSync(path.resolve(projectRoot, "Dockerfile.dev"), "utf8");
+    const compose = readFileSync(path.resolve(projectRoot, "compose.dev.yaml"), "utf8");
+    const dockerignore = readFileSync(path.resolve(projectRoot, ".dockerignore"), "utf8");
+    const mainStart = readFileSync(path.resolve(projectRoot, "docker/start-main.sh"), "utf8");
+    const adminStart = readFileSync(path.resolve(projectRoot, "docker/start-admin.sh"), "utf8");
+
+    assert.match(dockerfile, /FROM node:24-bookworm-slim/);
+    assert.match(dockerfile, /RUN npm ci/);
+    assert.match(dockerfile, /USER node/);
+    assert.doesNotMatch(dockerfile, /COPY\s+\.\s+\./);
+    assert.doesNotMatch(dockerfile, /firebase-adminsdk|service-account|\.env/);
+    assert.match(compose, /127\.0\.0\.1:3000:3000/);
+    assert.match(compose, /127\.0\.0\.1:2801:2801/);
+    assert.match(compose, /no-new-privileges:true/);
+    assert.match(compose, /cap_drop:\s*\n\s*- ALL/);
+    assert.doesNotMatch(compose, /privileged:|network_mode:\s*host|\/var\/run\/docker\.sock/);
+    assert.doesNotMatch(compose, /volumes:/);
+    assert.match(compose, /action: sync/);
+    assert.match(compose, /action: rebuild/);
+    assert.match(dockerignore, /^\*\*$/m);
+    assert.match(dockerignore, /\*firebase-adminsdk\*\.json/);
+    assert.match(dockerignore, /\*service-account\*\.json/);
+    assert.match(dockerignore, /firestore\.rules\.console-current/);
+    assert.match(dockerignore, /firestore\.rules\.next/);
+    assert.match(mainStart, /VITE_APP_TARGET=main/);
+    assert.match(mainStart, /--host 0\.0\.0\.0 --port 3000 --strictPort/);
+    assert.match(adminStart, /VITE_APP_TARGET=admin-standalone/);
+    assert.match(adminStart, /npm run build:admin/);
+    assert.match(adminStart, /scripts\/static-preview\.cjs/);
   }],
 ];
 

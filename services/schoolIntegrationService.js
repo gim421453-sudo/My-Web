@@ -7,6 +7,7 @@
   const proxyCooldownUntilByReason = {};
   const proxyDiagnostics = {
     schoolProxyConfigured: false,
+    schoolProxyRequestSent: false,
     schoolProxyRequestCount: 0,
     schoolProxyUnavailableCount: 0,
     schoolDirectExternalFetchBlockedCount: 0,
@@ -72,12 +73,17 @@
     return window.PM_PUBLIC_INTEGRATIONS?.neisApiKey || "";
   }
 
-  function isLocalDevelopment() {
-    return ["127.0.0.1", "localhost"].includes(String(location.hostname || ""));
+  function configuredSchoolProxyEndpoint() {
+    const endpoint = String(
+      window.PM_SCHOOL_PROXY_ENDPOINT
+      || window.PM_SCHOOL_PROXY_BASE_URL
+      || ""
+    ).trim();
+    return /^(?:https?:\/\/|\/)/i.test(endpoint) ? endpoint : "";
   }
 
   function schoolProxyConfigured() {
-    return Boolean(window.PM_SCHOOL_PROXY_CONFIGURED === true || isLocalDevelopment());
+    return Boolean(configuredSchoolProxyEndpoint());
   }
 
   function updateProxyDiagnostics(patch = {}) {
@@ -105,12 +111,17 @@
     if (schoolProxyConfigured()) return true;
     proxyDiagnostics.schoolProxyUnavailableCount += 1;
     proxyCooldownUntilByReason[reason] = now + PROXY_COOLDOWN_MS;
+    updateProxyDiagnostics({ lastSchoolProxyStatus: "not_configured" });
     throw safeProxyError("school-proxy-not-configured");
   }
 
   function localProxyUrl(targetUrl) {
     if (!/^https?:\/\//i.test(String(targetUrl || ""))) return "";
-    return `/api/school-proxy?url=${encodeURIComponent(targetUrl)}`;
+    const endpoint = configuredSchoolProxyEndpoint();
+    if (!endpoint) return "";
+    const url = new URL(endpoint, location.origin);
+    url.searchParams.set("url", targetUrl);
+    return url.origin === location.origin ? `${url.pathname}${url.search}` : url.toString();
   }
 
   function cacheBustUrl(url) {
@@ -133,7 +144,7 @@
     }
     try {
       proxyDiagnostics.schoolProxyRequestCount += 1;
-      updateProxyDiagnostics({ lastSchoolProxyStatus: "requesting" });
+      updateProxyDiagnostics({ lastSchoolProxyStatus: "requesting", schoolProxyRequestSent: true });
       const response = await fetch(proxy, { credentials: "same-origin", cache: "no-store" });
       if (!response.ok && response.status === 404) {
         proxyDiagnostics.schoolProxyUnavailableCount += 1;
@@ -163,7 +174,7 @@
     }
     try {
       proxyDiagnostics.schoolProxyRequestCount += 1;
-      updateProxyDiagnostics({ lastSchoolProxyStatus: "requesting" });
+      updateProxyDiagnostics({ lastSchoolProxyStatus: "requesting", schoolProxyRequestSent: true });
       const response = await fetch(proxy, {
         credentials: "same-origin",
         cache: "no-store",

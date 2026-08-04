@@ -2,6 +2,7 @@ import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 const outDir = process.argv[2] || "dist";
+const excludeRuntimeEnv = process.argv.slice(3).includes("--exclude-runtime-env");
 const root = process.cwd();
 const target = resolve(root, outDir);
 
@@ -10,9 +11,10 @@ const assets = [
   "app.js",
   "shared",
   "services",
-  "pm-env.js",
   "robots.txt"
 ];
+
+if (!excludeRuntimeEnv) assets.push("pm-env.js");
 
 if (!existsSync(target)) {
   mkdirSync(target, { recursive: true });
