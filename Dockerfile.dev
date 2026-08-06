@@ -1,0 +1,19 @@
+FROM node:24-bookworm-slim
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY --chown=node:node app.js app-next.html index.html styles.css robots.txt service-worker.js vite.config.js tsconfig.json ./
+COPY --chown=node:node public ./public
+COPY --chown=node:node services ./services
+COPY --chown=node:node shared ./shared
+COPY --chown=node:node src ./src
+COPY --chown=node:node scripts/generate-firebase-config.mjs scripts/copy-static-assets.mjs scripts/static-preview.cjs ./scripts/
+COPY --chown=node:node docker ./docker
+
+RUN chown -R node:node /app
+USER node
+
+CMD ["sh", "docker/start-main.sh"]
