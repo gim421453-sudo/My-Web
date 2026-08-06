@@ -1,0 +1,109 @@
+﻿name: myweb-dev
+
+x-firebase-public-env: &firebase-public-env
+  VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+  VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+  VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+  VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:-}
+  VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+  VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+
+services:
+  myweb-main:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: ["sh", "docker/start-main.sh"]
+    environment:
+      <<: *firebase-public-env
+      VITE_APP_TARGET: main
+    ports:
+      - "0.0.0.0:3000:3000"
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    develop:
+      watch:
+        - action: sync
+          path: ./app.js
+          target: /app/app.js
+        - action: sync
+          path: ./index.html
+          target: /app/index.html
+        - action: sync
+          path: ./app-next.html
+          target: /app/app-next.html
+        - action: sync
+          path: ./styles.css
+          target: /app/styles.css
+        - action: sync
+          path: ./services
+          target: /app/services
+        - action: sync
+          path: ./shared
+          target: /app/shared
+        - action: sync
+          path: ./src
+          target: /app/src
+        - action: sync
+          path: ./public
+          target: /app/public
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json
+
+  myweb-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: ["sh", "docker/start-admin.sh"]
+    environment:
+      <<: *firebase-public-env
+      VITE_APP_TARGET: admin-standalone
+      PM_STATIC_PREVIEW_ROOT: dist-admin
+      PM_STATIC_PREVIEW_HOST: 0.0.0.0
+      PM_STATIC_PREVIEW_PORT: "2801"
+    ports:
+      - "0.0.0.0:2801:2801"
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "Promise.all(['/','/pm-env.js?v=2'].map(p=>fetch('http://127.0.0.1:2801'+p))).then(rs=>{if(rs.some(r=>!r.ok))process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    develop:
+      watch:
+        - action: rebuild
+          path: ./app.js
+        - action: rebuild
+          path: ./index.html
+        - action: rebuild
+          path: ./app-next.html
+        - action: rebuild
+          path: ./styles.css
+        - action: rebuild
+          path: ./services
+        - action: rebuild
+          path: ./shared
+        - action: rebuild
+          path: ./src
+        - action: rebuild
+          path: ./public
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json
