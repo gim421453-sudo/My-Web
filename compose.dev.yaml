@@ -1,4 +1,4 @@
-name: myweb-dev
+﻿name: myweb-dev
 
 x-firebase-public-env: &firebase-public-env
   VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
@@ -18,7 +18,7 @@ services:
       <<: *firebase-public-env
       VITE_APP_TARGET: main
     ports:
-      - "127.0.0.1:3000:3000"
+      - "0.0.0.0:3000:3000"
     init: true
     security_opt:
       - no-new-privileges:true
@@ -73,7 +73,7 @@ services:
       PM_STATIC_PREVIEW_HOST: 0.0.0.0
       PM_STATIC_PREVIEW_PORT: "2801"
     ports:
-      - "127.0.0.1:2801:2801"
+      - "0.0.0.0:2801:2801"
     init: true
     security_opt:
       - no-new-privileges:true
