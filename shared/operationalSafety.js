@@ -129,10 +129,7 @@
   }
 
   function isSystemOwner(user) {
-    return Boolean(user?.isSystemOwner)
-      || user?.globalRole === "system_owner"
-      || user?.role === "system_owner"
-      || user?.currentRole === "system_owner";
+    return user?.isSystemOwner === true || user?.isSystemOwnerResolved === true;
   }
 
   function manifestState() {

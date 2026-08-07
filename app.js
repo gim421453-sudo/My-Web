@@ -178,6 +178,11 @@ let workspaceMembersRenderTimerV49 = null;
 let currentUserUnsubscribeV50 = null;
 let currentUserDocUidV50 = "";
 let currentUserSystemOwnerCacheV61 = {};
+const canonicalWorkspaceRoleByUserV160 = new Map();
+
+function canonicalWorkspaceRoleKeyV160(workspaceId, uid) {
+  return workspaceId && uid ? `${workspaceId}:${uid}` : "";
+}
 
 function loadStore() {
   try {
@@ -8625,13 +8630,13 @@ function authCurrentUserV31() {
 }
 
 function authCanManageUsersV31() {
-  return ["super_manager", "manager"].includes(currentUser?.role);
+  return ["system_owner", "super_manager", "manager"].includes(effectiveMenuRoleV59(currentUser));
 }
 
 function authCanInviteRoleV31(role) {
   const me = authCurrentUserV31();
   if (!me) return false;
-  return (authStateV31.roles[me.role]?.canInvite || []).includes(role);
+  return window.PMRoleSecurityPolicy?.canGrantRole?.(effectiveMenuRoleV59(me), role) === true;
 }
 
 function authMenuKeysV31(user = authCurrentUserV31()) {
@@ -8657,7 +8662,6 @@ function can(action, key) {
   if (!authMenuKeysV31(user).includes(key) && action === "view") return false;
   const perm = authStateV31.permissions[key] || {};
   if (action === "view") return (perm.view || []).includes(user.role) || authMenuKeysV31(user).includes(key);
-  if (user.extraPermissions?.[`${key}:${action}`] === true) return true;
   return (perm[action] || []).includes(user.role);
 }
 
@@ -8889,16 +8893,15 @@ function usersTableV31() {
   authStateV31.users.forEach((user) => {
     const tr = document.createElement("tr");
     const role = document.createElement("select");
-    const editableRoleKeys = currentUser?.role === "super_manager"
-      ? ROLE_KEYS_V31
-      : ROLE_KEYS_V31.filter((key) => !["super_manager", "manager"].includes(key));
+    const actorRole = effectiveMenuRoleV59(currentUser);
+    const editableRoleKeys = window.PMRoleSecurityPolicy?.assignableRoles?.(actorRole) || [];
     const visibleRoleKeys = editableRoleKeys.includes(user.role) ? editableRoleKeys : [user.role, ...editableRoleKeys];
     visibleRoleKeys.forEach((key) => role.append(option(key, roleName(key))));
     role.value = user.role;
     role.disabled = !canModifyUserV31(user) || (user.role === "super_manager" && !["system_owner", "super_manager"].includes(currentUser?.role));
     role.addEventListener("change", () => {
       if (!canModifyUserV31(user)) return;
-      if (currentUser?.role !== "super_manager" && ["super_manager", "manager"].includes(role.value)) {
+      if (!window.PMRoleSecurityPolicy?.canGrantRole?.(actorRole, role.value)) {
         role.value = user.role;
         return;
       }
@@ -9124,10 +9127,10 @@ function authCanInviteRoleV31(role) {
 function canModifyUserV31(user) {
   const me = authCurrentUserV31();
   if (!me) return false;
-  if (me.role === "super_manager") return true;
-  return window.PMShared?.roles?.canManageUser
-    ? window.PMShared.roles.canManageUser(me.role, user.role)
-    : me.role === "manager" && !["super_manager", "manager"].includes(user.role);
+  return window.PMRoleSecurityPolicy?.canManageRole?.(
+    effectiveMenuRoleV59(me),
+    user.workspaceRole || user.role
+  ) === true;
 }
 
 function safeExternalNavigateV32(url) {
@@ -9566,9 +9569,7 @@ function renderAccountsV17() {
 }
 
 function roleOptionsForCurrentUserV36(selectedRole) {
-  const keys = ["system_owner", "super_manager"].includes(currentUser?.role)
-    ? ROLE_KEYS_V31
-    : ROLE_KEYS_V31.filter((key) => !["super_manager", "manager"].includes(key));
+  const keys = window.PMRoleSecurityPolicy?.assignableRoles?.(effectiveMenuRoleV59(currentUser)) || [];
   return [...new Set([selectedRole, ...keys].filter(Boolean))];
 }
 
@@ -9711,13 +9712,17 @@ function applyWorkspaceMembersSnapshotV49(workspaceId, members) {
       inviteCode: member.inviteCode || member.inviteCodeId || "",
       inviteCodeId: member.inviteCodeId || member.inviteCode || ""
     };
+    const canonicalRoleKey = canonicalWorkspaceRoleKeyV160(workspaceId, uid);
+    if (["active", "accepted"].includes(mergedMember.status) && canonicalRoleKey) {
+      canonicalWorkspaceRoleByUserV160.set(canonicalRoleKey, mergedMember.role);
+    } else if (canonicalRoleKey) {
+      canonicalWorkspaceRoleByUserV160.delete(canonicalRoleKey);
+    }
     authStateV31.workspace_members.unshift(mergedMember);
 
     const existingUser = authStateV31.users.find((user) => user.uid === uid || user.id === uid || (member.email && user.email === member.email));
-    const isGlobalSystemOwner = existingUser?.role === "system_owner"
-      || existingUser?.currentRole === "system_owner"
-      || existingUser?.globalRole === "system_owner"
-      || member.ownerGlobalRole === "system_owner";
+    const isGlobalSystemOwner = existingUser?.isSystemOwnerResolved === true
+      || currentUserSystemOwnerCacheV61[uid] === true;
     const appRole = isGlobalSystemOwner ? "system_owner" : mergedMember.role;
     const mergedUser = {
       id: uid,
@@ -9745,7 +9750,8 @@ function applyWorkspaceMembersSnapshotV49(workspaceId, members) {
 
     if (uid === currentUid && currentUser) {
       const previousRole = currentUser.role;
-      const keepSystemOwner = currentUser.role === "system_owner" || currentUser.currentRole === "system_owner" || currentUser.globalRole === "system_owner" || member.ownerGlobalRole === "system_owner";
+      const keepSystemOwner = currentUser.isSystemOwnerResolved === true
+        || currentUserSystemOwnerCacheV61[uid] === true;
       currentUser.role = keepSystemOwner ? "system_owner" : mergedMember.role;
       currentUser.currentRole = currentUser.role;
       currentUser.workspaceRole = mergedMember.role;
@@ -10012,22 +10018,19 @@ function invitationsTableV36() {
 }
 
 function syncLocalMemberRoleV36(user) {
-  const workspaceId = user.workspace_id || currentUser?.workspace_id || store.workspace_id || window.PMDataService?.currentWorkspaceId?.();
-  const uid = user.uid || user.id;
-  if (!workspaceId || !uid) return;
-  authStateV31.workspace_members = authStateV31.workspace_members || [];
-  const memberId = `${workspaceId}_${uid}`;
-  const member = authStateV31.workspace_members.find((item) => item.id === memberId || (item.workspaceId === workspaceId && item.uid === uid));
-  if (member) {
-    member.role = user.role;
-    member.status = user.active === false || user.disabled ? "disabled" : "active";
-  } else {
-    authStateV31.workspace_members.unshift({ id: memberId, workspaceId, uid, role: user.role, status: "active", joinedAt: new Date().toISOString(), invitedBy: currentUser?.uid || currentUser?.id || null });
-  }
-  syncRemoteMemberRoleV39(user, workspaceId, uid);
+  void user;
+  showMessage?.("Role change blocked", "Use the canonical administrator screen to change workspace memberships.");
+  return false;
 }
 
 async function syncRemoteMemberRoleV39(user, workspaceId, uid) {
+  void user;
+  void workspaceId;
+  void uid;
+  const blocked = new Error("Legacy membership writes are disabled.");
+  blocked.code = "legacy-membership-write-disabled";
+  throw blocked;
+  /* istanbul ignore next -- retained temporarily for read-only migration reference. */
   if (!window.PMFirebaseRuntime?.hasConfig?.()) return;
   try {
     const runtime = await window.PMFirebaseRuntime.init();
@@ -10547,7 +10550,7 @@ async function bootstrapAdminFirebaseUserV159(firebaseUser, reason = "auth-obser
       }
       firebaseUser.pmWorkspaceId = membership.workspaceId;
       firebaseUser.pmRole = membership.role;
-      firebaseUser.pmWorkspaceRole = membership.workspaceRole || membership.role;
+      firebaseUser.pmWorkspaceRole = membership.workspaceRole || "";
       firebaseUser.pmStatus = membership.status;
       firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
       firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
@@ -10798,7 +10801,6 @@ function can(action, key) {
   if (!authMenuKeysV31(user).includes(key) && action === "view") return false;
   const perm = authStateV31.permissions[key] || {};
   if (action === "view") return (perm.view || []).includes(user.role) || authMenuKeysV31(user).includes(key);
-  if (user.extraPermissions?.[`${key}:${action}`] === true) return true;
   return (perm[action] || []).includes(user.role);
 }
 
@@ -10823,7 +10825,13 @@ function syncFirebaseUserToLocalAuthV33(firebaseUser, displayName, fallbackRole)
   const rawRole = firebaseUser.pmRole || fallbackRole || "normal";
   const role = rawRole === "pending" ? "normal" : rawRole;
   const globalRole = role === "system_owner" || firebaseUser.pmGlobalRole === "system_owner" ? "system_owner" : "user";
-  const workspaceRole = firebaseUser.pmWorkspaceRole || (role === "system_owner" ? "super_manager" : role);
+  const workspaceRole = firebaseUser.pmWorkspaceRole || "";
+  const canonicalRoleKey = canonicalWorkspaceRoleKeyV160(workspaceId, firebaseUser.uid);
+  if (canonicalRoleKey && workspaceRole && status === "active") {
+    canonicalWorkspaceRoleByUserV160.set(canonicalRoleKey, workspaceRole);
+  } else if (canonicalRoleKey) {
+    canonicalWorkspaceRoleByUserV160.delete(canonicalRoleKey);
+  }
   authStateV31.workspace_members = authStateV31.workspace_members || [];
   const existingUser = authStateV31.users.find((item) => item.uid === firebaseUser.uid || item.id === firebaseUser.uid || item.email === firebaseUser.email);
   let user = existingUser;
@@ -10838,6 +10846,7 @@ function syncFirebaseUserToLocalAuthV33(firebaseUser, displayName, fallbackRole)
       currentRole: role,
       workspaceRole,
       globalRole,
+      isSystemOwnerResolved: role === "system_owner",
       workspace_id: workspaceId,
       workspaceId,
       currentWorkspaceId: workspaceId,
@@ -10863,6 +10872,7 @@ function syncFirebaseUserToLocalAuthV33(firebaseUser, displayName, fallbackRole)
   user.currentRole = user.role;
   user.workspaceRole = workspaceRole;
   user.globalRole = globalRole;
+  user.isSystemOwnerResolved = role === "system_owner";
   user.provider = "firebase";
   user.uid = firebaseUser.uid;
   user.id = user.id || firebaseUser.uid;
@@ -10875,6 +10885,7 @@ function syncFirebaseUserToLocalAuthV33(firebaseUser, displayName, fallbackRole)
     if (localMember) {
       localMember.role = workspaceRole;
       localMember.status = "active";
+      localMember.canonicalRoleResolved = true;
     } else {
       authStateV31.workspace_members.unshift({
         id: memberId,
@@ -10884,6 +10895,7 @@ function syncFirebaseUserToLocalAuthV33(firebaseUser, displayName, fallbackRole)
         displayName: user.displayName || user.name || user.email,
         role: workspaceRole,
         status: "active",
+        canonicalRoleResolved: true,
         joinedAt: new Date().toISOString(),
         invitedBy: null
       });
@@ -11267,8 +11279,6 @@ async function startCurrentUserRealtimeV50() {
     if (!data || !currentUser || (currentUser.uid || currentUser.id) !== uid) return;
     const previousGate = isApprovalGateUserV54(currentUser);
     const previousWorkspace = userWorkspaceIdV54(currentUser);
-    const previousRole = currentUser.role;
-    const previousGlobalOwner = currentUser.role === "system_owner" || currentUser.currentRole === "system_owner" || currentUser.globalRole === "system_owner";
     let ownerByRegistry = currentUserSystemOwnerCacheV61[uid] === true;
     if (!ownerByRegistry && window.PMSystemAdminService?.isSystemOwner) {
       try {
@@ -11282,11 +11292,15 @@ async function startCurrentUserRealtimeV50() {
     currentUser.workspace_id = data.workspaceId || data.currentWorkspaceId || "";
     currentUser.workspaceId = currentUser.workspace_id;
     currentUser.currentWorkspaceId = currentUser.workspace_id;
-    const keepSystemOwner = ownerByRegistry || previousGlobalOwner || data.role === "system_owner" || data.currentRole === "system_owner" || data.globalRole === "system_owner";
-    currentUser.role = keepSystemOwner ? "system_owner" : data.currentRole || data.role || currentUser.role || "pending";
+    const canonicalRole = canonicalWorkspaceRoleByUserV160.get(
+      canonicalWorkspaceRoleKeyV160(currentUser.workspace_id, uid)
+    ) || "";
+    const keepSystemOwner = ownerByRegistry;
+    currentUser.role = keepSystemOwner ? "system_owner" : (canonicalRole || "pending");
     currentUser.currentRole = currentUser.role;
-    currentUser.globalRole = keepSystemOwner ? "system_owner" : data.globalRole || currentUser.globalRole || "user";
-    currentUser.workspaceRole = data.workspaceRole || currentUser.workspaceRole || (keepSystemOwner ? "super_manager" : currentUser.role);
+    currentUser.globalRole = keepSystemOwner ? "system_owner" : "user";
+    currentUser.isSystemOwnerResolved = keepSystemOwner;
+    currentUser.workspaceRole = canonicalRole;
     currentUser.status = data.status || (currentUser.workspace_id ? "active" : "pending");
     currentUser.pendingWorkspaceId = data.pendingWorkspaceId || "";
     currentUser.pendingInviteCodeId = data.pendingInviteCodeId || data.inviteCodeId || data.inviteCode || "";
@@ -12344,7 +12358,7 @@ function renderAllUsersAdminV54() {
     statusSelect.value = userStatus;
     statusSelect.disabled = protectedUser;
     const roleSelect = document.createElement("select");
-    const editableRoles = ["pending", "normal", "teacher", "manager", "viewer", "print_account", "super_manager"];
+    const editableRoles = window.PMRoleSecurityPolicy?.assignableRoles?.(effectiveMenuRoleV59(currentUser)) || [];
     if (!editableRoles.includes(userRole)) roleSelect.append(option(userRole, roleName(userRole)));
     editableRoles.forEach((key) => roleSelect.append(option(key, roleName(key))));
     roleSelect.value = userRole;
@@ -12370,6 +12384,10 @@ function renderAllUsersAdminV54() {
         }
         if (!roleSelect.value || roleSelect.value === "pending") {
           showMessage("저장 실패", "pending이 아닌 실제 권한을 선택하세요.");
+          return;
+        }
+        if (!window.PMRoleSecurityPolicy?.canGrantRole?.(effectiveMenuRoleV59(currentUser), roleSelect.value)) {
+          showMessage("Role update blocked", "The selected role is outside your canonical grant scope.");
           return;
         }
         save.disabled = true;
@@ -12488,13 +12506,10 @@ function syncSystemOwnerReturnButtonV58() {
 
 function effectiveMenuRoleV59(user = authCurrentUserV31()) {
   if (!user) return "";
-  if (user.role === "system_owner" || user.currentRole === "system_owner" || user.globalRole === "system_owner") return "system_owner";
   const workspaceId = userWorkspaceIdV54(user);
   const uid = user.uid || user.id || "";
-  const member = (authStateV31.workspace_members || []).find((item) => item.uid === uid && item.workspaceId === workspaceId && ["active", "accepted"].includes(item.status || "active"));
-  const workspaceRole = user.workspaceRole || member?.role || "";
-  if ((!user.role || user.role === "pending") && workspaceRole && workspaceRole !== "pending") return workspaceRole;
-  return user.role || workspaceRole || "pending";
+  if (user.isSystemOwnerResolved === true || currentUserSystemOwnerCacheV61[uid] === true) return "system_owner";
+  return canonicalWorkspaceRoleByUserV160.get(canonicalWorkspaceRoleKeyV160(workspaceId, uid)) || "";
 }
 
 function authMenuKeysV31(user = authCurrentUserV31()) {
@@ -12521,7 +12536,6 @@ function can(action, key) {
   if (!authMenuKeysV31(user).includes(key) && action === "view") return false;
   const perm = authStateV31.permissions[key] || {};
   if (action === "view") return (perm.view || []).includes(role) || authMenuKeysV31(user).includes(key);
-  if (user.extraPermissions?.[`${key}:${action}`] === true) return true;
   return (perm[action] || []).includes(role);
 }
 
@@ -16175,7 +16189,7 @@ function renderAllUsersAdminV54() {
     statusSelect.value = userStatus;
     statusSelect.disabled = protectedUser;
     const roleSelect = document.createElement("select");
-    const editableRoles = ["pending", "normal", "teacher", "manager", "viewer", "print_account", "super_manager"];
+    const editableRoles = window.PMRoleSecurityPolicy?.assignableRoles?.(effectiveMenuRoleV59(currentUser)) || [];
     if (!editableRoles.includes(userRole)) roleSelect.append(option(userRole, roleName(userRole)));
     editableRoles.forEach((key) => roleSelect.append(option(key, roleName(key))));
     roleSelect.value = userRole;
@@ -16200,6 +16214,10 @@ function renderAllUsersAdminV54() {
         }
         if (!roleSelect.value || roleSelect.value === "pending") {
           showMessage("저장 실패", "pending이 아닌 실제 권한을 선택하세요.");
+          return;
+        }
+        if (!window.PMRoleSecurityPolicy?.canGrantRole?.(effectiveMenuRoleV59(currentUser), roleSelect.value)) {
+          showMessage("Role update blocked", "The selected role is outside your canonical grant scope.");
           return;
         }
         save.disabled = true;
@@ -37045,7 +37063,8 @@ const operationModeUiStateV154 = {
 };
 
 function isSystemOwnerV150(user = currentUser) {
-  return user?.isSystemOwner === true || user?.role === "system_owner" || user?.currentRole === "system_owner" || user?.globalRole === "system_owner";
+  const uid = user?.uid || user?.id || "";
+  return user?.isSystemOwnerResolved === true || currentUserSystemOwnerCacheV61[uid] === true;
 }
 
 function operationModeLabelV150(value = "") {
@@ -39010,14 +39029,12 @@ can = function canV157(action, key) {
   if (schoolReadModeV157() && ["create", "edit", "del"].includes(action)) {
     const role = schoolReadRoleV157();
     const user = (typeof authCurrentUserV31 === "function" ? authCurrentUserV31() : null) || currentUser || {};
-    const explicit = user.extraPermissions?.[`${key}:${action}`] === true;
+    const explicit = false;
     if (["portfolios", "records"].includes(key) && role === "teacher") return false;
     if (["portfolios", "records"].includes(key) && role === "manager" && !explicit) return false;
     if (key === "subjects" && ["manager", "teacher"].includes(role)) return false;
     if (key === "timetable" && ["manager", "teacher"].includes(role)) {
-      return user.extraPermissions?.timetable_manager === true
-        || user.extraPermissions?.["timetable:manage"] === true
-        || explicit;
+      return false;
     }
   }
   return canBeforeV157(action, key);
@@ -39082,10 +39099,7 @@ renderPortfolioV139 = function renderPortfolioV157() {
 function schoolTimetableWriteAllowedV157() {
   const role = schoolReadRoleV157();
   if (!["manager", "teacher"].includes(role)) return true;
-  const user = (typeof authCurrentUserV31 === "function" ? authCurrentUserV31() : null) || currentUser || {};
-  return user.extraPermissions?.timetable_manager === true
-    || user.extraPermissions?.["timetable:manage"] === true
-    || user.extraPermissions?.["timetable:edit"] === true;
+  return false;
 }
 
 function applySchoolTimetableReadOnlyV157() {

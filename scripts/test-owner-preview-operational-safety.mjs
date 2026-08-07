@@ -150,8 +150,8 @@ test("owner preview HTML entries include noindex", () => {
 });
 
 test("operational and app-next entries load shared safety runtime", () => {
-  assert.match(files.index, /shared\/operationalSafety\.js\?v=1/);
-  assert.match(files.appNextHtml, /shared\/operationalSafety\.js\?v=1/);
+  assert.match(files.index, /shared\/operationalSafety\.js\?v=2/);
+  assert.match(files.appNextHtml, /shared\/operationalSafety\.js\?v=2/);
 });
 
 test("operational safety default mode is normal", () => {
