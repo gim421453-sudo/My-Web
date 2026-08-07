@@ -187,15 +187,13 @@
   }
 
   function fallbackMembershipFromUser(user) {
-    const workspaceId = user?.pmWorkspaceId || user?.workspaceId || user?.currentWorkspaceId || "";
-    const role = user?.pmRole || "normal";
     return {
-      workspaceId,
-      role,
-      workspaceRole: user?.pmWorkspaceRole || role,
-      status: user?.pmStatus || (workspaceId ? "active" : "pending"),
-      pendingWorkspaceId: user?.pmPendingWorkspaceId || "",
-      pendingInviteCodeId: user?.pmPendingInviteCodeId || ""
+      workspaceId: "",
+      role: "normal",
+      workspaceRole: "",
+      status: user?.pmStatus === "disabled" ? "disabled" : "pending",
+      pendingWorkspaceId: "",
+      pendingInviteCodeId: ""
     };
   }
 
@@ -346,7 +344,7 @@
     const membership = await firebaseEnsureUserStructure(credential.user, displayName, "pending");
     credential.user.pmWorkspaceId = membership.workspaceId;
     credential.user.pmRole = membership.role;
-    credential.user.pmWorkspaceRole = membership.workspaceRole || membership.role;
+    credential.user.pmWorkspaceRole = membership.workspaceRole || "";
     credential.user.pmStatus = membership.status;
     await firebaseRegisterDevice(credential.user);
     await firebaseCreateWelcomeNotification(credential.user);
@@ -359,20 +357,18 @@
     const { firestore } = runtime.sdk;
     const uid = user.uid;
     const status = options.status || "pending";
-    const requestedRole = options.role || "normal";
-    const role = requestedRole === "pending" ? "normal" : requestedRole;
     await runFirestoreStep("create base invited user document", `users/${uid}`, () => firestore.setDoc(firestore.doc(runtime.db, "users", uid), {
       uid,
       email: user.email || "",
       displayName: displayName || user.displayName || user.email || "",
       emailVerified: !!user.emailVerified,
       globalRole: "user",
-      role,
-      currentRole: role,
+      role: "normal",
+      currentRole: "normal",
       status,
-      workspaceId: options.workspaceId || null,
-      currentWorkspaceId: options.workspaceId || null,
-      workspace_id: options.workspaceId || null,
+      workspaceId: null,
+      currentWorkspaceId: null,
+      workspace_id: null,
       pendingWorkspaceId: options.pendingWorkspaceId || null,
       pendingInviteCodeId: options.pendingInviteCodeId || null,
       createdAt: firestore.serverTimestamp(),
@@ -392,7 +388,7 @@
     const membership = await firebaseEnsureUserStructure(credential.user, credential.user.displayName || credential.user.email, "pending");
     credential.user.pmWorkspaceId = membership.workspaceId;
     credential.user.pmRole = membership.role;
-    credential.user.pmWorkspaceRole = membership.workspaceRole || membership.role;
+    credential.user.pmWorkspaceRole = membership.workspaceRole || "";
     credential.user.pmStatus = membership.status;
     credential.user.pmPendingWorkspaceId = membership.pendingWorkspaceId;
     await firebaseRegisterDevice(credential.user);
@@ -433,8 +429,8 @@
 
   async function findActiveWorkspaceMembership(runtime, uid) {
     try {
-      const snapshot = await runFirestoreStep("find active workspace membership", `workspace_members where uid=${uid}`, () => runtime.db
-        .collection("workspace_members")
+      const snapshot = await runFirestoreStep("find canonical workspace membership", "workspaces/{workspaceId}/members where uid={uid}", () => runtime.db
+        .collectionGroup("members")
         .where("uid", "==", uid)
         .limit(10)
         .get());
@@ -491,7 +487,7 @@
     const membership = await firebaseEnsureUserStructure(credential.user, credential.user.displayName || credential.user.email, "pending");
     credential.user.pmWorkspaceId = membership.workspaceId;
     credential.user.pmRole = membership.role;
-    credential.user.pmWorkspaceRole = membership.workspaceRole || membership.role;
+    credential.user.pmWorkspaceRole = membership.workspaceRole || "";
     credential.user.pmStatus = membership.status;
     credential.user.pmPendingWorkspaceId = membership.pendingWorkspaceId;
     await firebaseRegisterDevice(credential.user);
@@ -560,180 +556,33 @@
       console.info("[PM system owner lookup skipped]", error?.code || "", error?.message || String(error));
     }
     const discoveredMembership = await findActiveWorkspaceMembership(runtime, uid);
-    const workspaceId = userData.workspaceId || userData.currentWorkspaceId || discoveredMembership?.workspaceId || "";
-    const status = userData.disabled === true ? "disabled" : (userData.status || (workspaceId ? "active" : "pending"));
-    if (!workspaceId || ["pending", "waiting_approval", "rejected", "disabled"].includes(status)) {
-      const savedRole = userData.role || userData.currentRole || "normal";
-      const pendingRole = isSystemOwnerDoc ? "system_owner" : savedRole === "pending" ? "normal" : savedRole;
-      const pendingExpected = {
-        uid,
-        email: user.email || userData.email || "",
-        displayName: userData.displayName || displayName || user.displayName || user.email || "",
-        emailVerified: !!user.emailVerified,
-        role: pendingRole,
-        currentRole: pendingRole,
-        workspaceRole: discoveredMembership?.role || userData.workspaceRole || (pendingRole === "system_owner" ? "super_manager" : pendingRole),
-        status,
-        workspaceId: workspaceId || null,
-        currentWorkspaceId: workspaceId || null,
-        workspace_id: workspaceId || null,
-        pendingWorkspaceId: userData.pendingWorkspaceId || null,
-        pendingInviteCodeId: userData.pendingInviteCodeId || userData.inviteCodeId || userData.inviteCode || null,
-        disabled: status === "disabled" || userData.disabled === true
-      };
-      const pendingPatchResult = buildMergePatch(userData, pendingExpected);
-      if (!userData.createdAt) {
-        pendingPatchResult.patch.createdAt = now;
-        pendingPatchResult.changedFields.push("createdAt");
+    const requestedWorkspaceId = userData.currentWorkspaceId || userData.workspaceId || discoveredMembership?.workspaceId || "";
+    let canonicalMembership = null;
+    if (requestedWorkspaceId) {
+      const memberRef = firestore.doc(runtime.db, "workspaces", requestedWorkspaceId, "members", uid);
+      const memberSnap = await runFirestoreStep("get canonical workspace member document", `workspaces/${requestedWorkspaceId}/members/${uid}`, () => firestore.getDoc(memberRef));
+      const memberData = memberSnap.exists() ? memberSnap.data() || {} : {};
+      if (memberSnap.exists() && ["active", "accepted"].includes(memberData.status || "active")) {
+        canonicalMembership = { ...memberData, workspaceId: requestedWorkspaceId };
       }
-      if (pendingPatchResult.changedFields.length && !authBootstrapBackoffActive()) {
-        pendingPatchResult.patch.updatedAt = now;
-        await runFirestoreStep("update pending user login structure", `users/${uid}`, () => firestore.setDoc(userRef, pendingPatchResult.patch, { merge: true }));
-        authBootstrapDiagnostics.bootstrapCommitCount += 1;
-        authBootstrapDiagnostics.userWriteCount += 1;
-        noteBootstrap("pending-user-structure-updated", pendingPatchResult.changedFields.map((field) => `users.${field}`));
-      } else {
-        authBootstrapDiagnostics.bootstrapSkippedNoDiffCount += 1;
-        noteBootstrap("pending-user-structure-no-diff");
-      }
-      return {
-        workspaceId,
-        role: pendingRole,
-        status,
-        workspaceRole: discoveredMembership?.role || userData.workspaceRole || "",
-        pendingWorkspaceId: userData.pendingWorkspaceId || "",
-        pendingInviteCodeId: userData.pendingInviteCodeId || userData.inviteCodeId || userData.inviteCode || ""
-      };
     }
 
-    const memberId = `${workspaceId}_${uid}`;
-    const memberRef = firestore.doc(runtime.db, "workspace_members", memberId);
-    const standardMemberRef = firestore.doc(runtime.db, "workspaceMembers", memberId);
-    const nestedMemberRef = firestore.doc(runtime.db, "workspaces", workspaceId, "members", uid);
-    const memberSnap = await runFirestoreStep("get workspace member document", `workspaces/${workspaceId}/members/${uid}`, () => firestore.getDoc(nestedMemberRef));
-    let rootMemberSnap;
-    let standardMemberSnap;
-    try {
-      rootMemberSnap = await runFirestoreStep("get legacy workspace member document", `workspace_members/${memberId}`, () => firestore.getDoc(memberRef));
-    } catch (error) {
-      console.info("[PM root membership lookup skipped]", {
-        path: "workspace_members/{memberId}",
-        code: error?.code || "",
-        message: error?.message || String(error)
-      });
-      rootMemberSnap = { exists: () => false, data: () => ({}) };
-    }
-    try {
-      standardMemberSnap = await runFirestoreStep("get standard legacy workspace member document", `workspaceMembers/${memberId}`, () => firestore.getDoc(standardMemberRef));
-    } catch (error) {
-      console.info("[PM standard membership lookup skipped]", {
-        path: "workspaceMembers/{memberId}",
-        code: error?.code || "",
-        message: error?.message || String(error)
-      });
-      standardMemberSnap = { exists: () => false, data: () => ({}) };
-    }
-    const workspaceRole = memberSnap.exists()
-      ? memberSnap.data().role || "normal"
-      : rootMemberSnap.exists()
-        ? rootMemberSnap.data().role || "normal"
-        : userData.currentRole || userData.role || "normal";
-    const isGlobalSystemOwner = isSystemOwnerDoc || userData.role === "system_owner" || userData.currentRole === "system_owner";
-    const role = isGlobalSystemOwner ? "system_owner" : workspaceRole;
-    const canRepairRootMembership = isGlobalSystemOwner || ["super_manager", "manager"].includes(workspaceRole);
-    const batch = firestore.writeBatch(runtime.db);
-    const changedFields = [];
-    let userWriteQueued = false;
-    let membershipWriteQueued = 0;
+    const workspaceId = canonicalMembership?.workspaceId || (isSystemOwnerDoc ? requestedWorkspaceId : "");
+    const workspaceRole = canonicalMembership?.role || "";
+    const role = isSystemOwnerDoc ? "system_owner" : (workspaceRole || "normal");
+    const profileStatus = userData.disabled === true ? "disabled" : (userData.status || "pending");
+    const status = !isSystemOwnerDoc && !canonicalMembership && profileStatus === "active" ? "pending" : profileStatus;
 
-    const userExpected = {
-      uid,
-      email: user.email || "",
-      displayName: userData.displayName || displayName || user.displayName || user.email || "???",
-      emailVerified: !!user.emailVerified,
+    authBootstrapDiagnostics.bootstrapSkippedNoDiffCount += 1;
+    noteBootstrap("canonical-session-read-only");
+    return {
       workspaceId,
-      currentWorkspaceId: workspaceId,
-      workspace_id: workspaceId,
       role,
-      currentRole: role,
       workspaceRole,
-      status: status || "active",
-      disabled: userData.disabled === true,
-      pendingWorkspaceId: null,
-      pendingInviteCodeId: null
+      status,
+      pendingWorkspaceId: userData.pendingWorkspaceId || "",
+      pendingInviteCodeId: userData.pendingInviteCodeId || userData.inviteCodeId || userData.inviteCode || ""
     };
-    const userPatchResult = buildMergePatch(userData, userExpected);
-    if (!userData.createdAt) {
-      userPatchResult.patch.createdAt = now;
-      userPatchResult.changedFields.push("createdAt");
-    }
-    if (userPatchResult.changedFields.length) {
-      userPatchResult.patch.updatedAt = now;
-      batch.set(userRef, userPatchResult.patch, { merge: true });
-      userWriteQueued = true;
-      changedFields.push(...userPatchResult.changedFields.map((field) => `users.${field}`));
-    }
-
-    if (!memberSnap.exists() && !rootMemberSnap.exists()) {
-      console.warn("[PM role repair]", { role, message: "active user member document was missing; repairing with users.role" });
-    }
-
-    const memberExpected = {
-      id: memberId,
-      workspaceId,
-      workspace_id: workspaceId,
-      rootMemberExists: true,
-      nestedMemberExists: true,
-      uid,
-      email: user.email || userData.email || "",
-      displayName: userData.displayName || displayName || user.displayName || user.email || "",
-      role: workspaceRole,
-      status: "active",
-      invitedBy: null
-    };
-    if (canRepairRootMembership) {
-      const rootData = rootMemberSnap.exists() ? rootMemberSnap.data() || {} : {};
-      const standardData = standardMemberSnap.exists() ? standardMemberSnap.data() || {} : {};
-      const rootChanged = maybeAddBatchSet(batch, memberRef, rootData, {
-        ...memberExpected,
-        joinedAt: rootData.joinedAt || now
-      }, now, { updatedAt: "updatedAt", prefix: "workspace_members" });
-      const standardChanged = maybeAddBatchSet(batch, standardMemberRef, standardData, {
-        ...memberExpected,
-        joinedAt: standardData.joinedAt || rootData.joinedAt || now
-      }, now, { updatedAt: "updatedAt", prefix: "workspaceMembers" });
-      if (rootChanged.length) membershipWriteQueued += 1;
-      if (standardChanged.length) membershipWriteQueued += 1;
-      changedFields.push(...rootChanged, ...standardChanged);
-    } else {
-      console.info("[PM member bootstrap] root membership repair skipped for non-admin login", { workspaceRole });
-    }
-    const nestedData = memberSnap.exists() ? memberSnap.data() || {} : {};
-    const nestedChanged = maybeAddBatchSet(batch, nestedMemberRef, nestedData, {
-      ...memberExpected,
-      joinedAt: nestedData.joinedAt || now,
-      invitedBy: nestedData.invitedBy || null
-    }, now, { updatedAt: "updatedAt", prefix: "members" });
-    if (nestedChanged.length) membershipWriteQueued += 1;
-    changedFields.push(...nestedChanged);
-
-    if (!changedFields.length) {
-      authBootstrapDiagnostics.bootstrapSkippedNoDiffCount += 1;
-      noteBootstrap("active-user-structure-no-diff");
-      return { workspaceId, role, workspaceRole, status: status || "active", pendingWorkspaceId: "", pendingInviteCodeId: "" };
-    }
-    if (authBootstrapBackoffActive()) {
-      authBootstrapDiagnostics.bootstrapBlockedInFlightCount += 1;
-      noteBootstrap("bootstrap-write-skipped-backoff", changedFields);
-      return { workspaceId, role, workspaceRole, status: status || "active", pendingWorkspaceId: "", pendingInviteCodeId: "" };
-    }
-
-    await runFirestoreStep("commit user workspace bootstrap", `users/${uid}, workspaces/${workspaceId}/members/${uid}${canRepairRootMembership ? `, workspace_members/${memberId}` : ""}`, () => batch.commit());
-    authBootstrapDiagnostics.bootstrapCommitCount += 1;
-    if (userWriteQueued) authBootstrapDiagnostics.userWriteCount += 1;
-    authBootstrapDiagnostics.membershipWriteCount += membershipWriteQueued;
-    noteBootstrap("active-user-structure-updated", changedFields);
-    return { workspaceId, role, workspaceRole, status: status || "active", pendingWorkspaceId: "", pendingInviteCodeId: "" };
   }
 
   async function firebaseRegisterDevice(user) {

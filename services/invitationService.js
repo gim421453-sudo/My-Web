@@ -52,16 +52,45 @@
   }
 
   function canCreateInvite(actorRole, targetRole) {
-    if (targetRole === "system_owner") return false;
-    if (actorRole === "super_manager") return ["manager", "teacher", "normal", "viewer", "print_account"].includes(targetRole);
-    if (actorRole === "manager") return ["teacher", "normal", "viewer", "print_account"].includes(targetRole);
-    return false;
+    return window.PMRoleSecurityPolicy?.canGrantRole?.(actorRole, targetRole) === true;
+  }
+
+  function remoteInvitePayload(invite, code, createdAt) {
+    const forbidden = window.PMRoleSecurityPolicy?.forbiddenPayloadKeys?.(invite) || [];
+    if (forbidden.length) {
+      const error = new Error("Privilege fields are not accepted in invitation payloads.");
+      error.code = "invite-forbidden-payload";
+      throw error;
+    }
+    const createdBy = String(invite.createdBy || invite.inviterUid || "");
+    return {
+      invitationId: code,
+      code,
+      workspaceId: String(invite.workspaceId || ""),
+      role: String(invite.role || "normal"),
+      codeHash: String(invite.codeHash || ""),
+      email: String(invite.email || "").trim().toLowerCase(),
+      maxUses: Math.max(1, Math.min(1000, Math.trunc(Number(invite.maxUses || 1)))),
+      usedCount: Math.max(0, Math.trunc(Number(invite.usedCount || 0))),
+      expiresAt: invite.expiresAt == null ? null : Math.trunc(Number(invite.expiresAt)),
+      createdAt,
+      createdBy,
+      inviterUid: createdBy,
+      inviterEmail: String(invite.inviterEmail || ""),
+      invitedBy: createdBy,
+      status: invite.status === "pending" ? "active" : String(invite.status || "active"),
+      usedAt: invite.usedAt || "",
+      usedBy: String(invite.usedBy || ""),
+      reusable: invite.reusable === true,
+      codePreview: String(invite.codePreview || "")
+    };
   }
 
   async function createInvite({ authState, currentUser, workspaceId, role, email, maxUses, expiresHours, reusable }) {
     const targetWorkspaceId = workspaceId || currentUser?.workspace_id || currentUser?.workspaceId;
     if (!targetWorkspaceId) throw new Error("초대코드를 만들 workspace가 없습니다.");
-    if (!canCreateInvite(currentUser?.role, role)) throw new Error("현재 계정은 해당 역할의 초대코드를 만들 수 없습니다.");
+    const actorRole = currentUser?.isSystemOwnerResolved === true ? "system_owner" : currentUser?.workspaceRole;
+    if (!canCreateInvite(actorRole, role)) throw new Error("현재 계정은 해당 역할의 초대코드를 만들 수 없습니다.");
 
     const code = normalizeCode(randomCode());
     const codeHash = await sha256(code);
@@ -98,15 +127,7 @@
       if (!runtime) return;
       const { firestore } = runtime.sdk;
       const code = normalizeCode(invite.code || invite.invitationId);
-      const remoteInvite = {
-        ...invite,
-        invitationId: code,
-        code,
-        createdBy: invite.createdBy || invite.inviterUid || "",
-        invitedBy: invite.createdBy || invite.inviterUid || "",
-        status: invite.status === "pending" ? "active" : invite.status,
-        createdAt: firestore.serverTimestamp()
-      };
+      const remoteInvite = remoteInvitePayload(invite, code, firestore.serverTimestamp());
       await firestore.setDoc(firestore.doc(runtime.db, "invites", code), remoteInvite, { merge: true });
       await firestore.setDoc(firestore.doc(runtime.db, "invitations", code), remoteInvite, { merge: true });
       if (invite.workspaceId) {
@@ -179,8 +200,8 @@
     const userSnap = await firestore.getDoc(userRef);
     const existingUser = userSnap.exists() ? userSnap.data() : {};
     const existingWorkspaceId = user.workspace_id || user.workspaceId || user.currentWorkspaceId || existingUser.workspaceId || existingUser.currentWorkspaceId;
-    const currentRole = user.role || user.currentRole || existingUser.role || existingUser.currentRole || "";
-    const role = roleAfterInvite(currentRole, invite.role || "normal");
+    const role = String(invite.role || "normal").trim();
+    if (!window.PMRoleSecurityPolicy?.WORKSPACE_ROLES?.includes(role)) throw new Error("Invalid invitation role.");
     const workspaceId = invite.workspaceId;
     const existingStatus = existingUser.status || user.status || "";
     if (existingWorkspaceId === workspaceId && existingStatus === "active") {
@@ -191,21 +212,6 @@
     const email = user.email || existingUser.email || "";
     const displayName = existingUser.displayName || user.displayName || user.name || email || "";
     const requestId = `${workspaceId}_${uid}_${normalized}`.replace(/[^a-zA-Z0-9_-]/g, "_");
-    const userRole = currentRole && currentRole !== "pending" ? currentRole : "normal";
-    const userPayload = {
-      uid,
-      email,
-      displayName,
-      workspaceId: null,
-      currentWorkspaceId: null,
-      role: userRole,
-      currentRole: userRole,
-      status: "waiting_approval",
-      pendingWorkspaceId: workspaceId,
-      pendingInviteCodeId: normalized,
-      updatedAt: now,
-      disabled: false
-    };
     const requestPayload = {
       id: requestId,
       uid,
@@ -227,7 +233,6 @@
     };
     const batch = firestore.writeBatch(runtime.db);
 
-    batch.set(userRef, userPayload, { merge: true });
     batch.set(firestore.doc(runtime.db, "workspaceJoinRequests", requestId), requestPayload, { merge: true });
     if (ownerUid) {
       batch.set(firestore.doc(runtime.db, "users", ownerUid, "invitedUsers", uid), {
@@ -245,7 +250,7 @@
 
     console.info("[PM Firestore]", {
       step: "submit invite join request",
-      path: "invites/{inviteCode}, users/{uid}, workspaceJoinRequests/{requestId}",
+      path: "invites/{inviteCode}, workspaceJoinRequests/{requestId}",
       inviteFingerprint: maskDiagnosticId(normalized),
       requestFingerprint: maskDiagnosticId(requestId),
       uidPresent: Boolean(uid)
@@ -258,7 +263,7 @@
         inviteOwnerUidPresent: Boolean(ownerUid),
         joinedUserUidPresent: Boolean(uid),
         joinedUserEmailPresent: Boolean(email),
-        usersDocumentSaved: true,
+        usersDocumentSaved: false,
         workspaceJoinRequestSaved: true,
         inviterLinkSaved: !!ownerUid
       });

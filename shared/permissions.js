@@ -24,7 +24,6 @@
   function hasActionPermission(user, permissionMap, menuKey, action) {
     if (!hasMenuAccess(user, menuKey) && action === "view") return false;
     const role = window.PMShared?.roles?.normalizeRole(user.role) || user.role;
-    if (user.extraPermissions && user.extraPermissions[`${menuKey}:${action}`] === true) return true;
     return (permissionMap?.[menuKey]?.[action] || []).includes(role);
   }
 

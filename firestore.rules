@@ -12,47 +12,208 @@ service cloud.firestore {
 
     function isSystemOwner() {
       return signedIn()
+        && exists(/databases/$(database)/documents/systemOwners/$(request.auth.uid))
         && (
-          exists(/databases/$(database)/documents/systemOwners/$(request.auth.uid))
-          || (
-            exists(/databases/$(database)/documents/users/$(request.auth.uid))
-            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "system_owner"
-            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status != "disabled"
-            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled != true
-          )
+          !("status" in get(/databases/$(database)/documents/systemOwners/$(request.auth.uid)).data)
+          || get(/databases/$(database)/documents/systemOwners/$(request.auth.uid)).data.status == "active"
         );
     }
 
     function isWorkspaceMember(workspaceId) {
       return signedIn()
-        && (
-          (
-            exists(/databases/$(database)/documents/workspaceMembers/$(workspaceId + "_" + request.auth.uid))
-            && get(/databases/$(database)/documents/workspaceMembers/$(workspaceId + "_" + request.auth.uid)).data.status in ["active", "accepted"]
-          )
-          || (
-            exists(/databases/$(database)/documents/workspace_members/$(workspaceId + "_" + request.auth.uid))
-            && get(/databases/$(database)/documents/workspace_members/$(workspaceId + "_" + request.auth.uid)).data.status in ["active", "accepted"]
-          )
-          || (
-            exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid))
-            && get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.status in ["active", "accepted"]
-          )
-        );
+        && exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid))
+        && get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.status in ["active", "accepted"];
     }
 
     function workspaceRole(workspaceId) {
       return isWorkspaceMember(workspaceId)
-        ? (
-          exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid))
-            ? get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.role
-            : (
-              exists(/databases/$(database)/documents/workspaceMembers/$(workspaceId + "_" + request.auth.uid))
-                ? get(/databases/$(database)/documents/workspaceMembers/$(workspaceId + "_" + request.auth.uid)).data.role
-                : get(/databases/$(database)/documents/workspace_members/$(workspaceId + "_" + request.auth.uid)).data.role
-            )
-        )
+        ? get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.role
         : null;
+    }
+
+    function validWorkspaceRole(role) {
+      return role in ["super_manager", "manager", "teacher", "normal", "viewer", "print_account"];
+    }
+
+    function canGrantWorkspaceRole(workspaceId, targetUid, requestedRole) {
+      return signedIn()
+        && targetUid != request.auth.uid
+        && validWorkspaceRole(requestedRole)
+        && (
+          isSystemOwner()
+          || (
+            workspaceRole(workspaceId) == "super_manager"
+            && requestedRole in ["manager", "teacher", "normal", "viewer", "print_account"]
+          )
+          || (
+            workspaceRole(workspaceId) == "manager"
+            && requestedRole in ["teacher", "normal", "viewer", "print_account"]
+          )
+        );
+    }
+
+    function canManageExistingMember(workspaceId, targetUid, targetRole) {
+      return signedIn()
+        && targetUid != request.auth.uid
+        && (
+          isSystemOwner()
+          || (
+            workspaceRole(workspaceId) == "super_manager"
+            && targetRole in ["manager", "teacher", "normal", "viewer", "print_account"]
+          )
+          || (
+            workspaceRole(workspaceId) == "manager"
+            && targetRole in ["teacher", "normal", "viewer", "print_account"]
+          )
+        );
+    }
+
+    function optionalString(data, field, maxSize) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxSize);
+    }
+
+    function optionalBool(data, field) {
+      return !(field in data) || data[field] is bool;
+    }
+
+    function optionalTimestamp(data, field) {
+      return !(field in data) || data[field] is timestamp;
+    }
+
+    function membershipHasAllowedFields(data) {
+      return data.keys().hasOnly([
+        "id", "uid", "email", "displayName", "role", "status", "disabled", "active",
+        "workspaceId", "workspace_id", "nestedMemberExists",
+        "inviteCodeId", "inviteCode", "invitedBy", "invitedByEmail", "invitationId",
+        "approvedBy", "approvalRequestId", "source",
+        "joinedAt", "lastAccessAt", "createdAt", "createdBy", "updatedAt", "updatedBy",
+        "roleChangedAt", "roleChangedBy", "disabledAt", "disabledBy", "enabledAt", "enabledBy"
+      ]);
+    }
+
+    function membershipHasValidTypes(data, workspaceId, uid) {
+      return data.uid is string
+        && data.uid == uid
+        && data.uid.size() > 0
+        && data.workspaceId is string
+        && data.workspaceId == workspaceId
+        && data.workspaceId.size() > 0
+        && (!("workspace_id" in data) || (data.workspace_id is string && data.workspace_id == workspaceId))
+        && optionalString(data, "id", 512)
+        && optionalString(data, "email", 320)
+        && optionalString(data, "displayName", 512)
+        && validWorkspaceRole(data.role)
+        && data.status in ["active", "accepted", "disabled"]
+        && optionalBool(data, "disabled")
+        && optionalBool(data, "active")
+        && (!("disabled" in data) || data.disabled == (data.status == "disabled"))
+        && (!("active" in data) || data.active == (data.status != "disabled"))
+        && optionalBool(data, "nestedMemberExists")
+        && optionalString(data, "inviteCodeId", 512)
+        && optionalString(data, "inviteCode", 512)
+        && optionalString(data, "invitedBy", 256)
+        && optionalString(data, "invitedByEmail", 320)
+        && optionalString(data, "invitationId", 512)
+        && optionalString(data, "approvedBy", 256)
+        && optionalString(data, "approvalRequestId", 512)
+        && optionalString(data, "source", 128)
+        && optionalString(data, "createdBy", 256)
+        && optionalString(data, "updatedBy", 256)
+        && optionalString(data, "roleChangedBy", 256)
+        && optionalString(data, "disabledBy", 256)
+        && optionalString(data, "enabledBy", 256)
+        && optionalTimestamp(data, "joinedAt")
+        && optionalTimestamp(data, "lastAccessAt")
+        && optionalTimestamp(data, "createdAt")
+        && optionalTimestamp(data, "updatedAt")
+        && optionalTimestamp(data, "roleChangedAt")
+        && optionalTimestamp(data, "disabledAt")
+        && optionalTimestamp(data, "enabledAt");
+    }
+
+    function validMembershipCreate(workspaceId, uid) {
+      // Direct client membership creation has no server-verifiable approval proof yet.
+      return false;
+    }
+
+    function validMembershipUpdate(workspaceId, uid) {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let immutableKeys = [
+          "id", "uid", "workspaceId", "workspace_id", "createdAt", "createdBy", "joinedAt",
+          "invitationId", "approvalRequestId", "source"
+        ];
+      return !membershipHasAllowedFields(request.resource.data) ? false
+        : affectedKeys.hasAny(immutableKeys) ? false
+        : !membershipHasValidTypes(request.resource.data, workspaceId, uid) ? false
+        : request.resource.data.uid != resource.data.uid ? false
+        : request.resource.data.workspaceId != resource.data.workspaceId ? false
+        : !(request.resource.data.updatedAt is timestamp) ? false
+        : request.resource.data.updatedBy != request.auth.uid ? false
+        : !canManageExistingMember(workspaceId, uid, resource.data.role) ? false
+        : canGrantWorkspaceRole(workspaceId, uid, request.resource.data.role);
+    }
+
+    function inviteHasAllowedFields(data) {
+      return data.keys().hasOnly([
+        "invitationId", "code", "workspaceId", "role", "codeHash", "email",
+        "maxUses", "usedCount", "expiresAt", "createdAt", "createdBy",
+        "inviterUid", "inviterEmail", "invitedBy", "status", "usedAt", "usedBy",
+        "reusable", "codePreview"
+      ]);
+    }
+
+    function inviteHasValidTypes(data, workspaceId, inviteId) {
+      return data.invitationId is string
+        && data.invitationId == inviteId
+        && data.code is string
+        && data.code == inviteId
+        && data.workspaceId is string
+        && data.workspaceId == workspaceId
+        && data.workspaceId.size() > 0
+        && validWorkspaceRole(data.role)
+        && data.codeHash is string
+        && data.codeHash.size() > 0
+        && optionalString(data, "email", 320)
+        && data.maxUses is int
+        && data.maxUses > 0
+        && data.maxUses <= 1000
+        && data.usedCount is int
+        && data.usedCount >= 0
+        && (data.expiresAt == null || (data.expiresAt is int && data.expiresAt > 0))
+        && data.createdAt is timestamp
+        && data.createdBy is string
+        && data.createdBy.size() > 0
+        && data.inviterUid is string
+        && data.inviterUid == data.createdBy
+        && optionalString(data, "inviterEmail", 320)
+        && (!("invitedBy" in data) || (data.invitedBy is string && data.invitedBy == data.createdBy))
+        && data.status in ["active", "accepted", "expired", "revoked"]
+        && ((data.usedAt is string && data.usedAt == "") || data.usedAt is timestamp)
+        && optionalString(data, "usedBy", 256)
+        && data.reusable is bool
+        && optionalString(data, "codePreview", 64);
+    }
+
+    function validInviteCreate(workspaceId, inviteId) {
+      return signedIn()
+        && inviteHasAllowedFields(request.resource.data)
+        && inviteHasValidTypes(request.resource.data, workspaceId, inviteId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == "active"
+        && request.resource.data.usedCount == 0
+        && request.resource.data.usedAt == ""
+        && request.resource.data.usedBy == ""
+        && canGrantWorkspaceRole(workspaceId, "invite_target", request.resource.data.role);
+    }
+
+    function validInviteUpdate(workspaceId, inviteId) {
+      return signedIn()
+        && inviteHasAllowedFields(request.resource.data)
+        && inviteHasValidTypes(request.resource.data, workspaceId, inviteId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status"])
+        && resource.data.status == "active"
+        && request.resource.data.status in ["revoked", "expired"]
+        && canGrantWorkspaceRole(workspaceId, "invite_target", resource.data.role);
     }
 
     function isWorkspaceManager(workspaceId) {
@@ -178,55 +339,73 @@ service cloud.firestore {
     }
 
     function selfUserUpdateAllowed(uid) {
-      return isSelf(uid)
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-          "uid",
-          "email",
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let allowedKeys = [
           "displayName",
-          "emailVerified",
-          "globalRole",
-          "role",
-          "currentRole",
-          "status",
-          "workspaceId",
-          "currentWorkspaceId",
-          "workspace_id",
-          "pendingWorkspaceId",
-          "pendingInviteCodeId",
-          "lastLoginAt",
+          "photoURL",
+          "phone",
+          "locale",
+          "preferences",
+          "lastSeenAt",
           "updatedAt",
-          "disabled"
-        ])
-        && request.resource.data.role != "system_owner"
-        && (
-          !("role" in resource.data)
-          || request.resource.data.role == resource.data.role
-          || request.resource.data.role == "pending"
-        )
-        && (
-          !("workspaceId" in request.resource.data)
-          || request.resource.data.workspaceId == null
-          || request.resource.data.workspaceId == resource.data.workspaceId
-        )
-        && (
-          !("currentWorkspaceId" in request.resource.data)
-          || request.resource.data.currentWorkspaceId == null
-          || request.resource.data.currentWorkspaceId == resource.data.currentWorkspaceId
-        )
-        && (
-          !("workspace_id" in request.resource.data)
-          || request.resource.data.workspace_id == null
-          || request.resource.data.workspace_id == resource.data.workspace_id
-        )
-        && request.resource.data.status in ["pending", "waiting_approval", resource.data.status];
+          "lastLoginAt"
+        ];
+      return !isSelf(uid) ? false
+        : request.resource.data.uid != request.auth.uid ? false
+        : !affectedKeys.hasOnly(allowedKeys) ? false
+        : optionalString(request.resource.data, "displayName", 512)
+        && optionalString(request.resource.data, "photoURL", 2048)
+        && optionalString(request.resource.data, "phone", 64)
+        && optionalString(request.resource.data, "locale", 32)
+        && (!("preferences" in request.resource.data) || request.resource.data.preferences is map)
+        && optionalTimestamp(request.resource.data, "lastSeenAt")
+        && optionalTimestamp(request.resource.data, "updatedAt")
+        && optionalTimestamp(request.resource.data, "lastLoginAt");
+    }
+
+    function adminUserActivationAllowed(uid) {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let allowedKeys = [
+          "status", "disabled", "active", "workspaceId", "currentWorkspaceId", "workspace_id",
+          "pendingWorkspaceId", "pendingInviteCodeId", "approvedBy", "approvedAt", "updatedAt"
+        ];
+      return !signedIn() ? false
+        : !affectedKeys.hasOnly(allowedKeys) ? false
+        : !("status" in request.resource.data) ? false
+        : request.resource.data.status != "active" ? false
+        : !("workspaceId" in request.resource.data) ? false
+        : !(request.resource.data.workspaceId is string) ? false
+        : !("currentWorkspaceId" in request.resource.data) ? false
+        : request.resource.data.currentWorkspaceId != request.resource.data.workspaceId ? false
+        : !("workspace_id" in request.resource.data) ? false
+        : request.resource.data.workspace_id != request.resource.data.workspaceId ? false
+        : !("approvedBy" in request.resource.data) ? false
+        : request.resource.data.approvedBy != request.auth.uid ? false
+        : getAfter(/databases/$(database)/documents/workspaces/$(request.resource.data.workspaceId)/members/$(uid)).data.uid != uid ? false
+        : getAfter(/databases/$(database)/documents/workspaces/$(request.resource.data.workspaceId)/members/$(uid)).data.status in ["active", "accepted"]
+        && canGrantWorkspaceRole(
+          request.resource.data.workspaceId,
+          uid,
+          getAfter(/databases/$(database)/documents/workspaces/$(request.resource.data.workspaceId)/members/$(uid)).data.role
+        );
     }
 
     match /users/{uid} {
       allow create: if isSelf(uid)
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.role in ["pending", "normal", "viewer"]
-        && request.resource.data.role != "system_owner";
+        && request.resource.data.keys().hasOnly([
+          "uid", "email", "displayName", "emailVerified", "globalRole", "role", "currentRole",
+          "status", "workspaceId", "currentWorkspaceId", "workspace_id", "pendingWorkspaceId",
+          "pendingInviteCodeId", "createdAt", "lastLoginAt", "updatedAt", "disabled"
+        ])
+        && (!("globalRole" in request.resource.data) || request.resource.data.globalRole == "user")
+        && (!("role" in request.resource.data) || request.resource.data.role == "normal")
+        && (!("currentRole" in request.resource.data) || request.resource.data.currentRole == "normal")
+        && request.resource.data.status in ["pending", "waiting_approval"]
+        && request.resource.data.workspaceId == null
+        && request.resource.data.currentWorkspaceId == null
+        && request.resource.data.workspace_id == null
+        && request.resource.data.disabled == false;
       allow read: if isSelf(uid)
         || isSystemOwner()
         || (
@@ -237,25 +416,8 @@ service cloud.firestore {
           resource.data.workspaceId is string
           && isWorkspaceManager(resource.data.workspaceId)
         );
-      allow update: if isSystemOwner()
-        || selfUserUpdateAllowed(uid)
-        || (
-          resource.data.currentWorkspaceId is string
-          && isWorkspaceManager(resource.data.currentWorkspaceId)
-        )
-        || (
-          resource.data.workspaceId is string
-          && isWorkspaceManager(resource.data.workspaceId)
-        );
-      allow delete: if isSystemOwner()
-        || (
-          resource.data.currentWorkspaceId is string
-          && isWorkspaceManager(resource.data.currentWorkspaceId)
-        )
-        || (
-          resource.data.workspaceId is string
-          && isWorkspaceManager(resource.data.workspaceId)
-        );
+      allow update: if isSystemOwner() || selfUserUpdateAllowed(uid) || adminUserActivationAllowed(uid);
+      allow delete: if isSystemOwner();
     }
 
     match /workspaces/{workspaceId} {
@@ -269,34 +431,22 @@ service cloud.firestore {
       allow update, delete: if isSystemOwner() || isWorkspaceManager(workspaceId);
 
       match /members/{uid} {
-        allow create, update: if isSystemOwner()
-          || (
-            signedIn()
-            && request.resource.data.uid == uid
-            && request.resource.data.workspaceId == workspaceId
-            && (
-              request.auth.uid == uid
-              || isWorkspaceManager(workspaceId)
-            )
-          );
-        allow read: if isSystemOwner() || isWorkspaceMember(workspaceId);
-        allow delete: if isSystemOwner() || isWorkspaceManager(workspaceId);
+        allow create: if validMembershipCreate(workspaceId, uid);
+        allow update: if resource == null ? false : validMembershipUpdate(workspaceId, uid);
+        allow read: if signedIn() && (isSystemOwner() || request.auth.uid == uid || isWorkspaceMember(workspaceId));
+        allow delete: if false;
       }
 
       match /inviteCodes/{inviteCodeId} {
         allow get: if signedIn()
-          && resource.data.status in ["active", "used", "accepted"];
+          && resource.data.status == "active";
         allow list: if isSystemOwner() || isWorkspaceManager(workspaceId);
-        allow create, update, delete: if signedIn()
-          && (
-            isSystemOwner()
-            || isWorkspaceManager(workspaceId)
-          );
+        allow create: if validInviteCreate(workspaceId, inviteCodeId);
+        allow update: if validInviteUpdate(workspaceId, inviteCodeId);
+        allow delete: if isSystemOwner() || isWorkspaceManager(workspaceId);
 
         match /usedUsers/{uid} {
-          allow create, update: if signedIn()
-            && request.auth.uid == uid
-            && request.resource.data.uid == uid;
+          allow create, update: if false;
           allow read: if isSystemOwner() || isWorkspaceManager(workspaceId) || request.auth.uid == uid;
           allow delete: if isSystemOwner() || isWorkspaceManager(workspaceId);
         }
@@ -325,54 +475,33 @@ service cloud.firestore {
       }
 
       match /{collectionId}/{docId} {
-        allow read: if canReadWorkspaceData(workspaceId, collectionId, resource.data);
-        allow create, update: if canWriteWorkspaceData(workspaceId, collectionId, request.resource.data);
-        allow delete: if isSystemOwner() || isWorkspaceManager(workspaceId);
+        allow read: if !(collectionId in ["members", "inviteCodes", "notices"])
+          && canReadWorkspaceData(workspaceId, collectionId, resource.data);
+        allow create, update: if !(collectionId in ["members", "inviteCodes", "notices"])
+          && canWriteWorkspaceData(workspaceId, collectionId, request.resource.data);
+        allow delete: if !(collectionId in ["members", "inviteCodes", "notices"])
+          && (isSystemOwner() || isWorkspaceManager(workspaceId));
       }
     }
 
     match /workspace_members/{memberId} {
-      allow create: if signedIn()
-        && request.resource.data.workspaceId is string
-        && (
-          isSystemOwner()
-          || (
-            request.resource.data.uid == request.auth.uid
-            && memberId == request.resource.data.workspaceId + "_" + request.auth.uid
-          )
-          || isWorkspaceManager(request.resource.data.workspaceId)
-        );
       allow read: if signedIn()
         && (
           isSystemOwner()
           || resource.data.uid == request.auth.uid
           || isWorkspaceManager(resource.data.workspaceId)
         );
-      allow update, delete: if signedIn()
-        && resource.data.workspaceId is string
-        && (isSystemOwner() || isWorkspaceManager(resource.data.workspaceId));
+      allow create, update, delete: if false;
     }
 
     match /workspaceMembers/{memberId} {
-      allow create: if signedIn()
-        && request.resource.data.workspaceId is string
-        && (
-          isSystemOwner()
-          || (
-            request.resource.data.uid == request.auth.uid
-            && memberId == request.resource.data.workspaceId + "_" + request.auth.uid
-          )
-          || isWorkspaceManager(request.resource.data.workspaceId)
-        );
       allow read: if signedIn()
         && (
           isSystemOwner()
           || resource.data.uid == request.auth.uid
           || isWorkspaceManager(resource.data.workspaceId)
         );
-      allow update, delete: if signedIn()
-        && resource.data.workspaceId is string
-        && (isSystemOwner() || isWorkspaceManager(resource.data.workspaceId));
+      allow create, update, delete: if false;
     }
 
     match /user_devices/{deviceId} {
@@ -405,28 +534,21 @@ service cloud.firestore {
       allow read: if signedIn()
         && resource.data.workspaceId is string
         && (isSystemOwner() || isWorkspaceManager(resource.data.workspaceId));
-      allow create, update, delete: if signedIn()
-        && request.resource.data.workspaceId is string
-        && (isSystemOwner() || isWorkspaceManager(request.resource.data.workspaceId));
+      allow create: if validInviteCreate(request.resource.data.workspaceId, invitationId);
+      allow update: if validInviteUpdate(resource.data.workspaceId, invitationId);
+      allow delete: if isSystemOwner() || isWorkspaceManager(resource.data.workspaceId);
     }
 
     match /invites/{inviteCode} {
       allow get: if signedIn()
         && resource.data.status == "active";
       allow list: if false;
-      allow create: if signedIn()
-        && request.resource.data.workspaceId is string
-        && (isSystemOwner() || isWorkspaceManager(request.resource.data.workspaceId))
-        && request.resource.data.inviterUid == request.auth.uid
-        && request.resource.data.status == "active";
-      allow update, delete: if signedIn()
-        && resource.data.workspaceId is string
-        && (isSystemOwner() || isWorkspaceManager(resource.data.workspaceId));
+      allow create: if validInviteCreate(request.resource.data.workspaceId, inviteCode);
+      allow update: if validInviteUpdate(resource.data.workspaceId, inviteCode);
+      allow delete: if isSystemOwner() || isWorkspaceManager(resource.data.workspaceId);
 
       match /usedUsers/{uid} {
-        allow create, update: if signedIn()
-          && request.auth.uid == uid
-          && request.resource.data.uid == uid;
+        allow create, update: if false;
         allow read: if signedIn() && (isSystemOwner() || request.auth.uid == uid);
         allow delete: if false;
       }
@@ -446,7 +568,24 @@ service cloud.firestore {
         && request.resource.data.status == "pending"
         && request.resource.data.workspaceId is string;
       allow read: if isSystemOwner() || (signedIn() && resource.data.uid == request.auth.uid);
-      allow update, delete: if isSystemOwner();
+      allow update: if isSystemOwner()
+        || (
+          signedIn()
+          && resource.data.status == "pending"
+          && request.resource.data.status == "approved"
+          && request.resource.data.approvedBy == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "status", "approvedBy", "approvedAt", "updatedAt"
+          ])
+          && getAfter(/databases/$(database)/documents/workspaces/$(resource.data.workspaceId)/members/$(resource.data.uid)).data.uid == resource.data.uid
+          && getAfter(/databases/$(database)/documents/workspaces/$(resource.data.workspaceId)/members/$(resource.data.uid)).data.status in ["active", "accepted"]
+          && canGrantWorkspaceRole(
+            resource.data.workspaceId,
+            resource.data.uid,
+            getAfter(/databases/$(database)/documents/workspaces/$(resource.data.workspaceId)/members/$(resource.data.uid)).data.role
+          )
+        );
+      allow delete: if isSystemOwner();
     }
 
     match /adminApplications/{applicationId} {
