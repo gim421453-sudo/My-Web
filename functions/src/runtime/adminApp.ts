@@ -1,6 +1,5 @@
 import { getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import {
   assertTrustedBackendEmulatorOnly,
   type TrustedBackendGuardOptions,
@@ -35,11 +34,6 @@ export function ensureTrustedAdminApp(options: TrustedBackendGuardOptions = {}):
   return initializeTrustedAdminApp(options);
 }
 
-export interface TrustedAdminServices extends TrustedAdminApp {
-  auth: Auth;
-  firestore: Firestore;
-}
-
 export interface TrustedAdminAuth extends TrustedAdminApp {
   auth: Auth;
 }
@@ -61,13 +55,4 @@ const resolveTrustedAdminAuth = createTrustedAdminAuthGetter(ensureTrustedAdminA
 
 export function getTrustedAdminAuth(options: TrustedBackendGuardOptions = {}): TrustedAdminAuth {
   return resolveTrustedAdminAuth(options);
-}
-
-export function getTrustedAdminServices(options: TrustedBackendGuardOptions = {}): TrustedAdminServices {
-  const initialized = ensureTrustedAdminApp(options);
-  return Object.freeze({
-    ...initialized,
-    auth: getAuth(initialized.app),
-    firestore: getFirestore(initialized.app),
-  });
 }

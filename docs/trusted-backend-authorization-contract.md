@@ -576,3 +576,37 @@ zero or explicitly migrated under an approved policy:
 Because membership Rules do not currently allow `schemaVersion`, schema migration
 and the corresponding Rules contract require a separate reviewed change before
 strict production enforcement. No Rules change is authorized by TB-03B.
+
+## 24. TB-03C Emulator-Only Implementation
+
+TB-03C implements the strict contract without exporting a new Function or enabling
+production enforcement:
+
+- `firestoreEmulatorGuard.ts` requires Emulator mode, a `demo-` project, no external
+  credential environment, and a loopback Firestore Emulator host before Admin
+  Firestore can be resolved.
+- `adminFirestore.ts` is the sole trusted Admin Firestore boundary for authority
+  reads. Importing it performs no Firebase operation, and a different-project Admin
+  app fails closed.
+- `resolveSystemOwner` reads only `systemOwners/{verifiedActor.uid}`.
+- `resolveWorkspaceMembership` reads only
+  `workspaces/{workspaceId}/members/{verifiedActor.uid}` after validating the
+  workspace document segment.
+- global, workspace-only, and explicit owner-override context builders perform at
+  most one, one, and two authoritative reads respectively. No authority cache or
+  legacy fallback exists.
+- `requireGlobalSystemOwner`, `requireWorkspaceRole`, and
+  `requireWorkspaceRoleOrSystemOwner` keep owner override explicit. Ordinary
+  workspace policy never grants an implicit owner bypass.
+- capability and assignment remain `unresolved`; no collection or authority helper
+  is defined for either one.
+
+Unit coverage fixes every owner, membership, role, mismatch, error, and policy state.
+The direct Emulator integration obtains an Auth Emulator token, verifies the actor,
+writes two v1 authority fixtures to the Firestore Emulator, performs four resolver
+reads, and exercises both owner and workspace policy. It creates no HTTP authz
+endpoint and performs no production Firebase operation.
+
+Production rollout remains blocked by TB-03M, the corresponding reviewed Rules
+schema change, capability/assignment contracts, and a separate final security
+review.

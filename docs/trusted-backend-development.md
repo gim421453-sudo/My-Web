@@ -103,11 +103,12 @@ The build cleans `functions/lib` before TypeScript compilation so a deleted prob
 wrapper cannot remain as a stale artifact. A source-and-compiled export gate enforces
 the Health-only production entry.
 
-Run build, unit tests, and Emulator integration with an explicitly selected Node 22 executable. Do not store a workstation-specific runtime path in this repository. The current integration creates temporary users only inside the demo Auth Emulator, verifies valid, malformed, disabled, missing-user, email-policy, and revoked-token behavior through the core verifier, performs no Firestore operation, and discards fixture state when the Emulator exits.
+Run build, unit tests, and Emulator integration with an explicitly selected Node 22 executable. Do not store a workstation-specific runtime path in this repository. The TB-02 integration creates temporary users only inside the demo Auth Emulator and verifies valid, malformed, disabled, missing-user, email-policy, and revoked-token behavior through the core verifier. The TB-03C integration adds one fake Auth user and two strict v1 authority documents only inside the Emulators, then performs four direct resolver reads and no business write. Fixture state is discarded when the Emulator exits.
 - The frontend main/admin/app-next runtime is unchanged.
 
 ## Next Batch
 
-TB-03 may add authorization resolvers only after the strict owner and canonical
-membership migration policy is implemented and reviewed. It must preserve the
-Emulator-only guard until a production deployment design is explicitly approved.
+TB-03M must audit and migrate authority data before strict authorization can be
+considered for production. Capability and assignment remain unresolved. The
+Emulator-only guard and Health-only production export remain mandatory until a
+separate deployment security review explicitly approves a later transition.

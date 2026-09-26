@@ -10,8 +10,8 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\"",
     "build": "npm run clean && tsc -p tsconfig.json",
-    "test": "npm run build && node --test lib/test/emulatorGuard.test.js lib/test/projectContext.test.js lib/test/adminApp.test.js lib/test/bearerToken.test.js lib/test/authErrors.test.js lib/test/verifiedActor.test.js lib/test/productionExports.test.js",
-    "test:integration": "node lib/test/health.integration.js"
+    "test": "npm run build && node --test lib/test/emulatorGuard.test.js lib/test/firestoreEmulatorGuard.test.js lib/test/projectContext.test.js lib/test/adminApp.test.js lib/test/adminFirestore.test.js lib/test/bearerToken.test.js lib/test/authErrors.test.js lib/test/verifiedActor.test.js lib/test/authzResolvers.test.js lib/test/authzPolicies.test.js lib/test/productionExports.test.js",
+    "test:integration": "node lib/test/health.integration.js && node lib/test/authz.integration.js"
   },
   "dependencies": {
     "firebase-admin": "^14.2.0",
