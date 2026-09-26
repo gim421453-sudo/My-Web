@@ -98,3 +98,16 @@ test("Firestore Emulator must use loopback", () => {
 test("Auth Emulator must use loopback", () => {
   expectGuardCode(validEnv({ FIREBASE_AUTH_EMULATOR_HOST: "example.invalid:9098" }), "TB_AUTH_EMULATOR_REQUIRED");
 });
+
+test("Auth Emulator host is required", () => {
+  expectGuardCode(validEnv({ FIREBASE_AUTH_EMULATOR_HOST: undefined }), "TB_AUTH_EMULATOR_REQUIRED");
+});
+
+test("Auth Emulator host rejects URL syntax", () => {
+  expectGuardCode(validEnv({ FIREBASE_AUTH_EMULATOR_HOST: "http://127.0.0.1:9098" }), "TB_AUTH_EMULATOR_REQUIRED");
+});
+
+test("Auth Emulator host rejects malformed and out-of-range ports", () => {
+  expectGuardCode(validEnv({ FIREBASE_AUTH_EMULATOR_HOST: "localhost:not-a-port" }), "TB_AUTH_EMULATOR_REQUIRED");
+  expectGuardCode(validEnv({ FIREBASE_AUTH_EMULATOR_HOST: "localhost:65536" }), "TB_AUTH_EMULATOR_REQUIRED");
+});

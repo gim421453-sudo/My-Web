@@ -46,11 +46,11 @@ function hasExternalCredential(env: RuntimeEnvironment): boolean {
   return Boolean(String(env.GOOGLE_APPLICATION_CREDENTIALS || "").trim());
 }
 
-function isLoopbackHost(value: string | undefined): boolean {
+export function isLoopbackEmulatorHost(value: string | undefined): boolean {
   const hostPort = String(value || "").trim().toLowerCase();
-  if (!hostPort || !hostPort.includes(":")) return false;
-  const host = hostPort.slice(0, hostPort.lastIndexOf(":"));
-  return host === "127.0.0.1" || host === "localhost" || host === "[::1]";
+  const match = /^(127\.0\.0\.1|localhost|\[::1\]):([1-9][0-9]{0,4})$/.exec(hostPort);
+  if (!match?.[2]) return false;
+  return Number(match[2]) <= 65535;
 }
 
 export function assertTrustedBackendEmulatorOnly(
@@ -82,10 +82,10 @@ export function assertTrustedBackendEmulatorOnly(
   if (String(env.FUNCTIONS_EMULATOR || "").toLowerCase() !== "true") {
     throw new TrustedBackendGuardError("TB_FUNCTIONS_EMULATOR_REQUIRED");
   }
-  if (!isLoopbackHost(env.FIRESTORE_EMULATOR_HOST)) {
+  if (!isLoopbackEmulatorHost(env.FIRESTORE_EMULATOR_HOST)) {
     throw new TrustedBackendGuardError("TB_FIRESTORE_EMULATOR_REQUIRED");
   }
-  if (!isLoopbackHost(env.FIREBASE_AUTH_EMULATOR_HOST)) {
+  if (!isLoopbackEmulatorHost(env.FIREBASE_AUTH_EMULATOR_HOST)) {
     throw new TrustedBackendGuardError("TB_AUTH_EMULATOR_REQUIRED");
   }
 
@@ -106,8 +106,8 @@ export function safeTrustedBackendMetadata(
     mode: String(env[TRUSTED_BACKEND_MODE_ENV] || "").trim().toLowerCase() || "missing",
     ...safeProjectContextMetadata(project),
     functionsEmulator: String(env.FUNCTIONS_EMULATOR || "").toLowerCase() === "true",
-    firestoreEmulator: isLoopbackHost(env.FIRESTORE_EMULATOR_HOST),
-    authEmulator: isLoopbackHost(env.FIREBASE_AUTH_EMULATOR_HOST),
+    firestoreEmulator: isLoopbackEmulatorHost(env.FIRESTORE_EMULATOR_HOST),
+    authEmulator: isLoopbackEmulatorHost(env.FIREBASE_AUTH_EMULATOR_HOST),
     credentialEnvironmentPresent: hasExternalCredential(env),
     backendVersion: TRUSTED_BACKEND_VERSION,
     securityContractVersion: SECURITY_CONTRACT_VERSION,

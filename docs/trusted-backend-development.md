@@ -88,6 +88,21 @@ The response contains only `ok`, `mode`, `demoProject`, backend version, and con
 - No production or preview runtime mode is implemented.
 - No service account, Application Default Credential, Secret Manager access, or external API is used.
 - `firebase.json` and `.firebaserc` remain unchanged.
+
+## TB-02 VerifiedActor Contract
+
+TB-02 adds Emulator-only Firebase Authentication middleware. It accepts an ID token only from the HTTP `Authorization: Bearer <ID_TOKEN>` header, verifies it with Firebase Admin Auth with revocation checking enabled, and then loads the Firebase Auth user record to confirm that the account exists and is enabled. The actor UID comes only from the verified token. Email verification comes only from the Auth user record.
+
+`VerifiedActor` is authentication context only. It contains no system-owner, role, workspace, membership, capability, assignment, or identity-verification authority. Authorization remains unresolved for a later trusted-backend layer.
+
+Two non-business Emulator probes support integration testing:
+
+- `trustedBackendActorProbe`: observes verified email state without requiring it.
+- `trustedBackendVerifiedEmailProbe`: requires verified email.
+
+Both probes accept `POST` only and return a reduced response without UID, email, token, provider details, or raw token timestamps. Safe failures expose only a server-generated request ID and typed reason code. The health endpoint remains unauthenticated and does not perform Auth or Firestore lookup.
+
+Run build, unit tests, and Emulator integration with an explicitly selected Node 22 executable. Do not store a workstation-specific runtime path in this repository. The current integration creates temporary users only inside the demo Auth Emulator, verifies valid, malformed, disabled, missing-user, email-policy, and revoked-token behavior, performs no Firestore operation, and discards fixture state when the Emulator exits.
 - The frontend main/admin/app-next runtime is unchanged.
 
 ## Next Batch

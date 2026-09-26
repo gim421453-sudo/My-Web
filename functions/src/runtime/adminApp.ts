@@ -40,6 +40,29 @@ export interface TrustedAdminServices extends TrustedAdminApp {
   firestore: Firestore;
 }
 
+export interface TrustedAdminAuth extends TrustedAdminApp {
+  auth: Auth;
+}
+
+export function createTrustedAdminAuthGetter(
+  initializeAdmin: typeof ensureTrustedAdminApp,
+  resolveAuth: (app: App) => Auth,
+) {
+  return (options: TrustedBackendGuardOptions = {}): TrustedAdminAuth => {
+    const initialized = initializeAdmin(options);
+    return Object.freeze({
+      ...initialized,
+      auth: resolveAuth(initialized.app),
+    });
+  };
+}
+
+const resolveTrustedAdminAuth = createTrustedAdminAuthGetter(ensureTrustedAdminApp, getAuth);
+
+export function getTrustedAdminAuth(options: TrustedBackendGuardOptions = {}): TrustedAdminAuth {
+  return resolveTrustedAdminAuth(options);
+}
+
 export function getTrustedAdminServices(options: TrustedBackendGuardOptions = {}): TrustedAdminServices {
   const initialized = ensureTrustedAdminApp(options);
   return Object.freeze({

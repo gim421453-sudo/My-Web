@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { App } from "firebase-admin/app";
-import { createTrustedAdminAppInitializer } from "../src/runtime/adminApp.js";
+import {
+  createTrustedAdminAppInitializer,
+  createTrustedAdminAuthGetter,
+} from "../src/runtime/adminApp.js";
 
 const DEMO_PROJECT = "demo-myweb-trusted-backend";
 
@@ -76,4 +79,100 @@ test("a recreated initializer reuses the shared Admin app registry", () => {
   createTrustedAdminAppInitializer(dependencies)({ env: validEnv() });
   createTrustedAdminAppInitializer(dependencies)({ env: validEnv() });
   assert.equal(initializeCount, 1);
+});
+
+test("Auth resolver runs only after the emulator guard succeeds", () => {
+  let authResolveCount = 0;
+  const getTrustedAuth = createTrustedAdminAuthGetter(
+    createTrustedAdminAppInitializer({
+      getApps: () => [],
+      initializeApp: () => fakeApp(),
+    }),
+    () => {
+      authResolveCount += 1;
+      return { fixture: true } as never;
+    },
+  );
+  getTrustedAuth({ env: validEnv() });
+  assert.equal(authResolveCount, 1);
+});
+
+test("missing Auth Emulator host prevents getAuth", () => {
+  let authResolveCount = 0;
+  const getTrustedAuth = createTrustedAdminAuthGetter(
+    createTrustedAdminAppInitializer({
+      getApps: () => [],
+      initializeApp: () => fakeApp(),
+    }),
+    () => {
+      authResolveCount += 1;
+      return { fixture: true } as never;
+    },
+  );
+  assert.throws(() => getTrustedAuth({ env: validEnv({ FIREBASE_AUTH_EMULATOR_HOST: undefined }) }));
+  assert.equal(authResolveCount, 0);
+});
+
+test("remote Auth Emulator host prevents getAuth", () => {
+  let authResolveCount = 0;
+  const getTrustedAuth = createTrustedAdminAuthGetter(
+    createTrustedAdminAppInitializer({
+      getApps: () => [],
+      initializeApp: () => fakeApp(),
+    }),
+    () => {
+      authResolveCount += 1;
+      return { fixture: true } as never;
+    },
+  );
+  assert.throws(() => getTrustedAuth({ env: validEnv({ FIREBASE_AUTH_EMULATOR_HOST: "example.invalid:9098" }) }));
+  assert.equal(authResolveCount, 0);
+});
+
+test("missing project context prevents getAuth", () => {
+  let authResolveCount = 0;
+  const getTrustedAuth = createTrustedAdminAuthGetter(
+    createTrustedAdminAppInitializer({
+      getApps: () => [],
+      initializeApp: () => fakeApp(),
+    }),
+    () => {
+      authResolveCount += 1;
+      return { fixture: true } as never;
+    },
+  );
+  assert.throws(() => getTrustedAuth({ env: validEnv({ GCLOUD_PROJECT: undefined }) }));
+  assert.equal(authResolveCount, 0);
+});
+
+test("non-demo project prevents getAuth", () => {
+  let authResolveCount = 0;
+  const getTrustedAuth = createTrustedAdminAuthGetter(
+    createTrustedAdminAppInitializer({
+      getApps: () => [],
+      initializeApp: () => fakeApp(),
+    }),
+    () => {
+      authResolveCount += 1;
+      return { fixture: true } as never;
+    },
+  );
+  assert.throws(() => getTrustedAuth({ env: validEnv({ GCLOUD_PROJECT: "sample-production-project" }) }));
+  assert.equal(authResolveCount, 0);
+});
+
+test("credential environment prevents getAuth", () => {
+  let authResolveCount = 0;
+  const getTrustedAuth = createTrustedAdminAuthGetter(
+    createTrustedAdminAppInitializer({
+      getApps: () => [],
+      initializeApp: () => fakeApp(),
+    }),
+    () => {
+      authResolveCount += 1;
+      return { fixture: true } as never;
+    },
+  );
+  assert.throws(() => getTrustedAuth({ env: validEnv({ GOOGLE_APPLICATION_CREDENTIALS: "fixture" }) }));
+  assert.equal(authResolveCount, 0);
 });

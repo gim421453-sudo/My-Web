@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test lib/test/emulatorGuard.test.js lib/test/projectContext.test.js lib/test/adminApp.test.js",
+    "test": "npm run build && node --test lib/test/emulatorGuard.test.js lib/test/projectContext.test.js lib/test/adminApp.test.js lib/test/bearerToken.test.js lib/test/authErrors.test.js lib/test/verifiedActor.test.js lib/test/verifiedActorProbe.test.js",
     "test:integration": "node lib/test/health.integration.js"
   },
   "dependencies": {
