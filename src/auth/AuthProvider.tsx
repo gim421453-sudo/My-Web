@@ -45,6 +45,10 @@ import {
   recordAppNextExplicitSignOut,
   recordAppNextAuthUser,
 } from "../app-next/appNextDiagnostics";
+import {
+  recordAuthSecurityState,
+  resolveAuthSecurityState,
+} from "./authSecurityState";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -246,10 +250,66 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [reloadSession, session]);
 
+  const securityState = useMemo(() => {
+    const profileStatus = phase === "initializing" || phase === "loading_session"
+      ? "loading"
+      : session
+        ? "ready"
+        : error?.code === "PERMISSION_DENIED"
+          ? "permission_denied"
+          : error?.code === "USER_DOCUMENT_MISSING"
+            ? "missing"
+            : error
+              ? "error"
+              : "loading";
+    const membershipStatus = session?.currentWorkspaceRole
+      ? "active"
+      : session?.isSystemOwner
+        ? "not_applicable"
+        : session?.workspaceResolution?.workspaceResolutionFailureKind === "membership-inactive"
+          ? "disabled"
+          : session?.workspaceResolution?.workspaceResolutionFailureKind === "canonical-membership-missing"
+            ? "missing"
+            : session?.currentWorkspaceId
+              ? "missing"
+              : "not_applicable";
+
+    return resolveAuthSecurityState({
+      firebaseUser,
+      userProfile: session,
+      profileStatus,
+      systemOwnerRecord: session?.isSystemOwner
+        ? { exists: true, status: "active" }
+        : null,
+      membership: session?.currentWorkspaceRole
+        ? { status: "active" }
+        : null,
+      membershipStatus,
+      workspaceRequired: false,
+      roleStatus: session ? "ready" : "loading",
+      assignmentStatus: "not_applicable",
+      securitySource: "firebase",
+      policy: {
+        phase: "observe",
+        emailPolicy: "observe",
+        identityPolicy: "observe",
+        mfaPolicy: "observe",
+      },
+    });
+  }, [error, firebaseUser, phase, session]);
+
+  useEffect(() => {
+    recordAuthSecurityState(securityState);
+  }, [securityState]);
+
   const value = useMemo<AuthContextValue>(() => ({
     phase,
     firebaseUser,
     session,
+    firebaseAuthenticated: securityState.firebaseAuthenticated,
+    securityReady: securityState.securityReady,
+    workspaceReady: securityState.workspaceReady,
+    securityState,
     error,
     signInWithEmail,
     signInWithGoogle,
@@ -261,6 +321,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     firebaseUser,
     phase,
     reloadSession,
+    securityState,
     session,
     signInWithEmail,
     signInWithGoogle,

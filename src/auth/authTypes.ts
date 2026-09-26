@@ -1,5 +1,6 @@
 import type { User } from "firebase/auth";
 import type { GlobalRole, WorkspaceRole } from "../permissions/roles";
+import type { AuthSecurityState } from "./authSecurityState";
 
 export type AccountStatus =
   | "pending"
@@ -107,6 +108,10 @@ export interface AuthContextValue {
   phase: AuthPhase;
   firebaseUser: User | null;
   session: AppSession | null;
+  firebaseAuthenticated: boolean;
+  securityReady: boolean;
+  workspaceReady: boolean;
+  securityState: AuthSecurityState;
   error: import("./authErrors").AuthSessionError | null;
   signInWithEmail(email: string, password: string): Promise<void>;
   signInWithGoogle(): Promise<void>;

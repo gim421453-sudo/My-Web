@@ -9813,7 +9813,8 @@ async function startCurrentUserRealtimeV50() {
       currentUser.workspaceRole = data.workspaceRole || currentUser.workspaceRole || (currentUser.role === "system_owner" ? "super_manager" : currentUser.role);
       currentUser.active = data.disabled === true ? false : currentUser.active;
       currentUser.disabled = data.disabled === true;
-      currentUser.emailVerified = data.emailVerified !== false;
+      const firebaseAuthUser = firebaseAuthUserForUidV162(uid);
+      currentUser.emailVerified = firebaseAuthUser?.emailVerified === true;
       const localUser = authStateV31.users.find((user) => user.uid === uid || user.id === uid);
       if (localUser) {
         localUser.workspace_id = currentUser.workspace_id;
@@ -10819,6 +10820,52 @@ function updateGreeting() {
   syncSystemOwnerReturnButtonV58();
 }
 
+function firebaseAuthUserForUidV162(uid) {
+  try {
+    const authUser = window.PMFirebaseRuntime?.auth?.currentUser || window.firebase?.auth?.().currentUser || null;
+    return authUser?.uid === uid ? authUser : null;
+  } catch {
+    return null;
+  }
+}
+
+function recordOperationalAuthSecurityStateV162(firebaseUser, user, authority = {}) {
+  const resolver = window.PMAuthSecurityState;
+  if (!resolver?.resolve || !firebaseUser || !user) return null;
+  const workspaceId = user.currentWorkspaceId || user.workspaceId || user.workspace_id || "";
+  const systemOwnerVerified = authority.systemOwnerVerified === true
+    || firebaseUser.pmRole === "system_owner"
+    || firebaseUser.pmGlobalRole === "system_owner";
+  const membershipStatus = workspaceId && user.workspaceRole
+    ? "active"
+    : systemOwnerVerified
+      ? "not_applicable"
+      : workspaceId
+        ? "missing"
+        : "not_applicable";
+  const state = resolver.resolve({
+    firebaseUser,
+    userProfile: user,
+    profileStatus: "ready",
+    systemOwnerRecord: systemOwnerVerified
+      ? { exists: true, status: "active" }
+      : null,
+    membershipStatus,
+    workspaceRequired: false,
+    roleStatus: "ready",
+    assignmentStatus: "not_applicable",
+    securitySource: "firebase",
+    policy: {
+      phase: "observe",
+      emailPolicy: "observe",
+      identityPolicy: "observe",
+      mfaPolicy: "observe"
+    }
+  });
+  resolver.record?.(state);
+  return state;
+}
+
 function syncFirebaseUserToLocalAuthV33(firebaseUser, displayName, fallbackRole) {
   const workspaceId = firebaseUser.pmWorkspaceId || firebaseUser.workspaceId || firebaseUser.currentWorkspaceId || "";
   const status = firebaseUser.pmStatus || (workspaceId ? "active" : "pending");
@@ -10903,6 +10950,7 @@ function syncFirebaseUserToLocalAuthV33(firebaseUser, displayName, fallbackRole)
   }
   authWorkspaceStateV36 = { loading: false, error: "", currentWorkspaceId: workspaceId, currentRole: user.role, workspaceRole };
   saveAuthStateV31();
+  recordOperationalAuthSecurityStateV162(firebaseUser, user);
   return user;
 }
 
@@ -11306,7 +11354,8 @@ async function startCurrentUserRealtimeV50() {
     currentUser.pendingInviteCodeId = data.pendingInviteCodeId || data.inviteCodeId || data.inviteCode || "";
     currentUser.disabled = data.disabled === true || currentUser.status === "disabled";
     currentUser.active = !currentUser.disabled;
-    currentUser.emailVerified = data.emailVerified !== false;
+    const firebaseAuthUser = firebaseAuthUserForUidV162(uid);
+    currentUser.emailVerified = firebaseAuthUser?.emailVerified === true;
     const localUser = authStateV31.users.find((user) => user.uid === uid || user.id === uid);
     if (localUser) Object.assign(localUser, {
       workspace_id: currentUser.workspace_id,
@@ -11323,6 +11372,11 @@ async function startCurrentUserRealtimeV50() {
       active: currentUser.active
     });
     saveAuthStateV31();
+    if (firebaseAuthUser) {
+      recordOperationalAuthSecurityStateV162(firebaseAuthUser, currentUser, {
+        systemOwnerVerified: ownerByRegistry
+      });
+    }
     const nextGate = isApprovalGateUserV54(currentUser);
     if (nextGate) {
       renderApprovalGateV54(currentUser);

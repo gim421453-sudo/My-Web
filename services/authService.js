@@ -267,6 +267,11 @@
     return next;
   }
 
+  function isLocalDevAuthAllowed() {
+    const hostname = String(window.location?.hostname || "").toLowerCase();
+    return hostname === "localhost" || hostname === "127.0.0.1";
+  }
+
   async function hashPassword(password) {
     const data = new TextEncoder().encode(String(password));
     const digest = await crypto.subtle.digest("SHA-256", data);
@@ -274,19 +279,21 @@
   }
 
   async function verifyLocalPassword(user, password) {
+    if (!isLocalDevAuthAllowed()) return false;
     if (!user) return false;
     if (user.credentialHash) return user.credentialHash === await hashPassword(password);
     return false;
   }
 
   async function createLocalEmailUser(state, { email, password, displayName, role, workspaceId, status }) {
+    if (!isLocalDevAuthAllowed()) throw new Error("local-dev-auth-disabled");
     if (getSignupMode() === "invite_only") throw new Error("현재는 초대 전용 가입 모드입니다.");
     const normalizedEmail = String(email || "").trim().toLowerCase();
     if (!normalizedEmail || !password) throw new Error("이메일과 비밀번호를 입력하세요.");
     if (state.users.some((user) => user.email.toLowerCase() === normalizedEmail)) throw new Error("이미 가입된 이메일입니다.");
     const uid = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const nextWorkspaceId = workspaceId || "";
-    const nextRole = role || "pending";
+    const nextRole = role === "system_owner" ? "normal" : (role || "pending");
     const nextStatus = status || (nextWorkspaceId ? "active" : "pending");
     const user = {
       id: uid,
@@ -680,6 +687,7 @@
     clearSession,
     getSignupMode,
     setSignupMode,
+    isLocalDevAuthAllowed,
     hashPassword,
     verifyLocalPassword,
     createLocalEmailUser,
