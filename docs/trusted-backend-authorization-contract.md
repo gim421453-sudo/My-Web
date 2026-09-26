@@ -8,10 +8,11 @@ change Rules, or authorize a deployment.
 
 Evidence inspected:
 
-- `functions/src/index.ts`: the current package entry exports one health function
-  and two development probes.
+- `functions/src/index.ts`: before TB-03B, the package entry exported one health
+  function and two development probes; it now exports Health only.
 - `functions/src/auth/verifiedActor.ts`: authentication-only actor contract.
-- `functions/src/auth/verifiedActorProbe.ts`: `POST`-only probe adapters.
+- `functions/src/auth/verifiedActorProbe.ts`: the former `POST`-only probe adapters,
+  removed in TB-03B after their integration coverage moved to the authentication core.
 - `functions/src/runtime/adminApp.ts`: lazy Admin Auth/Firestore access.
 - `functions/src/runtime/emulatorGuard.ts`: demo-project and loopback fail-closed
   runtime guard.
@@ -22,19 +23,17 @@ Evidence inspected:
 
 ## 2. Current Export Audit
 
-The current package entry exports exactly:
+After TB-03B, the package entry exports exactly:
 
 | Export | Classification | Import-time behavior | Request-time behavior |
 | --- | --- | --- | --- |
 | `trustedBackendHealth` | Emulator health | Creates an `onRequest` definition | Applies the Emulator-only guard; no Auth or Firestore lookup |
-| `trustedBackendActorProbe` | Emulator development probe | Creates an `onRequest` definition | Verifies Auth token and Auth user only |
-| `trustedBackendVerifiedEmailProbe` | Emulator development probe | Creates an `onRequest` definition | Same as actor probe plus verified-email policy |
 
 Importing the entry does not initialize an Admin app or read Firebase. Admin access
-is lazy. It does, however, register all three exported HTTP function definitions.
-Consequently, a future deployment that reuses this package entry could discover
-the probe symbols even though requests would fail closed outside the Emulator.
-Runtime rejection is defense in depth, not a sufficient production export policy.
+is lazy. The actor and verified-email HTTP wrappers were removed; tests import the
+authentication core directly. The build cleans compiled output before TypeScript
+compilation, and a static test checks both source and compiled exports. Runtime
+rejection remains defense in depth rather than the production export policy.
 
 ## 3. Authentication and Authorization Boundary
 
@@ -321,18 +320,19 @@ safe denial/error result and prevents business logic execution.
 
 ## 16. Probe Lifecycle Decision
 
-**Decision: test-harness only (option D), with a separate dev source as a fallback
-only when Cloud Functions HTTP discovery itself must be tested.**
+**Implemented decision: test-harness only (option D), with a separate dev source as
+a fallback only when Cloud Functions HTTP discovery itself must be tested.**
 
-The preferred TB-03 preparation is:
+The TB-03B structure is:
 
-1. Keep `functions/src/index.ts` production-safe and remove both probe exports.
-2. Split any reusable pure handler from the `onRequest` registration.
-3. Invoke `verifyActorFromRequest` and future authorization resolvers directly from
-   Emulator integration tests.
-4. If HTTP semantics need integration coverage, start an ephemeral loopback-only
+1. `functions/src/index.ts` exports Health only.
+2. The deployable Probe HTTP wrapper and its wrapper-specific tests are removed.
+3. Emulator integration tests invoke `verifyActorFromRequest` directly and will
+   invoke future authorization resolvers directly.
+4. The build removes stale compiled output before compiling.
+5. If HTTP semantics need integration coverage, start an ephemeral loopback-only
    test server or use a test-only adapter outside the production Functions entry.
-5. Do not create an authorization debug endpoint.
+6. Do not create an authorization debug endpoint.
 
 This removes probe symbols from production function discovery, avoids conditional
 ES module exports, keeps tests simple, and preserves the existing runtime guard as
@@ -461,7 +461,6 @@ code is added.
 
 TB-03 implementation planning is ready, subject to these blockers before production:
 
-- remove development probe exports from the production package entry;
 - settle owner records with missing `status` versus the stricter backend contract;
 - settle unversioned membership/provenance compatibility;
 - approve capability and assignment schemas before implementing those resolvers;
@@ -469,3 +468,111 @@ TB-03 implementation planning is ready, subject to these blockers before product
 - retain no-cache authority resolution for the initial security implementation;
 - keep all implementation and integration work Emulator-only until a separate
   production security review approves deployment.
+
+## 23. TB-03B Legacy Compatibility Policy
+
+### Repository evidence
+
+Current Rules and fixtures establish a legacy compatibility surface, not the strict
+trusted-backend schema:
+
+- `systemOwners/{uid}` fixtures contain only `status: "active"`.
+- current Rules and operational readers treat a missing owner `status` as active;
+  some React readers treat document existence alone as owner authority.
+- current canonical membership fixtures contain `uid`, `workspaceId`, `role`,
+  `status`, `disabled`, `active`, and timestamps, but generally omit `source` and
+  have no `schemaVersion`.
+- membership Rules allow an optional `source` field but do not currently allow a
+  `schemaVersion` field.
+- current Rules accept both `active` and `accepted` membership status and keep
+  malformed legacy records readable for repair.
+
+These behaviors remain unchanged in TB-03B. They are evidence for a later migration,
+not authority for the future backend resolver.
+
+### Canonical owner version 1
+
+The future strict owner record requires:
+
+```text
+schemaVersion: 1
+status: active | disabled | inactive | revoked
+source: trusted_migration | system_bootstrap
+```
+
+An optional record UID, if present, must equal the document/actor UID. The resolver
+states are:
+
+| Evidence | Resolution | Authorization |
+| --- | --- | --- |
+| no document | `NOT_OWNER` | deny owner policy |
+| complete version 1, active, consistent | `ACTIVE` | owner branch may continue |
+| complete version 1, disabled/inactive/revoked | `DISABLED` | deny |
+| parseable legacy record missing status, source, or schema version | `MIGRATION_REQUIRED` | deny |
+| unknown status/version, invalid type, mismatch, or contradiction | `MALFORMED` | deny |
+| read failure | `READ_ERROR` | deny/error |
+
+Document existence, a missing status, or `users.role/globalRole=system_owner` never
+upgrades a record to `ACTIVE`. Unknown higher schema versions fail closed.
+
+### Canonical membership version 1
+
+The future strict membership record requires these authorization-critical fields:
+
+```text
+schemaVersion: 1
+uid: exact actor UID
+workspaceId: exact requested workspace ID
+role: super_manager | manager | teacher | normal | viewer | print_account
+status: active | disabled | inactive
+disabled: boolean consistent with status
+active: boolean consistent with status
+source: invite | admin_approval | trusted_migration | student_link | system_bootstrap
+```
+
+The resolver states are:
+
+| Evidence | Resolution | Authorization |
+| --- | --- | --- |
+| complete version 1 active record | `ACTIVE` | endpoint policy may continue |
+| no canonical path document | `MISSING` | deny |
+| disabled record | `DISABLED` | deny |
+| inactive record | `INACTIVE` | deny |
+| parseable legacy record missing schema version or source | `MIGRATION_REQUIRED` | deny |
+| path/field UID mismatch | `WRONG_UID` | deny |
+| path/field workspace mismatch | `WRONG_WORKSPACE` | deny |
+| unknown role, including workspace `system_owner` | `UNKNOWN_ROLE` | deny |
+| invalid types, contradictory flags, forbidden authority fields, unknown version/status | `MALFORMED` | deny |
+| read failure | `READ_ERROR` | deny/error |
+
+The transitional legacy `accepted` status is not silently converted to active. It
+is `MIGRATION_REQUIRED` when the rest of the record is parseable and must be reviewed
+before a migration writes the strict active state. Role aliases such as `admin`,
+`owner`, or `superadmin` are never normalized.
+
+### Provenance policy
+
+Provenance is mandatory for both new and migrated authority records. A missing or
+unknown `source` produces `MIGRATION_REQUIRED` when the record is otherwise safe to
+parse; it never grants temporary authority. Migration must derive the typed source
+from trusted invite, approval, bootstrap, or reviewed backup evidence. It must not
+infer provenance from the current role or client data.
+
+### Migration and deployment gates
+
+The separate `TB-03M AUTHORITY DATA MIGRATION` batch must perform a read-only audit,
+backup, preview, approved diff, trusted transaction/batch update, validation,
+rollback plan, and append-only audit record. TB-03B performs none of those steps.
+
+Production authorization deployment remains blocked until all of the following are
+zero or explicitly migrated under an approved policy:
+
+- legacy or migration-required owner records;
+- malformed, disabled-as-active, or unknown-version owner records;
+- legacy or migration-required canonical memberships;
+- unknown/aliased workspace roles and UID/workspace mismatches;
+- production `Probe`, `Debug`, `Dev`, or `Test` exports.
+
+Because membership Rules do not currently allow `schemaVersion`, schema migration
+and the corresponding Rules contract require a separate reviewed change before
+strict production enforcement. No Rules change is authorized by TB-03B.

@@ -95,16 +95,19 @@ TB-02 adds Emulator-only Firebase Authentication middleware. It accepts an ID to
 
 `VerifiedActor` is authentication context only. It contains no system-owner, role, workspace, membership, capability, assignment, or identity-verification authority. Authorization remains unresolved for a later trusted-backend layer.
 
-Two non-business Emulator probes support integration testing:
+The deployable Functions entry exports no actor, verified-email, debug, dev, or test
+probe. Integration tests obtain real Auth Emulator ID tokens and call the
+`verifyActorFromRequest` core directly through dependency injection. This preserves
+the authentication coverage without registering a deployable diagnostic endpoint.
+The build cleans `functions/lib` before TypeScript compilation so a deleted probe
+wrapper cannot remain as a stale artifact. A source-and-compiled export gate enforces
+the Health-only production entry.
 
-- `trustedBackendActorProbe`: observes verified email state without requiring it.
-- `trustedBackendVerifiedEmailProbe`: requires verified email.
-
-Both probes accept `POST` only and return a reduced response without UID, email, token, provider details, or raw token timestamps. Safe failures expose only a server-generated request ID and typed reason code. The health endpoint remains unauthenticated and does not perform Auth or Firestore lookup.
-
-Run build, unit tests, and Emulator integration with an explicitly selected Node 22 executable. Do not store a workstation-specific runtime path in this repository. The current integration creates temporary users only inside the demo Auth Emulator, verifies valid, malformed, disabled, missing-user, email-policy, and revoked-token behavior, performs no Firestore operation, and discards fixture state when the Emulator exits.
+Run build, unit tests, and Emulator integration with an explicitly selected Node 22 executable. Do not store a workstation-specific runtime path in this repository. The current integration creates temporary users only inside the demo Auth Emulator, verifies valid, malformed, disabled, missing-user, email-policy, and revoked-token behavior through the core verifier, performs no Firestore operation, and discards fixture state when the Emulator exits.
 - The frontend main/admin/app-next runtime is unchanged.
 
 ## Next Batch
 
-TB-02 may add verified-actor middleware for callable and HTTP adapters. It requires a separate review and must preserve the Emulator-only guard until a production deployment design is explicitly approved.
+TB-03 may add authorization resolvers only after the strict owner and canonical
+membership migration policy is implemented and reviewed. It must preserve the
+Emulator-only guard until a production deployment design is explicitly approved.
