@@ -7,12 +7,22 @@ node_modules/
 # build
 dist/
 build/
+**/bin/
+**/obj/
+artifacts/
 
 # env / secrets
 .env
 .env.local
+.env.*
+!.env.example
 .env.*.local
 .env.js
+credentials.json
+*-credentials.json
+*.pem
+*.p12
+*.key
 pm-env.js
 firebase-config.local.js
 pm-firebase-config.local.js

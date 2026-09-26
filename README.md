@@ -1,2 +1,49 @@
 # My Web
 
+개인 일정과 학습·업무 자료를 한곳에서 관리하는 웹 애플리케이션입니다. 현재 기본 화면은 일정, 공지, 과목, 시험·성적, 포트폴리오 등을 다루며, 별도 React 화면에는 인증·워크스페이스 기반 조회 기능과 개발 미리보기 화면이 있습니다.
+
+## 기술 구성
+
+- 기존 브라우저 앱: HTML, CSS, JavaScript (`index.html`, `app.js`)
+- React 화면과 인증·권한 모듈: React 19, TypeScript 5, Vite 7
+- 인증·데이터: Firebase Authentication 및 Cloud Firestore
+- 테스트: Node.js 스크립트 기반 회귀·보안 검사
+
+## 저장소 구조
+
+- `index.html`, `app.js`, `styles.css`: 기본 개인 관리 화면
+- `app-next.html`, `src/`: React/TypeScript 화면, 인증·권한·워크스페이스 기능 및 개발 미리보기
+- `services/`, `shared/`: 기본 앱 서비스와 공용 권한·보안 유틸리티
+- `functions/`: Firebase Functions 코드
+- `firestore.rules`, `firestore.indexes.json`, `firebase.json`: Firestore 규칙·인덱스와 Firebase Hosting 설정
+- `scripts/`, `tests/`: 설정 생성, 테스트 및 운영 점검 스크립트
+- `docs/`: 설계·검증·운영 문서
+
+## 개발 및 검증
+
+```sh
+npm install
+npm run dev
+npm run typecheck
+npm test
+npm run build
+```
+
+`npm run dev`와 `npm run build`는 먼저 Firebase 설정 생성 작업을 실행합니다. 관리자 정적 빌드는 `npm run build:admin`으로 생성합니다. 현재 `package.json`에는 `lint` 스크립트가 없습니다.
+
+## 환경 설정
+
+기본 웹 클라이언트의 필수 Firebase 설정 변수 이름은 다음과 같습니다. 실제 값은 로컬 환경 파일이나 배포 환경에서 제공하고 저장소 문서에는 기록하지 마세요.
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+
+선택적 학교 연동 변수와 인증 미리보기 플래그, 관리 스크립트 설정은 `.env.example`에서 변수 이름만 확인할 수 있습니다.
+
+## 현재 상태와 추가 문서
+
+React 기반 인증·워크스페이스 화면은 점진적으로 통합 중이며 일부 화면은 조회 전용 또는 개발 미리보기입니다. 현재 작업 및 검증 상태는 [크로스 디바이스 인계 문서](docs/handoff/CURRENT_HANDOFF.md), Firebase 설정과 배포 확인 상태는 [배포 문서](docs/deployment/DEPLOYMENT.md)에 기록합니다. 최근 릴리스 변경은 [CHANGELOG.md](CHANGELOG.md)를 참고하세요.
