@@ -1,0 +1,23 @@
+{
+  "name": "myweb-trusted-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/src/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test lib/test/emulatorGuard.test.js lib/test/projectContext.test.js lib/test/adminApp.test.js",
+    "test:integration": "node lib/test/health.integration.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.2.0",
+    "firebase-functions": "^7.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2"
+  }
+}
