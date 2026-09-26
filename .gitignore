@@ -48,3 +48,7 @@ backups/
 
 # Local backup archives
 *.zip
+
+# Python cache
+__pycache__/
+*.py[cod]
