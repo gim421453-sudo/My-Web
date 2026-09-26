@@ -1,0 +1,45 @@
+{
+  "schema": "myweb.g2b.exact-permission-diagnostic-v2-execution-evidence.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-EXACT-SERVICE-ACCOUNT-PERMISSION-DIAGNOSTIC-V2",
+  "approvalPacketSha256": "b0f34b86a8342bd0c27ccd98971c4a81fd4229e9b78aa2454b3febf6319c532b",
+  "targetAlias": "EXACT_G2B_WRITER_SERVICE_ACCOUNT",
+  "testedPermission": "iam.serviceAccounts.setIamPolicy",
+  "approvalConsumed": true,
+  "diagnosticInvocationCount": 1,
+  "physicalRemoteDiagnosticCallCount": 0,
+  "remoteCallStarted": false,
+  "httpRequestAttempted": false,
+  "httpResponseObserved": false,
+  "diagnosticResponseParseResult": "NOT_REACHED",
+  "diagnosticResult": "DIAGNOSTIC_REQUEST_FAILURE",
+  "exactMutationPermissionState": "NOT_ESTABLISHED",
+  "failureMetadata": {
+    "failureStage": "BEFORE_HTTP_SEND",
+    "httpStatusClass": "UNKNOWN",
+    "httpStatusCodeSafe": "NOT_OBSERVED",
+    "transportExceptionClassSafe": "LOCAL_CLIENT_SETUP_FAILURE",
+    "safeProviderErrorIdentifier": "NOT_AVAILABLE",
+    "timeout": false
+  },
+  "counters": {
+    "iamPolicyReads": 0,
+    "projectIamReads": 0,
+    "cloudLoggingReads": 0,
+    "iamMutations": 0,
+    "m3Mutations": 0,
+    "m4Mutations": 0,
+    "firestoreCalls": 0,
+    "accessTokenGeneration": 0,
+    "serviceAccountTokenGeneration": 0,
+    "serviceAccountKeyOperations": 0,
+    "retries": 0,
+    "rollbacks": 0
+  },
+  "privacy": {
+    "rawMemberPersisted": false,
+    "rawPrincipalPersisted": false,
+    "rawCredentialPersisted": false,
+    "rawStdoutPersisted": false,
+    "rawStderrPersisted": false
+  }
+}

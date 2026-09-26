@@ -1,0 +1,50 @@
+{
+  "schema": "myweb.g2b.v3-zero-network-ready-to-send-proof.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-EXACT-SERVICE-ACCOUNT-PERMISSION-DIAGNOSTIC-V3",
+  "credentialState": {
+    "recordPresent": true,
+    "recordReadable": true,
+    "accessTokenFresh": true,
+    "expiryPresent": true,
+    "refreshRequiredForNextApiCall": false
+  },
+  "localConstruction": {
+    "credentialAdapterLoad": "PASS",
+    "authObjectConstruction": "PASS",
+    "httpClientConstruction": "PASS",
+    "timeoutConfiguration": "PASS",
+    "requestBodyConstruction": "PASS",
+    "requestObjectConstruction": "PASS",
+    "readyToSendSentinel": "REACHED"
+  },
+  "zeroNetworkGuard": {
+    "active": true,
+    "triggerPoint": "AFTER_READY_TO_SEND_SENTINEL",
+    "triggersBeforeReadyToSend": false,
+    "causesFalseSetupFailure": false,
+    "readyToSendReachedBeforeGuard": true
+  },
+  "requestContract": {
+    "endpointTemplate": "v1/{+resource}:testIamPermissions",
+    "httpMethod": "POST",
+    "resourceNameFormat": "projects/{project}/serviceAccounts/{serviceAccountEmail}",
+    "permissionCount": 1,
+    "permission": "iam.serviceAccounts.setIamPolicy",
+    "legacyWriterReachability": 0,
+    "projectResourceSubstitutionReachability": 0
+  },
+  "forbiddenOperations": {
+    "httpRequests": 0,
+    "credentialRefreshCalls": 0,
+    "testIamPermissionsCalls": 0,
+    "iamPolicyReads": 0,
+    "projectIamReads": 0,
+    "cloudLoggingReads": 0,
+    "iamMutations": 0,
+    "m3Mutations": 0,
+    "m4Mutations": 0,
+    "firestoreCalls": 0,
+    "serviceAccountTokenGeneration": 0,
+    "serviceAccountKeyOperations": 0
+  }
+}

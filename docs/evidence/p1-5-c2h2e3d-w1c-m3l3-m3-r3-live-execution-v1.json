@@ -1,0 +1,19 @@
+{
+  "schema": "myweb.m3l3.m3-r3.live-execution.v1",
+  "authority": {
+    "r3RecoveryEvidenceSha256": "29c9f7727155318c8d93b1adeed854713ee0c865c3a5a6db552d9d74f370beeb",
+    "implementationAttestationSha256": "fe9417a3af78a35a7808bb195227d521dc6e0f08e46c141f48601fbe5efab04d",
+    "runtimeCapabilityAttestationSha256": "52261175cf50a5604553da865f4d6c0ca17f562f737f46772da0047cd411489d",
+    "finalExecutionCompositeSha256": "e736ef5ec9808480250084b0bc610c8fc074f49f5ef3988bcbe909b1f70d0e4a",
+    "approvalPacketSha256": "3e3a04bc4a217dac9230715db5cf6f31ae8140ce811b8d3cfba3bbcd51dab8c9",
+    "graphIdentity": "94eb124ecc82153dd79698dad27ccb93725687175a8506cd991c89dd14c32746"
+  },
+  "approval": { "consumed": true, "reusable": false, "consumptionPoint": "WHEN_FRESH_EXACT_PRESTATE_READ_BEGINS" },
+  "identity": { "opAExecutions": 1, "contextEstablished": true, "rawIdentityPersisted": false, "rawMemberPersisted": false },
+  "prestate": { "remoteReads": 5, "opDPreExecutions": 1, "projectIamReads": 1, "result": "TARGET_MEMBER_ABSENT", "canonicalParser": true },
+  "mutation": { "attempts": 1, "outcome": "INDETERMINATE", "failureClass": "UNKNOWN_NONZERO", "safeErrorIdentifier": "ERROR_PREFIX_V1", "rawStderrPersisted": false },
+  "poststate": { "required": true, "remoteReads": 0, "opDPostExecutions": 0, "result": "NOT_RUN_AFTER_INDETERMINATE", "canonicalParser": true },
+  "forbiddenOperationCounts": { "m4Mutations": 0, "projectIamMutations": 0, "accessTokenCalls": 0, "firestoreCalls": 0, "cloudLoggingReads": 0, "testIamPermissionsCalls": 0, "serviceAccountKeyOperations": 0, "retries": 0, "rollbacks": 0, "secondMutationAttempts": 0 },
+  "privacy": { "rawPolicyPersisted": false, "rawStdoutPersisted": false, "rawStderrPersisted": false, "rawAccountPersisted": false, "rawEtagPersisted": false },
+  "final": { "currentM3State": "INDETERMINATE", "verdict": "P1_5_C2H2E3D_W1C_M3L3_M3_R3_MUTATION_INDETERMINATE_SEPARATE_RECOVERY_REQUIRED", "nextApprovalRequired": true, "nextApprovalType": "READ_ONLY" }
+}

@@ -1,0 +1,100 @@
+{
+  "schema": "myweb.g2b.v3-exact-permission-source-lock.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-EXACT-SERVICE-ACCOUNT-PERMISSION-DIAGNOSTIC-V3",
+  "localDependencies": [
+    {
+      "path": "tools/authority-audit/g2bExactPermissionDiagnosticContract.mjs",
+      "sha256": "a5403bd64a8699ee1297253f82cc428b9c97c80f78385b140b385ebce95f3800"
+    },
+    {
+      "path": "tools/authority-audit/g2bExactPermissionAuthTransport.mjs",
+      "sha256": "ad2bf9cfc5aff3d86258aa80f4085485b729d6d7aa2e13964c7d3ec3c99ca028"
+    },
+    {
+      "path": "tools/authority-audit/g2b_exact_permission_transport.py",
+      "sha256": "857c4069bbc9a2b372afc1ad4d77d970c0c6cb26744cea4520165539c93456ad"
+    },
+    {
+      "path": "tools/authority-audit/g2bExactPermissionDiagnosticExecutor.mjs",
+      "sha256": "aa01aa48fdcecf3f0e00a278038a784e75a6bd324b2b731c958af7258a408c18"
+    },
+    {
+      "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs",
+      "sha256": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578"
+    },
+    {
+      "path": "tools/authority-audit/invokeWindowsExecutable.ps1",
+      "sha256": "2a7d2e0c9847005e31b2806e11a0a2bde5663f81754c924b79524c42dd006ad5"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+      "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3ResolvedStoreFixedLiveEvidence.mjs",
+      "sha256": "32621b8ca3476d78cbaccab78893c4f8ea0a53afae650cdda1c090ad2e2d9f00"
+    },
+    {
+      "path": "tools/authority-audit/g2bV3ExactPermissionPacket.mjs",
+      "sha256": "dbda5890e1db7aa8ba303e1ba482b4c5b30e4d4989c6cd64fe759e4cb6508297"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bExactPermissionDiagnosticExecutor.test.mjs",
+      "sha256": "a75ed43efeb2a2744838b1c5f3b5f5dea72cc784955508409e04f33fbf5978e8"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bExactPermissionDiagnosticPacket.test.mjs",
+      "sha256": "fe6b5ca1058fb336754fbdb75e0ee8c47a348c2863ab4acda6dc05ea19f0a68f"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bV3ExactPermissionPacket.test.mjs",
+      "sha256": "ed7b98d8cb034d21a630f2310f4d32c82a2ac4394cbb9ced8477a10c7a82c5af"
+    }
+  ],
+  "sdkDependencies": [
+    {
+      "id": "BUNDLED_PYTHON",
+      "logicalPath": "cloud-sdk/platform/bundledpython/python.exe",
+      "sha256": "03168c01b7b7491423350e82c26fee71f35b43694d1319d3c668bda6903a0c38"
+    },
+    {
+      "id": "CREDENTIAL_STORE",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/credentials/store.py",
+      "sha256": "1fcb3b856eb1584491d6f6160983808ca1f3574e44de86f53ac8d86f882e2a6f"
+    },
+    {
+      "id": "GOOGLE_AUTH_CREDENTIAL_ADAPTER",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/credentials/google_auth_credentials.py",
+      "sha256": "10bfbd2989207638461fde3544fb7619d7430980999e8b47e00c37c45441b413"
+    },
+    {
+      "id": "CREDENTIAL_REQUESTS_TRANSPORT",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/credentials/requests.py",
+      "sha256": "9ee26a6cbdc5fe007411d12c5e1c4b924711974c7cc2dacc5050b5ad993ddb71"
+    },
+    {
+      "id": "APITOOLS_REQUESTS_TRANSPORT",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/requests.py",
+      "sha256": "bc7877f53c5795ecb5cc9658f59704c5e8118740a737a65a4c9a4700362168b8"
+    },
+    {
+      "id": "IAM_V1_CLIENT",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/generated_clients/apis/iam/v1/iam_v1_client.py",
+      "sha256": "304f81531be1e0f8bb05c726aec9a6053f80a11cec1867245231f6276ad0ebcf"
+    },
+    {
+      "id": "IAM_V1_MESSAGES",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/generated_clients/apis/iam/v1/iam_v1_messages.py",
+      "sha256": "098d22bfde402e0a1bb398cbced35a75b2a5108c699ad122966a408cffc785e1"
+    },
+    {
+      "id": "APITOOLS_BASE_API",
+      "logicalPath": "cloud-sdk/lib/third_party/apitools/base/py/base_api.py",
+      "sha256": "5e2ad1e9565f101fe347302a4085494079dfa6ceead73c2240e2a15f8318733c"
+    }
+  ],
+  "activeTransitiveDependencyCount": 20,
+  "unboundDependencies": 0,
+  "unboundRemoteCapabilities": 0,
+  "unboundProcessCapabilities": 0
+}

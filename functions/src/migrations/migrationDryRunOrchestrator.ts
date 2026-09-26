@@ -1,0 +1,20 @@
+import { sha256Canonical } from "../operations/operationContract.js";
+import { createCanonicalMigrationPreview, type MigrationPreview } from "./canonicalMigrationClassifier.js";
+
+export const MIGRATION_PLAN_VERSION = "CANONICAL_MIGRATION_PLAN_V1" as const;
+export const MIGRATION_EXECUTION_MODE = Object.freeze({ DRY_RUN_ONLY: "DRY_RUN_ONLY", EMULATOR_REHEARSAL: "EMULATOR_REHEARSAL" } as const);
+type Entity = "student" | "class" | "subject" | "enrollment";
+export interface MigrationPlan { readonly planVersion: typeof MIGRATION_PLAN_VERSION; readonly classifierVersion: MigrationPreview["classifierVersion"]; readonly planId: string; readonly mappingFingerprint: string; readonly sourceFingerprintSet: readonly string[]; readonly operations: readonly Readonly<{ phase: number; entityType: Entity; sourceFingerprint: string; workspaceFingerprint: string; destination: string; operationKey: string }>[]; readonly blockingRecords: readonly string[]; readonly applyable: boolean; }
+const phase = (entity: Entity) => entity === "student" ? 1 : entity === "class" ? 2 : entity === "subject" ? 3 : 4;
+export function buildMigrationPlan(preview: MigrationPreview, selection?: readonly string[]): MigrationPlan {
+  const wanted = selection === undefined ? null : new Set(selection); const records = preview.records.filter((r) => wanted === null || wanted.has(r.sourceFingerprint));
+  if (wanted && records.length !== wanted.size) throw new TypeError("migration_selection_unknown_source");
+  const sources = records.map((r) => r.sourceFingerprint).sort();
+  const material = { version: MIGRATION_PLAN_VERSION, classifierVersion: preview.classifierVersion, mappingFingerprint: preview.mappingFingerprint, records: records.map((r) => ({ sourceFingerprint: r.sourceFingerprint, workspaceFingerprint: r.workspaceFingerprint, classification: r.classification, destination: r.proposedDestination })).sort((a, b) => a.sourceFingerprint.localeCompare(b.sourceFingerprint)) };
+  const planId = sha256Canonical(material); const blockingRecords = records.filter((r) => r.classification !== "SAFE_TO_CANONICALIZE" && r.classification !== "ALREADY_CANONICAL").map((r) => r.sourceFingerprint).sort();
+  const operations = records.filter((r) => r.classification === "SAFE_TO_CANONICALIZE" && r.proposedDestination).map((r) => { const item = { phase: phase(r.proposedEntityType), entityType: r.proposedEntityType, sourceFingerprint: r.sourceFingerprint, workspaceFingerprint: r.workspaceFingerprint, destination: r.proposedDestination! }; return Object.freeze({ ...item, operationKey: sha256Canonical({ planId, ...item }) }); }).sort((a, b) => a.phase - b.phase || a.destination.localeCompare(b.destination));
+  return Object.freeze({ planVersion: MIGRATION_PLAN_VERSION, classifierVersion: preview.classifierVersion, planId, mappingFingerprint: preview.mappingFingerprint, sourceFingerprintSet: Object.freeze(sources), operations: Object.freeze(operations), blockingRecords: Object.freeze(blockingRecords), applyable: blockingRecords.length === 0 });
+}
+export function runMigrationDryRun(input: Readonly<Record<string, unknown>>, selection?: readonly string[]) { const preview = createCanonicalMigrationPreview(input); return Object.freeze({ mode: MIGRATION_EXECUTION_MODE.DRY_RUN_ONLY, preview, plan: buildMigrationPlan(preview, selection), firestoreAccess: 0, firestoreWrites: 0, canonicalWrites: 0, auditWrites: 0, idempotencyWrites: 0 }); }
+export function assertPlanCurrent(plan: MigrationPlan, input: Readonly<Record<string, unknown>>): void { try { if (buildMigrationPlan(createCanonicalMigrationPreview(input), plan.sourceFingerprintSet).planId !== plan.planId) throw new TypeError("STALE_PLAN"); } catch (error) { if (error instanceof TypeError && error.message === "migration_selection_unknown_source") throw new TypeError("STALE_PLAN"); throw error; } }
+export function requireEmulatorRehearsalBoundary(mode: string, plan: MigrationPlan): never { if (mode !== MIGRATION_EXECUTION_MODE.EMULATOR_REHEARSAL) throw new TypeError("DRY_RUN_ONLY"); if (!plan.applyable) throw new TypeError("MIGRATION_PLAN_BLOCKED"); throw new TypeError("EMULATOR_REHEARSAL_ADAPTER_REQUIRED"); }

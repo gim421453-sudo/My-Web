@@ -1,0 +1,88 @@
+# P1.5-C2H2E3D-W1C-M3L2-R1B2-R2 Identity-Independent Target-Role Absence Read
+
+## Verdict
+
+```text
+R1B2_R2_VERDICT = P1_5_C2H2E3D_W1C_M3L2_R1B2_R2_IDENTITY_INDEPENDENT_RECOVERY_AMBIGUOUS_STOP
+R1B2_R2_APPROVAL_CONSUMED = yes
+R1B2_R2_APPROVAL_REUSABLE = no
+IDENTITY_INDEPENDENT_RECOVERY_STATE = AMBIGUOUS
+CURRENT_M3_EFFECTIVE_STATE = INDETERMINATE
+```
+
+The one approved exact writer-service-account IAM policy read completed, but
+the strict bounded recovery path did not prove exact target-role absence. No
+historical-target identity, current caller, member list, or fingerprint was
+used to make this conclusion.
+
+## R1C1 pre-live authority
+
+```text
+R1C1_FINAL_VERDICT = P1_5_C2H2E3D_W1C_M3L2_R1C1_SUPERSEDING_RECOVERY_COMPOSITE_PASS_NEW_R1B2_APPROVAL_REQUIRED
+R1C1_SCHEMA = myweb.m3l2.r1c1.recovery-composite.v1
+M3_M3L2_R1C1_SUPERSEDING_RECOVERY_COMPOSITE_SHA256 = 0f99042cdc8a8ba0c26fe517519bf2488cb529381570a260288df3a64d09c756
+SECOND_R1C1_COMPOSITE_SHA256 = 0f99042cdc8a8ba0c26fe517519bf2488cb529381570a260288df3a64d09c756
+R1C1_COMPOSITE_REPRODUCIBLE = yes
+ALL_R1C1_SOURCE_DOCUMENT_LOCKS_MATCH = yes
+HELPER_HASH_MATCH = yes
+HELPER_TEST_HASH_MATCH = yes
+R1B1H_RESULT_DOCUMENT_HASH_MATCH = yes
+OP_C_READ_ARGV_LOCK = MATCH
+OP_C_EXTERNAL_CAPABILITY_LOCK = MATCH
+SDK_PATH_CONTAINMENT = PASS
+R1C1_EXTERNAL_CAPABILITY_IMPACT = NONE
+```
+
+The legacy R1B1 design hash was not used as execution authority.
+
+```text
+LEGACY_R1B1_ATTESTATION_STATUS = HISTORICAL_UNREPRODUCIBLE_REFERENCE
+LEGACY_R1B1_USED_AS_CURRENT_EXECUTION_AUTHORITY = no
+LEGACY_R1B1_HASH_FITTING_ATTEMPTED = no
+```
+
+## Bounded single-read result
+
+```text
+WRITER_SA_IAM_POLICY_READS = 1/1
+RETRIES = 0
+PROCESS_EXIT_CODE = 0
+PROCESS_TIMED_OUT = no
+STRICT_PARSE_STATUS = PARSED
+HELPER_RESULT = AMBIGUOUS
+R1B2_R2_CAN_RETURN_PRESENT_PROVEN = no
+FINGERPRINT_FALLBACK_USED = no
+```
+
+Only bounded process status, parser status, and the two-state helper outcome
+are retained. Raw policy, raw stdout/stderr, IAM members, etag values, and
+condition expressions were transient-only and are not present in this record.
+
+## Stop conditions
+
+```text
+ACTIVE_CALLER_DISCOVERY_CALLS = 0
+CLOUD_LOGGING_READS = 0
+PROJECT_IAM_READS = 0
+TEST_IAM_PERMISSIONS_CALLS = 0
+ACCESS_TOKEN_CALLS = 0
+WRITER_IMPERSONATION_CALLS = 0
+SERVICE_ACCOUNT_KEY_ACCESS = 0
+FIRESTORE_API_CALLS = 0
+IAM_MUTATIONS = 0
+M3_MUTATIONS = 0
+M4_MUTATIONS = 0
+RAW_IAM_POLICY_PERSISTED = no
+RAW_STDOUT_PERSISTED = no
+RAW_STDERR_PERSISTED = no
+IAM_MEMBER_IDENTITIES_PERSISTED = 0
+ETAG_VALUE_PERSISTED = no
+CONDITION_EXPRESSIONS_PERSISTED = no
+CURRENT_M3_OUTCOME_CLASSIFIER_SAFETY = DEFECT_PROVEN
+M4_READINESS = BLOCKED
+M4_APPROVAL = NOT_GRANTED
+```
+
+No second IAM read, caller recovery, Cloud Logging lookup, project IAM read,
+or mutation is authorized by this result. The next allowed work is a new local
+recovery-design stage; it must not reuse this consumed R1B2-R2 approval.

@@ -1,0 +1,10 @@
+{
+  "schema": "myweb.g2b.source-locked-recovery-execution-composite.summary.v1",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "recoveryExecutionCompositeSha256": "e3e68ed16da0e27e66f1d811cda0e40128e18530d9ca4974dff2d8571aa520bb",
+  "recoveryImplementationAttestationSha256": "bad1f138ed8b6beff6665efb6fb77b8022bb4fd16d81850a6d4859b73d2f1eb6",
+  "recoveryRuntimeCapabilityAttestationSha256": "9bfc494053198699a82296ceda14e4bb7fa2d6c00d66c2fd75297915b151e336",
+  "activeRecoverySourceLockManifestSha256": "e14f9741cf10450ed9f8f61895aed5426a7c6ab4627e56a195c65f0eb56e5ddd",
+  "recoveryApprovalPacketSha256": "b7ede2e549a8345d1e5d9edd042dc8662be38802b4499405b5e280e9e62e3202",
+  "reproducible": true
+}

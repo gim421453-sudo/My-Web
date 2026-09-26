@@ -1,0 +1,39 @@
+{
+  "schema": "myweb.g2b.generation-bound-recovery.source-lock.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-GENERATION-BOUND-READ-ONLY-RECOVERY",
+  "interruptedM3Generation": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981",
+  "sourceLocks": [
+    {
+      "path": "tools/authority-audit/g2bGenerationBoundReadOnlyRecovery.mjs",
+      "sha256": "72f0f5657f2c4db9aa30e14731d7ddbe344724495a98a0baa48c98496f7fd43f"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+      "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+    },
+    {
+      "path": "tools/authority-audit/g2bDirectCachedCredentialReadiness.mjs",
+      "sha256": "3ba01ced3537f390e9e29dfe1d8f120bf99e222c2a9a610cfc5e6effb092eb54"
+    },
+    {
+      "path": "tools/authority-audit/g2bExplicitSetIamPolicyAuthTransport.mjs",
+      "sha256": "c82a439accd6e0fb1acc35a62676b0221831550cbf48c237de19190bac9c2d45"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3CurrentLiveExecutor.mjs",
+      "sha256": "7be2fd16eabb227d7b58578fb4b4497e189093ba3cc5115fec71b600017bc750"
+    },
+    {
+      "path": "tools/authority-audit/m3l3R3CanonicalPolicyParser.mjs",
+      "sha256": "c1b98eadecc77babf6cc08a676758fcab26ac4968590a5eb0994ff412f449fb6"
+    },
+    {
+      "path": "tools/authority-audit/g2bV3DiagnosticContinuityAttestation.mjs",
+      "sha256": "b3daa007f5943b49ea72fb76e8f5a73491a800d729fc866ff3dd3df3d02d6b46"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bGenerationBoundReadOnlyRecovery.test.mjs",
+      "sha256": "b0021078e8da7ff8603da21ca8318ed711e44d0f4138f16cfb231ba1a125af2c"
+    }
+  ]
+}

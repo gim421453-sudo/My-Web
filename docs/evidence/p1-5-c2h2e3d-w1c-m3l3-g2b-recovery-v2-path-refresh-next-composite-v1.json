@@ -1,0 +1,14 @@
+{
+  "schema": "myweb.g2b.recovery-v2-next-refresh.execution-composite.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-RECOVERY-V2-PATH-NEW-BOUNDED-CREDENTIAL-REFRESH-PREPARATION",
+  "operationInstance": "b9869829-a6d7-476d-9376-bb5b177a2f97",
+  "sourceLockSha256": "6e15626f1d3160d27323b9c76aca0614e9ec226fd4bf2200fc90f0b14becbee7",
+  "implementationAttestationSha256": "c3b2034a4fcedaf26c63a9c5a3424e16a645384a889143ebf1c1f6188fa10cf1",
+  "runtimeCapabilityAttestationSha256": "d39afb14c1b9fff620cdf41e8595be1d00d98147ef2befa9512bdbccf3254538",
+  "existingRecoveryV2ApprovalPacketSha256": "07dae37cd234e37a72da3481c9e3b390d47ddfee024b3b9d0334e35bf0ad1edd",
+  "existingUnconsumedRecoveryV2ApprovalAfterSameRecordRefresh": "REUSABLE_IF_CONTEXT_PACKET_AND_JOURNAL_STILL_MATCH",
+  "recoveryV2ReapprovalRequired": false,
+  "recoveryV2ContinuationAllowedAfterFreshLocalChecks": true,
+  "recoveryIamReadReachable": false,
+  "mutationReachable": false
+}

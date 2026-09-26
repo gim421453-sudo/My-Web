@@ -1,0 +1,75 @@
+{
+  "schema": "myweb.m3l2.r1c1.recovery-composite.v1",
+  "legacyR1B1": {
+    "hash": "18c2b24485cf50588f690c13cd4ca058eed95d70006413f67e3255e87bc770cf",
+    "status": "HISTORICAL_UNREPRODUCIBLE_REFERENCE",
+    "usedAsCurrentAuthority": false
+  },
+  "sourceDocumentLocks": [
+    { "path": "docs/p1-5-c2h2e3d-w1c-m3l2-r1b1-identity-independent-target-role-absence-recovery-design.md", "sha256": "4f901ce53bd00b6ba15bd2ce839a32b48265959d6d5ff85532abf1a0d13f04a1", "role": "HISTORICAL_SEMANTICS" },
+    { "path": "docs/p1-5-c2h2e3d-w1c-m3l2-r1b1h-identity-independent-target-role-absence-pure-helper-implementation.md", "sha256": "837d3a3ed1034f1aa9134cf60040e6e58bb099791bf797ede4da403ddf5a4f0f", "role": "IMPLEMENTATION_ATTESTATION" },
+    { "path": "docs/p1-5-c2h2e3d-w1c-m3l1-g2r1-post-g2-runtime-external-capability-local-reattestation.md", "sha256": "068c9aec32d4fe82c92705736e52dd8c2eb41f36a5875206151ca9f537255313", "role": "OP_C_CAPABILITY_LOCK" }
+  ],
+  "runtimeLocks": [
+    { "path": "tools/authority-audit/m3RuntimeCommandGraph.mjs", "sha256": "53f948c4e2e993cf394ae22439ed8aed83ed3442c231964d08e5667498504751", "role": "OP_C_COMMAND_BUILDER" },
+    { "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs", "sha256": "512eaa9fa4fc5ea4f394e1a90116425142e4555df58b65e5d1c41b0d1a56190f", "role": "SDK_PATH_CONTAINMENT" }
+  ],
+  "helper": { "path": "tools/authority-audit/writerPolicyTargetRoleAbsenceDiagnostic.mjs", "sha256": "72656d4091e058a2c937d52ecaad905285e3f77494a772be0f119c48937a4a69", "purity": "PASS" },
+  "helperTest": { "path": "tools/authority-audit-tests/writerPolicyTargetRoleAbsenceDiagnostic.test.mjs", "sha256": "f8995d73d011104062ef291a17682f0f2970c5d9905305f854dfce7450227ee6" },
+  "recoverySemantics": {
+    "resultDomain": ["ABSENT_PROVEN", "AMBIGUOUS"],
+    "failClosedDefault": "AMBIGUOUS",
+    "emptyObjectResult": "AMBIGUOUS",
+    "missingBindingsResult": "AMBIGUOUS",
+    "completeEmptyBindingsResult": "ABSENT_PROVEN",
+    "targetRole": "roles/iam.serviceAccountTokenCreator",
+    "targetRoleMatchMode": "EXACT_STRING",
+    "targetRolePresentResult": "AMBIGUOUS",
+    "memberInspectionRequired": false,
+    "fingerprintMatchingUsed": false,
+    "malformedDefaultsToAbsent": false,
+    "collapsedProjectionCanProveAbsence": false
+  },
+  "logicalProof": {
+    "zeroTargetRoleBindingsImpliesAbsent": true,
+    "nonzeroTargetRoleBindingsImpliesPresent": false
+  },
+  "futureReadSurface": {
+    "identity": "EXISTING_LOCKED_OP_C_SURFACE",
+    "argvLockStatus": "MATCH",
+    "externalCapabilityLockStatus": "MATCH",
+    "sdkPathContainment": "PASS"
+  },
+  "futureLiveBudget": {
+    "writerSaIamPolicyReadsMax": 1,
+    "cloudLoggingReadsMax": 0,
+    "activeCallerDiscoveryMax": 0,
+    "projectIamReadsMax": 0,
+    "testIamPermissionsMax": 0,
+    "iamMutationsMax": 0,
+    "m3MutationsMax": 0,
+    "m4MutationsMax": 0,
+    "accessTokenCallsMax": 0,
+    "firestoreCallsMax": 0,
+    "retriesMax": 0
+  },
+  "privacy": {
+    "rawCallerPersisted": false,
+    "rawIamPolicyPersisted": false,
+    "iamMemberIdentitiesPersisted": false,
+    "rawStdoutPersisted": false,
+    "rawStderrPersisted": false,
+    "etagValuePersisted": false,
+    "conditionExpressionPersisted": false,
+    "tokenPersisted": false
+  },
+  "currentSafetyState": {
+    "currentM3EffectiveState": "INDETERMINATE",
+    "currentM3OutcomeClassifierSafety": "DEFECT_PROVEN",
+    "m3l2ApprovalReusable": false,
+    "m3l2MutationBudget": "EXHAUSTED",
+    "m3l2RetryAllowed": false,
+    "m4Readiness": "BLOCKED",
+    "m4Approval": "NOT_GRANTED"
+  }
+}

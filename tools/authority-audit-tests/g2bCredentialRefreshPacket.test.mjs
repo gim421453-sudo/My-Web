@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import { buildG2BCredentialRefreshArtifacts, verifyG2BCredentialRefreshArtifacts } from "../authority-audit/g2bCredentialRefreshPacket.mjs";
+const artifacts = buildG2BCredentialRefreshArtifacts();
+assert.equal(verifyG2BCredentialRefreshArtifacts(artifacts).ok, true);
+assert.equal(artifacts.runtimeCapability.credentialRefreshCallsMax, 1);
+assert.equal(artifacts.runtimeCapability.retries, 0);
+assert.equal(artifacts.runtimeCapability.testIamPermissionsCallsMax, 0);
+assert.equal(artifacts.packet.credentialStoreWritesMax, 1);
+assert.equal(artifacts.packet.postRefreshTestIamPermissionsAllowed, false);
+const changed = structuredClone(artifacts); changed.runtimeCapability.credentialRefreshCallsMax = 2;
+assert.equal(verifyG2BCredentialRefreshArtifacts(changed).ok, false);
+console.log("G2B credential refresh packet local fixtures passed; remote operations=0");

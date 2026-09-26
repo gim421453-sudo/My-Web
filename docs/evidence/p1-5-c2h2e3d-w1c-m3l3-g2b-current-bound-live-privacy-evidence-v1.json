@@ -1,0 +1,13 @@
+{
+  "schema": "myweb.g2b.current-bound-live.privacy-evidence.v1",
+  "rawMemberPersisted": false,
+  "rawPrincipalPersisted": false,
+  "rawPolicyPersisted": false,
+  "rawSecretPersisted": false,
+  "rawOutputPersisted": false,
+  "rawStderrPersisted": false,
+  "credentialPersisted": false,
+  "tokenPersisted": false,
+  "sensitiveValueLogged": false,
+  "privacyScan": "PASS"
+}

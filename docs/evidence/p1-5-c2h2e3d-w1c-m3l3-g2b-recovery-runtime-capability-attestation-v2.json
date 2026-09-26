@@ -1,0 +1,12 @@
+{
+  "schema": "myweb.g2b.source-locked-recovery-runtime-capability-attestation.summary.v1",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "recoveryRuntimeCapabilityAttestationSha256": "9bfc494053198699a82296ceda14e4bb7fa2d6c00d66c2fd75297915b151e336",
+  "localIdentityDiscoveryMax": 0,
+  "physicalRemotePolicyReadsMax": 1,
+  "projectIamReadsMax": 0,
+  "mutationsMax": 0,
+  "retries": 0,
+  "rollbacks": 0,
+  "reproducible": true
+}

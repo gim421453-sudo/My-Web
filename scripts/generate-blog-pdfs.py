@@ -262,7 +262,7 @@ set "NODE=C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies
 cd /d "C:\Users\USER\Documents\My Web"
 npm run dev
 """))
-    story.append(p("접속 주소: http://localhost:5173/", "body"))
+    story.append(p("접속 주소: http://127.0.0.1:5173/", "body"))
     story.append(subsection("npm이 안 될 때 대체 실행"))
     story.append(code_block(r"""
 cd /d "C:\Users\USER\Documents\My Web"
@@ -393,7 +393,7 @@ findstr PM_APP_TARGET dist-admin\pm-env.js
 
     story.append(section("브라우저 열기"))
     story.append(code_block(r"""
-start http://localhost:5173/
+start http://127.0.0.1:5173/
 start http://127.0.0.1:5181/
 start http://127.0.0.1:5181/pm-env.js?v=1
 """))

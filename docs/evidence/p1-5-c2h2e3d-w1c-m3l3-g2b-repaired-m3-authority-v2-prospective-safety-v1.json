@@ -1,0 +1,11 @@
+{
+  "schema": "myweb.g2b.repaired-m3.authority-v2-prospective-safety.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-REPAIRED-DIRECT-AUTHORITY-V2",
+  "operationGenerationId": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981",
+  "sourceLockManifestSha256": "b023192c14ac5cbaa14cb3c6c5e10e8e32bbf4b20f9cb014aa8b65469a14b26b",
+  "implementationSha256": "b501a542ceeae3e8b90ca418b4b557221fe3cae7a20f88088ed734f9f5f46c59",
+  "runtimeCapabilitySha256": "5e9825c69e748d421af7f83fabd58971c2de68f547dd8e07dbd96b5ccccc49f2",
+  "v3ContinuityCompositeSha256": "a83b79e181c04348d6e17a85a51e49c296efc5d57bb14df3949dbbfec9123e6f",
+  "prospectiveSafetyEvidenceSha256": "be126318a4027ac484169fcb1cfec51264458949409f6effb76a3739fe58d12c",
+  "localOnly": true
+}

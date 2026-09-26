@@ -1,0 +1,20 @@
+{
+  "schema": "myweb.g2b.generation-bound-recovery-v3.runtime-capability.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-GENERATION-BOUND-READ-ONLY-RECOVERY-V3",
+  "recoveryServiceAccountIamPolicyReadsMax": 1,
+  "totalPhysicalRemoteRecoveryCallsMax": 1,
+  "projectIamReadsMax": 0,
+  "setIamPolicyCallsMax": 0,
+  "iamMutationsMax": 0,
+  "additionalHiddenPhysicalCalls": 0,
+  "authHiddenRemoteCalls": 0,
+  "automaticRetries": 0,
+  "secondRecoveryRead": 0,
+  "m4MutationsMax": 0,
+  "firestoreCallsMax": 0,
+  "testIamPermissionsCallsMax": 0,
+  "credentialRefreshCallsMax": 0,
+  "preliveLocalCredentialReadinessRecheckRequired": true,
+  "preliveNetworkRequests": 0,
+  "preliveCredentialRefreshCalls": 0
+}

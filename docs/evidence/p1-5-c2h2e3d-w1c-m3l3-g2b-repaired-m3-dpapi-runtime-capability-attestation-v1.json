@@ -1,0 +1,12 @@
+{
+  "schema": "myweb.g2b.repaired-m3.dpapi-recovery-runtime-capability-attestation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-DPAPI-RECOVERY-REATTESTATION",
+  "localDpapiOnly": true,
+  "remoteOperationsMax": 0,
+  "secretCommandLineReachable": false,
+  "secretEvidenceReachable": false,
+  "silentRotationAllowed": false,
+  "recoveryAnchorRequired": true,
+  "approvalBeforeFirstRemoteRequired": true,
+  "directMutationCallsMax": 1
+}

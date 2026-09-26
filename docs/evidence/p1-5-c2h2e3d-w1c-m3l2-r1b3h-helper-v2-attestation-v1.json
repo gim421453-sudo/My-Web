@@ -1,0 +1,78 @@
+{
+  "schema": "myweb.m3l2.r1b3h.helper-v2-attestation.v1",
+  "r1c1CompositeSha256": "0f99042cdc8a8ba0c26fe517519bf2488cb529381570a260288df3a64d09c756",
+  "r1b2R2ResultDocumentSha256": "a377c3209997cac893419d7ef1bed24c6d877bd30e37599645d634b2b76d293f",
+  "r1b3dSourceDocumentSha256": "f8836f36cf408ff10361aaaf10abb1a52a4415ab1fee2d063fdf1f3c940af2b6",
+  "r1b3dVerdict": "R1B3D_SEMANTICS_RESOLVED",
+  "helperV1Sha256": "72656d4091e058a2c937d52ecaad905285e3f77494a772be0f119c48937a4a69",
+  "helperV2": {
+    "path": "tools/authority-audit/writerPolicyTargetRoleAbsenceDiagnosticV2.mjs",
+    "sha256": "a610d60d3d6db32950bd82b51b887f819a0e3b363e2378640deb410424669096",
+    "purity": "PASS"
+  },
+  "helperV2Test": {
+    "path": "tools/authority-audit-tests/writerPolicyTargetRoleAbsenceDiagnosticV2.test.mjs",
+    "sha256": "8f31bf8a07dc7543b72e882ae215cbf4e08ca19b6ef8fefcb177e42fa6551d15"
+  },
+  "serviceAccountPolicySemantics": {
+    "opCSurface": "EXACT_MATCH",
+    "outputCompleteness": "STRUCTURED_JSON_NO_FIELD_SUPPRESSION",
+    "localOutputCanDropNonemptyBindings": "PROVEN_NO",
+    "etagOnlySemantic": "ZERO_ROLE_BINDINGS",
+    "etagStructuralPredicate": "own etag property; string; non-empty",
+    "missingVersionEtageOnlySemantics": "SAFE",
+    "version1ExplicitEmptyBindings": "ABSENT_SAFE",
+    "version3ExplicitEmptyBindings": "ABSENT_SAFE",
+    "conditionalRoleRepresentationSafety": "VERSION3_OBJECT_CONDITION_ONLY"
+  },
+  "helperV2Semantics": {
+    "resultDomain": ["ABSENT_PROVEN", "AMBIGUOUS"],
+    "canReturnPresentProven": false,
+    "failClosedDefault": "AMBIGUOUS",
+    "emptyObjectResult": "AMBIGUOUS",
+    "etagOnlyResult": "ABSENT_PROVEN",
+    "bindingsMissingAndEtagMissingResult": "AMBIGUOUS",
+    "targetRole": "roles/iam.serviceAccountTokenCreator",
+    "targetRoleMatchMode": "EXACT_STRING",
+    "memberInspectionRequired": false,
+    "fingerprintMatchingUsed": false,
+    "absentReasonAllowlist": [
+      "COMPLETE_ETAG_ONLY_ZERO_BINDINGS",
+      "COMPLETE_EXPLICIT_EMPTY_BINDINGS",
+      "COMPLETE_NO_TARGET_ROLE"
+    ]
+  },
+  "futureR1B4Surface": "EXISTING_LOCKED_OP_C_SURFACE",
+  "futureR1B4Budget": {
+    "writerSaIamPolicyReadsMax": 1,
+    "retriesMax": 0,
+    "cloudLoggingReadsMax": 0,
+    "activeCallerDiscoveryMax": 0,
+    "projectIamReadsMax": 0,
+    "testIamPermissionsMax": 0,
+    "iamMutationsMax": 0,
+    "m3MutationsMax": 0,
+    "m4MutationsMax": 0,
+    "accessTokenCallsMax": 0,
+    "firestoreCallsMax": 0
+  },
+  "privacy": {
+    "rawCallerPersisted": false,
+    "rawIamPolicyPersisted": false,
+    "iamMemberIdentitiesPersisted": false,
+    "rawStdoutPersisted": false,
+    "rawStderrPersisted": false,
+    "etagValuePersisted": false,
+    "conditionExpressionPersisted": false,
+    "tokenPersisted": false
+  },
+  "currentSafetyState": {
+    "currentM3EffectiveState": "INDETERMINATE",
+    "currentM3OutcomeClassifierSafety": "DEFECT_PROVEN",
+    "m3l2ApprovalReusable": false,
+    "m3l2MutationBudget": "EXHAUSTED",
+    "m3l2RetryAllowed": false,
+    "m4Readiness": "BLOCKED",
+    "m4Approval": "NOT_GRANTED"
+  }
+}

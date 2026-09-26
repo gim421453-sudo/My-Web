@@ -11,7 +11,7 @@
     "prebuild": "npm run firebase:config",
     "build": "npm run typecheck && vite build",
     "postbuild": "node scripts/copy-static-assets.mjs dist",
-    "test": "node scripts/test-app-target-isolation.mjs && node scripts/test-school-security-role-lockdown.mjs && node scripts/test-auth-security-state.mjs && node scripts/test-auth-modules.mjs && node scripts/test-timetable-quick-view.mjs",
+    "test": "node scripts/test-app-target-isolation.mjs && node scripts/test-school-security-role-lockdown.mjs && node scripts/test-auth-security-state.mjs && node scripts/test-trusted-backend-client-adapter.mjs && node scripts/test-auth-modules.mjs && node scripts/test-timetable-quick-view.mjs",
     "build:admin": "tsc --noEmit && vite build --outDir dist-admin",
     "postbuild:admin": "node scripts/copy-static-assets.mjs dist-admin --exclude-runtime-env && node scripts/generate-firebase-config.mjs --target admin-standalone --runtime-output dist-admin/pm-env.js",
     "firebase:reset-test-data": "node scripts/reset-firebase-test-data.mjs",

@@ -1,0 +1,47 @@
+{
+  "schema": "myweb.g2b.v3-diagnostic-continuity-attestation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-V3-DIAGNOSTIC-CONTINUITY",
+  "historicalV3ExecutionEvidenceSha256": "b5ba6d42a8a922362ed30fa8baf5da1d3cfded14b87625584ca330df9b3fa354",
+  "historicalV3ResultDocumentSha256": "62e2233193cb2587b8712638f384f9d6e7fb30d1676bb239bb697efb1502919e",
+  "historicalV3PacketDocumentRawSha256": "7a1e0f3da1a0a3dd084aa1d4306206ad0c4606b8b60e83717ddd64067e49afea",
+  "historicalV3SourceLockMatchCurrentBytes": false,
+  "sourceLockDelta": {
+    "mismatchCount": 1,
+    "deltas": [
+      {
+        "path": "tools/authority-audit-tests/g2bExplicitSetIamPolicyAuthTransport.test.mjs",
+        "classification": "TEST_ONLY",
+        "runtimeEntryPointReachable": false,
+        "proof": "test-runner-only; dependency-injected fake processRunner; no production runtime imports test files"
+      }
+    ],
+    "diagnosticRuntimeRelevantChangeCount": 0,
+    "m3OnlyChangeCount": 0,
+    "testOnlyChangeCount": 1,
+    "unknownChangeCount": 0
+  },
+  "historicalRuntimeSemanticFingerprint": "a851457e47436f43beb3c72313ece85d93ffa554e70a7b7dabe67a6e461c2218",
+  "currentRuntimeSemanticFingerprint": "a851457e47436f43beb3c72313ece85d93ffa554e70a7b7dabe67a6e461c2218",
+  "historicalRuntimeGraphFileCount": 9,
+  "currentRuntimeGraphFileCount": 9,
+  "targetResource": "myweb-class-mig-writer-g2@my-management-app-8a933.iam.gserviceaccount.com",
+  "targetRole": "roles/iam.serviceAccountTokenCreator",
+  "requiredPermission": "iam.serviceAccounts.setIamPolicy",
+  "permissionCount": 1,
+  "currentDirectAuthPathId": "g2b-explicit-direct-set-iam-policy-cached-credential-v2",
+  "temporalRule": "NO_ARBITRARY_WALL_CLOCK_EXPIRY;VALIDITY_DEPENDS_ON_CONTEXT_AND_RUNTIME_CONTINUITY;LIVE_PROVIDER_SET_AUTHORIZATION_REMAINS_AUTHORITATIVE;CACHED_CREDENTIAL_FRESHNESS_IS_SEPARATELY_RECHECKED_PRELIVE",
+  "historicalDiagnosticRuntimeAffectedByM3GuardChange": false,
+  "currentM3RuntimeSafetyImprovedByGuardChange": true,
+  "historicalEvidenceCryptographicallyVerified": true,
+  "historicalResultPermissionPresentConfirmed": true,
+  "runtimeSourceLockMatch": true,
+  "diagnosticRuntimeSemanticsMatch": true,
+  "continuityPass": true,
+  "privacy": {
+    "rawPrincipalPersisted": false,
+    "rawMemberPersisted": false,
+    "rawCredentialPersisted": false,
+    "rawPolicyPersisted": false,
+    "rawOutputPersisted": false
+  }
+}

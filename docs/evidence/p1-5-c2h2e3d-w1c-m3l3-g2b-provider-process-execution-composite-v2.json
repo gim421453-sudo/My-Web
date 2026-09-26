@@ -1,0 +1,18 @@
+{
+  "schema": "myweb.g2b.m3.provider-process-diagnostic-execution-composite.v2",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-PROVIDER-PROCESS-ROOT-CAUSE-DIAGNOSTIC-V2",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "recoveryExecutionEvidenceSha256": "0db8f9d3d6307cd519b0cc4c2fc0ef955287bd83009bf0b8cd9c4b6fc96fe74e",
+  "recoveryResultDocumentSha256": "8998bc5f40f4a42730c1c119639ed43a2e884425f9f1396ab85cd824b868750d",
+  "recoveryAnchorEvidenceSha256": "b063fb36de707548505e6c0defb878af12158107df3489730f376357f39d24da",
+  "supersededDiagnosticPacketSha256": "50b4048f545d8c7a3b1c9d2ea342720b37e9172fa68f3c6b70f5481d5a8284e8",
+  "sourceLockManifestSha256": "d1a975350ad9cd61ed0f9d0cb3f10c3031c25606eef487806da8f90fc7080392",
+  "implementationAttestationSha256": "3d254cf22e014ac3f6332900b87a223db53b3a2de100c9cfe36d20130917bd27",
+  "runtimeCapabilityAttestationSha256": "df7c5b56c8a4ce8510a6ec3c489d1e3e39ce9a2f47f87f4fea1a1690e38489d2",
+  "currentM3State": "CONFIRMED_ABSENT_AFTER_RESOLVEDSTORE_FIXED_INDETERMINATE_MUTATION",
+  "localExactProviderProcessRootCause": "UNRESOLVED",
+  "remoteDiagnosticStillRequired": true,
+  "remoteDiagnosticSafelyConstructed": false,
+  "m3MutationReachable": false,
+  "m4Reachable": false
+}

@@ -1,0 +1,50 @@
+{
+  "schema": "myweb.g2b.m3.provider-process-diagnostic-source-lock-manifest.v2",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-PROVIDER-PROCESS-ROOT-CAUSE-DIAGNOSTIC-V2",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "localDependencies": [
+    {
+      "path": "tools/authority-audit/g2bM3CurrentLiveExecutor.mjs",
+      "sha256": "1ee72cf9725088d947ed10a643b9e39538cf737f2d69c29fcb674742e25014d7"
+    },
+    {
+      "path": "tools/authority-audit/m3RuntimeCommandGraph.mjs",
+      "sha256": "e62d6c0f2ecaca2a81316b36c3cf3f4ad0f9ae6c0c553840aaf2a97f583c983a"
+    },
+    {
+      "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs",
+      "sha256": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578"
+    },
+    {
+      "path": "tools/authority-audit/gcloudStderrDiagnosticAnalyzer.mjs",
+      "sha256": "660734f2c7d42bf2e23ed2f3a92081456621c3a0469eed7a1c3787a31358d656"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bM3CurrentLiveExecutor.test.mjs",
+      "sha256": "393695139ebeaee80217f4be36b52c8529943ea9c8ddb56917939e7d50511a8e"
+    }
+  ],
+  "localDependencyCount": 5,
+  "sdkStaticEvidence": [
+    {
+      "pathClass": "CLOUD_SDK_IAM_SERVICE_ACCOUNT_ADD_BINDING_SURFACE",
+      "sha256": "fcf41f4485dcdb29457feb081a82829013ff74c78543e3d1777fe6b01ad22042"
+    },
+    {
+      "pathClass": "CLOUD_SDK_IAM_SERVICE_ACCOUNT_SET_POLICY_SURFACE",
+      "sha256": "4148a18a95ad2e13b949f3ea25c167be02a7f799c78df7046b689b6e6cab530e"
+    },
+    {
+      "pathClass": "CLOUD_SDK_IAM_V1_GENERATED_CLIENT",
+      "sha256": "304f81531be1e0f8bb05c726aec9a6053f80a11cec1867245231f6276ad0ebcf"
+    },
+    {
+      "pathClass": "CLOUD_SDK_IAM_V1_GENERATED_MESSAGES",
+      "sha256": "098d22bfde402e0a1bb398cbced35a75b2a5108c699ad122966a408cffc785e1"
+    }
+  ],
+  "diagnosticExecutorBound": false,
+  "unboundDiagnosticDependencies": 0,
+  "unboundDiagnosticRemoteCapabilities": 0,
+  "unboundDiagnosticProcessCapabilities": 0
+}

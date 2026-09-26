@@ -1,0 +1,50 @@
+{
+  "schema": "myweb.m3l2.g4r3h.exact-effective-caller-identity-implementation.v1",
+  "g4r3fPayloadSha256": "4f8b1c2fd110abfeeb44279ead491684d2f88068979ec397c3d714cd4b4c7b25",
+  "g4r3fResultDocumentSha256": "8f55f841ffd48e138cf6471c1694bb5056fad4dd014964ff9fd1ad30b1dd1490",
+  "g4r3sPayloadSha256": "5f679e024fd20dcc1f7a7c362ea7fa2df05c57a0618fedbf9756b9205de84acf",
+  "g4r3sResultDocumentSha256": "1b32e9ac0966c8e3bb95d5a8b59ec5ad544047583ffc9afbc01fcf34b49ee802",
+  "g4r3dPayloadSha256": "6dcce593886701d31bd341bf91d6edf080cd76082fb39dcfb30aec23a7dc27ef",
+  "g4r2CompositeSha256": "790c903219ec3cb7f9aa536c2c3881b8fc889471fd0505f05c38060d1835d0c1",
+  "prePatchRuntimeLocks": "NOT_CAPTURED_AT_PATCH_START",
+  "postPatchRuntimeLocks": [
+    { "path": "tools/authority-audit/m3RuntimeCommandGraph.mjs", "sha256": "36776cebe1f29b0ad95237f6bbe526f48993956efb214e870668cc56ea44b030", "role": "identity-and-pinned-m3-runtime" },
+    { "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs", "sha256": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578", "role": "sanitized-child-process-environment" }
+  ],
+  "testLocks": [
+    { "path": "tools/authority-audit-tests/g4r3hExactEffectiveCallerIdentity.test.mjs", "sha256": "0b258aa28b2b76e7b7140cc9ec1f116fdf9ed64fe192f0885c807b708b530767", "role": "focused-identity-contract-tests" }
+  ],
+  "identityContract": {
+    "legacyFingerprintAuthorizationRemoved": true,
+    "exactPrincipalDiscovery": "SINGLE_SUPPORTED_PRINCIPAL",
+    "allowedPrincipalKind": "user|serviceAccount",
+    "principalNormalization": "TRIM_ONLY_EXACT_VALIDATION",
+    "exactMemberConstruction": "ONCE_FROM_EXACT_CONTEXT",
+    "identityContextImmutable": true,
+    "identityContextPersisted": false,
+    "memberRederivationCount": 0
+  },
+  "callerPinning": {
+    "accountPinnedOperations": ["OP_B", "OP_C_PRE", "OP_D_PRE", "OP_E", "OP_C_POST", "OP_D_POST"],
+    "configurationNone": true,
+    "configRootPinned": true,
+    "childEnvSnapshot": true,
+    "sanitizedAuthOverrideSurfaces": ["CLOUDSDK_AUTH_ACCESS_TOKEN", "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE", "CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT"],
+    "accessTokenOverrideReachable": false,
+    "credentialFileOverrideReachable": false,
+    "impersonationReachable": false,
+    "flagsFileReachable": false,
+    "unpinnedRetryReachable": false
+  },
+  "prestate": {
+    "resultDomain": "TARGET_MEMBER_PRESENT|TARGET_MEMBER_ABSENT|AMBIGUOUS|READ_FAILURE",
+    "exactMemberTransientCompare": true,
+    "sameContextAsMutation": true,
+    "failureBehavior": "BLOCK_OP_E"
+  },
+  "mutation": { "maxAttempts": 1, "retry": 0, "rollback": 0, "sameMemberByConstruction": true },
+  "classifier": { "unknownNonzero": "INDETERMINATE", "timeoutAfterStart": "INDETERMINATE", "errorPrefixV1ProvesRemoteNonApplication": false, "confirmedFailureRules": [] },
+  "forbiddenReachability": { "m4": false, "firestore": false, "token": false, "key": false, "cloudLogging": false },
+  "privacy": { "rawIdentityPersisted": false, "rawArgvPersisted": false, "rawEnvironmentPersisted": false, "rawPolicyPersisted": false },
+  "futureAuthority": { "postPatchReattestationRequired": true, "newFinalCompositeRequired": true, "m3l3ApprovalGranted": false }
+}

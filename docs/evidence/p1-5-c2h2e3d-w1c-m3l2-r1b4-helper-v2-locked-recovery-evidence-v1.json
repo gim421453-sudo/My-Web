@@ -1,0 +1,61 @@
+{
+  "schema": "myweb.m3l2.r1b4.helper-v2-locked-recovery-evidence.v1",
+  "r1b3hAttestationSha256": "b657f755c832a0c4f25a447e68bdc73c0c494543e6bce7cc464c18fecf03f34a",
+  "r1b3hResultDocumentSha256": "636b02dfe297b298b71365c89904c3173f155e83fc5339aad0fe7d153ed2de34",
+  "r1c1CompositeSha256": "0f99042cdc8a8ba0c26fe517519bf2488cb529381570a260288df3a64d09c756",
+  "logicalProjectIdentity": "LOCKED_PROJECT_ID",
+  "logicalWriterServiceAccountIdentity": "LOCKED_WRITER_SERVICE_ACCOUNT",
+  "targetRole": "roles/iam.serviceAccountTokenCreator",
+  "readSurface": {
+    "identity": "EXISTING_LOCKED_OP_C_SURFACE",
+    "argvLock": "MATCH",
+    "externalCapabilityLock": "MATCH",
+    "sdkPathContainment": "PASS"
+  },
+  "read": {
+    "count": 1,
+    "retryCount": 0,
+    "exitCode": 0,
+    "timedOut": false
+  },
+  "parser": {
+    "strictStatus": "PASS"
+  },
+  "helper": {
+    "executionStatus": "PASS",
+    "result": "ABSENT_PROVEN",
+    "reasonId": "COMPLETE_ETAG_ONLY_ZERO_BINDINGS"
+  },
+  "recovery": {
+    "identityIndependentState": "ABSENT_PROVEN",
+    "currentM3EffectiveState": "ABSENT_PROVEN"
+  },
+  "counters": {
+    "cloudLoggingReads": 0,
+    "callerDiscoveryCalls": 0,
+    "projectIamReads": 0,
+    "testIamPermissionsCalls": 0,
+    "iamMutations": 0,
+    "m3Mutations": 0,
+    "m4Mutations": 0,
+    "accessTokenCalls": 0,
+    "firestoreCalls": 0,
+    "classWrites": 0
+  },
+  "approval": {
+    "consumed": true,
+    "reusable": false
+  },
+  "safety": {
+    "canReturnPresentProven": false,
+    "memberValueInspectionUsed": false,
+    "fingerprintFallbackUsed": false,
+    "currentM3OutcomeClassifierSafety": "DEFECT_PROVEN",
+    "m3l2ApprovalReusable": false,
+    "m3l2MutationBudget": "EXHAUSTED",
+    "m3l2RetryAllowed": false,
+    "m4Readiness": "BLOCKED_M3_REQUIRED_BINDING_ABSENT",
+    "m4Approval": "NOT_GRANTED",
+    "liveBudgetViolation": false
+  }
+}

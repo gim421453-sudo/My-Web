@@ -1,0 +1,125 @@
+{
+  "schema": "myweb.g2b.new-generation.runtime-capability-attestation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-NEW-GENERATION-LOCAL-PREPARATION",
+  "graphIdentity": "g2b-current-live-d113043179849b2f",
+  "graph": {
+    "runtimeId": "G2B_CURRENT_BOUND_LIVE_EXECUTOR_V1",
+    "targetResource": "myweb-class-mig-writer-g2@my-management-app-8a933.iam.gserviceaccount.com",
+    "targetRole": "roles/iam.serviceAccountTokenCreator",
+    "operationGeneration": "214348c8-3be0-44f8-a010-adbe1ac68090",
+    "nodes": [
+      {
+        "id": "OP_A",
+        "kind": "LOCAL_IDENTITY_DISCOVERY",
+        "max": 1,
+        "remote": false,
+        "projectIam": false
+      },
+      {
+        "id": "ANCHOR_SECRET",
+        "kind": "LOCAL_DPAPI_SECRET_LOAD_OR_INITIALIZE",
+        "max": 1,
+        "remote": false,
+        "projectIam": false
+      },
+      {
+        "id": "ANCHOR_PERSIST",
+        "kind": "LOCAL_ATOMIC_ANCHOR_PERSIST_AND_REREAD",
+        "max": 4,
+        "remote": false,
+        "projectIam": false
+      },
+      {
+        "id": "ANCHOR_VERIFY",
+        "kind": "LOCAL_HMAC_ANCHOR_VERIFY",
+        "max": 1,
+        "remote": false,
+        "projectIam": false
+      },
+      {
+        "id": "OP_C_PRE",
+        "kind": "WRITER_IAM_POLICY_FRESH_PRESTATE",
+        "max": 1,
+        "remote": true,
+        "projectIam": false
+      },
+      {
+        "id": "OP_E",
+        "kind": "EXACT_G2B_TOKEN_CREATOR_MUTATION",
+        "max": 1,
+        "remote": true,
+        "projectIam": false
+      },
+      {
+        "id": "OP_C_POST",
+        "kind": "WRITER_IAM_POLICY_POSTSTATE",
+        "max": 1,
+        "remote": true,
+        "projectIam": false
+      }
+    ],
+    "edges": [
+      [
+        "OP_A",
+        "ANCHOR_SECRET"
+      ],
+      [
+        "ANCHOR_SECRET",
+        "ANCHOR_PERSIST"
+      ],
+      [
+        "ANCHOR_PERSIST",
+        "ANCHOR_VERIFY"
+      ],
+      [
+        "ANCHOR_VERIFY",
+        "OP_C_PRE"
+      ],
+      [
+        "OP_C_PRE",
+        "OP_E"
+      ],
+      [
+        "OP_E",
+        "OP_C_POST"
+      ]
+    ],
+    "externalCapabilities": [
+      "windows-gcloud-process-adapter",
+      "iam.serviceAccounts.getIamPolicy",
+      "iam.serviceAccounts.setIamPolicy-binding"
+    ],
+    "unboundRemoteCapabilities": 0,
+    "unboundProcessCapabilities": 0,
+    "projectIamReadReachability": 0,
+    "identity": "g2b-current-live-d113043179849b2f"
+  },
+  "executorBound": true,
+  "coordinatorToExecutorBindingVerified": true,
+  "budgets": {
+    "localIdentityDiscoveryMax": 1,
+    "recoverySecretOperationsMax": 1,
+    "anchorPersistOperationsMax": 4,
+    "prestateWriterIamPolicyReadsMax": 1,
+    "prestateProjectIamReadsMax": 0,
+    "prestatePhysicalRemoteReadsMax": 1,
+    "m3MutationAttemptsMax": 1,
+    "poststateWriterIamPolicyReadsMax": 1,
+    "poststateProjectIamReadsMax": 0,
+    "poststatePhysicalRemoteReadsMax": 1,
+    "totalProjectIamReadsMax": 0,
+    "totalWriterIamPolicyReadsMax": 2,
+    "totalPhysicalRemoteReadsMax": 2,
+    "retriesMax": 0,
+    "rollbacksMax": 0,
+    "secondMutationMax": 0,
+    "m4Max": 0,
+    "firestoreMax": 0,
+    "tokenMax": 0,
+    "loggingMax": 0,
+    "testIamPermissionsMax": 0,
+    "serviceAccountKeyMax": 0
+  },
+  "unboundRemoteCapabilities": 0,
+  "unboundProcessCapabilities": 0
+}

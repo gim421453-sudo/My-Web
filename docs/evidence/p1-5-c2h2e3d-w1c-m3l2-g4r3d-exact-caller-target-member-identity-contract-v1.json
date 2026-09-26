@@ -1,0 +1,28 @@
+{
+  "schema": "myweb.m3l2.g4r3d.exact-target-member-identity-contract.v1",
+  "g4r2CompositeSha256": "790c903219ec3cb7f9aa536c2c3881b8fc889471fd0505f05c38060d1835d0c1",
+  "g4r2ResultDocumentSha256": "11bbaf9eb8238cbcefc049da4a5c2bab58cad1cdf081d8232fd39d09558f11ce",
+  "g4r1AttestationSha256": "5ac0ad87de153ec0e43289a224d1a91ff5407cc66c3ec3bfcb5596a9b108843e",
+  "currentOpAIdentityFlow": "SINGLE_ACTIVE_ACCOUNT_RAW_TRANSIENT_WITH_48_BIT_GATE",
+  "legacyFingerprintStatus": "AUTHORIZATION_GRADE_EXACT_IDENTITY_PROOF_NO",
+  "intendedTargetMemberContract": "SINGLE_EXACT_VALIDATED_PRINCIPAL_TO_EXACT_IAM_MEMBER",
+  "memberConstructionContract": { "targetRole": "roles/iam.serviceAccountTokenCreator", "supportedKindRule": "service-account-suffix maps to serviceAccount; otherwise validated email maps to user", "constructionCountAfterContextCreate": 0 },
+  "effectiveCredentialContract": { "status": "UNRESOLVED", "reason": "subsequent commands do not explicitly pin the gcloud account or configuration", "futureRequirement": "BOUND_TO_EXACT_TRANSIENT_CONTEXT" },
+  "accountOverrideAnalysis": { "surfaces": ["gcloud active configuration", "CLOUDSDK_ACTIVE_CONFIG_NAME", "environment/configuration selected by gcloud", "explicit --account not present in current OP-C/OP-E argv"], "currentRuntimePinsAccount": false },
+  "impersonationAnalysis": { "currentArgvSupport": "no impersonation flag in current M3 argv; local source does not prove external configuration impossible", "unapprovedPolicy": "BLOCK" },
+  "toctouAnalysis": { "status": "POSSIBLE", "failureBehavior": "STOP_BEFORE_PRESTATE_OR_MUTATION" },
+  "identityPinningDesign": { "discoveryMax": 1, "context": "immutable in-memory exact principal kind plus exact IAM member plus pinned credential identity", "exactDecision": true, "restartResumable": false, "noRediscovery": true, "options": ["explicit account selection on every relevant command, subject to argv re-attestation", "isolated gcloud configuration/session bound to the approved execution"] },
+  "freshPrestateContract": { "states": ["PRESENT", "ABSENT", "AMBIGUOUS", "READ_FAILURE"], "inspection": "TRANSIENT_EXACT_COMPARE_ONLY", "storedReason": "bounded state only; no member value", "memberMatch": "EXACT_NO_HASH_NO_SUBSTRING" },
+  "sameMemberInvariant": { "prestateEqualsMutation": "BY_CONSTRUCTION", "construction": "build once from immutable context; no re-derivation" },
+  "restartBehavior": { "identityContextResumable": false, "crashAfterAbsentMutationCount": 0 },
+  "approvalConsumption": { "point": "when fresh exact prestate read begins, before any mutation path", "accountChange": "STOP_NO_REDISCOVERY" },
+  "runtimeChangeRequired": true,
+  "proposedPatchScope": [
+    { "path": "tools/authority-audit/m3RuntimeCommandGraph.mjs", "sha256": "619eb27635f3a8896b46362c231099b2b90ce3c792cac85e05008b2df44d078a" },
+    { "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs", "sha256": "512eaa9fa4fc5ea4f394e1a90116425142e4555df58b65e5d1c41b0d1a56190f" }
+  ],
+  "externalCapabilityImpact": { "status": "ARGV_AND_SEMANTIC_REATTESTATION_REQUIRED", "reason": "account pinning changes the command/runtime contract" },
+  "privacy": { "rawPrincipalPersisted": false, "rawMemberPersisted": false, "identityHashUsedForAuthorization": false, "rawProcessOutputPersisted": false },
+  "futureAuthorityRequirements": { "m3l3ApprovalGranted": false, "m4ApprovalGranted": false, "unapprovedImpersonation": "BLOCK", "historicalIdentityRequired": false },
+  "verdict": "P1_5_C2H2E3D_W1C_M3L2_G4R3D_EFFECTIVE_CALLER_IDENTITY_SEMANTICS_UNRESOLVED"
+}

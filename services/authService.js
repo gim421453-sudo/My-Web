@@ -36,6 +36,60 @@
     lastFlowState: "idle"
   };
 
+  function trustedAuthorityRequested() {
+    return window.PMTrustedBackendService?.isAuthorityEnabled?.() === true;
+  }
+
+  const LEGACY_INVITATION_SECRET_FIELDS = Object.freeze([
+    "inviteCode",
+    "inviteCodeId",
+    "pendingInviteCodeId",
+    "invitationCode",
+    "invite_code",
+    "code",
+    "codeHash",
+    "secretVersion",
+    "invitedBy",
+    "invitedByEmail",
+    "inviterEmail"
+  ]);
+
+  function isPlainRecord(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function stripLegacyInvitationSecrets(record) {
+    if (!isPlainRecord(record)) return record;
+    const next = { ...record };
+    LEGACY_INVITATION_SECRET_FIELDS.forEach((field) => delete next[field]);
+    return next;
+  }
+
+  function sanitizeTrustedAuthorityState(state) {
+    if (!trustedAuthorityRequested() || !isPlainRecord(state)) return state;
+    return {
+      ...state,
+      auth: stripLegacyInvitationSecrets(state.auth),
+      users: Array.isArray(state.users) ? state.users.map(stripLegacyInvitationSecrets) : [],
+      workspace_members: Array.isArray(state.workspace_members)
+        ? state.workspace_members.map(stripLegacyInvitationSecrets)
+        : state.workspace_members,
+      invitations: Array.isArray(state.invitations)
+        ? state.invitations.map(stripLegacyInvitationSecrets)
+        : []
+    };
+  }
+
+  function trustedBackendRequired() {
+    const service = window.PMTrustedBackendService;
+    if (!service || typeof service.createUserProfile !== "function") {
+      const error = new Error("Trusted profile ingress is unavailable.");
+      error.code = "trusted-backend-unavailable";
+      throw error;
+    }
+    return service;
+  }
+
   function updateBackoffState() {
     authBootstrapDiagnostics.backoffActive = authBootstrapBackoffUntil > Date.now();
     return authBootstrapDiagnostics.backoffActive;
@@ -237,14 +291,15 @@
   }
 
   function loadAuthState() {
-    return readJson(AUTH_KEY) || readJson(LEGACY_AUTH_KEY);
+    return sanitizeTrustedAuthorityState(readJson(AUTH_KEY) || readJson(LEGACY_AUTH_KEY));
   }
 
   function saveAuthState(state) {
+    const sanitized = sanitizeTrustedAuthorityState(state);
     const next = {
-      ...state,
-      schema_version: state?.schema_version || 1,
-      auth_provider: state?.auth_provider || "local-invite",
+      ...sanitized,
+      schema_version: sanitized?.schema_version || 1,
+      auth_provider: sanitized?.auth_provider || "local-invite",
       updated_at: new Date().toISOString()
     };
     writeJson(AUTH_KEY, next);
@@ -359,6 +414,11 @@
   }
 
   async function firebaseCreateBaseUserDocument(user, displayName, options = {}) {
+    if (trustedAuthorityRequested()) {
+      const result = await trustedBackendRequired().createUserProfile({ displayName });
+      noteBootstrap("trusted-profile-ingress-completed");
+      return result;
+    }
     const runtime = await window.PMFirebaseRuntime?.init?.();
     if (!runtime) throw new Error("Firebase 서버와 연결이 필요합니다.");
     const { firestore } = runtime.sdk;
@@ -546,7 +606,17 @@
     const uid = user.uid;
     const now = firestore.serverTimestamp();
     const userRef = firestore.doc(runtime.db, "users", uid);
-    const userSnap = await runFirestoreStep("get current user document", `users/${uid}`, () => firestore.getDoc(userRef));
+    let userSnap = await runFirestoreStep("get current user document", `users/${uid}`, () => firestore.getDoc(userRef));
+    if (!userSnap.exists()) {
+      if (trustedAuthorityRequested()) {
+        await trustedBackendRequired().createUserProfile({ displayName });
+        userSnap = await runFirestoreStep(
+          "re-read current user document after trusted profile ingress",
+          `users/${uid}`,
+          () => firestore.getDoc(userRef)
+        );
+      }
+    }
     if (!userSnap.exists()) {
       const profileMissingError = new Error("Current user profile is missing.");
       profileMissingError.code = "profile-missing";
@@ -582,12 +652,24 @@
 
     authBootstrapDiagnostics.bootstrapSkippedNoDiffCount += 1;
     noteBootstrap("canonical-session-read-only");
-    return {
+    const session = {
       workspaceId,
       role,
       workspaceRole,
       status,
-      pendingWorkspaceId: userData.pendingWorkspaceId || "",
+      pendingWorkspaceId: userData.pendingWorkspaceId || ""
+    };
+    if (trustedAuthorityRequested()) {
+      const pendingInvitationId = typeof userData.pendingInvitationId === "string" ? userData.pendingInvitationId.trim() : "";
+      const pendingJoinRequestId = typeof userData.pendingJoinRequestId === "string" ? userData.pendingJoinRequestId.trim() : "";
+      return {
+        ...session,
+        ...(pendingInvitationId ? { pendingInvitationId } : {}),
+        ...(pendingJoinRequestId ? { pendingJoinRequestId } : {})
+      };
+    }
+    return {
+      ...session,
       pendingInviteCodeId: userData.pendingInviteCodeId || userData.inviteCodeId || userData.inviteCode || ""
     };
   }

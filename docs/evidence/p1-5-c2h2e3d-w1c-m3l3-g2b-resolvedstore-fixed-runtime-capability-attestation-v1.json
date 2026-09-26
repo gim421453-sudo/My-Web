@@ -1,0 +1,14 @@
+{
+  "schema": "myweb.g2b.resolved-store-fixed.runtime-capability-attestation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-ROOT-CAUSE-FIXED-RESOLVEDSTORE-FIXED-LIVE",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "runtimeCapabilityAttestationSha256": "91e6def2b0791fa864c3a6add5132e9c05ec74b308a485ca75db6566ffd5d0cc",
+  "graphIdentity": "g2b-current-live-2d8c3f763af9af17",
+  "unboundRemoteCapabilities": 0,
+  "unboundProcessCapabilities": 0,
+  "totalProjectIamReadsMax": 0,
+  "totalPhysicalRemoteReadsMax": 2,
+  "mutationAttemptsMax": 1,
+  "retries": 0,
+  "rollbacks": 0
+}

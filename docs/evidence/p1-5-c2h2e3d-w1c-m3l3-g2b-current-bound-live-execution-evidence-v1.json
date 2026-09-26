@@ -1,0 +1,57 @@
+{
+  "schema": "myweb.g2b.current-bound-live.execution-evidence.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-CURRENT-BOUND-LIVE",
+  "operationGeneration": "9662e385-82ab-4a73-8a5a-e8a25a9f4478",
+  "approvalPacketSha256": "c05322f3eb21914a02e51ef920c99264d081f7a530b0c9f0f0268a3e4fd57b44",
+  "priorRecoveryResult": "MEMBER_ABSENT_CONFIRMED",
+  "priorRecoveryExecutionEvidenceSha256": "c6b0c47798a85235138bc25eadf947021514ae3004969663799ed2fcd02ba979",
+  "execution": {
+    "approvalConsumed": true,
+    "identityDiscoveryUsed": 1,
+    "prestateWriterIamPolicyReadsUsed": 1,
+    "prestateProjectIamReadsUsed": 0,
+    "prestateResult": "MEMBER_ABSENT_CONFIRMED",
+    "mutationAttemptsUsed": 1,
+    "mutationOutcome": "INDETERMINATE",
+    "retriesUsed": 0,
+    "rollbacksUsed": 0,
+    "secondMutationUsed": 0,
+    "poststateRequired": true,
+    "poststateWriterIamPolicyReadsUsed": 0,
+    "poststateProjectIamReadsUsed": 0,
+    "poststateResult": "NOT_RUN_BY_APPROVAL_POLICY",
+    "totalPhysicalRemoteReadsUsed": 1,
+    "currentState": "MUTATION_INDETERMINATE"
+  },
+  "anchor": {
+    "secretState": "READY",
+    "newAnchorRequired": true,
+    "newAnchorVerifiedBeforePrestate": true,
+    "persistedState": "MUTATION_INDETERMINATE",
+    "activeAnchorCount": 1,
+    "oldAnchorAuthorizesCurrentOperation": false
+  },
+  "forbiddenOperations": {
+    "projectIamReads": 0,
+    "projectIamMutations": 0,
+    "m4Mutations": 0,
+    "firestoreCalls": 0,
+    "accessTokenCalls": 0,
+    "cloudLoggingReads": 0,
+    "testIamPermissionsCalls": 0,
+    "serviceAccountKeyOperations": 0,
+    "retries": 0,
+    "rollbacks": 0
+  },
+  "privacy": {
+    "rawMemberPersisted": false,
+    "rawPrincipalPersisted": false,
+    "rawSecretPersisted": false,
+    "rawPolicyPersisted": false,
+    "rawOutputPersisted": false,
+    "rawStderrPersisted": false
+  },
+  "nextApprovalRequired": true,
+  "nextApprovalType": "READ_ONLY_ANCHOR_BASED_M3_RECOVERY",
+  "remoteOperations": 3
+}

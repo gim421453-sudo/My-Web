@@ -1,0 +1,10 @@
+{
+  "schema": "myweb.g2b.source-locked-recovery-implementation-attestation.summary.v1",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "recoveryImplementationAttestationSha256": "bad1f138ed8b6beff6665efb6fb77b8022bb4fd16d81850a6d4859b73d2f1eb6",
+  "activeRecoverySourceLockManifestSha256": "e14f9741cf10450ed9f8f61895aed5426a7c6ab4627e56a195c65f0eb56e5ddd",
+  "activeRecoveryExecutorBound": true,
+  "unboundRecoveryRemoteCapabilities": 0,
+  "unboundRecoveryProcessCapabilities": 0,
+  "reproducible": true
+}

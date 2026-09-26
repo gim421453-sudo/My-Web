@@ -1,0 +1,12 @@
+{
+  "schema": "myweb.g2b.v3-exact-permission-result.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-EXACT-SERVICE-ACCOUNT-PERMISSION-DIAGNOSTIC-V3",
+  "executionEvidenceSha256": "d248c5c1abaf20a1e401af0188929fd406dc62d0435ee58a1e01546b26b9a85c",
+  "result": "PERMISSION_PRESENT_CONFIRMED",
+  "exactMutationPermissionState": "PRESENT_CONFIRMED",
+  "m3AuthorizationDefect": "NOT_CONFIRMED_BY_EXACT_PERMISSION_DIAGNOSTIC",
+  "m3MutationReachable": false,
+  "m4Allowed": false,
+  "nextApprovalRequired": false,
+  "rawAuthorityMaterialPersisted": false
+}

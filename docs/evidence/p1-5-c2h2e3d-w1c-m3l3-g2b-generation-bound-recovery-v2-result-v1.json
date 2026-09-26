@@ -1,0 +1,8 @@
+{
+  "schema": "myweb.g2b.generation-bound-recovery-v2.result.v1",
+  "operationInstance": "883b57ff-9171-420b-b278-172e3d57fb86",
+  "recoveryResult": "RECOVERY_NOT_ESTABLISHED",
+  "currentExactTokenCreatorBindingState": "NOT_ESTABLISHED",
+  "interruptedM3GenerationFinalState": "RECOVERY_NOT_ESTABLISHED",
+  "executionEvidenceSha256": "c5f41b28fbedbbe85483486ec41776ffa214958c0dd2fc7b230bc1b3370d6b49"
+}

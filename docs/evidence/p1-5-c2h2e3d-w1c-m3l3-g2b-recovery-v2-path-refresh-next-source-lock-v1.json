@@ -1,0 +1,38 @@
+{
+  "schema": "myweb.g2b.recovery-v2-next-refresh.source-lock.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-RECOVERY-V2-PATH-NEW-BOUNDED-CREDENTIAL-REFRESH-PREPARATION",
+  "sourceLocks": [
+    {
+      "path": "tools/authority-audit/g2bRecoveryV2NextCredentialRefreshPreparation.mjs",
+      "sha256": "88aa668f931996c1daf793f1730189cd4d9aa5ee54a7f4f8986c253dcf397887"
+    },
+    {
+      "path": "tools/authority-audit/g2bGenerationBoundReadOnlyRecoveryV2.mjs",
+      "sha256": "d9771728767a028fba31f1c488e0d49bde8a08c7871e12f1a363bbfe6852b19b"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryExecutionJournal.mjs",
+      "sha256": "9456518f239b7d360287afe929a6d024407c7a879198003130dda257c9635a68"
+    },
+    {
+      "path": "tools/authority-audit/g2bDirectCachedCredentialReadiness.mjs",
+      "sha256": "3ba01ced3537f390e9e29dfe1d8f120bf99e222c2a9a610cfc5e6effb092eb54"
+    },
+    {
+      "path": "tools/authority-audit/g2bExplicitSetIamPolicyAuthTransport.mjs",
+      "sha256": "e73477254f1bd56af01dc42aaf09ad5314801176e3ca301605c894f17b46c84f"
+    },
+    {
+      "path": "tools/authority-audit/g2b_explicit_set_iam_policy_transport.py",
+      "sha256": "5138f4db56bedc2da7bd0a59cf7d1c18c0afbae79952645bb0c1a36bd655563f"
+    },
+    {
+      "path": "tools/authority-audit/g2bV3DiagnosticContinuityAttestation.mjs",
+      "sha256": "b3daa007f5943b49ea72fb76e8f5a73491a800d729fc866ff3dd3df3d02d6b46"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bRecoveryV2NextCredentialRefreshPreparation.test.mjs",
+      "sha256": "8431b9085d63e4ef48eb64ea8db0c0e6ddc2f358d4abac4cd61ffb26f825d947"
+    }
+  ]
+}

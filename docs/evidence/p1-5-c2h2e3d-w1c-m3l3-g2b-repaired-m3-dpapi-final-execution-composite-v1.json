@@ -1,0 +1,11 @@
+{
+  "schema": "myweb.g2b.repaired-m3.dpapi-recovery-final-execution-composite.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-DPAPI-RECOVERY-REATTESTATION",
+  "sourceLockManifestSha256": "675044e2fee06169f0516ba11e06b1f9b5efd61c5b3aab3ca143ecc9d399fed0",
+  "implementationSha256": "f188aadc3c83d008401c6f8d664bedb6f85ee2cb5113555780fd5a25b8e15088",
+  "runtimeCapabilitySha256": "d3bffad0638e8af82c1b89d0d576cfa8760cad0cada2abb6e75f453974ef978e",
+  "predecessorCompositeSha256": "811d279166ee331601b95cb46dc3bc59ed71fe984e265134666e2bc5236a9c24",
+  "prospectiveM3SafeToPrepare": true,
+  "m3ExecutionReachableWithoutSeparateApproval": false,
+  "remoteOperations": 0
+}

@@ -1,0 +1,26 @@
+{
+  "schema": "myweb.g2b.generation-bound-recovery.execution-evidence.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-GENERATION-BOUND-READ-ONLY-RECOVERY-LIVE",
+  "interruptedM3Generation": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981",
+  "approvalConsumed": true,
+  "recoveryResult": "RECOVERY_NOT_ESTABLISHED",
+  "counters": {
+    "recoveryServiceAccountIamPolicyReads": 1,
+    "totalPhysicalRemoteRecoveryCalls": 1,
+    "setIamPolicyCalls": 0,
+    "iamMutations": 0,
+    "retries": 0,
+    "secondRecoveryRead": 0,
+    "m4Mutations": 0,
+    "firestoreCalls": 0
+  },
+  "anchorAndPacketVerified": true,
+  "rawMemberPersisted": false,
+  "rawPrincipalPersisted": false,
+  "rawPolicyPersisted": false,
+  "rawCredentialPersisted": false,
+  "rawAccessTokenPersisted": false,
+  "rawRefreshTokenPersisted": false,
+  "rawStdoutPersisted": false,
+  "rawStderrPersisted": false
+}

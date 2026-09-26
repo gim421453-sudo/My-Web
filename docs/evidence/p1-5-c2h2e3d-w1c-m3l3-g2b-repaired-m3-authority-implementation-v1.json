@@ -1,0 +1,20 @@
+{
+  "schema": "myweb.g2b.repaired-m3.authority-implementation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-REPAIRED-DIRECT-FINAL-AUTHORITY-PREPARATION",
+  "operationGenerationId": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981",
+  "identityFingerprint": "f6b1440b74b5e9d9e9113c159f94e54df2769fdbfa7d002110608d8155cbf08c",
+  "targetResource": "myweb-class-mig-writer-g2@my-management-app-8a933.iam.gserviceaccount.com",
+  "targetRole": "roles/iam.serviceAccountTokenCreator",
+  "reattestationCompositeSha256": "99109ca51c023b724699a086b8797c48085ae237cd50fbd664e0aaa1ff7e037b",
+  "authorizationPreconditionEstablished": true,
+  "localIdentityDiscoveryUsed": 1,
+  "localIdentityDiscoveryRemoteCalls": 0,
+  "recoveryAnchorState": "ANCHOR_VERIFIED",
+  "anchorBoundToOperationGeneration": true,
+  "privacy": {
+    "rawPrincipalPersisted": false,
+    "rawMemberPersisted": false,
+    "rawCredentialPersisted": false,
+    "rawAnchorSecretPersisted": false
+  }
+}

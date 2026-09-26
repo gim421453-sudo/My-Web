@@ -1,0 +1,35 @@
+{
+  "schema": "myweb.g2b.generation-bound-recovery-v2.prospective-safety.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-GENERATION-BOUND-READ-ONLY-RECOVERY-V2",
+  "journalSchema": {
+    "durableBeforeRemoteBoundary": true,
+    "rereadAfterEveryWrite": true,
+    "interruptionStates": [
+      "PREPARED",
+      "APPROVAL_CONSUMED",
+      "REQUEST_STARTED_RESPONSE_UNKNOWN",
+      "PROVIDER_FAILURE_OBSERVED",
+      "RESPONSE_OBSERVED_PARSE_PENDING",
+      "PARSE_FAILED",
+      "ANCHOR_COMPARISON_PENDING",
+      "ANCHOR_COMPARISON_COMPLETE",
+      "TERMINAL_CLASSIFICATION_COMPLETE"
+    ],
+    "rawPolicyPersisted": false,
+    "rawMemberPersisted": false,
+    "rawPrincipalPersisted": false,
+    "rawCredentialPersisted": false,
+    "rawTokenPersisted": false
+  },
+  "operationInstancePersistedBeforeRemoteBoundary": true,
+  "approvalConsumptionPersistedAtRemoteBoundary": true,
+  "requestStartPersistedAtRemoteBoundary": true,
+  "responseObservedPersistedWhenAvailable": true,
+  "httpStatusClassPersistedWhenAvailable": true,
+  "transportResultPersistedWhenAvailable": true,
+  "responseParseResultPersistedWhenAvailable": true,
+  "targetRoleEvaluationResultPersistedWhenAvailable": true,
+  "anchorComparisonResultPersistedWhenAvailable": true,
+  "classifierInputCompletenessPersisted": true,
+  "terminalRecoveryResultPersisted": true
+}

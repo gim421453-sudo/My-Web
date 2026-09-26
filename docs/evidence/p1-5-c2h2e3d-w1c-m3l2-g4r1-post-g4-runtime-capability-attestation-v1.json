@@ -1,0 +1,100 @@
+{
+  "schema": "myweb.m3l2.g4r1.post-g4-runtime-capability-attestation.v1",
+  "g4AttestationSha256": "4519f493a65d91d066cea9847fff9b69dcdb7340c9f391b3b363a75233e6e6b3",
+  "g4ResultDocumentSha256": "a8326a3a67f9e08d4648ec705d8652ab4f5aee45b3c4f2317e3be934db68caa4",
+  "r1b4EvidenceSha256": "4ea429535604ab20b7130280c7209b693ec9a655eb9e9e21094b531bf6027966",
+  "r1b4ResultDocumentSha256": "85453bf6d4c0aa3e8241cdbd1c390fac0b40bcdc40b9874a22034860f52bf9c4",
+  "g4Verdict": "P1_5_C2H2E3D_W1C_M3L2_G4_FAIL_CLOSED_OUTCOME_CLASSIFIER_CORRECTION_PASS_G4R1_REQUIRED",
+  "currentM3State": "ABSENT_PROVEN",
+  "postG4RuntimeLocks": [
+    { "path": "tools/authority-audit/m3RuntimeCommandGraph.mjs", "sha256": "619eb27635f3a8896b46362c231099b2b90ce3c792cac85e05008b2df44d078a" },
+    { "path": "tools/authority-audit/gcloudStderrDiagnosticAnalyzer.mjs", "sha256": "660734f2c7d42bf2e23ed2f3a92081456621c3a0469eed7a1c3787a31358d656" },
+    { "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs", "sha256": "512eaa9fa4fc5ea4f394e1a90116425142e4555df58b65e5d1c41b0d1a56190f" }
+  ],
+  "g4TestLocks": [
+    { "path": "tools/authority-audit-tests/m3RuntimeCommandGraph.test.mjs", "sha256": "a85ca4c7755eff64f5d0f13fca3e6e8ffd100b6d1ebd3138c82392a19a1898d4" },
+    { "path": "tools/authority-audit-tests/m3MutationOutcomeClassifierG4.test.mjs", "sha256": "683b461b5dcebdb05ec1d546bf73c3f6218249ecad043283491a3d8ffc3dbf21" },
+    { "path": "tools/authority-audit-tests/g4FailClosedOutcomeClassifierAttestation.test.mjs", "sha256": "898ff2bd9050ea3eb5303997048a44356d36926b4e59f68464f2b6b498110dfe" }
+  ],
+  "runtimeGraph": {
+    "nodeCount": 9,
+    "edgeCount": 10,
+    "graphIdentity": [
+      { "id": "ROLE_STAGE1", "semanticOperation": "STAGE1_ROLE_READ", "commandSurface": "surface.iam.roles.describe", "argvTemplate": ["iam", "roles", "describe", "<ROLE_ID>", "--project=<LOCKED_PROJECT>", "--format=json", "--verbosity=error"], "predecessorConditions": [], "mutatesState": false },
+      { "id": "ROLE_CANONICAL", "semanticOperation": "CANONICAL_ROLE_READ", "commandSurface": "surface.iam.roles.describe", "argvTemplate": ["iam", "roles", "describe", "<ROLE_ID>", "--project=<LOCKED_PROJECT>", "--format=json", "--verbosity=error"], "predecessorConditions": ["ROLE_STAGE1=EXISTS_EXACT"], "mutatesState": false },
+      { "id": "OP_A", "semanticOperation": "ACTIVE_CALLER_DISCOVERY", "commandSurface": "surface.auth.list", "argvTemplate": ["auth", "list", "--filter=status:ACTIVE", "--format=value(account)", "--verbosity=error"], "predecessorConditions": ["ROLE_CANONICAL=EXISTS_EXACT"], "mutatesState": false },
+      { "id": "OP_B", "semanticOperation": "WRITER_SERVICE_ACCOUNT_METADATA_READ", "commandSurface": "surface.iam.service_accounts.describe", "argvTemplate": ["iam", "service-accounts", "describe", "<EXACT_WRITER_SA>", "--format=json", "--verbosity=error"], "predecessorConditions": ["OP_A=CALLER_IDENTITY_EXACT"], "mutatesState": false },
+      { "id": "OP_C_PRE", "semanticOperation": "WRITER_SERVICE_ACCOUNT_IAM_POLICY_PRECHECK", "commandSurface": "surface.iam.service_accounts.get_iam_policy", "argvTemplate": ["iam", "service-accounts", "get-iam-policy", "<EXACT_WRITER_SA>", "--format=json", "--verbosity=error"], "predecessorConditions": ["OP_B=EXISTS_ENABLED"], "mutatesState": false },
+      { "id": "OP_D_PRE", "semanticOperation": "PROJECT_IAM_POLICY_PRECHECK", "commandSurface": "surface.projects.get_iam_policy", "argvTemplate": ["projects", "get-iam-policy", "<LOCKED_PROJECT>", "--format=json", "--verbosity=error"], "predecessorConditions": ["OP_C_PRE=M3_ABSENT"], "mutatesState": false },
+      { "id": "OP_E", "semanticOperation": "EXACT_WRITER_SERVICE_ACCOUNT_TOKEN_CREATOR_MUTATION", "commandSurface": "surface.iam.service_accounts.add_iam_policy_binding", "argvTemplate": ["iam", "service-accounts", "add-iam-policy-binding", "<EXACT_WRITER_SA>", "--member=<TRANSIENT_VERIFIED_CALLER>", "--role=<TOKEN_CREATOR_ROLE>", "--condition=None", "--quiet", "--verbosity=error"], "predecessorConditions": ["FRESH_AUDIT_BASELINE=SAFE", "M3=ABSENT", "M4=ABSENT"], "mutatesState": true },
+      { "id": "OP_C_POST", "semanticOperation": "WRITER_SERVICE_ACCOUNT_IAM_POLICY_POSTCHECK", "commandSurface": "surface.iam.service_accounts.get_iam_policy", "argvTemplate": ["iam", "service-accounts", "get-iam-policy", "<EXACT_WRITER_SA>", "--format=json", "--verbosity=error"], "predecessorConditions": ["OP_E=CONFIRMED_SUCCESS"], "mutatesState": false },
+      { "id": "OP_D_POST", "semanticOperation": "PROJECT_IAM_POLICY_POSTCHECK", "commandSurface": "surface.projects.get_iam_policy", "argvTemplate": ["projects", "get-iam-policy", "<LOCKED_PROJECT>", "--format=json", "--verbosity=error"], "predecessorConditions": ["OP_C_POST=PRESENT_EXACT"], "mutatesState": false }
+    ],
+    "mutationOperation": "OP_E",
+    "mutationMax": 1,
+    "retryMax": 0,
+    "rollbackAdded": false,
+    "freshPrestateRequired": true
+  },
+  "classifier": {
+    "unknownNonzero": "INDETERMINATE",
+    "errorPrefixV1ProvesRemoteNonApplication": "no",
+    "timeoutAfterMutationStart": "INDETERMINATE",
+    "unknownResultDefault": "INDETERMINATE",
+    "confirmedFailureRules": [],
+    "successSemantics": "EXIT_0_NORMAL_RESPONSE_CONFIRMED_SUCCESS"
+  },
+  "externalCapabilities": [
+    { "id": "E1.surface.iam.roles.describe", "nodeIds": ["ROLE_STAGE1", "ROLE_CANONICAL"], "relativePath": "lib/surface/iam/roles/describe.py", "sha256": "cd591253cbe70fcf12f3145cca2667203fa606b9842afa344de24c6c2eac3739" },
+    { "id": "E1.googlecloudsdk.command_lib.iam.iam_util", "nodeIds": ["ROLE_STAGE1", "ROLE_CANONICAL", "OP_B", "OP_C_PRE", "OP_C_POST", "OP_E"], "relativePath": "lib/googlecloudsdk/command_lib/iam/iam_util.py", "sha256": "eea6f9241e9ba05260e9ea1c7d62ef1b26e4f854179e9348945f0088c91ab30c" },
+    { "id": "E1.googlecloudsdk.command_lib.iam.flags", "nodeIds": ["ROLE_STAGE1", "ROLE_CANONICAL"], "relativePath": "lib/googlecloudsdk/command_lib/iam/flags.py", "sha256": "49a3552d38e32245cb5b5c26cc3df6e1096f91e3d49acbf11eda2014ae536ee2" },
+    { "id": "E3R1_AUTH_LIST_SURFACE", "nodeIds": ["OP_A"], "relativePath": "lib/surface/auth/list.py", "sha256": "5e6effb9cd500b77f157ca4ee2480ac2dbaa6a03a89a56c1bb9b8fd8c08f2c9f" },
+    { "id": "E3R1_AUTH_CREDENTIAL_STORE", "nodeIds": ["OP_A"], "relativePath": "lib/googlecloudsdk/core/credentials/store.py", "sha256": "1fcb3b856eb1584491d6f6160983808ca1f3574e44de86f53ac8d86f882e2a6f" },
+    { "id": "E3R1_SA_DESCRIBE_SURFACE", "nodeIds": ["OP_B"], "relativePath": "lib/surface/iam/service_accounts/describe.py", "sha256": "e44a2fa74029ddf2205212c4ae5242abb396926389d01e7df0b7dc84c2ad9e97" },
+    { "id": "E3R1_IAM_API_UTIL", "nodeIds": ["OP_B", "OP_C_PRE", "OP_C_POST"], "relativePath": "lib/googlecloudsdk/api_lib/iam/util.py", "sha256": "c937f8fba54e954e6df7c36b05c15c3481cf3f491e9deb8836ca236c6f4f1ace" },
+    { "id": "E3R1_SA_POLICY_SURFACE", "nodeIds": ["OP_C_PRE", "OP_C_POST"], "relativePath": "lib/surface/iam/service_accounts/get_iam_policy.py", "sha256": "d462fb1e622d70dc1396b9834a3e73cfd42253939fc8d38f018a0a2b368493cb" },
+    { "id": "E3R1_PROJECT_POLICY_SURFACE", "nodeIds": ["OP_D_PRE", "OP_D_POST"], "relativePath": "lib/surface/projects/get_iam_policy.py", "sha256": "8c4b508f7d8edb65469e8379960af9fab9ad111b56b9867a4c1657598fa3b5b5" },
+    { "id": "E3R1_PROJECT_FLAGS", "nodeIds": ["OP_D_PRE", "OP_D_POST"], "relativePath": "lib/googlecloudsdk/command_lib/projects/flags.py", "sha256": "8428e8ee07add7609a62ba6d3abf295fca96d9078a5e94e676297f2792748955" },
+    { "id": "E3R1_PROJECT_UTIL", "nodeIds": ["OP_D_PRE", "OP_D_POST"], "relativePath": "lib/googlecloudsdk/command_lib/projects/util.py", "sha256": "9201fc0e4a3a244ac30eaf6b7ac538c27beee36f1a9b2c9c01e1aa21baa174c6" },
+    { "id": "E3R1_PROJECTS_API", "nodeIds": ["OP_D_PRE", "OP_D_POST"], "relativePath": "lib/googlecloudsdk/api_lib/cloudresourcemanager/projects_api.py", "sha256": "e08ed37b822d57201fab09c7d117e31fa5ab2fbb840f600cbdf87402e6370823" },
+    { "id": "E3R1_SA_BINDING_SCHEMA", "nodeIds": ["OP_E"], "relativePath": "lib/surface/iam/service_accounts/add_iam_policy_binding.yaml", "sha256": "fcf41f4485dcdb29457feb081a82829013ff74c78543e3d1777fe6b01ad22042" },
+    { "id": "E3R1_YAML_TRANSLATOR", "nodeIds": ["OP_E"], "relativePath": "lib/googlecloudsdk/command_lib/util/apis/yaml_command_translator.py", "sha256": "45eed2296837b2b4eadc9a228f050574ba8629ceec059f5cbb546fbb9460f796" },
+    { "id": "E3R1_IAM_RESOURCES", "nodeIds": ["OP_E"], "relativePath": "lib/googlecloudsdk/command_lib/iam/resources.yaml", "sha256": "4f98b44238a7f137be027c6338283a5e4ce7e402fb2270e718c1a0ccce692ee8" }
+  ],
+  "commandSurface": {
+    "opA": "surface.auth.list",
+    "opB": "surface.iam.service_accounts.describe",
+    "opC": "surface.iam.service_accounts.get_iam_policy",
+    "opD": "surface.projects.get_iam_policy",
+    "opE": "surface.iam.service_accounts.add_iam_policy_binding",
+    "opEArgvChanged": false,
+    "opCArgvChanged": false,
+    "overallChanged": false
+  },
+  "pathContainment": {
+    "sdkPathContainment": "PASS",
+    "sdkIdentityMatch": "yes",
+    "serviceAccountJsonKeyPath": "ABSENT"
+  },
+  "forbiddenReachability": {
+    "m4": false,
+    "firestore": false,
+    "tokenGeneration": false,
+    "writerImpersonation": false,
+    "serviceAccountKey": false,
+    "cloudLogging": false
+  },
+  "privacy": {
+    "rawIdentity": false,
+    "rawPolicy": false,
+    "rawToken": false,
+    "rawPath": false,
+    "rawProcessOutput": false
+  },
+  "futureAuthority": {
+    "historicalRg2cReusable": false,
+    "historicalG2r1Reusable": false,
+    "freshFinalCompositeRequired": true,
+    "newM3ApprovalRequired": true
+  }
+}

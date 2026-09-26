@@ -1,0 +1,79 @@
+{
+  "schema": "myweb.m3l3.post-identity-patch-live-execution.v1",
+  "g4r3r2CompositeSha256": "1bc8cef8f28de978aead7d1b82033c32fa8f45a2b98a53e9d79ec66f28943195",
+  "g4r3r2ResultDocumentSha256": "f0421acdaf1f9649b7314613a381c8c82072f84d70365c2e8c51b66876d16ac7",
+  "g4r3r1AttestationSha256": "82e72c67adf78a837c82c877505ab6265cfa64fda8e14e280964860c1e7909b9",
+  "g4r3hR2AttestationSha256": "dd488891964eeac9427557b95c5cf46a42bb2f5969bbc6bcba6f55c176c79adc",
+  "approval": {
+    "granted": true,
+    "consumed": false,
+    "consumptionPoint": "FIRST_FRESH_EXACT_PRESTATE_REMOTE_IAM_READ",
+    "reusable": false,
+    "status": "NOT_REACHED"
+  },
+  "budgetContract": {
+    "lockedCompositeProjectIamReadsMax": 2,
+    "approvedProjectIamReadsMax": 0,
+    "requiredGraphProjectIamReadNodes": ["OP_D_PRE", "OP_D_POST"],
+    "compatible": false,
+    "decision": "ABORT_BEFORE_OP_A"
+  },
+  "budgets": {
+    "localIdentityDiscoveryUsed": 0,
+    "prestateReadsUsed": 0,
+    "mutationAttemptsUsed": 0,
+    "poststateReadsUsed": 0,
+    "retriesUsed": 0
+  },
+  "identity": {
+    "discoveryResult": "NOT_EXECUTED_BUDGET_GATE_FAILURE",
+    "exactContextEstablished": false,
+    "rawIdentityPersisted": false
+  },
+  "prestate": {
+    "result": "NOT_EXECUTED",
+    "readsUsed": 0
+  },
+  "mutation": {
+    "attempted": false,
+    "outcome": "NOT_ATTEMPTED",
+    "retryCount": 0,
+    "rollbackCount": 0,
+    "secondMutationAttempted": false
+  },
+  "poststate": {
+    "required": true,
+    "executed": false,
+    "result": "NOT_EXECUTED",
+    "readsUsed": 0
+  },
+  "m3FinalState": "ABSENT_PROVEN_FRESH_PRESTATE_NOT_EXECUTED",
+  "m4": {
+    "approvalGranted": false,
+    "mutations": 0
+  },
+  "forbiddenOperations": {
+    "accessTokenCalls": 0,
+    "cloudLoggingReads": 0,
+    "deployments": 0,
+    "firestoreApiCalls": 0,
+    "projectIamMutations": 0,
+    "projectIamReads": 0,
+    "serviceAccountKeyOperations": 0,
+    "testIamPermissionsCalls": 0
+  },
+  "privacy": {
+    "configRootPersisted": false,
+    "credentialPersisted": false,
+    "rawIdentityPersisted": false,
+    "rawIamPolicyPersisted": false,
+    "rawProcessOutputPersisted": false,
+    "tokenPersisted": false
+  },
+  "tests": {
+    "safeAuthorityFilesRun": 28,
+    "safeAuthorityFilesPassed": 28,
+    "gcloudVersionHelpStatus": "NOT_RUN_BY_ZERO_GCLOUD_POLICY"
+  },
+  "finalVerdict": "P1_5_C2H2E3D_W1C_M3L3_LIVE_BUDGET_VIOLATION"
+}

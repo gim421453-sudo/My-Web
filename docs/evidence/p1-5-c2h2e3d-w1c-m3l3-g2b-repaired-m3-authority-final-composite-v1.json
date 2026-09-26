@@ -1,0 +1,11 @@
+{
+  "schema": "myweb.g2b.repaired-m3.authority-final-execution-composite.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-REPAIRED-DIRECT-FINAL-AUTHORITY-PREPARATION",
+  "operationGenerationId": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981",
+  "sourceLockManifestSha256": "8903290b1512a96ff3d1e52bcd4ce4cdb679c991fe3d5e3f7c1c5ee38f992692",
+  "implementationSha256": "37d3a191ebebf28f1a54d9e1029991058d45c7b8bfab69b5485c8052eccec366",
+  "runtimeCapabilitySha256": "52d506d1fa3f4a66d1d2bb86be7d1cfbf5d4f1d8d05feca5e6abfb7dfc73cdc2",
+  "authorityChain": "V3_PERMISSION_EVIDENCE->V3_RUNTIME_CONTINUITY->REPAIRED_DIRECT_M3_REATTESTATION->DPAPI_RECOVERY_REATTESTATION->LOCAL_PINNED_IDENTITY->GENERATION_BOUND_HMAC_ANCHOR",
+  "m3ExecutionReachableWithoutSeparateApproval": false,
+  "remoteOperations": 0
+}

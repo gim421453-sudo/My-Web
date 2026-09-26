@@ -1,0 +1,138 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+export const M3L3_RF1_SCHEMA = "myweb.m3l3.rf1.local-result-assembly-fix-attestation.v1";
+export const M3L3_RF1_VERDICT = "P1_5_C2H2E3D_W1C_M3L3_RF1_LOCAL_RESULT_ASSEMBLY_FIX_PASS";
+
+const SOURCE_LOCKS = Object.freeze([
+  Object.freeze({
+    path: "tools/authority-audit/m3l3SafeResultAssembler.mjs",
+    sha256: "5b82053f6c151146b15ddbfda34e8061ea22a0ef2e3dab7b59476135ddea2a2d",
+  }),
+  Object.freeze({
+    path: "tools/authority-audit-tests/m3l3SafeResultAssembler.test.mjs",
+    sha256: "4319f6cbd47c4996981e6b48160d0dbae340143015f12fa171fd4e703a9002c2",
+  }),
+  Object.freeze({
+    path: "tools/authority-audit/m3l3PostFailureRecoveryPlan.mjs",
+    sha256: "7b22e73a893bd1d2a990d146fcd414d00039033fc868ac03a6f35a7cd765418a",
+  }),
+  Object.freeze({
+    path: "tools/authority-audit-tests/m3l3PostFailureRecoveryPlan.test.mjs",
+    sha256: "1dfc1f813e04427e85bfa592ef26c6bd143ed55fe8006dd2e0d5b80dcf3cc715",
+  }),
+]);
+
+function sortValue(value) {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(sortValue);
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortValue(value[key])]));
+}
+
+function exact(value, expected) {
+  return JSON.stringify(sortValue(value)) === JSON.stringify(sortValue(expected));
+}
+
+function hashFile(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+export function buildM3L3Rf1Attestation() {
+  return {
+    schema: M3L3_RF1_SCHEMA,
+    authority: {
+      g4r3r2Composite: "1bc8cef8f28de978aead7d1b82033c32fa8f45a2b98a53e9d79ec66f28943195",
+      g4r3r1Attestation: "82e72c67adf78a837c82c877505ab6265cfa64fda8e14e280964860c1e7909b9",
+      g4r3hR2Attestation: "dd488891964eeac9427557b95c5cf46a42bb2f5969bbc6bcba6f55c176c79adc",
+      correctedLiveEvidence: "8595cabe34d7f04b8433ef0db99faf364ab51ec337e4764c4b8fbb637b7de322",
+      correctedLiveResultDocument: "d842cb49f47f708ddefd0552b09ed402f03e06a5c31c7d4d0a2c39abde98d784",
+    },
+    rootCause: {
+      bugClass: "RESULT_ASSEMBLY_VARIABLE_NAME_MISMATCH",
+      declaredSymbol: "projectIamReadsAfterPrestate",
+      referencedSymbol: "projectIamReadsUsedAfterPrestate",
+      failureStage: "POST_RUNTIME_RETURN_SAFE_PROJECTION",
+      runtimeCallAlreadyCompletedBeforeReferenceError: true,
+      proof: {
+        persistedRuntimeAwaitCompleted: true,
+        persistedSafeResultEmitted: false,
+        syntheticPostAwaitReferenceErrorReproduced: true,
+      },
+    },
+    fix: {
+      implementation: "PURE_SAFE_RESULT_ASSEMBLER",
+      explicitInputToOutputMapping: "projectIamReadsAfterPrestate_TO_projectIamReadsUsedAfterPrestate",
+      knownResultSerialization: "PASS",
+      unknownResultSerialization: "PASS",
+      boundedCounterValidation: "PASS",
+      sensitiveInputRejection: "PASS",
+    },
+    sourceLocks: SOURCE_LOCKS.map((entry) => ({ ...entry })),
+    authorityImpact: {
+      lockedRuntimeChanged: false,
+      commandGraphChanged: false,
+      identityContractChanged: false,
+      mutationSemanticsChanged: false,
+      g4r3hR2SupersessionRequired: false,
+      g4r3r1SupersessionRequired: false,
+      g4r3r2SupersessionRequired: false,
+      evidenceToolingAttestationAdded: true,
+    },
+    recoveryPlan: {
+      sha256: "0e5156bdc9040f541c36e22892621ae1a48c9019fc1d060cd6ae2dbcdd0cc501",
+      remoteIamReadsMax: 1,
+      iamMutationsMax: 0,
+      approvalRequired: true,
+      executed: false,
+    },
+    privacy: {
+      exactIdentityPersisted: false,
+      exactIamMemberPersisted: false,
+      rawIamPolicyPersisted: false,
+      rawProcessOutputPersisted: false,
+      configRootPersisted: false,
+      credentialPersisted: false,
+      tokenPersisted: false,
+    },
+    execution: {
+      productionCalls: 0,
+      iamReads: 0,
+      iamMutations: 0,
+      firestoreCalls: 0,
+      deployments: 0,
+    },
+    verdict: M3L3_RF1_VERDICT,
+  };
+}
+
+export function canonicalizeM3L3Rf1Attestation(payload) {
+  if (!exact(payload, buildM3L3Rf1Attestation())) throw new Error("invalid-m3l3-rf1-attestation");
+  return JSON.stringify(sortValue(payload));
+}
+
+export function computeM3L3Rf1AttestationSha256(payload) {
+  return createHash("sha256").update(canonicalizeM3L3Rf1Attestation(payload), "utf8").digest("hex");
+}
+
+export function verifyM3L3Rf1Attestation(payload, { repositoryRoot = process.cwd() } = {}) {
+  if (!exact(payload, buildM3L3Rf1Attestation())) return Object.freeze({ ok: false, code: "INVALID_RF1_ATTESTATION" });
+  for (const lock of SOURCE_LOCKS) {
+    if (hashFile(resolve(repositoryRoot, lock.path)) !== lock.sha256) {
+      return Object.freeze({ ok: false, code: "RF1_SOURCE_LOCK_DRIFT" });
+    }
+  }
+  return Object.freeze({
+    ok: true,
+    code: "LOCAL_RESULT_ASSEMBLY_FIX_ATTESTED",
+    sha256: computeM3L3Rf1AttestationSha256(payload),
+  });
+}
+
+export const M3L3_RF1_CONTRACT = Object.freeze({
+  networkAccess: false,
+  processSpawn: false,
+  productionAccess: false,
+  lockedRuntimeMutation: false,
+  canonicalization: "recursive-lexicographic-json-utf8-sha256",
+});

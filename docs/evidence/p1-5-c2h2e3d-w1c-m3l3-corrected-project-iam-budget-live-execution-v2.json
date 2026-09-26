@@ -1,0 +1,92 @@
+{
+  "schema": "myweb.m3l3.corrected-project-iam-budget-live-execution.v2",
+  "g4r3r2CompositeSha256": "1bc8cef8f28de978aead7d1b82033c32fa8f45a2b98a53e9d79ec66f28943195",
+  "g4r3r2ResultDocumentSha256": "f0421acdaf1f9649b7314613a381c8c82072f84d70365c2e8c51b66876d16ac7",
+  "g4r3r1AttestationSha256": "82e72c67adf78a837c82c877505ab6265cfa64fda8e14e280964860c1e7909b9",
+  "g4r3hR2AttestationSha256": "dd488891964eeac9427557b95c5cf46a42bb2f5969bbc6bcba6f55c176c79adc",
+  "b1ReconciliationAttestationSha256": "eba97da43c4199ec2fcce04badae447e7a9a92f598d52a2e09dca969ab45a473",
+  "previousStoppedApproval": {
+    "consumed": false,
+    "reusable": false
+  },
+  "newApprovalBudget": {
+    "localIdentityDiscoveryMax": 1,
+    "remoteIamPrestateReadsMax": 5,
+    "iamMutationAttemptsMax": 1,
+    "remoteIamPoststateReadsMax": 2,
+    "projectIamReadsMax": 2,
+    "retriesMax": 0,
+    "cloudLoggingReadsMax": 0,
+    "testIamPermissionsMax": 0,
+    "accessTokenCallsMax": 0,
+    "firestoreCallsMax": 0,
+    "m4MutationsMax": 0,
+    "serviceAccountKeyOperationsMax": 0
+  },
+  "allowedProjectIamReadNodes": ["OP_D_PRE", "OP_D_POST"],
+  "crossBudgetClassification": {
+    "OP_D_PRE": ["remoteIamPrestateRead", "projectIamRead"],
+    "OP_D_POST": ["remoteIamPoststateRead", "projectIamRead"]
+  },
+  "actualUsage": {
+    "evidenceAvailability": "UNRECOVERABLE_AFTER_RUNTIME_RETURN_BEFORE_SAFE_OUTPUT",
+    "localIdentityDiscovery": { "known": false, "min": 0, "max": 1 },
+    "remoteIamPrestateReads": { "known": false, "min": 0, "max": 5 },
+    "iamMutationAttempts": { "known": false, "min": 0, "max": 1 },
+    "remoteIamPoststateReads": { "known": false, "min": 0, "max": 2 },
+    "projectIamReads": { "known": false, "min": 0, "max": 2 },
+    "projectIamReadNodes": {
+      "OP_D_PRE": { "known": false, "minExecutions": 0, "maxExecutions": 1, "physicalCallsPerExecution": 1 },
+      "OP_D_POST": { "known": false, "minExecutions": 0, "maxExecutions": 1, "physicalCallsPerExecution": 1 }
+    }
+  },
+  "approvalConsumption": {
+    "consumed": true,
+    "reusable": false,
+    "status": "CONSUMED_NON_REUSABLE",
+    "reason": "FAIL_CLOSED_AFTER_APPROVED_RUNTIME_SESSION_STARTED"
+  },
+  "executionFailure": {
+    "category": "LOCAL_RESULT_SERIALIZATION_FAILURE",
+    "code": "SAFE_OUTPUT_FIELD_NAME_REFERENCE_ERROR",
+    "runtimeAwaitCompleted": true,
+    "safeResultEmitted": false,
+    "remoteRecoveryPerformed": false
+  },
+  "prestateResult": "UNKNOWN_NOT_RECOVERED",
+  "mutationOutcome": "UNKNOWN_NOT_RECOVERED",
+  "poststateResult": "UNKNOWN_NOT_RECOVERED",
+  "finalM3State": "NOT_ESTABLISHED_RESULT_UNAVAILABLE",
+  "safetyClaims": {
+    "projectIamReadOutsideAllowlistReachable": false,
+    "poststateAfterIndeterminateReachable": false,
+    "prestatePresentAutoAdoptReachable": false,
+    "secondMutationReachable": false,
+    "m4MutationOccurred": false
+  },
+  "forbiddenOperationCounts": {
+    "retries": 0,
+    "rollbacks": 0,
+    "m4Mutations": 0,
+    "projectIamMutations": 0,
+    "accessTokenCalls": 0,
+    "firestoreCalls": 0,
+    "cloudLoggingReads": 0,
+    "testIamPermissionsCalls": 0,
+    "serviceAccountKeyOperations": 0
+  },
+  "privacy": {
+    "exactIdentityPersisted": false,
+    "rawIamPolicyPersisted": false,
+    "rawProcessOutputPersisted": false,
+    "configRootPersisted": false,
+    "credentialPersisted": false,
+    "tokenPersisted": false
+  },
+  "tests": {
+    "safeAuthorityFilesRun": 31,
+    "safeAuthorityFilesPassed": 31,
+    "gcloudVersionHelpStatus": "NOT_RUN_BY_ZERO_GCLOUD_POLICY"
+  },
+  "finalVerdict": "P1_5_C2H2E3D_W1C_M3L3_BLOCKED"
+}

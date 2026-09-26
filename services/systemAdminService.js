@@ -37,6 +37,21 @@
     return runtime;
   }
 
+  function trustedAuthorityRequested() {
+    if (window.PMTrustedBackendService?.isAuthorityEnabled?.() === true) return true;
+    return window.PMTrustedBackendAuthorityConfig?.TRUSTED_BACKEND_AUTHORITY_ENABLED === true;
+  }
+
+  function trustedBackendRequired() {
+    const service = window.PMTrustedBackendService;
+    if (!service || typeof service.createAdminApplication !== "function") {
+      const error = new Error("안전한 서버 처리를 사용할 수 없습니다.");
+      error.code = "INTERNAL";
+      throw error;
+    }
+    return service;
+  }
+
   function serverTimestamp(runtime) {
     return runtime.sdk.firestore.serverTimestamp();
   }
@@ -179,6 +194,9 @@
   }
 
   async function submitJoinRequest({ user, code }) {
+    if (trustedAuthorityRequested()) {
+      return trustedBackendRequired().submitWorkspaceJoinRequest({ code });
+    }
     const runtime = await runtimeRequired();
     const normalized = normalizeCode(code);
     if (!normalized) throw new Error("초대코드를 입력하세요.");
@@ -237,7 +255,24 @@
     return { requestId, workspaceId, inviteCodeId: normalized, invitedBy: inviteOwnerUid };
   }
 
-  async function submitAdminApplication({ user, fields }) {
+  async function submitAdminApplication({ user, fields, trustedContext }) {
+    if (trustedAuthorityRequested()) {
+      if (String(fields?.requestedWorkspaceName || "").trim()) {
+        return trustedBackendRequired().createWorkspaceBootstrapApplication({
+          requestedWorkspaceName: fields.requestedWorkspaceName,
+          reason: fields?.reason || null
+        }, trustedContext);
+      }
+      const workspaceId = fields?.workspaceId
+        || user?.pendingWorkspaceId
+        || user?.currentWorkspaceId
+        || "";
+      return trustedBackendRequired().createAdminApplication({
+        workspaceId,
+        requestedRole: fields?.requestedRole || "normal",
+        reason: fields?.reason || null
+      }, trustedContext);
+    }
     const runtime = await runtimeRequired();
     const uid = user?.uid || user?.id || runtime.auth.currentUser?.uid || "";
     if (!uid) throw new Error("로그인 사용자 정보를 확인할 수 없습니다.");
@@ -329,6 +364,16 @@
     return () => unsubscribe();
   }
 
+  function trustedOneShotSubscription(loader, onChange, onError) {
+    let active = true;
+    Promise.resolve().then(loader).then((rows) => {
+      if (active) onChange?.(rows || []);
+    }).catch((error) => {
+      if (active) onError?.(error);
+    });
+    return () => { active = false; };
+  }
+
   function subscribeCollectionGroup(collectionName, onChange, onError) {
     let unsubscribe = () => {};
     runtimeRequired()
@@ -348,6 +393,13 @@
   }
 
   function subscribeWorkspaceMembers(onChange, onError) {
+    if (trustedAuthorityRequested()) {
+      return trustedOneShotSubscription(
+        async () => (await loadTrustedManagementSnapshot({ limit: 100 })).workspaceMembers,
+        onChange,
+        onError
+      );
+    }
     let rootRows = [];
     let nestedRows = [];
     let rootUnsubscribe = () => {};
@@ -387,6 +439,9 @@
   }
 
   async function listWorkspaceMembers() {
+    if (trustedAuthorityRequested()) {
+      return (await loadTrustedManagementSnapshot({ limit: 100 })).workspaceMembers;
+    }
     const runtime = await runtimeRequired();
     const [rootResult, nestedResult] = await Promise.allSettled([
       runtime.db.collection("workspace_members").get(),
@@ -397,6 +452,53 @@
     if (rootResult.status === "rejected") console.error("[workspace-members:root:get:error]", rootResult.reason);
     if (nestedResult.status === "rejected") console.error("[workspace-members:nested:get:error]", nestedResult.reason);
     return mergeWorkspaceMemberRows(rootRows, nestedRows);
+  }
+
+  async function loadTrustedManagementSnapshot(options = {}) {
+    if (!trustedAuthorityRequested()) {
+      const error = new Error("Trusted management reads are disabled.");
+      error.code = "FAILED_PRECONDITION";
+      throw error;
+    }
+    const trusted = trustedBackendRequired();
+    const limit = Number.isInteger(options.limit) ? options.limit : 100;
+    const workspacePage = await trusted.listOwnerWorkspaces({ limit }, options.trustedContext);
+    const workspaces = workspacePage.items.map((row) => ({ ...row, id: row.workspaceId }));
+    const [applicationsPage, joinsPage, usersPage, memberPages, invitationPages] = await Promise.all([
+      trusted.listAdminApplications({ limit }, options.trustedContext),
+      trusted.listWorkspaceJoinRequests({ limit }, options.trustedContext),
+      trusted.listManagementUsers({ limit }, options.trustedContext),
+      Promise.all(workspaces.map((workspace) => trusted.listWorkspaceMembers({
+        workspaceId: workspace.workspaceId,
+        limit
+      }, options.trustedContext))),
+      Promise.all(workspaces.map((workspace) => trusted.listInvitations({
+        workspaceId: workspace.workspaceId,
+        limit
+      }, options.trustedContext)))
+    ]);
+    const workspaceMembers = memberPages.flatMap((page) => page.items).map((row) => ({
+      ...row,
+      id: `${row.workspaceId}_${row.uid}`,
+      currentWorkspaceId: row.workspaceId,
+      workspace_id: row.workspaceId,
+      rootMemberExists: false,
+      nestedMemberExists: true
+    }));
+    return Object.freeze({
+      workspaces,
+      adminApplications: applicationsPage.items.map((row) => ({ ...row, id: row.applicationId })),
+      joinRequests: joinsPage.items.map((row) => ({ ...row, id: row.requestId })),
+      users: usersPage.items.map((row) => ({ ...row, id: row.uid })),
+      workspaceMembers,
+      invitations: invitationPages.flatMap((page) => page.items),
+      adminLogs: [],
+      truncated: Boolean(
+        workspacePage.nextCursor || applicationsPage.nextCursor || joinsPage.nextCursor
+        || usersPage.nextCursor || memberPages.some((page) => page.nextCursor)
+        || invitationPages.some((page) => page.nextCursor)
+      )
+    });
   }
 
   function subscribeWorkspaceNotices(workspaceIds, onChange, onError) {
@@ -453,6 +555,14 @@
   }
 
   async function approveJoinRequest(request, selectedRole = "normal") {
+    if (trustedAuthorityRequested()) {
+      const trustedContext = typeof selectedRole === "object" && selectedRole !== null
+        ? selectedRole.trustedContext
+        : undefined;
+      return trustedBackendRequired().approveWorkspaceJoinRequest({
+        requestId: request?.id || request?.requestId || ""
+      }, trustedContext);
+    }
     const runtime = await runtimeRequired();
     const uid = request.uid;
     const options = typeof selectedRole === "object" && selectedRole !== null ? selectedRole : { role: selectedRole };
@@ -511,6 +621,11 @@
   }
 
   async function rejectJoinRequest(request) {
+    if (trustedAuthorityRequested()) {
+      return trustedBackendRequired().rejectWorkspaceJoinRequest({
+        requestId: request?.id || request?.requestId || ""
+      });
+    }
     const runtime = await runtimeRequired();
     const now = serverTimestamp(runtime);
     const ownerUid = runtime.auth.currentUser?.uid || "";
@@ -532,6 +647,21 @@
   }
 
   async function approveAdminApplication(application, options = {}) {
+    if (trustedAuthorityRequested()) {
+      if (application?.applicationType === "WORKSPACE_BOOTSTRAP") {
+        return trustedBackendRequired().approveWorkspaceBootstrap({
+          applicationId: application?.id || ""
+        }, options.trustedContext);
+      }
+      if (options.workspaceMode === "new") {
+        const error = new Error("A canonical WORKSPACE_BOOTSTRAP application is required.");
+        error.code = "trusted-workspace-bootstrap-application-required";
+        throw error;
+      }
+      return trustedBackendRequired().approveAdminApplication({
+        applicationId: application?.id || ""
+      }, options.trustedContext);
+    }
     const runtime = await runtimeRequired();
     const now = serverTimestamp(runtime);
     const ownerUid = runtime.auth.currentUser?.uid || "";
@@ -605,7 +735,12 @@
     await logAdminAction(runtime, { action: "approve_admin_application", targetUid: uid, workspaceId, after: { role, applicationId: application.id } });
   }
 
-  async function rejectAdminApplication(application) {
+  async function rejectAdminApplication(application, options = {}) {
+    if (trustedAuthorityRequested()) {
+      return trustedBackendRequired().rejectAdminApplication({
+        applicationId: application?.id || ""
+      }, options.trustedContext);
+    }
     const runtime = await runtimeRequired();
     const now = serverTimestamp(runtime);
     const ownerUid = runtime.auth.currentUser?.uid || "";
@@ -917,6 +1052,48 @@
   }
 
   async function updateUserAdminFields(options = {}) {
+    if (trustedAuthorityRequested()) {
+      assertSafeRoleGrantPayload(options);
+      const user = options.user || {};
+      const uid = targetUserId(user);
+      const beforeWorkspaceId = targetWorkspaceId(user);
+      const workspaceId = String(options.workspaceId || beforeWorkspaceId || "").trim();
+      const role = normalizeAdminRole(options.role || user.role || user.currentRole || "normal");
+      if (!uid || !workspaceId || !role || role === "system_owner") {
+        const error = new Error("Canonical workspace member role input is required.");
+        error.code = "trusted-membership-input-invalid";
+        throw error;
+      }
+      if (beforeWorkspaceId && beforeWorkspaceId !== workspaceId) {
+        const error = new Error("Role changes cannot move a user between workspaces.");
+        error.code = "role-grant-workspace-move-denied";
+        throw error;
+      }
+      const response = await trustedBackendRequired().updateWorkspaceMemberRole({
+        workspaceId,
+        targetUid: uid,
+        newRole: role
+      }, options.trustedContext);
+      const result = response.result;
+      return {
+        uid,
+        workspaceId: result.workspaceId,
+        role: result.role,
+        status: result.membershipStatus,
+        rootMemberExists: false,
+        nestedMemberExists: true,
+        verified: true,
+        sessionRefreshRequired: result.sessionRefreshRequired === true,
+        verification: {
+          expectedRole: role,
+          expectedStatus: "active",
+          nestedExists: true,
+          nestedRole: result.role,
+          nestedStatus: result.membershipStatus,
+          workspaceMatches: result.workspaceId === workspaceId
+        }
+      };
+    }
     const runtime = await runtimeRequired();
     assertSafeRoleGrantPayload(options);
     const user = options.user || {};
@@ -1091,6 +1268,12 @@
   }
 
   async function disableUserAccount(user) {
+    if (trustedAuthorityRequested()) {
+      return trustedBackendRequired().disableUserAccount({
+        targetUid: targetUserId(user),
+        reasonCode: "security_admin_action"
+      }, user?.trustedContext);
+    }
     const runtime = await runtimeRequired();
     const now = serverTimestamp(runtime);
     const uid = assertMutableUser(runtime, user);
@@ -1130,6 +1313,12 @@
   }
 
   async function enableUserAccount(user) {
+    if (trustedAuthorityRequested()) {
+      return trustedBackendRequired().enableUserAccount({
+        targetUid: targetUserId(user),
+        reasonCode: "security_admin_action"
+      }, user?.trustedContext);
+    }
     const runtime = await runtimeRequired();
     const now = serverTimestamp(runtime);
     const uid = assertMutableUser(runtime, user);
@@ -1175,6 +1364,11 @@
   }
 
   async function deleteUserFirestoreProfile(user) {
+    if (trustedAuthorityRequested()) {
+      const error = new Error("Account deletion is deferred until retention and tombstone policy approval.");
+      error.code = "trusted-account-deletion-deferred";
+      throw error;
+    }
     const runtime = await runtimeRequired();
     const uid = assertMutableUser(runtime, user);
     const workspaceId = targetWorkspaceId(user);
@@ -1190,6 +1384,43 @@
     await logAdminAction(runtime, { action: "delete_user_firestore_profile", targetUid: uid, workspaceId, after: { email: user?.email || "", authDeleted: false } });
   }
 
+  async function setWorkspaceMemberStatus(options = {}) {
+    if (!trustedAuthorityRequested()) {
+      const error = new Error("Trusted membership status operation is disabled.");
+      error.code = "trusted-membership-operation-disabled";
+      throw error;
+    }
+    return trustedBackendRequired().setWorkspaceMemberStatus({
+      workspaceId: options.workspaceId || targetWorkspaceId(options.user || {}),
+      targetUid: options.targetUid || targetUserId(options.user || {}),
+      status: options.status
+    }, options.trustedContext);
+  }
+
+  async function removeWorkspaceMember(options = {}) {
+    if (!trustedAuthorityRequested()) {
+      const error = new Error("Trusted membership removal operation is disabled.");
+      error.code = "trusted-membership-operation-disabled";
+      throw error;
+    }
+    return trustedBackendRequired().removeWorkspaceMember({
+      workspaceId: options.workspaceId || targetWorkspaceId(options.user || {}),
+      targetUid: options.targetUid || targetUserId(options.user || {})
+    }, options.trustedContext);
+  }
+
+  async function setWorkspaceLifecycle(options = {}) {
+    if (!trustedAuthorityRequested()) {
+      const error = new Error("Trusted workspace lifecycle operation is disabled.");
+      error.code = "trusted-workspace-lifecycle-disabled";
+      throw error;
+    }
+    return trustedBackendRequired().setWorkspaceLifecycle({
+      workspaceId: options.workspaceId,
+      status: options.status
+    }, options.trustedContext);
+  }
+
   const OPERATION_MODES = new Set(["personal", "school", "academy", "integrated_unconfigured"]);
 
   function operationModeCounts(runtime, workspaceId) {
@@ -1200,7 +1431,25 @@
     })).then((entries) => Object.fromEntries(entries));
   }
 
-  async function changeWorkspaceOperationMode({ workspaceId, operationMode, reason = "" } = {}) {
+  async function changeWorkspaceOperationMode(options = {}) {
+    const { workspaceId, operationMode, reason = "", expectedMode, trustedContext } = options;
+    if (trustedAuthorityRequested()) {
+      const response = await trustedBackendRequired().setWorkspaceOperationMode({
+        workspaceId,
+        expectedMode,
+        newMode: operationMode,
+        reason
+      }, trustedContext);
+      return {
+        workspaceId: response.result.workspaceId,
+        previousMode: response.result.previousMode,
+        nextMode: response.result.nextMode,
+        operationModeVersion: response.result.operationModeVersion,
+        beforeCounts: null,
+        afterCounts: null,
+        dataPreserved: response.result.dataPreserved === true
+      };
+    }
     const runtime = await runtimeRequired();
     const owner = runtime.auth.currentUser;
     if (!owner?.uid || !await isSystemOwner(owner.uid)) {
@@ -1278,14 +1527,25 @@
     submitAdminApplication,
     subscribeCurrentUser,
     subscribeSystemNotices,
-    subscribeUsers: (onChange, onError) => subscribeCollection("users", onChange, onError),
-    subscribeWorkspaces: (onChange, onError) => subscribeCollection("workspaces", onChange, onError),
+    subscribeUsers: (onChange, onError) => trustedAuthorityRequested()
+      ? trustedOneShotSubscription(async () => (await trustedBackendRequired().listManagementUsers({ limit: 100 })).items, onChange, onError)
+      : subscribeCollection("users", onChange, onError),
+    subscribeWorkspaces: (onChange, onError) => trustedAuthorityRequested()
+      ? trustedOneShotSubscription(async () => (await trustedBackendRequired().listOwnerWorkspaces({ limit: 100 })).items.map((row) => ({ ...row, id: row.workspaceId })), onChange, onError)
+      : subscribeCollection("workspaces", onChange, onError),
     subscribeWorkspaceMembers,
     listWorkspaceMembers,
+    loadTrustedManagementSnapshot,
     subscribeWorkspaceNotices,
-    subscribeJoinRequests: (onChange, onError) => subscribeCollection("workspaceJoinRequests", onChange, onError),
-    subscribeAdminApplications: (onChange, onError) => subscribeCollection("adminApplications", onChange, onError),
-    subscribeAdminLogs: (onChange, onError) => subscribeCollection("adminLogs", onChange, onError),
+    subscribeJoinRequests: (onChange, onError) => trustedAuthorityRequested()
+      ? trustedOneShotSubscription(async () => (await trustedBackendRequired().listWorkspaceJoinRequests({ limit: 100 })).items.map((row) => ({ ...row, id: row.requestId })), onChange, onError)
+      : subscribeCollection("workspaceJoinRequests", onChange, onError),
+    subscribeAdminApplications: (onChange, onError) => trustedAuthorityRequested()
+      ? trustedOneShotSubscription(async () => (await trustedBackendRequired().listAdminApplications({ limit: 100 })).items.map((row) => ({ ...row, id: row.applicationId })), onChange, onError)
+      : subscribeCollection("adminApplications", onChange, onError),
+    subscribeAdminLogs: (onChange, onError) => trustedAuthorityRequested()
+      ? trustedOneShotSubscription(async () => [], onChange, onError)
+      : subscribeCollection("adminLogs", onChange, onError),
     subscribeSystemNoticeAdmin: (onChange, onError) => subscribeCollection("systemNotices", onChange, onError),
     subscribeSystemIntegrations: (onChange, onError) => subscribeCollection("systemIntegrations", onChange, onError),
     subscribeSystemIntegrationLogs: (onChange, onError) => subscribeCollection("systemIntegrationLogs", onChange, onError),
@@ -1304,6 +1564,9 @@
     testSystemIntegration,
     ensureSystemOwnerWorkspace,
     updateUserAdminFields,
+    setWorkspaceMemberStatus,
+    removeWorkspaceMember,
+    setWorkspaceLifecycle,
     repairUserPermission,
     disableUserAccount,
     enableUserAccount,

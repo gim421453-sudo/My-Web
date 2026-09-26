@@ -1,0 +1,40 @@
+{
+  "schema": "myweb.g2b.exact-permission-diagnostic-local-setup-root-cause.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-V2-LOCAL-CLIENT-SETUP-ROOT-CAUSE",
+  "supersedesExecutionEvidenceSha256": "2fcb8c2111f3dab74b9a593279985a3f273f8d15b8984cf91568d4cbc114cc9d",
+  "supersedesResultDocumentSha256": "6cf5ff9ef2fa962f5aca8fb899b2f470ad32c737432c4b52cc7b6fd51788bd72",
+  "historicalFailureClassification": "INSUFFICIENT_LOCAL_SETUP_METADATA",
+  "historicalFailureConfidence": "STRONG_LOCAL_EVIDENCE",
+  "currentLocalSetupRootCause": "CLOUD_SDK_CREDENTIAL_REFRESH_REQUIRED",
+  "currentLocalSetupRootCauseConfidence": "STRONG_LOCAL_EVIDENCE",
+  "failureEnvironmentClass": "LOCAL_MACHINE_CONFIGURATION",
+  "currentEnvironment": {
+    "pythonExecutableResolved": true,
+    "pythonHelperExists": true,
+    "pythonHelperSyntaxValid": true,
+    "cloudSdkImportsWithBundledThirdPartyPath": true,
+    "configuredAccountPresent": true,
+    "credentialRecordLocallyReadable": true,
+    "credentialTokenPresent": true,
+    "credentialExpiryPresent": true,
+    "credentialFreshWithoutRefresh": false
+  },
+  "minimumSourceFix": {
+    "cloudSdkThirdPartyImportPathAdded": true,
+    "localSetupSubstageAdded": true,
+    "readyToSendProbeAdded": true,
+    "remoteCapabilityWidened": false
+  },
+  "currentReadyToSend": false,
+  "newV3CallReachable": false,
+  "remoteOperations": 0,
+  "retries": 0,
+  "m3MutationAllowed": false,
+  "m4Allowed": false,
+  "privacy": {
+    "rawCredentialPersisted": false,
+    "rawPrincipalPersisted": false,
+    "rawStdoutPersisted": false,
+    "rawStderrPersisted": false
+  }
+}

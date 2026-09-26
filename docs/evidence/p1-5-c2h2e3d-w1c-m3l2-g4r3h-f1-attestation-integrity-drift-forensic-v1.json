@@ -1,0 +1,43 @@
+{
+  "schema": "myweb.m3l2.g4r3h-f1.attestation-integrity-drift-forensic.v1",
+  "historicalReportedG4r3hAttestation": "69547b022df6d32b2e8fc1820c35339205627315b76d5163ffb04af32284dbbb",
+  "currentResultDocumentSha256": "bc661b992832dac94feefd13795de2b38cb93ad5bedea5424df17c80b9f1e062",
+  "literalResultDocumentAttestation": "69547b022df6d32b2e8fc1820c35339205627315b76d5163ffb04af32284dbbb",
+  "currentEvidenceRawSha256": "04bac663ab7ec5bf1b58cf2ef31e077754bbf23d8ff1e874e7e2a3673302d672",
+  "currentPayloadRecomputedAttestation": "4b57d183865f0671736497059b67bd5873d441b6c25f94c2fef15d37aa62b134",
+  "g4r3hArtifactSet": {
+    "resultDocumentPath": "docs/p1-5-c2h2e3d-w1c-m3l2-g4r3h-exact-effective-caller-target-member-identity-contract-implementation.md",
+    "evidencePath": "docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4r3h-exact-effective-caller-identity-implementation-v1.json",
+    "builderPath": "tools/authority-audit/g4r3hExactEffectiveCallerIdentity.mjs",
+    "verifierTestPath": "tools/authority-audit-tests/g4r3hExactEffectiveCallerIdentityAttestation.test.mjs",
+    "schema": "myweb.m3l2.g4r3h.exact-effective-caller-identity-implementation.v1"
+  },
+  "comparison": {
+    "historicalReported": "69547b022df6d32b2e8fc1820c35339205627315b76d5163ffb04af32284dbbb",
+    "resultDocument": "69547b022df6d32b2e8fc1820c35339205627315b76d5163ffb04af32284dbbb",
+    "currentPayloadRecomputed": "4b57d183865f0671736497059b67bd5873d441b6c25f94c2fef15d37aa62b134",
+    "relationships": "historical_equals_result_document_but_differs_from_current_payload"
+  },
+  "runtimeThreeWay": {
+    "m3": { "resultDocument": "d966ee74e2530d1cd682d863bc934d19f1f1167598ae3455c18eff74e9420f03", "canonicalEvidence": "36776cebe1f29b0ad95237f6bbe526f48993956efb214e870668cc56ea44b030", "currentFile": "36776cebe1f29b0ad95237f6bbe526f48993956efb214e870668cc56ea44b030", "relation": "result_document_differs_canonical_equals_current" },
+    "adapter": { "canonicalEvidence": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578", "currentFile": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578", "relation": "canonical_equals_current" },
+    "identityModule": { "currentFile": "4085cd10998b1cc8e7c8b77b1cdd37b5d995b7723d4cb8125296c8a4a7e46003", "relation": "no_literal_runtime_lock" }
+  },
+  "builderHash": "4085cd10998b1cc8e7c8b77b1cdd37b5d995b7723d4cb8125296c8a4a7e46003",
+  "builderSelfLocked": false,
+  "builderChangedAcrossGenerations": "UNRESOLVED",
+  "schemaDrift": "unresolved",
+  "payloadResultSemanticDrift": ["result-document-runtime-lock-mismatch", "current-payload-recomputation-differs-from-named-attestation"],
+  "original69547Recoverability": "NO_EXISTING_COMPLETE_CANONICAL_INPUT",
+  "historical69547Status": "HISTORICAL_REPORTED_BUT_CURRENT_INPUT_NOT_REPRODUCIBLE",
+  "currentImplementationSemantics": "PASS",
+  "currentCanonicalPayloadInternallyConsistent": true,
+  "rootCauseClassification": "MULTIPLE_DRIFTS",
+  "recommendedRecoveryOption": "NEW_G4R3H_GENERATION_REQUIRED",
+  "g4r3r1ApprovalEligible": false,
+  "currentM3EffectiveState": "ABSENT_PROVEN",
+  "m3l3ApprovalEligible": false,
+  "m3l3LiveApproval": "NOT_GRANTED",
+  "privacy": { "rawIdentity": false, "rawCommand": false, "rawEnvironment": false, "rawPolicy": false, "localAbsolutePath": false, "credential": false },
+  "currentImplementationTestResults": { "g4r3h": "PASS", "m3Graph": "PASS", "g4Classifier": "PASS", "authoritySuite": "PASS", "productionAccess": 0 }
+}

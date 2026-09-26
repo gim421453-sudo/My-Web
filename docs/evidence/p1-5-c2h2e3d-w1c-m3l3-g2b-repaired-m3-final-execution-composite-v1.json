@@ -1,0 +1,11 @@
+{
+  "schema": "myweb.g2b.repaired-m3.final-execution-composite.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-REPAIRED-DIRECT-PROSPECTIVE-REATTESTATION",
+  "implementationAttestationSha256": "094779f2c04d0d704ffa0cd4c1c2df3b53f41a1b0a748829c05198d3712d5786",
+  "runtimeCapabilityAttestationSha256": "b11590dda44723f814dff1334709a84c59363cfe41a3a7d9d10db20cf6bdc954",
+  "continuityCompositeSha256": "6c6c294a8be9fdd6c507eb9c18a3e1f1fd63e107f65bd4e07cd6cad5a2d3e6a8",
+  "sourceLockManifestSha256": "dabd66557bc6e6213e16f1b13e359b8f0ffa18f4ea8f7c76e1b519f3daac7d33",
+  "prospectiveM3SafeToPrepare": true,
+  "m3ExecutionReachableWithoutSeparateApproval": false,
+  "remoteOperations": 0
+}

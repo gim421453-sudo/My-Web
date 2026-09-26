@@ -1,0 +1,13 @@
+{
+  "schema": "myweb.g2b.current-bound-live.anchor-state-evidence.v1",
+  "operationGeneration": "9662e385-82ab-4a73-8a5a-e8a25a9f4478",
+  "secretState": "READY",
+  "newAnchorRequired": true,
+  "oldAnchorCanAuthorizeCurrentOperation": false,
+  "anchorVerifiedBeforePrestate": true,
+  "finalPersistedAnchorState": "MUTATION_INDETERMINATE",
+  "activeAnchorCount": 1,
+  "rawMemberPersisted": false,
+  "rawPrincipalPersisted": false,
+  "rawSecretPersisted": false
+}

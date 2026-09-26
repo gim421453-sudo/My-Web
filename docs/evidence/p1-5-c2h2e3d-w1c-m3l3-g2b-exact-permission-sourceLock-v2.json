@@ -1,0 +1,101 @@
+{
+  "schema": "myweb.g2b.exact-permission-diagnostic-source-lock.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-EXACT-SERVICE-ACCOUNT-PERMISSION-DIAGNOSTIC",
+  "localDependencies": [
+    {
+      "path": "tools/authority-audit/g2bExactPermissionDiagnosticContract.mjs",
+      "sha256": "6a24775421152678db53879dbf98eeef7548765bc590d81edb32f6682c18f7c8"
+    },
+    {
+      "path": "tools/authority-audit/g2bExactPermissionAuthTransport.mjs",
+      "sha256": "9a877cf4612df5af77ed30fe636089904b28c8a3be8c104e96dbcc8b91344250"
+    },
+    {
+      "path": "tools/authority-audit/g2b_exact_permission_transport.py",
+      "sha256": "45f31eb8687602331c77073da3b91ae4d56a5676a7ab02894843a4d00dd7cb8b"
+    },
+    {
+      "path": "tools/authority-audit/g2bExactPermissionDiagnosticExecutor.mjs",
+      "sha256": "aa01aa48fdcecf3f0e00a278038a784e75a6bd324b2b731c958af7258a408c18"
+    },
+    {
+      "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs",
+      "sha256": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578"
+    },
+    {
+      "path": "tools/authority-audit/invokeWindowsExecutable.ps1",
+      "sha256": "2a7d2e0c9847005e31b2806e11a0a2bde5663f81754c924b79524c42dd006ad5"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+      "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3ResolvedStoreFixedLiveEvidence.mjs",
+      "sha256": "32621b8ca3476d78cbaccab78893c4f8ea0a53afae650cdda1c090ad2e2d9f00"
+    },
+    {
+      "path": "tools/authority-audit/g2bExactPermissionDiagnosticPacket.mjs",
+      "sha256": "cc4e89e1087a74be8f636533e8daaa557fcfacef56fa2dbb97894705289841c8"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bExactPermissionDiagnosticExecutor.test.mjs",
+      "sha256": "785597ef957ff245c7af272f0c6ee9bb3e9e54b3c2cf1dc1e082b5330e389e1d"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bExactPermissionDiagnosticPacket.test.mjs",
+      "sha256": "3fc05e0702bfa12e4ba735c15b04de305311f16905bc80dae182afcb61222cc6"
+    }
+  ],
+  "sdkDependencies": [
+    {
+      "id": "CLOUD_SDK_BUNDLED_PYTHON",
+      "logicalPath": "cloud-sdk/platform/bundledpython/python.exe",
+      "sha256": "03168c01b7b7491423350e82c26fee71f35b43694d1319d3c668bda6903a0c38"
+    },
+    {
+      "id": "CLOUD_SDK_CREDENTIAL_STORE",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/credentials/store.py",
+      "sha256": "1fcb3b856eb1584491d6f6160983808ca1f3574e44de86f53ac8d86f882e2a6f"
+    },
+    {
+      "id": "CLOUD_SDK_CREDENTIAL_DB",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/credentials/creds.py",
+      "sha256": "65ce5bef682e778a68fdcf7fcf0db12a24b8288c914a07cfca5aacb9d4462297"
+    },
+    {
+      "id": "CLOUD_SDK_ACTIVE_ACCOUNT_PROPERTIES",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/properties.py",
+      "sha256": "cf9cf38c0949f06c11a110675d4dbad647e3d4091901f6f3f734386cda7a32bb"
+    },
+    {
+      "id": "CLOUD_SDK_IAM_V1_CLIENT",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/generated_clients/apis/iam/v1/iam_v1_client.py",
+      "sha256": "304f81531be1e0f8bb05c726aec9a6053f80a11cec1867245231f6276ad0ebcf"
+    },
+    {
+      "id": "CLOUD_SDK_IAM_V1_MESSAGES",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/generated_clients/apis/iam/v1/iam_v1_messages.py",
+      "sha256": "098d22bfde402e0a1bb398cbced35a75b2a5108c699ad122966a408cffc785e1"
+    },
+    {
+      "id": "CLOUD_SDK_APITOOLS_BASE_API",
+      "logicalPath": "cloud-sdk/lib/third_party/apitools/base/py/base_api.py",
+      "sha256": "5e2ad1e9565f101fe347302a4085494079dfa6ceead73c2240e2a15f8318733c"
+    },
+    {
+      "id": "CLOUD_SDK_APITOOLS_HTTP_WRAPPER",
+      "logicalPath": "cloud-sdk/lib/third_party/apitools/base/py/http_wrapper.py",
+      "sha256": "7d87e9abe3cb3813b22b34d640bf21d8c3572e7efeb04e3543a24495f749e1f0"
+    },
+    {
+      "id": "CLOUD_SDK_SERVICE_ACCOUNT_TEST_EXAMPLE",
+      "logicalPath": "cloud-sdk/lib/googlecloudsdk/command_lib/compute/user_permission_troubleshooter.py",
+      "sha256": "7ac142bd8428c584c28fa51a36c2dc1f1c6c5690854e0aa7a1d0c92f2b52462f"
+    }
+  ],
+  "activeTransitiveDependencyCount": 20,
+  "unboundDependencies": 0,
+  "unboundRemoteCapabilities": 0,
+  "unboundProcessCapabilities": 0
+}

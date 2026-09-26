@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { computeG4R3FAttestationSha256, parseG4R3FAttestation, verifyG4R3FAttestation } from "../authority-audit/g4r3fPinnedAccountCredentialFallback.mjs";
+const payload = parseG4R3FAttestation(readFileSync("docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4r3f-pinned-account-credential-fallback-v1.json", "utf8"));
+assert.ok(payload); assert.equal(verifyG4R3FAttestation(payload).code, "PINNED_ACCOUNT_FALLBACK_PROVEN_FAILS_CLOSED"); assert.equal(computeG4R3FAttestationSha256(payload), computeG4R3FAttestationSha256(Object.fromEntries(Object.entries(payload).reverse())));
+const mutate = (f) => { const p = JSON.parse(JSON.stringify(payload)); f(p); return p; };
+assert.equal(parseG4R3FAttestation(JSON.stringify(mutate((p) => { p.credentialStoreLookupSemantics.otherAccountSelection = "PRESENT"; }))), null);
+assert.equal(parseG4R3FAttestation(JSON.stringify(mutate((p) => { p.missingCredentialFinalAction.alternateAccountSelected = true; }))), null);
+assert.equal(parseG4R3FAttestation(JSON.stringify(mutate((p) => { p.privacy.rawCredentialPersisted = true; }))), null);
+assert.equal(parseG4R3FAttestation(JSON.stringify(mutate((p) => { p.rawCredential = "secret@example.invalid"; }))), null);
+assert.equal(parseG4R3FAttestation(JSON.stringify(mutate((p) => { p.sdkSourceLocks[0].path = "C:/private"; }))), null);
+console.log("G4R3F SDK control-flow proof passed; pinned-account fallback fails closed; live access=0");

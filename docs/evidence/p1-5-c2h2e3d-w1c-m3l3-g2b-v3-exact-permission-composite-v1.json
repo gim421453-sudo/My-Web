@@ -1,0 +1,18 @@
+{
+  "schema": "myweb.g2b.v3-exact-permission-composite.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-EXACT-SERVICE-ACCOUNT-PERMISSION-DIAGNOSTIC-V3",
+  "boundM3OperationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "currentM3State": "CONFIRMED_ABSENT_AFTER_RESOLVEDSTORE_FIXED_INDETERMINATE_MUTATION",
+  "latestRecoveryExecutionEvidenceSha256": "0db8f9d3d6307cd519b0cc4c2fc0ef955287bd83009bf0b8cd9c4b6fc96fe74e",
+  "latestRecoveryResultDocumentSha256": "8998bc5f40f4a42730c1c119639ed43a2e884425f9f1396ab85cd824b868750d",
+  "latestRecoveryAnchorEvidenceSha256": "b063fb36de707548505e6c0defb878af12158107df3489730f376357f39d24da",
+  "localSetupRootCauseEvidenceSha256": "1de33c49d24039fc7a40cc68ed67ee357b1ea36c6678ee6fb9e1093003174f55",
+  "credentialRefreshExecutionEvidenceSha256": "db4cb9357ed0794b085381e6f7567882812c330da5b4ca51e0fcb2c16a26af4a",
+  "credentialRefreshResultDocumentSha256": "485c6a5abbfcfcf764c21df4b4361988717897faf88c9f471ccac4647ba565d2",
+  "zeroNetworkReadyProofSha256": "f0bf0b1a3ae19ba141fdeafa7f5710fa875cb2fbac6d92d38a928927d715aeb0",
+  "sourceLockManifestSha256": "b61acbbcf6470c75182b877300999bbfda37b01594fe172cef71ba5d63488f96",
+  "implementationAttestationSha256": "50940757a8946c08a36b01dc15e8e8638fd12fff91e3fd8274417780a748b467",
+  "runtimeCapabilityAttestationSha256": "cc549d6c4fe81cae9ee01249e62ebbc524126c7c32b308aafc77640d8078051c",
+  "approvalConsumptionPoint": "WHEN_FIRST_APPROVED_EXACT_SERVICE_ACCOUNT_TEST_IAM_PERMISSIONS_CALL_BEGINS",
+  "safeToContinueWithoutApproval": false
+}

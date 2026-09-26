@@ -29,6 +29,21 @@
     };
   }
 
+  function trustedAuthorityRequested() {
+    if (window.PMTrustedBackendService?.isAuthorityEnabled?.() === true) return true;
+    return window.PMTrustedBackendAuthorityConfig?.TRUSTED_BACKEND_AUTHORITY_ENABLED === true;
+  }
+
+  function trustedBackendRequired(methodName = "createInvitation") {
+    const service = window.PMTrustedBackendService;
+    if (!service || typeof service[methodName] !== "function") {
+      const error = new Error("안전한 서버 처리를 사용할 수 없습니다.");
+      error.code = "INTERNAL";
+      throw error;
+    }
+    return service;
+  }
+
   async function sha256(value) {
     const bytes = new TextEncoder().encode(normalizeCode(value));
     const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -86,9 +101,40 @@
     };
   }
 
-  async function createInvite({ authState, currentUser, workspaceId, role, email, maxUses, expiresHours, reusable }) {
+  async function createInvite({ authState, currentUser, workspaceId, role, email, maxUses, expiresHours, reusable, trustedContext }) {
     const targetWorkspaceId = workspaceId || currentUser?.workspace_id || currentUser?.workspaceId;
     if (!targetWorkspaceId) throw new Error("초대코드를 만들 workspace가 없습니다.");
+    if (trustedAuthorityRequested()) {
+      if (String(email || "").trim()) {
+        const error = new Error("현재 trusted 초대 계약은 이메일 지정 초대를 지원하지 않습니다.");
+        error.code = "FAILED_PRECONDITION";
+        throw error;
+      }
+      const expiresInSeconds = Math.trunc(Number(expiresHours || 72) * 60 * 60);
+      const requestedMaxUses = reusable ? Number(maxUses || 20) : 1;
+      const response = await trustedBackendRequired("createInvitation").createInvitation({
+        workspaceId: targetWorkspaceId,
+        targetRole: role || "normal",
+        expiresInSeconds,
+        maxUses: requestedMaxUses
+      }, trustedContext);
+      const code = response.invitationCode;
+      const invite = {
+        invitationId: response.invitationId,
+        workspaceId: targetWorkspaceId,
+        role: response.result.role,
+        maxUses: response.result.maxUses,
+        usedCount: response.result.usedCount,
+        expiresAt: Date.now() + expiresInSeconds * 1000,
+        createdAt: new Date().toISOString(),
+        status: response.result.invitationStatus,
+        reusable: response.result.maxUses > 1,
+        codePreview: `${code.slice(0, 3)}-****-${code.slice(-4)}`
+      };
+      authState.invitations = authState.invitations || [];
+      authState.invitations.unshift(invite);
+      return { invite, code };
+    }
     const actorRole = currentUser?.isSystemOwnerResolved === true ? "system_owner" : currentUser?.workspaceRole;
     if (!canCreateInvite(actorRole, role)) throw new Error("현재 계정은 해당 역할의 초대코드를 만들 수 없습니다.");
 
@@ -145,6 +191,11 @@
   }
 
   async function getRemoteInvite(code) {
+    if (trustedAuthorityRequested()) {
+      const error = new Error("안전한 초대 미리보기를 사용할 수 없습니다.");
+      error.code = "trusted-preview-unavailable";
+      throw error;
+    }
     const normalized = normalizeCode(code);
     const runtime = await window.PMFirebaseRuntime?.init?.();
     if (!runtime) return null;
@@ -188,7 +239,39 @@
     return invite.inviterUid || invite.createdBy || invite.invitedBy || "";
   }
 
-  async function acceptRemoteInviteCode({ user, code }) {
+  async function redeemTrustedInviteCode({ user, code, trustedContext }) {
+    const submittedCode = String(code || "").trim();
+    const response = await trustedBackendRequired("redeemInvitation").redeemInvitation({ code: submittedCode }, trustedContext);
+    const result = response?.result;
+    const workspaceId = typeof result?.workspaceId === "string" ? result.workspaceId.trim() : "";
+    const role = typeof result?.role === "string" ? result.role.trim() : "";
+    const uid = user?.uid || user?.id || "";
+    if (!workspaceId || !uid || result?.status !== "completed"
+      || result?.memberPresent !== true
+      || !window.PMRoleSecurityPolicy?.WORKSPACE_ROLES?.includes(role)) {
+      const error = new Error("안전한 초대 처리 결과를 확인할 수 없습니다.");
+      error.code = "INTERNAL";
+      throw error;
+    }
+    return {
+      invite: null,
+      member: {
+        id: `${workspaceId}_${uid}`,
+        workspaceId,
+        uid,
+        role,
+        status: "active",
+        joinedAt: new Date().toISOString()
+      },
+      pending: false,
+      workspaceId
+    };
+  }
+
+  async function acceptRemoteInviteCode({ user, code, trustedContext }) {
+    if (trustedAuthorityRequested()) {
+      return redeemTrustedInviteCode({ user, code, trustedContext });
+    }
     const normalized = normalizeCode(code);
     const invite = validateInvite(await getRemoteInvite(normalized), user);
     const runtime = await window.PMFirebaseRuntime?.init?.();
@@ -298,8 +381,31 @@
     };
   }
 
-  async function acceptInviteCode({ authState, user, code }) {
-    const normalized = normalizeCode(code);
+  async function acceptInviteCode({ authState, user, code, trustedContext }) {
+    const submittedCode = String(code || "").trim();
+    if (trustedAuthorityRequested()) {
+      const trustedResult = await acceptRemoteInviteCode({ user, code: submittedCode, trustedContext });
+      const { member, workspaceId } = trustedResult;
+      const memberId = member.id;
+      const role = member.role;
+      const uid = member.uid;
+      authState.workspace_members = authState.workspace_members || [];
+      const existingIndex = authState.workspace_members.findIndex((item) => item.id === memberId
+        || (item.workspaceId === workspaceId && item.uid === uid));
+      if (existingIndex >= 0) authState.workspace_members[existingIndex] = member;
+      else authState.workspace_members.unshift(member);
+      user.workspace_id = workspaceId;
+      user.workspaceId = workspaceId;
+      user.currentWorkspaceId = workspaceId;
+      user.role = role;
+      user.currentRole = role;
+      user.workspaceRole = role;
+      user.status = "active";
+      user.pendingWorkspaceId = "";
+      user.pendingInviteCodeId = "";
+      return trustedResult;
+    }
+    const normalized = normalizeCode(submittedCode);
     const codeHash = await sha256(normalized);
     let remoteResult = null;
     let invite = null;
@@ -387,11 +493,48 @@
     }
   }
 
-  function revokeInvite(authState, invitationId) {
+  async function revokeInvite(authState, invitationId, options = {}) {
     const invite = (authState.invitations || []).find((item) => item.invitationId === invitationId || item.id === invitationId);
+    if (trustedAuthorityRequested()) {
+      const response = await trustedBackendRequired("revokeInvitation").revokeInvitation({
+        invitationId
+      }, options.trustedContext);
+      if (invite) invite.status = response.result.invitationStatus;
+      return invite || {
+        invitationId,
+        status: response.result.invitationStatus,
+        usedCount: response.result.usedCount,
+        maxUses: response.result.maxUses
+      };
+    }
     if (!invite) return null;
     invite.status = "revoked";
     return invite;
+  }
+
+  async function listManagedInvitations({ workspaceId, limit = 100, cursor = null } = {}, context) {
+    if (!trustedAuthorityRequested()) {
+      return { items: [], nextCursor: null, source: "LEGACY_OFF_ONLY" };
+    }
+    const response = await trustedBackendRequired("listInvitations").listInvitations({
+      workspaceId,
+      limit,
+      ...(cursor ? { cursor } : {})
+    }, context);
+    return {
+      items: response.items.map((row) => ({
+        invitationId: row.invitationId,
+        workspaceId: row.workspaceId,
+        role: row.targetRole,
+        status: row.status,
+        maxUses: row.maxUses,
+        usedCount: row.usedCount,
+        expiresAt: row.expiresAt,
+        createdAt: row.createdAt
+      })),
+      nextCursor: response.nextCursor,
+      source: "TRUSTED_CANONICAL"
+    };
   }
 
   function refreshStatuses(authState) {
@@ -411,6 +554,7 @@
     acceptInviteCode,
     acceptRemoteInviteCode,
     revokeInvite,
+    listManagedInvitations,
     refreshStatuses
   };
 })();

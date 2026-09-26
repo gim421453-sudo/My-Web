@@ -1,0 +1,15 @@
+{
+  "schema": "myweb.g2b.current-bound-live.operation-generation-evidence.v1",
+  "operationGeneration": "9662e385-82ab-4a73-8a5a-e8a25a9f4478",
+  "preLiveState": "MISSING",
+  "blockedGenerationReusedAfterPreLiveBlock": true,
+  "freshOperationStarted": true,
+  "approvalConsumed": true,
+  "opAExecuted": true,
+  "remotePrestateStarted": true,
+  "mutationStarted": true,
+  "poststateStarted": false,
+  "retryCount": 0,
+  "rollbackCount": 0,
+  "secondMutationCount": 0
+}

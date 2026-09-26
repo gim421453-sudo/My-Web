@@ -1,0 +1,14 @@
+{
+  "schema": "myweb.g2b.current-operation.read-only-anchor-recovery.privacy-evidence.v1",
+  "operationGeneration": "9662e385-82ab-4a73-8a5a-e8a25a9f4478",
+  "rawMemberPersisted": false,
+  "rawPrincipalPersisted": false,
+  "rawPolicyPersisted": false,
+  "rawSecretPersisted": false,
+  "rawStdoutPersisted": false,
+  "rawStderrPersisted": false,
+  "tokenPersisted": false,
+  "credentialPersisted": false,
+  "sensitiveValueLogged": false,
+  "privacyScan": "PASS"
+}

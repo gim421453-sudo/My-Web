@@ -477,8 +477,8 @@ ok("B9.2 keeps end date optional and blocks only invalid normalized ranges", val
 ok("B9.2 dynamically recalculates end minimum with no end maximum or stale invalid value", dateConstraintBodyV136.includes("[todayDateStringV136(), startDate]") && dateConstraintBodyV136.includes('endDateInput.max = ""') && dateConstraintBodyV136.includes('endDateInput.value = ""') && dateConstraintBodyV136.includes("timetableEndDateClearedAfterStartChangeCount"));
 ok("workspace listener lifecycle uses delayed hidden pause", workspaceServiceJs.includes("hiddenPauseScheduledCount") && workspaceServiceJs.includes("hiddenPauseCancelledCount") && workspaceServiceJs.includes("actualPauseCount") && workspaceServiceJs.includes("HIDDEN_PAUSE_DELAY_MS"));
 ok("workspace listener lifecycle cancels normal tab-switch pause before teardown", workspaceServiceJs.includes("hidden-pause-cancelled") && workspaceServiceJs.includes('pauseRealtimeForVisibility("hidden-timeout")'));
-ok("index uses V162 app cache version", indexHtml.includes("app.js?v=162"));
-ok("index uses firebase runtime V6 and auth service V19 cache versions", indexHtml.includes("services/firebaseRuntime.js?v=6") && indexHtml.includes("services/authService.js?v=19"));
+ok("index uses V164 app cache version", indexHtml.includes("app.js?v=164"));
+ok("index uses firebase runtime V6 and auth service V20 cache versions", indexHtml.includes("services/firebaseRuntime.js?v=6") && indexHtml.includes("services/authService.js?v=20"));
 ok("index uses V10 workspace data service cache version", indexHtml.includes("services/workspaceDataService.js?v=10"));
 
 if (process.exitCode) process.exit(process.exitCode);

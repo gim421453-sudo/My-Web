@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "myweb.g2b.clean-generation-bootstrap-design.v1",
+  "designStatus": "READY",
+  "executionMode": "LOCAL_DESIGN_ONLY",
+  "historical": {
+    "lineageStatus": "UNRESOLVED",
+    "reviewJsonSha256": "8ed36e28f8c8ede6db7daaef738d01183c0e14445625896a172c49844d86b31a",
+    "reviewMarkdownSha256": "918f00eb3b0dc9ad41b5005826ee0e79ed01481a8c0ef98b966a8f849c2371d0",
+    "generations": [
+      { "generationId": "214348c8-3be0-44f8-a010-adbe1ac68090", "state": "RECOVERY_CONFIRMED_ABSENT", "role": "HISTORICAL_TERMINAL_ONLY" },
+      { "generationId": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981", "state": "ANCHOR_VERIFIED", "role": "HISTORICAL_CAS_ONLY" }
+    ],
+    "lineageEdgesCreated": 0,
+    "trustInherited": []
+  },
+  "assetPolicy": {
+    "reusableInputs": [
+      "CurrentUser DPAPI protected secret blob only after same-context unprotect and integrity validation",
+      "pinned identity configuration as untrusted input requiring canonicalization",
+      "target resource and role definitions as current-source inputs requiring exact validation"
+    ],
+    "recomputedPerGeneration": ["anchorDigest", "integrityDigest", "identityFingerprint", "sourceFingerprint", "hostContextFingerprint"],
+    "inheritedTrust": []
+  },
+  "stateModel": {
+    "existingAnchorRecordStates": ["ANCHOR_PERSISTED", "ANCHOR_VERIFIED", "MUTATION_STARTED", "MUTATION_CONFIRMED", "MUTATION_INDETERMINATE", "RECOVERY_CONFIRMED_PRESENT", "RECOVERY_CONFIRMED_ABSENT", "RECOVERY_AMBIGUOUS"],
+    "existingAnchorTransitions": [
+      "ANCHOR_PERSISTED -> ANCHOR_VERIFIED",
+      "ANCHOR_VERIFIED -> MUTATION_STARTED",
+      "MUTATION_STARTED -> MUTATION_CONFIRMED | MUTATION_INDETERMINATE",
+      "MUTATION_CONFIRMED -> RECOVERY_CONFIRMED_PRESENT | RECOVERY_CONFIRMED_ABSENT | RECOVERY_AMBIGUOUS",
+      "MUTATION_INDETERMINATE -> RECOVERY_CONFIRMED_PRESENT | RECOVERY_CONFIRMED_ABSENT | RECOVERY_AMBIGUOUS"
+    ],
+    "existingActiveCounterStates": ["ANCHOR_CREATED", "ANCHOR_PERSISTED", "ANCHOR_VERIFIED", "MUTATION_STARTED", "MUTATION_INDETERMINATE"],
+    "anchorCreatedAcceptedByPersistedRecordSchema": false,
+    "anchorInitialState": "ANCHOR_PERSISTED",
+    "anchorVerificationTransition": "ANCHOR_PERSISTED -> ANCHOR_VERIFIED",
+    "orchestrationPhases": ["INTENT_CREATED", "CANDIDATE_CREATED", "ANCHOR_VERIFYING", "ANCHOR_VERIFIED", "MANIFEST_ACTIVATED", "ATTESTATION_ELIGIBLE"],
+    "orchestrationFailurePhases": ["ABORTED", "CANONICAL_INELIGIBLE"],
+    "legacyAnchorEnumExtended": false
+  },
+  "canonicalManifest": {
+    "required": true,
+    "versioned": true,
+    "fields": ["schemaVersion", "manifestVersion", "canonicalGenerationId", "generationState", "anchorVerificationEvidenceDigest", "identityFingerprint", "hostContextFingerprint", "sourceFingerprint", "activatedAt", "previousManifestDigest", "manifestDigest"],
+    "activation": "exclusive local lock + compare-and-swap on exact prior digest + atomic publication",
+    "pointerAloneAuthorizes": false,
+    "historicalFallback": false
+  },
+  "eligibility": {
+    "attestationRequires": ["new generation", "digest-valid ANCHOR_VERIFIED event", "activated manifest", "current identity binding", "current source binding", "current host binding", "fresh signature"],
+    "readEligibleRequiresResolverAndFreshAttestation": true,
+    "mutationEligibleIndependentAndInitiallyFalse": true,
+    "oldApprovalsReusable": false,
+    "oldCasReusable": false
+  },
+  "idempotency": {
+    "intentIdAndOperationIdBoundToCanonicalInputs": true,
+    "oneCandidateLock": true,
+    "immutableCreateOnlyRecords": true,
+    "duplicateExactIntentResumesSameCandidate": true,
+    "changedInputsOrSecondCandidate": "BLOCK"
+  },
+  "crashWindows": [
+    { "window": "BEFORE_INTENT", "recovery": "NO_STATE; require new explicit local approval" },
+    { "window": "INTENT_BEFORE_CANDIDATE", "recovery": "resume same operation after exact digest validation" },
+    { "window": "CANDIDATE_BEFORE_VERIFY", "recovery": "resume same candidate; no duplicate generation" },
+    { "window": "VERIFY_IN_PROGRESS", "recovery": "unknown outcome; local revalidation only; no attestation" },
+    { "window": "VERIFIED_BEFORE_MANIFEST", "recovery": "revalidate and resume same CAS activation" },
+    { "window": "MANIFEST_OUTCOME_UNKNOWN", "recovery": "read local manifest and compare exact new/prior digest; otherwise block" },
+    { "window": "MANIFEST_BEFORE_ATTESTATION", "recovery": "revalidate current bindings then attest or mark ineligible" }
+  ],
+  "failureModel": {
+    "preActivation": "append ABORTED orchestration event; do not rewrite or delete anchor/evidence",
+    "postActivation": "append CANONICAL_INELIGIBLE; never fall back to historical generation",
+    "legacyBootstrapFailedAnchorStateExists": false,
+    "staleLockAutoDelete": false
+  },
+  "approvalBoundaries": [
+    "EXPLICIT_LOCAL_CLEAN_GENERATION_BOOTSTRAP",
+    "EXPLICIT_FRESH_REMOTE_CAS_READ",
+    "EXPLICIT_REMOTE_IAM_MUTATION_IF_FRESH_CAS_REQUIRES_IT"
+  ],
+  "simulation": {
+    "mode": "IN_MEMORY_SYNTHETIC_FIXTURE",
+    "repositoryAuthorityWrites": 0,
+    "remoteCalls": 0,
+    "positiveFlow": "PASS",
+    "negativeCases": {
+      "existingActive": "BLOCK",
+      "twoCandidates": "BLOCK",
+      "anchorVerificationFailure": "BLOCK",
+      "identityMismatch": "BLOCK",
+      "sourceMismatch": "BLOCK",
+      "manifestDigestMismatch": "BLOCK",
+      "canonicalAmbiguity": "BLOCK",
+      "oldApprovalReuse": "BLOCK",
+      "oldCasReuse": "BLOCK",
+      "historicalGenerationSelection": "BLOCK",
+      "unknownManifestCommit": "BLOCK"
+    }
+  },
+  "implementationLikelyFiles": [
+    "tools/authority-audit/g2bCleanGenerationBootstrap.mjs",
+    "tools/authority-audit/g2bCanonicalGenerationManifest.mjs",
+    "tools/authority-audit/g2bCleanGenerationResolver.mjs",
+    "tools/authority-audit-tests/g2bCleanGenerationBootstrap.test.mjs",
+    "tools/authority-audit-tests/g2bCleanGenerationBootstrap.integration.test.mjs"
+  ],
+  "prohibitedEffects": {
+    "generationCreate": 0,
+    "anchorWrite": 0,
+    "manifestWrite": 0,
+    "attestationCreate": 0,
+    "sourceLockCreate": 0,
+    "approvalPacketCreate": 0,
+    "remoteCalls": 0,
+    "credentialRefresh": 0,
+    "iamRead": 0,
+    "iamMutation": 0,
+    "firestoreStorageProductionWrite": 0,
+    "stagingCommitPushDeploy": 0,
+    "codeModifications": 0
+  },
+  "nextStage": "EXPLICIT_LOCAL_CLEAN_GENERATION_BOOTSTRAP_IMPLEMENTATION_APPROVAL"
+}

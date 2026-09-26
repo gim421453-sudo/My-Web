@@ -1,0 +1,17 @@
+{
+  "schema": "myweb.g2b.current-operation.read-only-anchor-recovery.anchor-state-evidence.v1",
+  "operationGeneration": "9662e385-82ab-4a73-8a5a-e8a25a9f4478",
+  "anchorStateBefore": "MUTATION_INDETERMINATE",
+  "anchorStateAfter": "RECOVERY_CONFIRMED_ABSENT",
+  "activeAnchorCountBefore": 1,
+  "activeAnchorCountAfter": 0,
+  "anchorValid": true,
+  "secretValid": true,
+  "secretGenerationMatch": true,
+  "targetContextMatch": true,
+  "rawMemberPersisted": false,
+  "rawPrincipalPersisted": false,
+  "rawPolicyPersisted": false,
+  "rawSecretPersisted": false,
+  "privacyScan": "PASS"
+}

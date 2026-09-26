@@ -1,0 +1,21 @@
+# M3-R3 Indeterminate Read-Only Recovery Approval
+
+```text
+STAGE=P1.5-C2H2E3D-W1C-M3L3-M3-R3-RECOVERY
+TYPE=READ_ONLY
+PREVIOUS_LIVE_EVIDENCE_SHA256=a70acc78ca206c7725dee76008575d68dd0da154f39bd90b3c43b8b3b46a3955
+CURRENT_M3_STATE=INDETERMINATE
+REMOTE_READS_MAX=1
+MUTATIONS=0
+RETRIES=0
+ROLLBACKS=0
+M3_ALLOWED=no
+M4_ALLOWED=no
+FIRESTORE_ALLOWED=no
+ACCESS_TOKEN_ALLOWED=no
+PROJECT_IAM_READS_MAX=0
+SAFE_TO_CONTINUE_WITHOUT_APPROVAL=no
+```
+
+This is a preparation artifact only. It does not authorize any remote read or
+mutation; a separate explicit approval is required before use.

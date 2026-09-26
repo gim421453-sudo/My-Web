@@ -1,0 +1,13 @@
+{
+  "schema": "myweb.g2b.m3.source-locked-recovery-result.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-RESOLVEDSTORE-FIXED-SOURCE-LOCKED-RECOVERY-RESULT",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "executionEvidenceSha256": "0db8f9d3d6307cd519b0cc4c2fc0ef955287bd83009bf0b8cd9c4b6fc96fe74e",
+  "result": "MEMBER_ABSENT_CONFIRMED",
+  "currentM3State": "CONFIRMED_ABSENT_AFTER_RESOLVEDSTORE_FIXED_INDETERMINATE_MUTATION",
+  "anotherM3MutationAllowed": false,
+  "newM3GenerationAllowed": false,
+  "m4Allowed": false,
+  "nextApprovalRequired": true,
+  "nextApprovalType": "M3_PROVIDER_PROCESS_ROOT_CAUSE_DIAGNOSTIC"
+}

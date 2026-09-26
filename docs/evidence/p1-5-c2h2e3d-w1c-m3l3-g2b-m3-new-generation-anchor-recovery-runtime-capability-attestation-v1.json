@@ -1,0 +1,100 @@
+{
+  "schema": "myweb.g2b.new-generation.anchor-recovery.runtime-capability-attestation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-NEW-GENERATION-ANCHOR-READ-ONLY-RECOVERY",
+  "operationGeneration": "214348c8-3be0-44f8-a010-adbe1ac68090",
+  "graphIdentity": "g2b-new-generation-anchor-recovery-c4021d9c30ad2c31",
+  "graph": {
+    "runtimeId": "G2B_M3_READ_ONLY_ANCHOR_RECOVERY_V2",
+    "operationGeneration": "214348c8-3be0-44f8-a010-adbe1ac68090",
+    "targetResource": "myweb-class-mig-writer-g2@my-management-app-8a933.iam.gserviceaccount.com",
+    "targetRole": "roles/iam.serviceAccountTokenCreator",
+    "nodes": [
+      {
+        "id": "ANCHOR_LOAD",
+        "kind": "LOCAL_GENERATION_BOUND_ANCHOR_LOAD",
+        "max": 1,
+        "remote": false
+      },
+      {
+        "id": "DPAPI_SECRET",
+        "kind": "LOCAL_CURRENT_USER_DPAPI_SECRET_READ",
+        "max": 1,
+        "remote": false
+      },
+      {
+        "id": "ANCHOR_HMAC",
+        "kind": "LOCAL_HMAC_MEMBER_MATCHER",
+        "max": 1,
+        "remote": false
+      },
+      {
+        "id": "OP_C_RECOVERY",
+        "kind": "EXACT_WRITER_SERVICE_ACCOUNT_IAM_POLICY_READ",
+        "max": 1,
+        "remote": true
+      },
+      {
+        "id": "CANONICAL_PARSE",
+        "kind": "LOCAL_FAIL_CLOSED_CANONICAL_POLICY_PARSE",
+        "max": 1,
+        "remote": false
+      },
+      {
+        "id": "ANCHOR_TERMINAL",
+        "kind": "LOCAL_TERMINAL_ANCHOR_TRANSITION",
+        "max": 1,
+        "remote": false
+      }
+    ],
+    "edges": [
+      [
+        "ANCHOR_LOAD",
+        "DPAPI_SECRET"
+      ],
+      [
+        "DPAPI_SECRET",
+        "ANCHOR_HMAC"
+      ],
+      [
+        "ANCHOR_HMAC",
+        "OP_C_RECOVERY"
+      ],
+      [
+        "OP_C_RECOVERY",
+        "CANONICAL_PARSE"
+      ],
+      [
+        "CANONICAL_PARSE",
+        "ANCHOR_TERMINAL"
+      ]
+    ],
+    "transitiveDependencyCount": 8,
+    "unboundDependencies": 0,
+    "unboundRemoteCapabilities": 0,
+    "unboundProcessCapabilities": 0,
+    "projectIamPolicyReadReachability": 0,
+    "identity": "g2b-new-generation-anchor-recovery-c4021d9c30ad2c31"
+  },
+  "budgets": {
+    "iamPolicyReadsMax": 1,
+    "totalPhysicalRemoteRecoveryCallsMax": 1,
+    "opAMax": 0,
+    "projectIamReadsMax": 0,
+    "iamMutationsMax": 0,
+    "m3MutationsMax": 0,
+    "m4MutationsMax": 0,
+    "firestoreCallsMax": 0,
+    "testIamPermissionsCallsMax": 0,
+    "credentialRefreshCallsMax": 0,
+    "oauthCallsMax": 0,
+    "tokenGenerationMax": 0,
+    "serviceAccountTokenGenerationMax": 0,
+    "serviceAccountKeyOperationsMax": 0,
+    "retriesMax": 0,
+    "rollbacksMax": 0,
+    "secondRecoveryReadMax": 0
+  },
+  "unboundDependencies": 0,
+  "unboundRemoteCapabilities": 0,
+  "unboundProcessCapabilities": 0
+}

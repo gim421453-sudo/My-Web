@@ -1,0 +1,39 @@
+{
+  "schema": "myweb.g2b.repaired-m3.dpapi-recovery-implementation-attestation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-DPAPI-RECOVERY-REATTESTATION",
+  "predecessorCompositeSha256": "811d279166ee331601b95cb46dc3bc59ed71fe984e265134666e2bc5236a9c24",
+  "dpapiProvider": "WINDOWS_DPAPI_CURRENT_USER_LOCAL_APPDATA_V1",
+  "dpapiScope": "CurrentUser",
+  "invalidMetadataRepair": "EXPLICIT_ONLY_ACTIVE_ANCHOR_COUNT_MUST_BE_ZERO",
+  "historicalAnchorRewriteReachability": false,
+  "sourceLocks": [
+    {
+      "path": "tools/authority-audit/windowsDpapiSecretProvider.mjs",
+      "sha256": "ed205acfb9d378ea63d463dc819afee42a3623455e4dac4c0159e362bc8d717b"
+    },
+    {
+      "path": "tools/authority-audit/invokeWindowsDpapi.ps1",
+      "sha256": "a00c4e837b67efccd88f4f5286d214d333be1732d02af6325c2917560e70616b"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+      "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3RecoveryAnchorRuntime.mjs",
+      "sha256": "0751b91f1766e6b4bda0050975df0d5fed223ac410a5a37a0af22075b6b66b60"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3CurrentLiveExecutor.mjs",
+      "sha256": "362ab6aab25c13c8e22833d89c0f09fd5fd57dc39fc2add385f58a9f57c03931"
+    },
+    {
+      "path": "tools/authority-audit-tests/windowsDpapiSecretProvider.test.mjs",
+      "sha256": "b66d3d1eb8331906ea2a178041de87509e61b193601fe12ccdf6c47b56a9fddf"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bRecoveryAnchor.test.mjs",
+      "sha256": "c97d8d1557d8778e5db8e705118a9794f953392a899daa8a1e327b3fa08106ef"
+    }
+  ]
+}

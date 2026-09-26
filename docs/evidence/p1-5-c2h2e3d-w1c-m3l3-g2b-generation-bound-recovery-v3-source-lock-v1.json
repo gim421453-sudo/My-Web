@@ -1,0 +1,54 @@
+{
+  "schema": "myweb.g2b.generation-bound-recovery-v3.source-lock.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-GENERATION-BOUND-READ-ONLY-RECOVERY-V3",
+  "sourceLocks": [
+    {
+      "path": "tools/authority-audit/g2bGenerationBoundReadOnlyRecoveryV3.mjs",
+      "sha256": "44c9025864b7f9ec6e6085f8066dfe20eec8c94bf4a630f8a04d20fe9db46559"
+    },
+    {
+      "path": "tools/authority-audit/g2bGenerationBoundReadOnlyRecoveryV2.mjs",
+      "sha256": "f8aa3116edfac982aa47e363ded075730255cd43b5f381ff08e53c9a6b4ad30b"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryExecutionJournal.mjs",
+      "sha256": "9456518f239b7d360287afe929a6d024407c7a879198003130dda257c9635a68"
+    },
+    {
+      "path": "tools/authority-audit/g2bGenerationBoundReadOnlyRecovery.mjs",
+      "sha256": "31c8bd5bb4c4be5592ff4f52ff92fe7aae57539774486e4048626648a3faedaf"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+      "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+    },
+    {
+      "path": "tools/authority-audit/g2bDirectCachedCredentialReadiness.mjs",
+      "sha256": "3ba01ced3537f390e9e29dfe1d8f120bf99e222c2a9a610cfc5e6effb092eb54"
+    },
+    {
+      "path": "tools/authority-audit/g2bExplicitSetIamPolicyAuthTransport.mjs",
+      "sha256": "5226b89e7eaac3a335729aea3dbc6fae6a8a104a64b9eaa3f0399ce86ae95c97"
+    },
+    {
+      "path": "tools/authority-audit/g2b_explicit_set_iam_policy_transport.py",
+      "sha256": "099ece0973e82e78087ce9690d1cfd725b345288203fea5d6353db354ac57163"
+    },
+    {
+      "path": "tools/authority-audit/m3l3R3CanonicalPolicyParser.mjs",
+      "sha256": "c1b98eadecc77babf6cc08a676758fcab26ac4968590a5eb0994ff412f449fb6"
+    },
+    {
+      "path": "tools/authority-audit/g2bV3DiagnosticContinuityAttestation.mjs",
+      "sha256": "b3daa007f5943b49ea72fb76e8f5a73491a800d729fc866ff3dd3df3d02d6b46"
+    },
+    {
+      "path": "tools/authority-audit/prepareG2BGenerationBoundReadOnlyRecoveryV3.mjs",
+      "sha256": "34d0a367b17423e752bec7b3bd23909f0ceda98a3e4541dd7e7d6540c7ccc4d3"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bGenerationBoundReadOnlyRecoveryV3.test.mjs",
+      "sha256": "58972461860cd5417501b56cc7db63298ca212383268f077d7b7c88d15ed767a"
+    }
+  ]
+}

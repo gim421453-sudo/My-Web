@@ -1,0 +1,14 @@
+{
+  "schema": "myweb.g2b.resolved-store-fixed.final-execution-composite.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-ROOT-CAUSE-FIXED-RESOLVEDSTORE-FIXED-LIVE",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "implementationAttestationSha256": "1991eeb6c3f43ab5f9aeeb6a1fb28d5ca8cf69e565dfb5b077684b57a434a2c0",
+  "runtimeCapabilityAttestationSha256": "91e6def2b0791fa864c3a6add5132e9c05ec74b308a485ca75db6566ffd5d0cc",
+  "finalExecutionCompositeSha256": "e6b3dbe45645ea4353de5b968b1101df6b87218c60223a2bbc0b79032d98b83e",
+  "packetSha256": "dde98c71dd6081f86a5895cdf6db60515a5e4a862edece92c41259b76f6861f5",
+  "graphIdentity": "g2b-current-live-2d8c3f763af9af17",
+  "targetResourceCrossArtifactMatch": true,
+  "resolvedStoreReferenceDefectFixed": true,
+  "operationGenerationReusedAfterPreOpABlock": false,
+  "safeToContinueWithoutApproval": false
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "myweb.g2b.repaired-m3.authority-v2-runtime-capability.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-REPAIRED-DIRECT-AUTHORITY-V2",
+  "operationGenerationId": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981",
+  "physicalCallMaxStaticallyProvable": true,
+  "existingVerifiedAnchorReuseSupported": true,
+  "remoteOperations": 0,
+  "iamReads": 0,
+  "iamMutations": 0,
+  "firestore": 0,
+  "m4": 0
+}

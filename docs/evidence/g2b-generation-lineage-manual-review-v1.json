@@ -1,0 +1,236 @@
+{
+  "schemaVersion": "myweb.g2b.generation-lineage-manual-review.v1",
+  "reviewMode": "LOCAL_ONLY",
+  "reviewResult": "BRANCH_C_CONFIRMED",
+  "gitBaseline": {
+    "branch": "checkpoint/notice-auth-recovery-20260723",
+    "head": "84b2c16",
+    "stagingAtReviewStart": 0
+  },
+  "safety": {
+    "remoteCalls": 0,
+    "credentialRefresh": 0,
+    "iamPolicyReads": 0,
+    "iamMutations": 0,
+    "firestoreStorageProductionWrites": 0,
+    "stagingCommitPushDeploy": 0,
+    "secretMaterialReadOrRecorded": false,
+    "scratchDirectory": "myweb-g2b-fake-sdk-854ln2_3",
+    "scratchDisposition": "PRESERVE_FOR_MANUAL_REVIEW"
+  },
+  "searchedLocations": [
+    "docs/evidence/**/*.json",
+    "tools/authority-audit/** generation, anchor, resolver and attestation references",
+    "LocalAppData/MY-WEB/authority-audit/m3-recovery-anchors-v1 (metadata only)",
+    "LocalAppData/MY-WEB/authority-audit/host-anchor-attestations (metadata/signature validation)",
+    "LocalAppData/MY-WEB/authority-audit operation-journal directories (secret paths excluded)",
+    "existing handoff/recovery documentation as artifact-location index only"
+  ],
+  "generations": [
+    {
+      "generationId": "214348c8-3be0-44f8-a010-adbe1ac68090",
+      "classification": "CONFIRMED_TERMINAL_GENERATION",
+      "currentState": "RECOVERY_CONFIRMED_ABSENT",
+      "preTerminalAnchorVerification": "NO_PRE_TERMINAL_ANCHOR_EVIDENCE",
+      "evidenceFiles": [
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-anchor-recovery-anchor-evidence-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-anchor-recovery-execution-composite-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-anchor-recovery-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-anchor-recovery-execution-evidence-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-anchor-recovery-implementation-attestation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-anchor-recovery-result-document-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-anchor-recovery-runtime-capability-attestation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-anchor-recovery-source-lock-manifest-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-implementation-attestation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-final-execution-composite-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-live-execution-evidence-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-live-result-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-runtime-capability-attestation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-source-lock-manifest-v1.json"
+      ],
+      "verifiedDigestEdges": [
+        {
+          "from": "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-live-result-v1.json",
+          "field": "executionEvidenceSha256",
+          "to": "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-live-execution-evidence-v1.json",
+          "sha256": "39555f2d06bf411cd5826e43c481a0d7ed7a78b3dd927a71d66cfaf87ef58eb8",
+          "match": true
+        },
+        {
+          "from": "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-anchor-recovery-result-document-v1.json",
+          "field": "executionEvidenceSha256",
+          "to": "p1-5-c2h2e3d-w1c-m3l3-g2b-m3-new-generation-anchor-recovery-execution-evidence-v1.json",
+          "sha256": "033663f591cc6312c7c64db84dd97bde058ec4f5c2d5131e0af36f67f38d2ce2",
+          "match": true
+        }
+      ],
+      "runtimeChain": {
+        "liveEvidenceSha256": "39555f2d06bf411cd5826e43c481a0d7ed7a78b3dd927a71d66cfaf87ef58eb8",
+        "liveResultSha256": "6e136db8857539f6f143a76601f18a24890a8d3e3dbf4dc4806f4a0bd07b287b",
+        "liveMutationOutcome": "MUTATION_INDETERMINATE",
+        "mutationAttemptsUsed": 1,
+        "recoveryEvidenceSha256": "033663f591cc6312c7c64db84dd97bde058ec4f5c2d5131e0af36f67f38d2ce2",
+        "recoveryResultSha256": "acf19c511578c597042e265020529eca1629c938be4d0aa04a4284180e60e1f7",
+        "recoveryResult": "MEMBER_ABSENT_CONFIRMED",
+        "anchorStateBefore": "MUTATION_INDETERMINATE",
+        "terminalAnchorState": "RECOVERY_CONFIRMED_ABSENT",
+        "recoveryAnchorEvidenceSha256": "aeaf96a0ac68c80b819097b075efafc64499e7a229a55af295077c1acd539ccd",
+        "recoveryAnchorEvidenceClaimsHmacValid": true,
+        "recoveryAnchorEvidenceClaimsGenerationMatch": true
+      },
+      "localAnchorRecord": {
+        "state": "RECOVERY_CONFIRMED_ABSENT",
+        "rawFileSha256": "103cef9d6d4dce4fc028911a3471ddaa4dda800b755b53d63afc602f3571483c",
+        "anchorDigest": "a1bf9595724881874e5ecad7e547c6976b56d372052e067ae72a1260fcf24c7d",
+        "integrityDigest": "3713474fa9492328ba5d921b0a22fc6318d901c1f154d28094eb4d358d2a1fdc",
+        "recordCreatedAt": "2026-09-10T15:40:16.622Z",
+        "digestLinkedToRepositoryAnchorEvidence": false
+      },
+      "anchorContinuity": "NOT_PROVEN",
+      "identityContinuity": "NOT_PROVEN"
+    },
+    {
+      "generationId": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981",
+      "classification": "HISTORICAL_CAS_GENERATION",
+      "currentLocalAnchorState": "ANCHOR_VERIFIED",
+      "docsEvidenceOccurrenceCount": 79,
+      "docsEvidenceOccurrenceFiles": [
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-evidence-read-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-evidence-read-approval-packet-v2.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-evidence-read-approval-packet-v4.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-evidence-read-approval-packet-v5.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-retry-approval-packet-v2.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-retry-approval-packet-v3.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-retry-approval-packet-v4.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-v3-5dda0dcd-91a2-44e8-9f0b-efd74f79ddd5-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-v3-6d6bf058-392a-4851-8a18-37979c6f8635-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-v3-7a445605-00b3-4625-84ee-99b725958e5f-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-v3-809e0659-1112-42a4-af79-1ba850ad9859-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-v3-a2eb3cdd-3896-418d-82fb-b72e2d41a5dc-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-v3-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-v3-e0a0f1d5-5595-48b6-b543-02f32ca74cfc-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-v3-f2f516da-9290-4863-a200-78ea937a9c52-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-v4-63f322c9-9191-4280-ae41-575343c04765-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-read-v5-93518f29-7551-48d9-95ee-577ca6d08a1f-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-transport-diagnostic-repair-3b94fb79-c285-4c09-948a-ec5fd6db53ab-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-cas-transport-diagnostic-repair-97533316-ef17-47d2-900c-0c24e6b4c215-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-execution-intent-cas-read-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-execution-intent-cas-read-v2-approval-packet.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-composite-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-credential-refresh-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-credential-refresh-composite-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-credential-refresh-v2-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-credential-refresh-v2-composite-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-execution-evidence-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-result-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-runtime-capability-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-source-lock-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-v2-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-v2-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-v3-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-v3-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-v3r1-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-v3r1-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-v3r2-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-v3r2-approval-packet-v2.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-v3r2-implementation-v2.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-generation-bound-recovery-v3r2-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v2-credential-refresh-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v2-credential-refresh-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v2-path-refresh-execution-evidence-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v2-path-refresh-next-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v3r1-credential-refresh-approval-packet-v2.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v3r1-credential-refresh-implementation-v2.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v2-path-refresh-next-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v3r1-credential-refresh-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v3r1-credential-refresh-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v3r1-credential-refresh-execution-evidence-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v3r2-credential-refresh-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-recovery-v3r2-credential-refresh-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-refresh-read-bridge-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-refresh-read-bridge-approval-packet-v2.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-refresh-read-bridge-approval-packet-v3.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-refresh-read-bridge-approval-packet-v4.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-refresh-read-bridge-approval-packet-v5.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-refresh-read-bridge-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-refresh-read-bridge-implementation-v2.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-refresh-read-bridge-implementation-v3.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-refresh-read-bridge-implementation-v4.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-refresh-read-bridge-implementation-v5.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-source-lock-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-runtime-capability-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-final-composite-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-v2-runtime-capability-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-v2-prospective-safety-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-v2-live-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-v2-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-v2-source-lock-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-v2r1-implementation-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-v2r1-live-approval-packet-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-v2r1-prospective-safety-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-v2r1-runtime-capability-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-authority-v2r1-source-lock-v1.json",
+        "p1-5-c2h2e3d-w1c-m3l3-g2b-repaired-m3-live-approval-packet-v1.json"
+      ],
+      "hostAttestationSummary": {
+        "count": 12,
+        "signatureValidCount": 12,
+        "canonicalDigestMatchCount": 12,
+        "generationMatchCount": 12,
+        "anchorFingerprintMatchCount": 12,
+        "boundState": "ANCHOR_VERIFIED",
+        "sourceFingerprintIsCurrent": false,
+        "identityFingerprintMatchesImplementation": 0,
+        "identityContinuity": "NOT_PROVEN"
+      },
+      "localAnchorRecord": {
+        "state": "ANCHOR_VERIFIED",
+        "rawFileSha256": "26ddda25aee27e7f6124ea42e4287758b8f691d7214280f7c63feab83cb34fd5",
+        "anchorDigest": "327ecd7186f70cc30604f19d8b86c10f067041c9a7aa9a7016d587da4d13eac8",
+        "integrityDigest": "0abb7592911cef6770476f57a67e9ec3a315fefa4cf3504dedfb91189c761c3d",
+        "recordCreatedAt": "2026-09-12T09:28:30.511Z"
+      },
+      "explicitRelationTo214": "NO_RELATION_EVIDENCE"
+    }
+  ],
+  "lineageGraph": {
+    "nodes": [
+      { "generationId": "214348c8-3be0-44f8-a010-adbe1ac68090", "knownStates": ["MUTATION_INDETERMINATE", "RECOVERY_CONFIRMED_ABSENT"], "terminal": true },
+      { "generationId": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981", "knownStates": ["ANCHOR_VERIFIED"], "terminal": false }
+    ],
+    "edges": [
+      { "from": "214348c8-3be0-44f8-a010-adbe1ac68090", "to": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981", "type": "UNKNOWN_RELATION", "evidence": null }
+    ],
+    "explicitLineageFieldSearch": {
+      "fieldsSearched": ["parentGenerationId", "previousGenerationId", "sourceGenerationId", "recoveryGenerationId", "successorGenerationId", "supersedesGenerationId", "generationOrigin", "generationParent", "recoveryOf", "derivedFrom", "createdFrom", "continuationOf"],
+      "linkingEvidenceFound": false
+    }
+  },
+  "trustTiers": {
+    "tier1": "Digest-linked runtime result/evidence links verified for the two result chains; local signatures verified for historical 8b attestations. No cross-generation link verified.",
+    "tier2": "Packets, source-locks and implementation attestations establish historical 8b use but do not establish 214 lineage or canonical selection.",
+    "tier3": "Documentation/handoff references are index evidence only.",
+    "tier4": "Filename/order/timestamps are not used as lineage proof."
+  },
+  "resolution": {
+    "214AnchorHistory": "NO_PRE_TERMINAL_ANCHOR_EVIDENCE",
+    "214AnchorContinuity": "NOT_PROVEN",
+    "214IdentityContinuity": "NOT_PROVEN",
+    "214To8bRelation": "NO_RELATION_EVIDENCE",
+    "canonicalGeneration": "UNRESOLVED",
+    "terminalStateAttestationCompatibility": "NOT_ESTABLISHED; current builder requires ANCHOR_VERIFIED and binds state into fingerprint",
+    "successorRequired": "UNKNOWN; no persisted state-machine contract requiring a successor was found",
+    "attestation": "BLOCKED",
+    "remoteRead": "BLOCKED",
+    "nextStage": "CLEAN_GENERATION_BOOTSTRAP_DESIGN_REVIEW_ONLY"
+  },
+  "reviewArtifacts": {
+    "reportFilesAreOperationIndependent": true,
+    "existingArtifactsOverwritten": false,
+    "sourceCodeChanged": false
+  }
+}

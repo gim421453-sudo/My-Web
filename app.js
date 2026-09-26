@@ -175,6 +175,15 @@ let workspaceDataRenderTimerV45 = null;
 let workspaceMembersUnsubscribeV49 = null;
 let workspaceMembersIdV49 = "";
 let workspaceMembersRenderTimerV49 = null;
+let trustedWorkspaceMembersStateV6D = {
+  workspaceId: "",
+  items: [],
+  loading: false,
+  loaded: false,
+  errorCode: "",
+  requestToken: 0,
+  promise: null
+};
 let currentUserUnsubscribeV50 = null;
 let currentUserDocUidV50 = "";
 let currentUserSystemOwnerCacheV61 = {};
@@ -182,6 +191,61 @@ const canonicalWorkspaceRoleByUserV160 = new Map();
 
 function canonicalWorkspaceRoleKeyV160(workspaceId, uid) {
   return workspaceId && uid ? `${workspaceId}:${uid}` : "";
+}
+
+function trustedAuthorityEnabledV6D() {
+  return window.PMTrustedBackendService?.isAuthorityEnabled?.() === true;
+}
+
+const TRUSTED_LEGACY_INVITATION_FIELDS_V6F = Object.freeze([
+  "inviteCode",
+  "inviteCodeId",
+  "pendingInviteCodeId",
+  "invitationCode",
+  "invite_code",
+  "code",
+  "codeHash",
+  "secretVersion",
+  "invitedBy",
+  "invitedByEmail",
+  "inviterEmail"
+]);
+
+function stripTrustedLegacyInvitationFieldsV6F(record) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return record;
+  const next = { ...record };
+  TRUSTED_LEGACY_INVITATION_FIELDS_V6F.forEach((field) => delete next[field]);
+  return next;
+}
+
+function sanitizeTrustedInvitationAuthorityStateV6F(state, { clearInvitationCache = false } = {}) {
+  if (!trustedAuthorityEnabledV6D() || !state || typeof state !== "object") return state;
+  return {
+    ...state,
+    auth: stripTrustedLegacyInvitationFieldsV6F(state.auth),
+    users: Array.isArray(state.users) ? state.users.map(stripTrustedLegacyInvitationFieldsV6F) : [],
+    workspace_members: Array.isArray(state.workspace_members)
+      ? state.workspace_members.map(stripTrustedLegacyInvitationFieldsV6F)
+      : state.workspace_members,
+    invitations: clearInvitationCache
+      ? []
+      : (Array.isArray(state.invitations) ? state.invitations.map(stripTrustedLegacyInvitationFieldsV6F) : [])
+  };
+}
+
+function sanitizeTrustedInvitationRuntimeStateV6F({ clearInvitationCache = false } = {}) {
+  if (!trustedAuthorityEnabledV6D()) return;
+  authStateV31 = sanitizeTrustedInvitationAuthorityStateV6F(authStateV31, { clearInvitationCache });
+  if (currentUser) currentUser = stripTrustedLegacyInvitationFieldsV6F(currentUser);
+}
+
+function applyLegacyPendingInviteCodeV6F(firebaseUser, membership) {
+  if (!firebaseUser) return;
+  if (trustedAuthorityEnabledV6D()) {
+    delete firebaseUser.pmPendingInviteCodeId;
+    return;
+  }
+  firebaseUser.pmPendingInviteCodeId = membership?.pendingInviteCodeId || "";
 }
 
 function loadStore() {
@@ -265,7 +329,8 @@ function startWorkspaceDataSyncV45(workspaceId) {
   }
   if (!workspaceId || !window.PMWorkspaceDataService?.start) return;
   startCurrentUserRealtimeV50();
-  startWorkspaceMembersRealtimeV49(workspaceId);
+  if (trustedAuthorityEnabledV6D()) stopWorkspaceMembersRealtimeV49();
+  else startWorkspaceMembersRealtimeV49(workspaceId);
   window.PMWorkspaceDataService.start({
     workspaceId,
     uid: currentUser?.uid || currentUser?.id || "",
@@ -8577,7 +8642,7 @@ function loadAuthStateV31() {
       : JSON.parse(localStorage.getItem(AUTH_KEY_V31) || "null");
     if (!saved) return defaultAuthStateV31();
     const base = defaultAuthStateV31();
-    return ensureDefaultSuperAccountV38({
+    const state = ensureDefaultSuperAccountV38({
       ...base,
       ...saved,
       auth: { ...base.auth, ...(saved.auth || {}) },
@@ -8586,6 +8651,7 @@ function loadAuthStateV31() {
       users: Array.isArray(saved.users) ? saved.users : base.users,
       invitations: Array.isArray(saved.invitations) ? saved.invitations : []
     });
+    return sanitizeTrustedInvitationAuthorityStateV6F(state, { clearInvitationCache: true });
   } catch (error) {
     return ensureDefaultSuperAccountV38(defaultAuthStateV31());
   }
@@ -8594,6 +8660,7 @@ function loadAuthStateV31() {
 let authStateV31 = loadAuthStateV31();
 
 function saveAuthStateV31() {
+  sanitizeTrustedInvitationRuntimeStateV6F();
   if (window.PMAuthService?.saveAuthState) {
     authStateV31 = window.PMAuthService.saveAuthState(authStateV31);
     return;
@@ -9299,7 +9366,8 @@ async function registerLocalUserV33() {
 
 async function registerWithInviteCodeV38() {
   try {
-    const codeValue = document.getElementById("inviteSignupCodeV38").value.trim();
+    const codeInput = document.getElementById("inviteSignupCodeV38");
+    const codeValue = codeInput.value.trim();
     const emailValue = document.getElementById("inviteSignupEmailV38").value.trim();
     const passwordValue = document.getElementById("inviteSignupPasswordV38").value;
     const nameValue = document.getElementById("inviteSignupNameV38").value.trim();
@@ -9573,7 +9641,111 @@ function roleOptionsForCurrentUserV36(selectedRole) {
   return [...new Set([selectedRole, ...keys].filter(Boolean))];
 }
 
+function trustedCurrentWorkspaceIdV6D() {
+  return String(currentUser?.currentWorkspaceId || authWorkspaceStateV36.currentWorkspaceId || "").trim();
+}
+
+function trustedWorkspaceMemberRowsV6D() {
+  if (!trustedAuthorityEnabledV6D()) return [];
+  return trustedWorkspaceMembersStateV6D.items.map((member) => {
+    const profile = (authStateV31.users || []).find((user) => (user.uid || user.id) === member.uid) || {};
+    return {
+      id: member.uid,
+      uid: member.uid,
+      workspace_id: member.workspaceId,
+      workspaceId: member.workspaceId,
+      role: member.role,
+      workspaceRole: member.role,
+      status: member.status,
+      active: member.active,
+      disabled: member.disabled,
+      name: profile.name || profile.displayName || "워크스페이스 사용자",
+      displayName: profile.displayName || profile.name || "워크스페이스 사용자",
+      email: profile.email || "",
+      emailVerified: profile.emailVerified === true,
+      lastLoginAt: profile.lastLoginAt || "",
+      menuOverrides: profile.menuOverrides || null
+    };
+  });
+}
+
+function ensureTrustedWorkspaceMembersReadV6D(workspaceId) {
+  if (!trustedAuthorityEnabledV6D()) return Promise.resolve([]);
+  const canonicalWorkspaceId = String(workspaceId || "").trim();
+  if (!canonicalWorkspaceId) {
+    trustedWorkspaceMembersStateV6D = {
+      workspaceId: "",
+      items: [],
+      loading: false,
+      loaded: true,
+      errorCode: "workspace-unresolved",
+      requestToken: trustedWorkspaceMembersStateV6D.requestToken + 1,
+      promise: null
+    };
+    return Promise.resolve([]);
+  }
+  if (trustedWorkspaceMembersStateV6D.workspaceId === canonicalWorkspaceId
+    && (trustedWorkspaceMembersStateV6D.loaded || trustedWorkspaceMembersStateV6D.loading)) {
+    return trustedWorkspaceMembersStateV6D.promise || Promise.resolve(trustedWorkspaceMembersStateV6D.items);
+  }
+
+  const requestToken = trustedWorkspaceMembersStateV6D.requestToken + 1;
+  trustedWorkspaceMembersStateV6D = {
+    workspaceId: canonicalWorkspaceId,
+    items: [],
+    loading: true,
+    loaded: false,
+    errorCode: "",
+    requestToken,
+    promise: null
+  };
+  const request = Promise.resolve().then(async () => {
+    const service = window.PMTrustedBackendService;
+    if (!service || typeof service.listWorkspaceMembers !== "function") {
+      const error = new Error("Trusted membership read is unavailable.");
+      error.code = "INTERNAL";
+      throw error;
+    }
+    const response = await service.listWorkspaceMembers({ workspaceId: canonicalWorkspaceId, limit: 100 });
+    const rows = Array.isArray(response?.items) ? response.items : null;
+    if (!rows) {
+      const error = new Error("Trusted membership response is invalid.");
+      error.code = "INTERNAL";
+      throw error;
+    }
+    const items = rows.map((row) => ({
+      uid: String(row.uid || ""),
+      workspaceId: String(row.workspaceId || ""),
+      role: String(row.role || ""),
+      status: String(row.status || ""),
+      active: row.active === true,
+      disabled: row.disabled === true,
+      createdAt: row.createdAt || null,
+      updatedAt: row.updatedAt || null
+    })).filter((row) => row.uid && row.workspaceId === canonicalWorkspaceId);
+    if (trustedWorkspaceMembersStateV6D.requestToken !== requestToken) return [];
+    trustedWorkspaceMembersStateV6D.items = items;
+    trustedWorkspaceMembersStateV6D.loaded = true;
+    trustedWorkspaceMembersStateV6D.errorCode = "";
+    return items;
+  }).catch((error) => {
+    if (trustedWorkspaceMembersStateV6D.requestToken !== requestToken) return [];
+    trustedWorkspaceMembersStateV6D.items = [];
+    trustedWorkspaceMembersStateV6D.loaded = true;
+    trustedWorkspaceMembersStateV6D.errorCode = String(error?.code || "INTERNAL");
+    return [];
+  }).finally(() => {
+    if (trustedWorkspaceMembersStateV6D.requestToken !== requestToken) return;
+    trustedWorkspaceMembersStateV6D.loading = false;
+    trustedWorkspaceMembersStateV6D.promise = null;
+    if (currentPage === "accounts") Promise.resolve().then(() => renderAccountsV17());
+  });
+  trustedWorkspaceMembersStateV6D.promise = request;
+  return request;
+}
+
 function usersForCurrentWorkspaceV38() {
+  if (trustedAuthorityEnabledV6D()) return trustedWorkspaceMemberRowsV6D();
   const workspaceId = currentUser?.workspace_id || store.workspace_id || window.PMDataService?.currentWorkspaceId?.() || "";
   const activeMembers = (authStateV31.workspace_members || [])
     .filter((member) => member.workspaceId === workspaceId && !["disabled", "withdrawn", "deleted"].includes(member.status || "active"));
@@ -9589,6 +9761,7 @@ function usersForCurrentWorkspaceV38() {
 let remoteWorkspaceMemberRefreshV39 = "";
 
 async function refreshRemoteWorkspaceMembersV39(workspaceId) {
+  if (trustedAuthorityEnabledV6D()) return;
   if (!workspaceId || !window.PMFirebaseRuntime?.hasConfig?.()) return;
   if (remoteWorkspaceMemberRefreshV39 === workspaceId) return;
   remoteWorkspaceMemberRefreshV39 = workspaceId;
@@ -9667,6 +9840,10 @@ function stopWorkspaceMembersRealtimeV49() {
 }
 
 async function startWorkspaceMembersRealtimeV49(workspaceId) {
+  if (trustedAuthorityEnabledV6D()) {
+    stopWorkspaceMembersRealtimeV49();
+    return;
+  }
   if (!workspaceId || !window.PMFirebaseRuntime?.hasConfig?.() || !isFirebaseBackedSessionV45()) return;
   if (workspaceMembersIdV49 === workspaceId && workspaceMembersUnsubscribeV49) return;
   stopWorkspaceMembersRealtimeV49();
@@ -9690,6 +9867,7 @@ async function startWorkspaceMembersRealtimeV49(workspaceId) {
 }
 
 function applyWorkspaceMembersSnapshotV49(workspaceId, members) {
+  if (trustedAuthorityEnabledV6D()) return;
   authStateV31.workspace_members = (authStateV31.workspace_members || []).filter((member) => member.workspaceId !== workspaceId);
   authStateV31.users = authStateV31.users || [];
   const currentUid = currentUser?.uid || currentUser?.id || "";
@@ -9968,7 +10146,14 @@ function usersTableV36() {
   });
   if (!users.length) {
     const tr = document.createElement("tr");
-    const td = el("td", "empty", "현재 workspace에 등록된 사용자가 없습니다.");
+    const trustedMessage = trustedWorkspaceMembersStateV6D.loading
+      ? "워크스페이스 사용자를 불러오는 중입니다."
+      : trustedWorkspaceMembersStateV6D.errorCode
+        ? "워크스페이스 사용자 목록을 불러오지 못했습니다."
+        : "현재 workspace에 등록된 사용자가 없습니다.";
+    const td = el("td", "empty", trustedAuthorityEnabledV6D()
+      ? trustedMessage
+      : "현재 workspace에 등록된 사용자가 없습니다.");
     td.colSpan = 8;
     tr.append(td);
     body.append(tr);
@@ -10074,7 +10259,12 @@ async function syncRemoteMemberRoleV39(user, workspaceId, uid) {
 function renderAccountsV17() {
   window.PMWorkspaceService?.ensurePersonalWorkspace?.(authStateV31, currentUser);
   saveAuthStateV31();
-  startWorkspaceMembersRealtimeV49(currentUser?.workspace_id || store.workspace_id || window.PMDataService?.currentWorkspaceId?.());
+  if (trustedAuthorityEnabledV6D()) {
+    stopWorkspaceMembersRealtimeV49();
+    void ensureTrustedWorkspaceMembersReadV6D(trustedCurrentWorkspaceIdV6D());
+  } else {
+    startWorkspaceMembersRealtimeV49(currentUser?.workspace_id || store.workspace_id || window.PMDataService?.currentWorkspaceId?.());
+  }
   content.replaceChildren();
   content.append(el("h2", "", "계정 설정"));
   content.append(el("p", "muted", "사용자, 역할, 초대코드, workspace 전환, 계정 탈퇴를 관리합니다."));
@@ -10136,6 +10326,7 @@ function inviteCodeRegisterV37() {
       if ((authUser.workspace_id || authUser.workspaceId || currentUser.workspace_id) && !confirm("현재 연결된 workspace가 있습니다. 초대코드를 등록하면 해당 workspace로 전환됩니다. 계속할까요?")) return;
       const result = await window.PMInvitationService.acceptInviteCode({ authState: authStateV31, user: authUser, code: code.value });
       const { member } = result;
+      code.value = "";
       if (result?.pending || member?.status === "pending") {
         currentUser.status = "waiting_approval";
         currentUser.role = member.role || "normal";
@@ -10145,7 +10336,13 @@ function inviteCodeRegisterV37() {
         currentUser.workspaceId = "";
         currentUser.currentWorkspaceId = "";
         currentUser.pendingWorkspaceId = member.pendingWorkspaceId || member.workspaceId || "";
-        currentUser.pendingInviteCodeId = member.inviteCodeId || member.inviteCode || code.value.trim().toUpperCase();
+        if (trustedAuthorityEnabledV6D()) {
+          currentUser.pendingInvitationId = member.invitationId || result?.result?.invitationId || "";
+          currentUser.pendingJoinRequestId = result?.result?.joinRequestId || "";
+          delete currentUser.pendingInviteCodeId;
+        } else {
+          currentUser.pendingInviteCodeId = member.inviteCodeId || member.inviteCode || code.value.trim().toUpperCase();
+        }
         Object.assign(authUser, currentUser);
         saveAuthStateV31();
         showMessage("승인 대기", "초대코드가 확인되었습니다. 관리자 승인 후 해당 workspace에 연결됩니다.");
@@ -10258,11 +10455,17 @@ function invitationsTableV37() {
   const body = document.createElement("tbody");
   (authStateV31.invitations || []).forEach((invite) => {
     const revoke = button("폐기", "ghost small");
-    revoke.disabled = !["pending", "invited"].includes(invite.status);
-    revoke.addEventListener("click", () => {
-      window.PMInvitationService?.revokeInvite?.(authStateV31, invite.invitationId || invite.id);
-      saveAuthStateV31();
-      renderAccountsV17();
+    revoke.disabled = !["active", "pending", "invited"].includes(invite.status);
+    revoke.addEventListener("click", async () => {
+      revoke.disabled = true;
+      try {
+        await window.PMInvitationService?.revokeInvite?.(authStateV31, invite.invitationId || invite.id);
+        saveAuthStateV31();
+        renderAccountsV17();
+      } catch (error) {
+        revoke.disabled = false;
+        showMessage("초대코드 폐기 실패", error.message || String(error));
+      }
     });
     const tr = document.createElement("tr");
     tr.append(
@@ -10394,7 +10597,7 @@ async function restoreFirebaseSessionV34() {
       firebaseUser.pmRole = membership.role;
       firebaseUser.pmStatus = membership.status;
       firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
-      firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
+      applyLegacyPendingInviteCodeV6F(firebaseUser, membership);
       await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
       const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "normal");
       authStateV31 = window.PMAuthService.loadAuthState();
@@ -10422,10 +10625,13 @@ var systemOwnerStateV54 = {
   systemIntegrations: [],
   systemIntegrationLogs: [],
   adminLogs: [],
+  managementReadLoading: false,
+  managementReadError: "",
   unsubscribers: []
 };
 var systemNoticeEditingIdV54 = "";
 var workspaceNoticeUnsubscribeV60 = null;
+var trustedManagementLoadPromiseV6B = null;
 
 function appTargetV60() {
   return window.PM_APP_TARGET || window.PM_FIREBASE_CONFIG?.appTarget || "main";
@@ -10554,7 +10760,7 @@ async function bootstrapAdminFirebaseUserV159(firebaseUser, reason = "auth-obser
       firebaseUser.pmWorkspaceRole = membership.workspaceRole || "";
       firebaseUser.pmStatus = membership.status;
       firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
-      firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
+        applyLegacyPendingInviteCodeV6F(firebaseUser, membership);
       await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
       const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
       authStateV31 = window.PMAuthService.loadAuthState();
@@ -10914,7 +11120,13 @@ function syncFirebaseUserToLocalAuthV33(firebaseUser, displayName, fallbackRole)
   user.workspaceId = workspaceId;
   user.currentWorkspaceId = workspaceId;
   user.pendingWorkspaceId = firebaseUser.pmPendingWorkspaceId || user.pendingWorkspaceId || "";
-  user.pendingInviteCodeId = firebaseUser.pmPendingInviteCodeId || user.pendingInviteCodeId || "";
+  if (trustedAuthorityEnabledV6D()) {
+    delete user.pendingInviteCodeId;
+    delete user.inviteCode;
+    delete user.inviteCodeId;
+  } else {
+    user.pendingInviteCodeId = firebaseUser.pmPendingInviteCodeId || user.pendingInviteCodeId || "";
+  }
   user.role = role || user.role || "pending";
   user.currentRole = user.role;
   user.workspaceRole = workspaceRole;
@@ -11024,8 +11236,17 @@ function renderApprovalGateV54(user = currentUser) {
         submit.disabled = true;
         const result = await window.PMSystemAdminService.submitJoinRequest({ user, code: code.value });
         user.status = "waiting_approval";
-        user.pendingWorkspaceId = result.workspaceId;
-        user.pendingInviteCodeId = result.inviteCodeId || code.value.trim().toUpperCase();
+        user.pendingWorkspaceId = trustedAuthorityEnabledV6D()
+          ? (result?.result?.workspaceId || "")
+          : result.workspaceId;
+        if (trustedAuthorityEnabledV6D()) {
+          user.pendingInvitationId = result?.result?.invitationId || "";
+          user.pendingJoinRequestId = result?.result?.joinRequestId || "";
+          delete user.pendingInviteCodeId;
+        } else {
+          user.pendingInviteCodeId = result.inviteCodeId || code.value.trim().toUpperCase();
+        }
+        code.value = "";
         const local = authStateV31.users.find((item) => item.uid === user.uid || item.id === user.id);
         if (local) Object.assign(local, user);
         saveAuthStateV31();
@@ -11217,7 +11438,8 @@ async function registerLocalUserV33() {
 
 async function registerWithInviteCodeV38() {
   try {
-    const codeValue = document.getElementById("inviteSignupCodeV38").value.trim();
+    const codeInput = document.getElementById("inviteSignupCodeV38");
+    const codeValue = codeInput.value.trim();
     const emailValue = document.getElementById("inviteSignupEmailV38").value.trim();
     const passwordValue = document.getElementById("inviteSignupPasswordV38").value;
     const nameValue = document.getElementById("inviteSignupNameV38").value.trim();
@@ -11239,12 +11461,22 @@ async function registerWithInviteCodeV38() {
         firebaseUser.pmRole = membership.role;
         firebaseUser.pmStatus = membership.status;
         firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
-        firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
+      applyLegacyPendingInviteCodeV6F(firebaseUser, membership);
       }
       firebaseUser.displayName = firebaseUser.displayName || nameValue || emailValue;
       user = syncFirebaseUserToLocalAuthV33(firebaseUser, nameValue || emailValue, "pending");
-      await window.PMSystemAdminService.submitJoinRequest({ user, code: codeValue });
+      const joinResult = await window.PMSystemAdminService.submitJoinRequest({ user, code: codeValue });
       user.status = "waiting_approval";
+      if (trustedAuthorityEnabledV6D()) {
+        user.pendingWorkspaceId = joinResult?.result?.workspaceId || "";
+        user.pendingInvitationId = joinResult?.result?.invitationId || "";
+        user.pendingJoinRequestId = joinResult?.result?.joinRequestId || "";
+        delete user.pendingInviteCodeId;
+      } else {
+        user.pendingWorkspaceId = joinResult?.workspaceId || "";
+        user.pendingInviteCodeId = joinResult?.inviteCodeId || "";
+      }
+      codeInput.value = "";
       loginError.textContent = usedExistingAccount
         ? "기존 계정으로 초대코드 승인 요청을 보냈습니다. 관리자 승인 후 이용할 수 있습니다."
         : "초대코드가 확인되었습니다. 이메일 인증과 관리자 승인 후 이용할 수 있습니다.";
@@ -11300,11 +11532,11 @@ async function restoreFirebaseSessionV34() {
       try {
         const membership = await window.PMAuthService.firebaseEnsureUserStructure(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
         firebaseUser.pmWorkspaceId = membership.workspaceId;
-        firebaseUser.pmRole = membership.role;
-        firebaseUser.pmStatus = membership.status;
-        firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
-        firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
-        await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
+      firebaseUser.pmRole = membership.role;
+      firebaseUser.pmStatus = membership.status;
+      firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+      applyLegacyPendingInviteCodeV6F(firebaseUser, membership);
+      await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
         const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
         authStateV31 = window.PMAuthService.loadAuthState();
         completeLoginV34(user);
@@ -11351,7 +11583,15 @@ async function startCurrentUserRealtimeV50() {
     currentUser.workspaceRole = canonicalRole;
     currentUser.status = data.status || (currentUser.workspace_id ? "active" : "pending");
     currentUser.pendingWorkspaceId = data.pendingWorkspaceId || "";
-    currentUser.pendingInviteCodeId = data.pendingInviteCodeId || data.inviteCodeId || data.inviteCode || "";
+    if (trustedAuthorityEnabledV6D()) {
+      currentUser.pendingInvitationId = typeof data.pendingInvitationId === "string" ? data.pendingInvitationId : "";
+      currentUser.pendingJoinRequestId = typeof data.pendingJoinRequestId === "string" ? data.pendingJoinRequestId : "";
+      delete currentUser.pendingInviteCodeId;
+      delete currentUser.inviteCode;
+      delete currentUser.inviteCodeId;
+    } else {
+      currentUser.pendingInviteCodeId = data.pendingInviteCodeId || data.inviteCodeId || data.inviteCode || "";
+    }
     currentUser.disabled = data.disabled === true || currentUser.status === "disabled";
     currentUser.active = !currentUser.disabled;
     const firebaseAuthUser = firebaseAuthUserForUidV162(uid);
@@ -11367,7 +11607,12 @@ async function startCurrentUserRealtimeV50() {
       workspaceRole: currentUser.workspaceRole,
       status: currentUser.status,
       pendingWorkspaceId: currentUser.pendingWorkspaceId,
-      pendingInviteCodeId: currentUser.pendingInviteCodeId,
+      ...(trustedAuthorityEnabledV6D()
+        ? {
+          pendingInvitationId: currentUser.pendingInvitationId || "",
+          pendingJoinRequestId: currentUser.pendingJoinRequestId || ""
+        }
+        : { pendingInviteCodeId: currentUser.pendingInviteCodeId }),
       disabled: currentUser.disabled,
       active: currentUser.active
     });
@@ -11454,6 +11699,7 @@ function renderPage(key) {
     renderApprovalGateV54(currentUser);
     return;
   }
+  ensureTrustedInvitationManagementReadV6B();
   if (currentUser?.role === "system_owner" && key !== "systemOwner" && !userWorkspaceIdV54(currentUser)) key = "systemOwner";
   if (currentUser?.role === "print" && !["print", "examSchedules"].includes(key)) key = "print";
   if (["people", "friendAwards", "site", "admin", "budget", "system"].includes(key) && !isAdmin()) key = "dashboard";
@@ -11515,6 +11761,31 @@ function renderPage(key) {
         : "현재 워크스페이스의 운영 모드에서는 이 기능을 사용할 수 없습니다."
     );
   }
+}
+
+var trustedInvitationReadWorkspaceV6B = "";
+var trustedInvitationReadPromiseV6B = null;
+
+function ensureTrustedInvitationManagementReadV6B() {
+  if (window.PMTrustedBackendService?.isAuthorityEnabled?.() !== true) return;
+  const workspaceId = String(currentUser?.currentWorkspaceId || "");
+  if (!workspaceId || trustedInvitationReadWorkspaceV6B === workspaceId || trustedInvitationReadPromiseV6B) return;
+  sanitizeTrustedInvitationRuntimeStateV6F({ clearInvitationCache: true });
+  saveAuthStateV31();
+  trustedInvitationReadWorkspaceV6B = workspaceId;
+  trustedInvitationReadPromiseV6B = Promise.resolve(
+    window.PMInvitationService?.listManagedInvitations?.({ workspaceId, limit: 100 })
+  ).then((result) => {
+    if (!result || result.source !== "TRUSTED_CANONICAL" || trustedInvitationReadWorkspaceV6B !== workspaceId) return;
+    authStateV31.invitations = result.items || [];
+    if (currentPage === "accounts") renderAccountsV17();
+  }).catch((error) => {
+    authStateV31.invitations = [];
+    if (trustedInvitationReadWorkspaceV6B === workspaceId) trustedInvitationReadWorkspaceV6B = "";
+    console.error("[trusted-invitation-management-read:error]", { code: String(error?.code || "INTERNAL") });
+  }).finally(() => {
+    trustedInvitationReadPromiseV6B = null;
+  });
 }
 
 function applySystemOwnerWorkspaceV57(result) {
@@ -11647,6 +11918,13 @@ function renderSystemOwnerConsoleV54() {
     tabs.append(btn);
   });
   content.append(header, renderSystemOwnerWorkspacePanelV57(), tabs);
+  if (window.PMTrustedBackendService?.isAuthorityEnabled?.() === true) {
+    if (systemOwnerStateV54.managementReadLoading) {
+      content.append(el("p", "muted", "관리 정보를 안전하게 불러오는 중입니다."));
+    } else if (systemOwnerStateV54.managementReadError) {
+      content.append(el("div", "restricted", "관리 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."));
+    }
+  }
   const tab = sessionStorage.getItem("systemOwnerTabV54") || "join";
   if (tab === "join") content.append(renderJoinRequestsAdminV54());
   else if (tab === "admin") content.append(renderAdminApplicationsV54());
@@ -11683,6 +11961,46 @@ function startSystemOwnerRealtimeV54() {
       systemOwnerStateV54.timer = setTimeout(renderSystemOwnerConsoleV54, 120);
     }
   };
+  if (window.PMTrustedBackendService?.isAuthorityEnabled?.() === true) {
+    let active = true;
+    systemOwnerStateV54.unsubscribers.push(() => { active = false; });
+    systemOwnerStateV54.unsubscribers.push(
+      window.PMSystemAdminService.subscribeSystemNoticeAdmin((rows) => { systemOwnerStateV54.systemNotices = rows; rerender(); }),
+      window.PMSystemAdminService.subscribeSystemIntegrations((rows) => { systemOwnerStateV54.systemIntegrations = rows || []; rerender(); }),
+      window.PMSystemAdminService.subscribeSystemIntegrationLogs((rows) => { systemOwnerStateV54.systemIntegrationLogs = rows || []; rerender(); })
+    );
+    systemOwnerStateV54.managementReadLoading = true;
+    systemOwnerStateV54.managementReadError = "";
+    trustedManagementLoadPromiseV6B ||= Promise.resolve(
+      window.PMSystemAdminService.loadTrustedManagementSnapshot({ limit: 100 })
+    ).then((snapshot) => {
+      if (!active) return;
+      systemOwnerStateV54.workspaces = snapshot.workspaces || [];
+      systemOwnerStateV54.workspaceMembers = snapshot.workspaceMembers || [];
+      systemOwnerStateV54.joinRequests = snapshot.joinRequests || [];
+      systemOwnerStateV54.adminApplications = snapshot.adminApplications || [];
+      systemOwnerStateV54.users = snapshot.users || [];
+      systemOwnerStateV54.adminLogs = [];
+      systemOwnerStateV54.managementReadLoading = false;
+      systemOwnerStateV54.managementReadError = "";
+      restartWorkspaceNoticeRealtimeV60(rerender);
+      rerender();
+    }).catch((error) => {
+      if (!active) return;
+      systemOwnerStateV54.joinRequests = [];
+      systemOwnerStateV54.adminApplications = [];
+      systemOwnerStateV54.users = [];
+      systemOwnerStateV54.workspaceMembers = [];
+      systemOwnerStateV54.adminLogs = [];
+      systemOwnerStateV54.managementReadLoading = false;
+      systemOwnerStateV54.managementReadError = String(error?.code || "INTERNAL");
+      console.error("[trusted-management-read:error]", { code: String(error?.code || "INTERNAL") });
+      rerender();
+    }).finally(() => {
+      trustedManagementLoadPromiseV6B = null;
+    });
+    return;
+  }
   systemOwnerStateV54.unsubscribers.push(
     window.PMSystemAdminService.subscribeJoinRequests((rows) => { systemOwnerStateV54.joinRequests = rows; rerender(); }),
     window.PMSystemAdminService.subscribeAdminApplications((rows) => { systemOwnerStateV54.adminApplications = rows; rerender(); }),
@@ -15464,10 +15782,10 @@ restoreFirebaseSessionV34 = async function restoreFirebaseSessionV80() {
       if (currentUser) return;
       const membership = await window.PMAuthService.firebaseEnsureUserStructure(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
       firebaseUser.pmWorkspaceId = membership.workspaceId;
-      firebaseUser.pmRole = membership.role;
-      firebaseUser.pmStatus = membership.status;
-      firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
-      firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
+        firebaseUser.pmRole = membership.role;
+        firebaseUser.pmStatus = membership.status;
+        firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
+        applyLegacyPendingInviteCodeV6F(firebaseUser, membership);
       await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
       const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
       authStateV31 = window.PMAuthService.loadAuthState();
@@ -18937,7 +19255,7 @@ if (typeof restoreFirebaseSessionV34 === "function") {
         firebaseUser.pmRole = membership.role;
         firebaseUser.pmStatus = membership.status;
         firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
-        firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
+        applyLegacyPendingInviteCodeV6F(firebaseUser, membership);
         await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
         const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
         authStateV31 = window.PMAuthService.loadAuthState();
@@ -24228,7 +24546,7 @@ restoreFirebaseSessionV34 = async function restoreFirebaseSessionV108() {
       firebaseUser.pmRole = membership.role;
       firebaseUser.pmStatus = membership.status;
       firebaseUser.pmPendingWorkspaceId = membership.pendingWorkspaceId;
-      firebaseUser.pmPendingInviteCodeId = membership.pendingInviteCodeId;
+      applyLegacyPendingInviteCodeV6F(firebaseUser, membership);
       await window.PMAuthService.firebaseRegisterDevice(firebaseUser);
       const user = syncFirebaseUserToLocalAuthV33(firebaseUser, firebaseUser.displayName || firebaseUser.email, "pending");
       authStateV31 = window.PMAuthService.loadAuthState();
@@ -37831,6 +38149,7 @@ function populateOperationModeAdminV153(host, rows) {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(form).entries());
+    payload.expectedMode = operationModeForWorkspaceV150(payload.workspaceId);
     if (!String(payload.reason || "").trim()) { error.textContent = "변경 사유를 입력해 주세요."; return; }
     if (!window.confirm("운영 모드를 변경할까요? 기존 데이터는 삭제·이동·변환되지 않습니다.")) return;
     error.textContent = "계정 확인 후 서버에 적용합니다.";
@@ -37841,7 +38160,11 @@ function populateOperationModeAdminV153(host, rows) {
         const result = await window.PMSystemAdminService?.changeWorkspaceOperationMode?.(payload);
         if (!result?.dataPreserved) throw learningWriteErrorV137("operation-mode-data-preservation-failed");
         const target = operationModeWorkspaceV150(payload.workspaceId);
-        if (target) Object.assign(target, { operationMode: result.nextMode, operationModeReason: String(payload.reason).trim() });
+        if (target) Object.assign(target, {
+          operationMode: result.nextMode,
+          operationModeVersion: result.operationModeVersion,
+          operationModeReason: String(payload.reason).trim()
+        });
         if (String(payload.workspaceId) === canonical) store.settings.operationMode = result.nextMode;
         operationModeHistoryRowsV150 = [];
         applyOperationModeUiChangeV154(payload.workspaceId, result.nextMode);

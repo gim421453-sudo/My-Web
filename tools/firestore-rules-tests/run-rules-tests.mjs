@@ -9,7 +9,7 @@ const TOOL_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = resolve(TOOL_DIR, "..", "..");
 const CONFIG_PATH = resolve(ROOT_DIR, "firebase.rules-test.json");
 const RULES_PATH = resolve(ROOT_DIR, "firestore.rules");
-const DEBUG_LOG_PATH = resolve(ROOT_DIR, "firestore-debug.log");
+const DEBUG_LOG_PATH = resolve(TOOL_DIR, "firestore-debug.log");
 const TEST_ENTRY = resolve(TOOL_DIR, "tests", "run-all.mjs");
 const FIREBASE_CLI = resolve(
   TOOL_DIR,
@@ -83,7 +83,7 @@ try {
       "--config", CONFIG_PATH,
       testCommand,
     ], {
-      cwd: ROOT_DIR,
+      cwd: TOOL_DIR,
       env: {
         PATH: process.env.PATH,
         SystemRoot: process.env.SystemRoot,

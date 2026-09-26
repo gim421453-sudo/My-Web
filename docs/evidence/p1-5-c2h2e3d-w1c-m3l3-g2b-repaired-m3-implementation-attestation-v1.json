@@ -1,0 +1,82 @@
+{
+  "schema": "myweb.g2b.repaired-m3.implementation-attestation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-REPAIRED-DIRECT-PROSPECTIVE-REATTESTATION",
+  "continuityAttestationSha256": "a43c5314e2728894e399f2e93ee45c54e014d5583ada6a7dd81070b20508a844",
+  "targetResource": "myweb-class-mig-writer-g2@my-management-app-8a933.iam.gserviceaccount.com",
+  "targetRole": "roles/iam.serviceAccountTokenCreator",
+  "authorizationPrecondition": "V3_EXACT_DIRECT_CONTEXT_PERMISSION_PRESENT_WITH_CURRENT_RUNTIME_CONTINUITY",
+  "currentDirectTransport": "EXPLICIT_DIRECT_SET_IAM_POLICY_CACHED_CREDENTIAL",
+  "oldGcloudMutationReachability": 0,
+  "oldGcloudFallbackReachability": 0,
+  "localIdentity": {
+    "localConfigReadsMax": 2,
+    "accountEnumerationReachable": false,
+    "processSpawnReachable": false,
+    "networkAccessReachable": false,
+    "authOverridesBlocked": true,
+    "exactPrincipalPersisted": false,
+    "exactIamMemberPersisted": false,
+    "crossAccountFallbackReachable": false
+  },
+  "privacy": {
+    "rawPrincipalPersisted": false,
+    "rawMemberPersisted": false,
+    "rawCredentialPersisted": false,
+    "rawPolicyPersisted": false,
+    "rawOutputPersisted": false
+  },
+  "sourceLocks": [
+    {
+      "path": "tools/authority-audit/g2bDirectCachedCredentialReadiness.mjs",
+      "sha256": "3ba01ced3537f390e9e29dfe1d8f120bf99e222c2a9a610cfc5e6effb092eb54"
+    },
+    {
+      "path": "tools/authority-audit/g2bExplicitSetIamPolicyAuthTransport.mjs",
+      "sha256": "c82a439accd6e0fb1acc35a62676b0221831550cbf48c237de19190bac9c2d45"
+    },
+    {
+      "path": "tools/authority-audit/g2bExplicitSetIamPolicyTransport.mjs",
+      "sha256": "c3fe6f8c7d42af874f8fbfb40ad10f7edce4283d433011e9c8cde1057e528a59"
+    },
+    {
+      "path": "tools/authority-audit/g2b_explicit_set_iam_policy_transport.py",
+      "sha256": "5138f4db56bedc2da7bd0a59cf7d1c18c0afbae79952645bb0c1a36bd655563f"
+    },
+    {
+      "path": "tools/authority-audit/g2bLocalPinnedIdentityResolver.mjs",
+      "sha256": "187a5f116e39cd9eace4000739dfedb476e8589c99718c42eecbd0567d4c4f45"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3CurrentLiveExecutor.mjs",
+      "sha256": "362ab6aab25c13c8e22833d89c0f09fd5fd57dc39fc2add385f58a9f57c03931"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3RecoveryAnchorRuntime.mjs",
+      "sha256": "0751b91f1766e6b4bda0050975df0d5fed223ac410a5a37a0af22075b6b66b60"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+      "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+    },
+    {
+      "path": "tools/authority-audit/g2bV3DiagnosticContinuityAttestation.mjs",
+      "sha256": "b3daa007f5943b49ea72fb76e8f5a73491a800d729fc866ff3dd3df3d02d6b46"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bLocalPinnedIdentityResolver.test.mjs",
+      "sha256": "bb941fcc0f0b9fd955fd3579a98ff1504e99136cb3bbe5213300b6c02d751a13"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bM3CurrentLiveExecutor.test.mjs",
+      "sha256": "0e897f59078fb9d09d0126d4e8acc20737844d9495b01faca699ce2f8375db2f"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bM3RecoveryAnchorRuntime.test.mjs",
+      "sha256": "7383bc9a3107993df7ee4056fad78a5a7867f9b72b657d8ce48cf3d1d2cd8261"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bV3DiagnosticContinuityAttestation.test.mjs",
+      "sha256": "c3b746597d27737cab921ccdf5e2c841a2b4a7c691ce9c3e21702fbb4c89b408"
+    }
+  ]
+}

@@ -4914,8 +4914,8 @@ const tests = [
   }],
   ["admin auth P0 cache versions are current", () => {
     const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
-    assert.match(indexHtml, /services\/authService\.js\?v=19/);
-    assert.match(indexHtml, /app\.js\?v=162/);
+    assert.match(indexHtml, /services\/authService\.js\?v=20/);
+    assert.match(indexHtml, /app\.js\?v=164/);
     assert.doesNotMatch(indexHtml, /services\/authService\.js\?v=17/);
     assert.doesNotMatch(indexHtml, /app\.js\?v=159/);
   }],
@@ -6765,7 +6765,7 @@ const tests = [
     assert.match(serviceSource, /notice-empty-remote-bootstrap-blocked/);
     const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     assert.match(indexHtml, /services\/workspaceDataService\.js\?v=10/);
-    assert.match(indexHtml, /app\.js\?v=162/);
+    assert.match(indexHtml, /app\.js\?v=164/);
   }],
   ["operational schedule editor save blocks duplicate clicks and avoids stale editing state", () => {
     const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
@@ -7820,7 +7820,7 @@ const tests = [
     const htmlSource = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     assert.match(appSource, /function renderDashboardV8\(\)/);
     assert.match(appSource, /function visibleNotices\(\)/);
-    assert.match(htmlSource, /app\.js\?v=162/);
+    assert.match(htmlSource, /app\.js\?v=164/);
     assert.equal(appSource.includes("AppNextDashboardReadOnly"), false);
     assert.equal(htmlSource.includes("AppNextDashboardReadOnly"), false);
   }],
@@ -8797,7 +8797,7 @@ const tests = [
     const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
     const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     const v148 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V148"));
-    assert.match(indexHtml, /app\.js\?v=162/);
+    assert.match(indexHtml, /app\.js\?v=164/);
     assert.match(v148, /renderPage = function renderPageV148/);
     assert.match(v148, /key === "exams" && currentPage === "exams"/);
     assert.match(v148, /renderExamsV6\(\)/);
@@ -8843,8 +8843,8 @@ const tests = [
     const adminSource = readFileSync(path.resolve(projectRoot, "services/systemAdminService.js"), "utf8");
     const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     const v150 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V150"));
-    assert.match(indexHtml, /app\.js\?v=162/);
-    assert.match(indexHtml, /systemAdminService\.js\?v=17/);
+    assert.match(indexHtml, /app\.js\?v=164/);
+    assert.match(indexHtml, /systemAdminService\.js\?v=20/);
     assert.match(v150, /function renderOperationModeAdminV153/);
     assert.match(v150, /function isSystemOwnerV150/);
     assert.match(v150, /requirePassword\(async/);
@@ -8868,8 +8868,8 @@ const tests = [
     const end = appSource.indexOf("const ownerPreviewModeSnapshotBeforeV150", start);
     assert.ok(start >= 0 && end > start);
     const v153 = appSource.slice(start, end);
-    assert.match(indexHtml, /app\.js\?v=162/);
-    assert.match(indexHtml, /systemAdminService\.js\?v=17/);
+    assert.match(indexHtml, /app\.js\?v=164/);
+    assert.match(indexHtml, /systemAdminService\.js\?v=20/);
     assert.match(indexHtml, /examGradeService\.js\?v=2/);
     assert.equal((v153.match(/function renderOperationModeAdminV153/g) || []).length, 1);
     assert.match(v153, /renderSystemOwnerConsoleV54 = function renderSystemOwnerConsoleV153/);
@@ -8955,7 +8955,7 @@ const tests = [
     const nonOwnerAdmin = resolver({ appTarget: "admin-standalone", operationMode: "school", globalRole: "user", workspaceRole: "manager", availableFeatures: features });
     assert.equal(nonOwnerAdmin.visibleMenuIds.length, 0);
     assert.equal(nonOwnerAdmin.systemManagementMenuIds.length, 0);
-    assert.match(indexHtml, /app\.js\?v=162/);
+    assert.match(indexHtml, /app\.js\?v=164/);
     assert.match(appSource, /const APP_PATCH_VERSION_V154 = "v154\.0 - 2026-07-31"/);
     assert.match(appSource, /return operationModeUiForCurrentUserV154\(available\)\.visibleMenuIds/);
     assert.match(appSource, /const modeDecision = operationModeRouteDecisionV154\(key\)/);
@@ -8975,8 +8975,8 @@ const tests = [
     assert.match(appSource, /syncAdminStandaloneOperationModePanelV154/);
     assert.match(appSource, /window\.PMSystemAdminService\?\.changeWorkspaceOperationMode/);
     assert.equal((appSource.match(/changeWorkspaceOperationMode\?\.\(payload\)/g) || []).length, 1);
-    assert.equal((indexHtml.match(/src="app\.js\?v=162"/g) || []).length, 1);
-    assert.equal((indexHtml.match(/src="services\/systemAdminService\.js\?v=17"/g) || []).length, 1);
+    assert.equal((indexHtml.match(/src="app\.js\?v=164"/g) || []).length, 1);
+    assert.equal((indexHtml.match(/src="services\/systemAdminService\.js\?v=20"/g) || []).length, 1);
     assert.match(packageJson, /"build:admin":\s*"tsc --noEmit && vite build --outDir dist-admin"/);
     assert.match(packageJson, /"postbuild:admin":\s*"[^"]*--exclude-runtime-env[^"]*--target admin-standalone[^"]*dist-admin\/pm-env\.js"/);
     assert.match(firebaseConfigGenerator, /const appTarget = cli\.target \|\| "main"/);
@@ -9011,7 +9011,7 @@ const tests = [
     const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
     const indexHtml = readFileSync(path.resolve(projectRoot, "index.html"), "utf8");
     const v151 = appSource.slice(appSource.indexOf("const APP_PATCH_VERSION_V151"));
-    assert.match(indexHtml, /app\.js\?v=162/);
+    assert.match(indexHtml, /app\.js\?v=164/);
     assert.match(v151, /function examGradeAuditPayloadV151/);
     assert.match(v151, /gradeAuditLogs/);
     assert.match(v151, /batch\.set\(auditRef/);
@@ -9162,8 +9162,8 @@ const tests = [
     assert.doesNotMatch(diagnosticsJson, /Role Student|Flag Student|optional-auth-link|student-a|student-b|@/);
     assert.doesNotMatch(serviceSource, /onSnapshot|localStorage|sessionStorage|addDoc|setDoc|updateDoc|deleteDoc|writeBatch/);
     assert.equal((indexHtml.match(/services\/studentRosterService\.js\?v=2/g) || []).length, 1);
-    assert.ok(indexHtml.indexOf("services/studentRosterService.js?v=2") < indexHtml.indexOf("app.js?v=162"));
-    assert.equal((indexHtml.match(/app\.js\?v=162/g) || []).length, 1);
+    assert.ok(indexHtml.indexOf("services/studentRosterService.js?v=2") < indexHtml.indexOf("app.js?v=164"));
+    assert.equal((indexHtml.match(/app\.js\?v=164/g) || []).length, 1);
     assert.match(appSource, /const APP_PATCH_VERSION_V155 = "v155\.0 - 2026-07-31"/);
     assert.match(appSource, /PMStudentRosterService\?\.getCachedStudentRoster/);
     assert.match(appSource, /PMStudentRosterService\?\.resolveStudentSelection/);
@@ -9248,7 +9248,7 @@ const tests = [
     assert.doesNotMatch(schoolSource, /isLocalDevelopment\(\)/);
     assert.equal((indexHtml.match(/services\/schoolIntegrationService\.js\?v=6/g) || []).length, 1);
     assert.equal((indexHtml.match(/services\/studentRosterService\.js\?v=2/g) || []).length, 1);
-    assert.equal((indexHtml.match(/app\.js\?v=162/g) || []).length, 1);
+    assert.equal((indexHtml.match(/app\.js\?v=164/g) || []).length, 1);
   }],
   ["Batch 10H2B keeps school filters read-only and closes teacher mutation UI", () => {
     const appSource = readFileSync(path.resolve(projectRoot, "app.js"), "utf8");
@@ -9298,10 +9298,10 @@ const tests = [
     assert.equal(scopeMatches({ classTeacherUid: "teacher-current" }, "assignedClasses", assignment), true);
     assert.equal(scopeMatches({ authorUid: "teacher-current" }, "assigned", assignment), false);
     assert.match(v157, /store\.settings\.appVersion = APP_PATCH_VERSION_V157/);
-    assert.equal((indexHtml.match(/app\.js\?v=162/g) || []).length, 1);
+    assert.equal((indexHtml.match(/app\.js\?v=164/g) || []).length, 1);
     assert.equal((indexHtml.match(/studentRosterService\.js\?v=2/g) || []).length, 1);
     assert.equal((indexHtml.match(/schoolIntegrationService\.js\?v=6/g) || []).length, 1);
-    assert.equal((indexHtml.match(/systemAdminService\.js\?v=17/g) || []).length, 1);
+    assert.equal((indexHtml.match(/systemAdminService\.js\?v=20/g) || []).length, 1);
     assert.equal((indexHtml.match(/examGradeService\.js\?v=2/g) || []).length, 1);
   }],
   ["Batch 10H2C resolves a same-workspace dashboard name without exposing it in diagnostics", () => {
@@ -9331,10 +9331,10 @@ const tests = [
     assert.doesNotMatch(v158, /addDoc|setDoc|updateDoc|deleteDoc|writeBatch|onSnapshot|fetch\(/);
     assert.match(v158, /const APP_PATCH_VERSION_V158 = "v158\.0 - 2026-08-04"/);
     assert.match(v158, /store\.settings\.appVersion = APP_PATCH_VERSION_V158/);
-    assert.equal((indexHtml.match(/app\.js\?v=162/g) || []).length, 1);
+    assert.equal((indexHtml.match(/app\.js\?v=164/g) || []).length, 1);
     assert.equal((indexHtml.match(/studentRosterService\.js\?v=2/g) || []).length, 1);
     assert.equal((indexHtml.match(/schoolIntegrationService\.js\?v=6/g) || []).length, 1);
-    assert.equal((indexHtml.match(/systemAdminService\.js\?v=17/g) || []).length, 1);
+    assert.equal((indexHtml.match(/systemAdminService\.js\?v=20/g) || []).length, 1);
     assert.equal((indexHtml.match(/examGradeService\.js\?v=2/g) || []).length, 1);
   }],
   ["Batch 10H2 Docker development is loopback-only and excludes local secrets", () => {

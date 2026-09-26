@@ -1,0 +1,29 @@
+{
+  "schema": "myweb.g2b.m3.provider-process-root-cause-local-diagnostic.v1",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "confirmedFacts": {
+    "exactTargetBindingAbsentAfterMutationAttempt": true,
+    "mutationCommandAttemptedOnce": true,
+    "mutationOutcomeWasIndeterminate": true,
+    "activeCommandBuilderUsesExactG2BTarget": true,
+    "activeCommandBuilderUsesExactTargetRole": true,
+    "activeCommandBuilderUsesConditionNone": true,
+    "processAdapterUsesShellFallback": false,
+    "processAdapterRetries": 0
+  },
+  "observabilityBoundary": {
+    "mutationExitCodePersisted": false,
+    "mutationTimedOutStatePersisted": false,
+    "mutationSafeErrorIdentifierPersisted": false,
+    "mutationStderrPersisted": false,
+    "exactProviderErrorRecoverableOffline": false
+  },
+  "rootCauseResult": "EXACT_PROVIDER_PROCESS_FAILURE_NOT_ESTABLISHED_FROM_PERSISTED_EVIDENCE",
+  "possibleCausesAreNotFindings": [
+    "CALLER_LACKED_SET_IAM_POLICY_PERMISSION",
+    "GCLOUD_PROVIDER_REJECTED_MUTATION_REQUEST",
+    "PROCESS_TRANSPORT_OR_TIMEOUT_FAILURE"
+  ],
+  "anotherMutationAllowed": false,
+  "remoteDiagnosticExecuted": false
+}

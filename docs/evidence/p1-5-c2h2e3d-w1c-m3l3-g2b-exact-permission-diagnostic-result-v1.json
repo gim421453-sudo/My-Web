@@ -1,0 +1,16 @@
+{
+  "schema": "myweb.g2b.exact-permission-diagnostic-result.v1",
+  "executionEvidenceSha256": "d191beb25c9be2f134c2b0f2f7709b664337286774a6e29afa7809ebe526ed33",
+  "diagnosticResult": "DIAGNOSTIC_REQUEST_FAILURE",
+  "remoteRequestResult": "DIAGNOSTIC_REQUEST_FAILURE",
+  "permissionState": "NOT_ESTABLISHED",
+  "authorizationDefect": "NOT_CONFIRMED",
+  "permissionAbsenceInferred": false,
+  "permissionPresenceInferred": false,
+  "retryAllowed": false,
+  "secondDiagnosticCallAllowed": false,
+  "m3MutationAllowed": false,
+  "m4Allowed": false,
+  "nextApprovalRequired": true,
+  "nextApprovalType": "M3_PROVIDER_PROCESS_NEXT_ROOT_CAUSE_DIAGNOSTIC"
+}

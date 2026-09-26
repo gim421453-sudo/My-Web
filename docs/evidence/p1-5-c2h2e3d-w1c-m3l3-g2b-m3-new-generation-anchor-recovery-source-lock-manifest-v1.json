@@ -1,0 +1,49 @@
+{
+  "schema": "myweb.g2b.new-generation.anchor-recovery.source-lock-manifest.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-NEW-GENERATION-ANCHOR-READ-ONLY-RECOVERY",
+  "operationGeneration": "214348c8-3be0-44f8-a010-adbe1ac68090",
+  "sourceLocks": [
+    {
+      "path": "tools/authority-audit/g2bM3NewGenerationAnchorRecoveryPreparation.mjs",
+      "sha256": "6b5e3829909b40dc0fac6c44f6c318e9d9b391011f7f14b8d6103586d609b5a0"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3AnchorReadOnlyRecoveryExecutor.mjs",
+      "sha256": "24bc872ed420b7962d6b0808d6d4ae02598684fe2741d2494f54710d84b4515c"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+      "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+    },
+    {
+      "path": "tools/authority-audit/m3l3R3CanonicalPolicyParser.mjs",
+      "sha256": "c1b98eadecc77babf6cc08a676758fcab26ac4968590a5eb0994ff412f449fb6"
+    },
+    {
+      "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs",
+      "sha256": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578"
+    },
+    {
+      "path": "tools/authority-audit/invokeWindowsExecutable.ps1",
+      "sha256": "2a7d2e0c9847005e31b2806e11a0a2bde5663f81754c924b79524c42dd006ad5"
+    },
+    {
+      "path": "tools/authority-audit/windowsDpapiSecretProvider.mjs",
+      "sha256": "4520ce3269f651b2d33c7532c12be12374b30c5d60a874ad056fd1e591a070eb"
+    },
+    {
+      "path": "tools/authority-audit/invokeWindowsDpapi.ps1",
+      "sha256": "a00c4e837b67efccd88f4f5286d214d333be1732d02af6325c2917560e70616b"
+    }
+  ],
+  "testLocks": [
+    {
+      "path": "tools/authority-audit-tests/g2bM3AnchorReadOnlyRecoveryExecutor.test.mjs",
+      "sha256": "7b64ba0300a2f53aafc1e692155225af7aeecde62b53e11e5c7468800a18e712"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bM3NewGenerationAnchorRecoveryPreparation.test.mjs",
+      "sha256": "19c934aa52a9a089f5d671966fd4bf196c96c2b2dcf5f4e1e24338bacc571a60"
+    }
+  ]
+}

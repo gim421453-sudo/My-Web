@@ -1,0 +1,25 @@
+{
+  "schema": "myweb.g2b.root-cause-fixed.implementation-attestation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-ROOT-CAUSE-FIXED-LIVE",
+  "targetResource": "myweb-class-mig-writer-g2@my-management-app-8a933.iam.gserviceaccount.com",
+  "targetRole": "roles/iam.serviceAccountTokenCreator",
+  "operationGeneration": "323af4e6-f1c6-4766-bc9f-39608dba78dc",
+  "implementationAttestationSha256": "b64d6b2f1c0877138ff27d0c3ad546afd9272d15ee5c3422b66a67ac2e66dd8d",
+  "sourceLockScope": [
+    "tools/authority-audit/g2bM3CurrentLiveExecutor.mjs",
+    "tools/authority-audit/m3RuntimeCommandGraph.mjs",
+    "tools/authority-audit/windowsGcloudProcessAdapter.mjs",
+    "tools/authority-audit/gcloudStderrDiagnosticAnalyzer.mjs",
+    "tools/authority-audit/m3l3R3CanonicalPolicyParser.mjs",
+    "tools/authority-audit/g2bRecoveryAnchor.mjs",
+    "tools/authority-audit/g2bM3RecoveryAnchorRuntime.mjs",
+    "tools/authority-audit/windowsDpapiSecretProvider.mjs",
+    "tools/authority-audit/invokeWindowsDpapi.ps1",
+    "tools/authority-audit/g2bM3CurrentLiveAttestation.mjs",
+    "tools/authority-audit/g2bM3CurrentLiveApprovalPacket.mjs",
+    "tools/authority-audit/g2bM3RootCauseFixedApprovalPacket.mjs"
+  ],
+  "targetBoundExecutorVerified": true,
+  "legacyWriterSurfaceReachableFromCurrentExecutor": false,
+  "privacy": { "rawIdentityPersisted": false, "rawMemberPersisted": false, "rawPolicyPersisted": false, "rawOutputPersisted": false }
+}

@@ -1,0 +1,59 @@
+{
+  "schema": "myweb.g2b.repaired-m3.authority-v2-source-lock.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-REPAIRED-DIRECT-AUTHORITY-V2",
+  "operationGenerationId": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981",
+  "sourceLocks": [
+    {
+      "path": "tools/authority-audit/g2bRepairedM3AuthorityPreparationV2.mjs",
+      "sha256": "4ee5661823a8cca2cfbebe7e86406058d95ce4050c33bf9110d3b8dfa56a8ffc"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3CurrentLiveExecutor.mjs",
+      "sha256": "7be2fd16eabb227d7b58578fb4b4497e189093ba3cc5115fec71b600017bc750"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3RecoveryAnchorRuntime.mjs",
+      "sha256": "692a8549d76449d33f0ac9e266a0b69774ced500628e06c2f2bd16f79c263a13"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+      "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+    },
+    {
+      "path": "tools/authority-audit/g2bExplicitSetIamPolicyTransport.mjs",
+      "sha256": "c3fe6f8c7d42af874f8fbfb40ad10f7edce4283d433011e9c8cde1057e528a59"
+    },
+    {
+      "path": "tools/authority-audit/g2bExplicitSetIamPolicyAuthTransport.mjs",
+      "sha256": "c82a439accd6e0fb1acc35a62676b0221831550cbf48c237de19190bac9c2d45"
+    },
+    {
+      "path": "tools/authority-audit/g2bDirectCachedCredentialReadiness.mjs",
+      "sha256": "3ba01ced3537f390e9e29dfe1d8f120bf99e222c2a9a610cfc5e6effb092eb54"
+    },
+    {
+      "path": "tools/authority-audit/g2bRepairedM3ProspectiveSafetyReattestation.mjs",
+      "sha256": "82aafe14f6148b61592403c404e33b0454bd4fd7515ba6d899e134d7a9a9d647"
+    },
+    {
+      "path": "tools/authority-audit/g2bRepairedM3DpapiRecoveryReattestation.mjs",
+      "sha256": "b70f93e9ea135e01920fedd63e74112e832c6d9389f99ceb57e56a23960c394f"
+    },
+    {
+      "path": "tools/authority-audit/g2bV3DiagnosticContinuityAttestation.mjs",
+      "sha256": "b3daa007f5943b49ea72fb76e8f5a73491a800d729fc866ff3dd3df3d02d6b46"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bRepairedM3AuthorityPreparationV2.test.mjs",
+      "sha256": "d6f8bdc3cf9f71a7ebfb2aefa3becc6ca3f4202447533da6420193eb087a035f"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bM3CurrentLiveExecutor.test.mjs",
+      "sha256": "55fab474d165a35908960fe7f8ffc812e6bd9a86bbc2443bc75dcc79c23b7281"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bM3RecoveryAnchorRuntime.test.mjs",
+      "sha256": "0c3496a5e5fa2a848dc6cf935a149980f994482f2e43646f82fadcaef1e1285e"
+    }
+  ]
+}

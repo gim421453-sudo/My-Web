@@ -1,0 +1,185 @@
+{
+  "schema": "myweb.m3l3.b1.g4r3r2-budget-graph-reconciliation.v1",
+  "m3l3StoppedEvidenceSha256": "adb7b77820533417390661e87d9a69ceec055f7da703bf04a5175fed8cc79ce4",
+  "m3l3StoppedResultSha256": "55da01905a8c281ba388664016e1d6656d4ae39d3df36b4df13902253b271ded",
+  "g4r3r2CompositeSha256": "1bc8cef8f28de978aead7d1b82033c32fa8f45a2b98a53e9d79ec66f28943195",
+  "g4r3r2ResultSha256": "f0421acdaf1f9649b7314613a381c8c82072f84d70365c2e8c51b66876d16ac7",
+  "g4r3r1Attestation": "82e72c67adf78a837c82c877505ab6265cfa64fda8e14e280964860c1e7909b9",
+  "g4r3hR2Attestation": "dd488891964eeac9427557b95c5cf46a42bb2f5969bbc6bcba6f55c176c79adc",
+  "graphIdentity": "db970e486979b1a82b4245141236d534e2b754bd345c2dc0c913e02232d5a424",
+  "nodeOperationClassification": [
+    {
+      "nodeId": "ROLE_STAGE1",
+      "location": "REMOTE",
+      "operationType": "READ",
+      "resourceType": "IAM_CUSTOM_ROLE_METADATA",
+      "resourceScope": "PROJECT_CUSTOM_ROLE",
+      "conditional": false,
+      "executionCondition": ["SESSION_ENTRY"],
+      "maxExecutionsPerSession": 1,
+      "retryMax": 0,
+      "budgetBuckets": ["remoteIamPrestateReadsMax"]
+    },
+    {
+      "nodeId": "ROLE_CANONICAL",
+      "location": "REMOTE",
+      "operationType": "READ",
+      "resourceType": "IAM_CUSTOM_ROLE_METADATA",
+      "resourceScope": "PROJECT_CUSTOM_ROLE",
+      "conditional": true,
+      "executionCondition": ["ROLE_STAGE1=EXISTS_EXACT"],
+      "maxExecutionsPerSession": 1,
+      "retryMax": 0,
+      "budgetBuckets": ["remoteIamPrestateReadsMax"]
+    },
+    {
+      "nodeId": "OP_A",
+      "location": "LOCAL",
+      "operationType": "READ",
+      "resourceType": "LOCAL_GCLOUD_AUTH_STATE",
+      "resourceScope": "TRANSIENT_SESSION",
+      "conditional": true,
+      "executionCondition": ["ROLE_CANONICAL=EXISTS_EXACT"],
+      "maxExecutionsPerSession": 1,
+      "retryMax": 0,
+      "budgetBuckets": ["localIdentityDiscoveryMax"]
+    },
+    {
+      "nodeId": "OP_B",
+      "location": "REMOTE",
+      "operationType": "READ",
+      "resourceType": "SERVICE_ACCOUNT_METADATA",
+      "resourceScope": "EXACT_WRITER_SERVICE_ACCOUNT",
+      "conditional": true,
+      "executionCondition": ["OP_A=CALLER_IDENTITY_EXACT"],
+      "maxExecutionsPerSession": 1,
+      "retryMax": 0,
+      "budgetBuckets": ["remoteIamPrestateReadsMax"]
+    },
+    {
+      "nodeId": "OP_C_PRE",
+      "location": "REMOTE",
+      "operationType": "READ",
+      "resourceType": "SERVICE_ACCOUNT_IAM_POLICY",
+      "resourceScope": "EXACT_WRITER_SERVICE_ACCOUNT",
+      "conditional": true,
+      "executionCondition": ["OP_B=EXISTS_ENABLED"],
+      "maxExecutionsPerSession": 1,
+      "retryMax": 0,
+      "budgetBuckets": ["remoteIamPrestateReadsMax"]
+    },
+    {
+      "nodeId": "OP_D_PRE",
+      "location": "REMOTE",
+      "operationType": "READ",
+      "resourceType": "PROJECT_IAM_POLICY",
+      "resourceScope": "EXACT_PROJECT",
+      "conditional": true,
+      "executionCondition": ["OP_C_PRE=M3_ABSENT"],
+      "maxExecutionsPerSession": 1,
+      "retryMax": 0,
+      "budgetBuckets": ["remoteIamPrestateReadsMax", "projectIamReadsMax"]
+    },
+    {
+      "nodeId": "OP_E",
+      "location": "REMOTE",
+      "operationType": "MUTATION",
+      "resourceType": "SERVICE_ACCOUNT_IAM_POLICY_BINDING",
+      "resourceScope": "EXACT_WRITER_SERVICE_ACCOUNT",
+      "conditional": true,
+      "executionCondition": ["FRESH_AUDIT_BASELINE=SAFE", "M3=ABSENT", "M4=ABSENT"],
+      "maxExecutionsPerSession": 1,
+      "retryMax": 0,
+      "budgetBuckets": ["iamMutationAttemptsMax"]
+    },
+    {
+      "nodeId": "OP_C_POST",
+      "location": "REMOTE",
+      "operationType": "READ",
+      "resourceType": "SERVICE_ACCOUNT_IAM_POLICY",
+      "resourceScope": "EXACT_WRITER_SERVICE_ACCOUNT",
+      "conditional": true,
+      "executionCondition": ["OP_E=CONFIRMED_SUCCESS"],
+      "maxExecutionsPerSession": 1,
+      "retryMax": 0,
+      "budgetBuckets": ["remoteIamPoststateReadsMax"]
+    },
+    {
+      "nodeId": "OP_D_POST",
+      "location": "REMOTE",
+      "operationType": "READ",
+      "resourceType": "PROJECT_IAM_POLICY",
+      "resourceScope": "EXACT_PROJECT",
+      "conditional": true,
+      "executionCondition": ["OP_C_POST=PRESENT_EXACT"],
+      "maxExecutionsPerSession": 1,
+      "retryMax": 0,
+      "budgetBuckets": ["remoteIamPoststateReadsMax", "projectIamReadsMax"]
+    }
+  ],
+  "graphRequiredBudget": {
+    "accessTokenCallsMax": 0,
+    "cloudLoggingReadsMax": 0,
+    "firestoreCallsMax": 0,
+    "iamMutationAttemptsMax": 1,
+    "localIdentityDiscoveryMax": 1,
+    "m4MutationsMax": 0,
+    "projectIamReadsMax": 2,
+    "remoteIamPoststateReadsMax": 2,
+    "remoteIamPrestateReadsMax": 5,
+    "retriesMax": 0,
+    "serviceAccountKeyOperationsMax": 0,
+    "testIamPermissionsMax": 0
+  },
+  "g4r3r2BoundBudget": {
+    "accessTokenCallsMax": 0,
+    "cloudLoggingReadsMax": 0,
+    "firestoreCallsMax": 0,
+    "iamMutationAttemptsMax": 1,
+    "localIdentityDiscoveryMax": 1,
+    "m4MutationsMax": 0,
+    "projectIamReadsMax": 2,
+    "remoteIamPoststateReadsMax": 2,
+    "remoteIamPrestateReadsMax": 5,
+    "retriesMax": 0,
+    "serviceAccountKeyOperationsMax": 0,
+    "testIamPermissionsMax": 0
+  },
+  "budgetMismatch": {
+    "relation": "MATCH",
+    "mismatchFields": [],
+    "stoppedLiveApprovalProjectIamReadsMax": 0,
+    "defectScope": "LIVE_APPROVAL_BUDGET_NOT_COMPOSITE"
+  },
+  "branchProjectIamReads": {
+    "prestatePresentMax": 0,
+    "mutationSuccessMax": 2,
+    "mutationIndeterminateMax": 1,
+    "postNodeCondition": "OP_E_CONFIRMED_SUCCESS_AND_OP_C_POST_PRESENT_EXACT"
+  },
+  "verifierGap": {
+    "classification": "NO_GRAPH_BUDGET_CROSS_CHECK",
+    "currentImpact": "DESIGN_GAP_WITHOUT_CURRENT_VALUE_MISMATCH",
+    "literalProjectIamReadsMaxCheck": 2
+  },
+  "correctedBudget": {
+    "projectIamReadsMax": 2,
+    "correctionTarget": "FUTURE_LIVE_APPROVAL_ONLY",
+    "supersedingCompositeRequired": false,
+    "allowedProjectIamReadNodes": ["OP_D_PRE", "OP_D_POST"]
+  },
+  "oldApprovalStatus": {
+    "consumed": false,
+    "reusable": false,
+    "reason": "SUPERSEDED_BY_BUDGET_AUTHORITY_CORRECTION_REQUIRED"
+  },
+  "privacy": {
+    "rawIdentityPersisted": false,
+    "rawIamPolicyPersisted": false,
+    "rawProcessOutputPersisted": false,
+    "credentialPersisted": false,
+    "tokenPersisted": false,
+    "timestampPersisted": false
+  },
+  "verdict": "P1_5_C2H2E3D_W1C_M3L3_B1_GRAPH_BUDGET_ALREADY_MATCHES_LIVE_GATE_ERROR"
+}

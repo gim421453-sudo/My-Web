@@ -1,0 +1,267 @@
+{
+  "sourceLockManifest": {
+    "schema": "myweb.g2b.direct-context-exact-permission-source-lock.v2",
+    "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-DIRECT-CONTEXT-EXACT-PERMISSION-DIAGNOSTIC",
+    "localDependencies": [
+      {
+        "path": "tools/authority-audit/g2bDirectContextPermissionDiagnostic.mjs",
+        "sha256": "9c5165c76760395e6de7203cce60eff9db15f9b543dfb9b4ba5c7be726a023ac"
+      },
+      {
+        "path": "tools/authority-audit/g2bDirectContextPermissionDiagnosticPacket.mjs",
+        "sha256": "dfc11a82e86f4a223736f9fe3b71930040a6a5bdad7f5eae9adf6fcbb09db35e"
+      },
+      {
+        "path": "tools/authority-audit/g2bDirectCachedCredentialReadiness.mjs",
+        "sha256": "3ba01ced3537f390e9e29dfe1d8f120bf99e222c2a9a610cfc5e6effb092eb54"
+      },
+      {
+        "path": "tools/authority-audit/g2bExplicitSetIamPolicyAuthTransport.mjs",
+        "sha256": "c82a439accd6e0fb1acc35a62676b0221831550cbf48c237de19190bac9c2d45"
+      },
+      {
+        "path": "tools/authority-audit/g2bExplicitSetIamPolicyTransport.mjs",
+        "sha256": "c3fe6f8c7d42af874f8fbfb40ad10f7edce4283d433011e9c8cde1057e528a59"
+      },
+      {
+        "path": "tools/authority-audit/g2b_explicit_set_iam_policy_transport.py",
+        "sha256": "5138f4db56bedc2da7bd0a59cf7d1c18c0afbae79952645bb0c1a36bd655563f"
+      },
+      {
+        "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+        "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+      },
+      {
+        "path": "tools/authority-audit/m3l3R3CanonicalPolicyParser.mjs",
+        "sha256": "c1b98eadecc77babf6cc08a676758fcab26ac4968590a5eb0994ff412f449fb6"
+      },
+      {
+        "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs",
+        "sha256": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578"
+      },
+      {
+        "path": "tools/authority-audit/invokeWindowsExecutable.ps1",
+        "sha256": "2a7d2e0c9847005e31b2806e11a0a2bde5663f81754c924b79524c42dd006ad5"
+      },
+      {
+        "path": "tools/authority-audit-tests/g2bDirectContextPermissionDiagnostic.test.mjs",
+        "sha256": "c7b9b6cb1b7c591ad79408bd85cedcb38461675e44824bb2d1d4a0d98a91b87e"
+      },
+      {
+        "path": "tools/authority-audit-tests/g2bDirectContextPermissionDiagnosticPacket.test.mjs",
+        "sha256": "57e102e66cdee204ede9deafbb43f2257d572f7a79d4fd6a6aaf26cc780d82f0"
+      },
+      {
+        "path": "tools/authority-audit-tests/g2bDirectCachedCredentialReadiness.test.mjs",
+        "sha256": "c0a253842da649c2b5be0913a449983f36381467b3564fd017308a1e92b11ad7"
+      },
+      {
+        "path": "tools/authority-audit-tests/g2bExplicitSetIamPolicyAuthTransport.test.mjs",
+        "sha256": "ae9823e10b9cbf5f353df616ee54715ba0a80afdd456daa9f8bc520dfd2449fd"
+      },
+      {
+        "path": "tools/authority-audit-tests/g2bExplicitSetIamPolicySdkContract.test.mjs",
+        "sha256": "7b187b8859896399c9a891327052ce73adb5d5044ea256a494de7eb1cfaa451d"
+      }
+    ],
+    "sdkDependencies": [
+      {
+        "id": "CREDENTIAL_STORE",
+        "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/credentials/store.py",
+        "sha256": "1fcb3b856eb1584491d6f6160983808ca1f3574e44de86f53ac8d86f882e2a6f"
+      },
+      {
+        "id": "USER_CREDENTIAL_ADAPTER",
+        "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/credentials/google_auth_credentials.py",
+        "sha256": "10bfbd2989207638461fde3544fb7619d7430980999e8b47e00c37c45441b413"
+      },
+      {
+        "id": "CREDENTIAL_REQUEST_WRAPPER",
+        "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/credentials/requests.py",
+        "sha256": "9ee26a6cbdc5fe007411d12c5e1c4b924711974c7cc2dacc5050b5ad993ddb71"
+      },
+      {
+        "id": "CORE_REQUEST_SESSION",
+        "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/requests.py",
+        "sha256": "bc7877f53c5795ecb5cc9658f59704c5e8118740a737a65a4c9a4700362168b8"
+      },
+      {
+        "id": "CLOUD_SDK_PROPERTIES",
+        "logicalPath": "cloud-sdk/lib/googlecloudsdk/core/properties.py",
+        "sha256": "cf9cf38c0949f06c11a110675d4dbad647e3d4091901f6f3f734386cda7a32bb"
+      },
+      {
+        "id": "OAUTH_REQUEST_TRANSPORT",
+        "logicalPath": "cloud-sdk/lib/third_party/google/auth/transport/requests.py",
+        "sha256": "11beeb7f02cd7fecf8020d953180e139ce2d4733525a72c39d6a27e322063204"
+      },
+      {
+        "id": "IAM_V1_CLIENT",
+        "logicalPath": "cloud-sdk/lib/googlecloudsdk/generated_clients/apis/iam/v1/iam_v1_client.py",
+        "sha256": "304f81531be1e0f8bb05c726aec9a6053f80a11cec1867245231f6276ad0ebcf"
+      },
+      {
+        "id": "IAM_V1_MESSAGES",
+        "logicalPath": "cloud-sdk/lib/googlecloudsdk/generated_clients/apis/iam/v1/iam_v1_messages.py",
+        "sha256": "098d22bfde402e0a1bb398cbced35a75b2a5108c699ad122966a408cffc785e1"
+      },
+      {
+        "id": "API_TOOLS_ENCODING",
+        "logicalPath": "cloud-sdk/lib/third_party/apitools/base/py/encoding_helper.py",
+        "sha256": "7e862560301f3ee2555dddfcc7b9a3c6f65cab6942e70427b159777c1d5e8b0b"
+      },
+      {
+        "id": "BUNDLED_PYTHON",
+        "logicalPath": "cloud-sdk/platform/bundledpython/python.exe",
+        "sha256": "03168c01b7b7491423350e82c26fee71f35b43694d1319d3c668bda6903a0c38"
+      }
+    ],
+    "activeTransitiveDependencyCount": 25,
+    "unboundDependencies": 0,
+    "unboundRemoteCapabilities": 0,
+    "unboundAuthCapabilities": 0
+  },
+  "implementation": {
+    "schema": "myweb.g2b.direct-context-exact-permission-implementation.v2",
+    "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-DIRECT-CONTEXT-EXACT-PERMISSION-DIAGNOSTIC",
+    "sourceLockManifestSha256": "268968281c58b47d291a86201ce8ca3dadd5c396244f5f9e50be824357fd7ec8",
+    "authPathId": "g2b-explicit-direct-set-iam-policy-cached-credential-v2",
+    "currentCredentialRecordBinding": "CLOUD_SDK_CONFIGURED_ACCOUNT_STORE_RECORD",
+    "sameCredentialRecordAsDirectMutation": true,
+    "sameCredentialRecordAsDiagnostic": true,
+    "diagnosticCredentialRecordEqualsDirectMutationRecord": true,
+    "diagnosticAuthContextEqualsDirectMutationAuthContext": true,
+    "diagnosticCredentialSourceEqualsDirectMutationCredentialSource": true,
+    "diagnosticConfigurationContextEqualsDirectMutationConfigurationContext": true,
+    "diagnosticProjectContextEqualsDirectMutationProjectContext": true,
+    "refreshedRecordEqualsDirectMutationRecord": true,
+    "refreshedRecordEqualsDirectDiagnosticRecord": true,
+    "authContext": "SAME_G2B_EXPLICIT_DIRECT_CACHED_CREDENTIAL_TRANSPORT",
+    "credentialSource": "CLOUD_SDK_CREDENTIAL_STORE_EXACT_ACCOUNT_NO_REFRESH",
+    "configurationContext": "CLOUD_SDK_PROPERTIES_EXACT_ACCOUNT_SANITIZED_CONFIG",
+    "projectContext": "my-management-app-8a933",
+    "serviceMethod": "iam.projects.serviceAccounts.testIamPermissions",
+    "requestMethod": "POST",
+    "targetResource": "myweb-class-mig-writer-g2@my-management-app-8a933.iam.gserviceaccount.com",
+    "requiredPermission": "iam.serviceAccounts.setIamPolicy",
+    "permissionCount": 1,
+    "oldV3PermissionResultReusable": false,
+    "privacySafeEvidence": true
+  },
+  "runtimeCapability": {
+    "schema": "myweb.g2b.direct-context-exact-permission-runtime-capability.v2",
+    "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-DIRECT-CONTEXT-EXACT-PERMISSION-DIAGNOSTIC",
+    "sourceLockManifestSha256": "268968281c58b47d291a86201ce8ca3dadd5c396244f5f9e50be824357fd7ec8",
+    "cachedCredentialRequired": true,
+    "implicitRefreshBlocked": true,
+    "authRefreshRemoteCallsMax": 0,
+    "tokenExchangeRemoteCallsMax": 0,
+    "oauthTokenEndpointCallsMax": 0,
+    "tokenGenerationMax": 0,
+    "discoveryRemoteCallsMax": 0,
+    "metadataRemoteCallsMax": 0,
+    "testIamPermissionsCallsMax": 1,
+    "totalPhysicalRemoteDiagnosticCallsMax": 1,
+    "additionalHiddenPhysicalCalls": 0,
+    "automaticRetries": 0,
+    "iamPolicyReadsMax": 0,
+    "projectIamReadsMax": 0,
+    "iamMutationsMax": 0,
+    "m3MutationsMax": 0,
+    "m4MutationsMax": 0,
+    "firestoreCallsMax": 0,
+    "credentialRefreshCallsMax": 0,
+    "serviceAccountTokenGenerationMax": 0,
+    "serviceAccountKeyOperationsMax": 0,
+    "serviceAccountImpersonationMax": 0,
+    "cloudLoggingReadsMax": 0,
+    "extraPermissionsRequested": 0,
+    "projectWideDiagnostic": false,
+    "preLiveCachedCredentialReadinessRequired": true,
+    "preLiveFreshnessMarginSeconds": 120,
+    "preLiveReadinessNetworkRequests": 0,
+    "preLiveReadinessRefreshRequests": 0
+  },
+  "executionComposite": {
+    "schema": "myweb.g2b.direct-context-exact-permission-execution-composite.v2",
+    "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-DIRECT-CONTEXT-EXACT-PERMISSION-DIAGNOSTIC",
+    "sourceLockManifestSha256": "268968281c58b47d291a86201ce8ca3dadd5c396244f5f9e50be824357fd7ec8",
+    "implementationAttestationSha256": "0eaa07cc289bd0e2ac978d07eb38c68eda2649df024332ebee2bf9c74eaa113e",
+    "runtimeCapabilityAttestationSha256": "73b2b67e8d0cc96f3528b6558ce4f651a5994a07ba5815ef62ba486b5efe6d9c",
+    "refreshExecutionEvidenceSha256": "996bc02dd0907959e222381bad2461ce863e5047028f8d4a470300dc1dbd328f",
+    "refreshResultDocumentSha256": "7c7162a36413772e000589097398a62bee7d1c1f5423c38072ef046eff893f4a",
+    "preLiveLocalFreshnessCheckOccursBeforeApprovalConsumption": true,
+    "firstRemoteOperationCannotOccurBeforeApprovalConsumption": true,
+    "approvalConsumptionMatchesFirstPhysicalRemoteCall": true,
+    "m3OperationReachable": false,
+    "safeToContinueWithoutApproval": false
+  },
+  "packet": {
+    "schema": "myweb.g2b.direct-context-exact-permission-approval.v2",
+    "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-DIRECT-CONTEXT-EXACT-PERMISSION-DIAGNOSTIC",
+    "type": "DIRECT_CONTEXT_EXACT_PERMISSION_DIAGNOSTIC",
+    "status": "PASS",
+    "sourceLockManifestSha256": "268968281c58b47d291a86201ce8ca3dadd5c396244f5f9e50be824357fd7ec8",
+    "implementationAttestationSha256": "0eaa07cc289bd0e2ac978d07eb38c68eda2649df024332ebee2bf9c74eaa113e",
+    "runtimeCapabilityAttestationSha256": "73b2b67e8d0cc96f3528b6558ce4f651a5994a07ba5815ef62ba486b5efe6d9c",
+    "executionCompositeSha256": "bbb4906ec8344017dd38b0df580409b8261cdaaf050d86630b02d25808ae72cd",
+    "executionEvidencePath": "docs/evidence/p1-5-c2h2e3d-w1c-m3l3-g2b-direct-credential-refresh-execution-evidence-v2.json",
+    "executionEvidenceSha256": "996bc02dd0907959e222381bad2461ce863e5047028f8d4a470300dc1dbd328f",
+    "secondExecutionEvidenceSha256": "996bc02dd0907959e222381bad2461ce863e5047028f8d4a470300dc1dbd328f",
+    "resultDocumentPath": "docs/evidence/p1-5-c2h2e3d-w1c-m3l3-g2b-direct-credential-refresh-result-v2.json",
+    "resultDocumentSha256": "7c7162a36413772e000589097398a62bee7d1c1f5423c38072ef046eff893f4a",
+    "operationInstance": "a5a8a69c-6b99-4670-a47d-53d435b3bab7",
+    "targetResource": "myweb-class-mig-writer-g2@my-management-app-8a933.iam.gserviceaccount.com",
+    "requiredPermission": "iam.serviceAccounts.setIamPolicy",
+    "permissionCount": 1,
+    "authPathId": "g2b-explicit-direct-set-iam-policy-cached-credential-v2",
+    "diagnosticCredentialRecordEqualsDirectMutationRecord": true,
+    "diagnosticAuthContextEqualsDirectMutationAuthContext": true,
+    "diagnosticCredentialSourceEqualsDirectMutationCredentialSource": true,
+    "diagnosticConfigurationContextEqualsDirectMutationConfigurationContext": true,
+    "diagnosticProjectContextEqualsDirectMutationProjectContext": true,
+    "refreshedRecordEqualsDirectMutationRecord": true,
+    "refreshedRecordEqualsDirectDiagnosticRecord": true,
+    "approvalConsumptionPoint": "WHEN_FIRST_AND_ONLY_APPROVED_EXACT_TEST_IAM_PERMISSIONS_REQUEST_BEGINS",
+    "preLiveCachedCredentialReadinessRequired": true,
+    "preLiveFreshnessMarginSeconds": 120,
+    "preLiveReadinessNetworkRequests": 0,
+    "preLiveReadinessRefreshRequests": 0,
+    "preLiveLocalFreshnessCheckOccursBeforeApprovalConsumption": true,
+    "firstRemoteOperationCannotOccurBeforeApprovalConsumption": true,
+    "approvalConsumptionMatchesFirstPhysicalRemoteCall": true,
+    "testIamPermissionsCallsMax": 1,
+    "totalPhysicalRemoteDiagnosticCallsMax": 1,
+    "additionalHiddenPhysicalCalls": 0,
+    "automaticRetries": 0,
+    "secondDiagnosticCall": 0,
+    "iamPolicyReadsMax": 0,
+    "projectIamReadsMax": 0,
+    "iamMutationsMax": 0,
+    "m3MutationsMax": 0,
+    "m4MutationsMax": 0,
+    "firestoreCallsMax": 0,
+    "credentialRefreshCallsMax": 0,
+    "oauthTokenEndpointCallsMax": 0,
+    "tokenGenerationMax": 0,
+    "extraPermissionsRequested": 0,
+    "projectWideDiagnostic": false,
+    "serviceAccountKeyOperationsMax": 0,
+    "serviceAccountImpersonationMax": 0,
+    "cloudLoggingReadsMax": 0,
+    "rawPrincipalPersisted": false,
+    "rawMemberPersisted": false,
+    "rawCredentialPersisted": false,
+    "rawAccessTokenPersisted": false,
+    "rawRefreshTokenPersisted": false,
+    "rawAuthorizationHeaderPersisted": false,
+    "rawRequestBodyPersisted": false,
+    "rawResponseBodyPersisted": false,
+    "rawStdoutPersisted": false,
+    "rawStderrPersisted": false,
+    "m3OperationReachable": false,
+    "safeToContinueWithoutApproval": false,
+    "packetComplete": true,
+    "directContextPermissionDiagnosticApprovalPacketSha256": "526695f8f477a8bf545c9703e03a00a205183330e059dbeeeca63bfbb82a9eb0"
+  }
+}

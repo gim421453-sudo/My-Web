@@ -1,0 +1,188 @@
+rules_version = '2';
+
+// Isolated authority candidate. This file is intentionally not referenced by
+// firebase.json and must only be loaded by the dedicated Emulator test runner.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isActiveSystemOwner() {
+      let path = /databases/$(database)/documents/systemOwners/$(request.auth.uid);
+      let owner = signedIn() && exists(path) ? get(path).data : null;
+      return owner != null
+        && owner.schemaVersion == 1
+        && owner.status == "active"
+        && owner.source in ["trusted_migration", "system_bootstrap"]
+        && (!("uid" in owner) || owner.uid == request.auth.uid);
+    }
+
+    function canonicalMembership(workspaceId) {
+      return get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data;
+    }
+
+    function isActiveWorkspaceMember(workspaceId) {
+      let path = /databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid);
+      let member = signedIn() && exists(path) ? canonicalMembership(workspaceId) : null;
+      return member != null
+        && member.schemaVersion == 1
+        && member.uid == request.auth.uid
+        && member.workspaceId == workspaceId
+        && member.role in ["super_manager", "manager", "teacher", "normal", "viewer", "print_account"]
+        && member.status == "active"
+        && member.disabled == false
+        && member.active == true
+        && member.source in ["invite", "admin_approval", "trusted_migration", "student_link", "system_bootstrap"];
+    }
+
+    function workspaceRole(workspaceId) {
+      return isActiveWorkspaceMember(workspaceId)
+        ? canonicalMembership(workspaceId).role
+        : null;
+    }
+
+    function isWorkspaceManager(workspaceId) {
+      return workspaceRole(workspaceId) in ["super_manager", "manager"];
+    }
+
+    function safeSelfUserUpdate(uid) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return isSelf(uid)
+        && changed.hasOnly([
+          "displayName", "photoURL", "phone", "locale", "preferences",
+          "lastSeenAt", "lastLoginAt", "updatedAt", "currentWorkspaceId"
+        ])
+        && (!("displayName" in request.resource.data)
+          || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 512))
+        && (!("photoURL" in request.resource.data)
+          || (request.resource.data.photoURL is string && request.resource.data.photoURL.size() <= 2048))
+        && (!("phone" in request.resource.data)
+          || (request.resource.data.phone is string && request.resource.data.phone.size() <= 64))
+        && (!("locale" in request.resource.data)
+          || (request.resource.data.locale is string && request.resource.data.locale.size() <= 32))
+        && (!("preferences" in request.resource.data) || request.resource.data.preferences is map)
+        && (!("lastSeenAt" in request.resource.data) || request.resource.data.lastSeenAt is timestamp)
+        && (!("lastLoginAt" in request.resource.data) || request.resource.data.lastLoginAt is timestamp)
+        && (!("updatedAt" in request.resource.data) || request.resource.data.updatedAt is timestamp)
+        && (!changed.hasAny(["currentWorkspaceId"])
+          || request.resource.data.currentWorkspaceId == null
+          || (request.resource.data.currentWorkspaceId is string
+            && isActiveWorkspaceMember(request.resource.data.currentWorkspaceId)));
+    }
+
+    function canReadLegacyMembership() {
+      return signedIn()
+        && (
+          isActiveSystemOwner()
+          || resource.data.uid == request.auth.uid
+          || (resource.data.workspaceId is string && isWorkspaceManager(resource.data.workspaceId))
+        );
+    }
+
+    function canReadActiveLegacyInvitation() {
+      return signedIn()
+        && resource.data.status == "active"
+        && (
+          !("email" in resource.data)
+          || resource.data.email == ""
+          || (request.auth.token.email_verified == true
+            && request.auth.token.email == resource.data.email)
+        );
+    }
+
+    match /systemOwners/{uid} {
+      allow get: if isSelf(uid);
+      allow list, create, update, delete: if false;
+    }
+
+    match /users/{uid} {
+      allow get: if isSelf(uid) || isActiveSystemOwner();
+      allow list: if isActiveSystemOwner();
+      allow update: if safeSelfUserUpdate(uid);
+      allow create, delete: if false;
+    }
+
+    match /workspaces/{workspaceId} {
+      allow read: if isActiveSystemOwner() || isActiveWorkspaceMember(workspaceId);
+      allow create, update, delete: if false;
+
+      match /members/{uid} {
+        allow get: if isSelf(uid) || isActiveSystemOwner() || isWorkspaceManager(workspaceId);
+        allow list: if isActiveSystemOwner() || isWorkspaceManager(workspaceId);
+        allow create, update, delete: if false;
+      }
+
+      match /inviteCodes/{code} {
+        allow read, create, update, delete: if false;
+
+        match /usedUsers/{uid} {
+          allow read, write: if false;
+        }
+      }
+    }
+
+    match /workspace_members/{memberId} {
+      allow get, list: if canReadLegacyMembership();
+      allow create, update, delete: if false;
+    }
+
+    match /workspaceMembers/{memberId} {
+      allow get, list: if canReadLegacyMembership();
+      allow create, update, delete: if false;
+    }
+
+    match /adminApplications/{applicationId} {
+      allow get: if isActiveSystemOwner()
+        || (signedIn() && resource.data.schemaVersion == 1
+          && resource.data.applicantUid == request.auth.uid);
+      allow list: if isActiveSystemOwner();
+      allow create, update, delete: if false;
+    }
+
+    match /adminApplicationPendingKeys/{key} {
+      allow read, write: if false;
+    }
+
+    match /authorityInvitations/{invitationId} {
+      allow read, write: if false;
+
+      match /redemptions/{uid} {
+        allow read, write: if false;
+      }
+    }
+
+    match /invitationCodeIndex/{codeHash} {
+      allow read, write: if false;
+    }
+
+    match /securityAuditLogs/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /trustedOperationIdempotency/{scopeHash} {
+      allow read, write: if false;
+    }
+
+    match /invites/{code} {
+      allow get: if canReadActiveLegacyInvitation();
+      allow list, create, update, delete: if false;
+
+      match /usedUsers/{uid} {
+        allow read, write: if false;
+      }
+    }
+
+    match /invitations/{code} {
+      allow read, create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

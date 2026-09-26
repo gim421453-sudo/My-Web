@@ -1,0 +1,55 @@
+{
+  "schema": "myweb.g2b.repaired-m3.authority-source-lock.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-REPAIRED-DIRECT-FINAL-AUTHORITY-PREPARATION",
+  "operationGenerationId": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981",
+  "sourceLocks": [
+    {
+      "path": "tools/authority-audit/g2bLocalPinnedIdentityResolver.mjs",
+      "sha256": "187a5f116e39cd9eace4000739dfedb476e8589c99718c42eecbd0567d4c4f45"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3CurrentLiveExecutor.mjs",
+      "sha256": "362ab6aab25c13c8e22833d89c0f09fd5fd57dc39fc2add385f58a9f57c03931"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3RecoveryAnchorRuntime.mjs",
+      "sha256": "0751b91f1766e6b4bda0050975df0d5fed223ac410a5a37a0af22075b6b66b60"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+      "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+    },
+    {
+      "path": "tools/authority-audit/windowsDpapiSecretProvider.mjs",
+      "sha256": "ed205acfb9d378ea63d463dc819afee42a3623455e4dac4c0159e362bc8d717b"
+    },
+    {
+      "path": "tools/authority-audit/invokeWindowsDpapi.ps1",
+      "sha256": "a00c4e837b67efccd88f4f5286d214d333be1732d02af6325c2917560e70616b"
+    },
+    {
+      "path": "tools/authority-audit/g2bRepairedM3DpapiRecoveryReattestation.mjs",
+      "sha256": "4e8fa98eee534a7412db03ef0b4170e091142d4e2310867a77af830f2bc18515"
+    },
+    {
+      "path": "tools/authority-audit/g2bRepairedM3AuthorityPreparation.mjs",
+      "sha256": "e5e1a5f869160d371138e6adf3824f24cb29e92613b5f7af5a1ea11c8658f5b2"
+    },
+    {
+      "path": "tools/authority-audit/g2bV3DiagnosticContinuityAttestation.mjs",
+      "sha256": "b3daa007f5943b49ea72fb76e8f5a73491a800d729fc866ff3dd3df3d02d6b46"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bLocalPinnedIdentityResolver.test.mjs",
+      "sha256": "bb941fcc0f0b9fd955fd3579a98ff1504e99136cb3bbe5213300b6c02d751a13"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bRepairedM3DpapiRecoveryReattestation.test.mjs",
+      "sha256": "1c479f2d6f394b16f4256b8447d6cf2bd59b6d84390d9c27709649dadbb1d88a"
+    },
+    {
+      "path": "tools/authority-audit-tests/windowsDpapiSecretProvider.test.mjs",
+      "sha256": "b66d3d1eb8331906ea2a178041de87509e61b193601fe12ccdf6c47b56a9fddf"
+    }
+  ]
+}

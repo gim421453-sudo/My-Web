@@ -1,0 +1,14 @@
+# G2B M3 Anchor Recovery Anchor-State Evidence
+
+ANCHOR_STATE_BEFORE=MUTATION_INDETERMINATE
+ANCHOR_STATE_AFTER=RECOVERY_CONFIRMED_ABSENT
+ACTIVE_INDETERMINATE_ANCHOR_COUNT_BEFORE=1
+RECOVERY_ANCHOR_VALID=yes
+RECOVERY_SECRET_VALID=yes
+RAW_MEMBER_PERSISTED=no
+RAW_PRINCIPAL_PERSISTED=no
+RAW_POLICY_PERSISTED=no
+RAW_SECRET_PERSISTED=no
+
+The local lifecycle transition records only the approved terminal category.
+It does not contain an IAM member, IAM policy, principal, or secret.

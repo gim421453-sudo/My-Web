@@ -1,0 +1,9 @@
+{
+  "schema": "myweb.g2b.active-recovery-source-lock-manifest.summary.v2",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "activeRecoveryTransitiveDependencyCount": 14,
+  "runtimeAuthorityDependencyCount": 7,
+  "unboundActiveRecoveryDependencies": 0,
+  "activeRecoverySourceLockManifestSha256": "e14f9741cf10450ed9f8f61895aed5426a7c6ab4627e56a195c65f0eb56e5ddd",
+  "reproducible": true
+}

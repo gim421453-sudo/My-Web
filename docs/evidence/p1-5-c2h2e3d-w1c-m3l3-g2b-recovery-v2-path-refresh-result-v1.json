@@ -1,0 +1,9 @@
+{
+  "schema": "myweb.g2b.recovery-v2-path-refresh.result.v1",
+  "operationInstance": "1a134e5d-ba14-440a-a6a5-74421c82de75",
+  "refreshResult": "REFRESH_SUCCESS_CONFIRMED",
+  "executionEvidenceSha256": "9ddbca477e01017ec5e0257431af9b542c26d4cbf978e53ed01756aaedf1602d",
+  "allProhibitedOperationCountersZero": true,
+  "recoveryReadReached": false,
+  "mutationReached": false
+}

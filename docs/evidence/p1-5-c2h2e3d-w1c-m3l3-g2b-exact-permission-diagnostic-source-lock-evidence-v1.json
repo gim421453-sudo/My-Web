@@ -1,0 +1,12 @@
+{
+  "schema": "myweb.g2b.exact-permission-diagnostic-source-lock-evidence.v1",
+  "sourceLockManifestSha256": "945755e3f34291eadf6b688da5e6bcca4c40e43b41b3e89646fe4b23ce98c1c8",
+  "implementationAttestationSha256": "8f94ca3f25030258d42992ab384d16b8fe7d29a5757f2e3fd46cf7e9c142ffc6",
+  "runtimeCapabilityAttestationSha256": "ab68feaaf728ee9afa7beb40f612185f214ac9ec1c2761b72a69f9873823d79b",
+  "executionCompositeSha256": "ee87ddb4019c6b0ae0379ef9e6394160be6d1406250874227aa603b91370ab13",
+  "approvalPacketSha256": "34891d23ee91160cb1f83f5084917ba21ab0b3a94bc5ebaf0e1f5be8dbe974b8",
+  "allRequiredLocalLocksMatchedBeforeCall": true,
+  "unboundDependencies": 0,
+  "unboundRemoteCapabilities": 0,
+  "unboundProcessCapabilities": 0
+}

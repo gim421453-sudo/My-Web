@@ -1,0 +1,19 @@
+{
+  "schema": "myweb.g2b.exact-permission-diagnostic-capability-accounting.v1",
+  "testIamPermissionsCallsUsed": 1,
+  "totalPhysicalRemoteDiagnosticCallsUsed": 1,
+  "iamPolicyReads": 0,
+  "projectIamReads": 0,
+  "cloudLoggingReads": 0,
+  "otherRemoteReads": 0,
+  "iamMutations": 0,
+  "m3Mutations": 0,
+  "m4Mutations": 0,
+  "firestoreCalls": 0,
+  "accessTokenGeneration": 0,
+  "serviceAccountTokenGeneration": 0,
+  "serviceAccountKeyOperations": 0,
+  "retriesUsed": 0,
+  "rollbacksUsed": 0,
+  "secondDiagnosticCallAllowed": false
+}

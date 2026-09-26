@@ -1,0 +1,10 @@
+{
+  "schema": "myweb.g2b.recovery-v2-next-refresh.result.v1",
+  "operationInstance": "b9869829-a6d7-476d-9376-bb5b177a2f97",
+  "refreshResult": "REFRESH_SUCCESS_CONFIRMED",
+  "credentialStoreUpdateResult": "SUCCESS_CONFIRMED",
+  "continuationExecuted": false,
+  "remoteRecoveryIamReadsUsed": 0,
+  "safeToContinueAutomatically": false,
+  "executionEvidenceSha256": "d0167635e427208246b02a455e7d6843f1484e6f346079ab9c1c8b9f338d07c0"
+}

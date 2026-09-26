@@ -1,0 +1,75 @@
+{
+  "schema": "myweb.g2b.v3-diagnostic-continuity-source-lock.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-V3-DIAGNOSTIC-CONTINUITY",
+  "currentLocks": [
+    {
+      "path": "tools/authority-audit/g2bDirectContextPermissionDiagnostic.mjs",
+      "sha256": "9c5165c76760395e6de7203cce60eff9db15f9b543dfb9b4ba5c7be726a023ac"
+    },
+    {
+      "path": "tools/authority-audit/g2bDirectCachedCredentialReadiness.mjs",
+      "sha256": "3ba01ced3537f390e9e29dfe1d8f120bf99e222c2a9a610cfc5e6effb092eb54"
+    },
+    {
+      "path": "tools/authority-audit/g2bExplicitSetIamPolicyAuthTransport.mjs",
+      "sha256": "c82a439accd6e0fb1acc35a62676b0221831550cbf48c237de19190bac9c2d45"
+    },
+    {
+      "path": "tools/authority-audit/g2bExplicitSetIamPolicyTransport.mjs",
+      "sha256": "c3fe6f8c7d42af874f8fbfb40ad10f7edce4283d433011e9c8cde1057e528a59"
+    },
+    {
+      "path": "tools/authority-audit/g2b_explicit_set_iam_policy_transport.py",
+      "sha256": "5138f4db56bedc2da7bd0a59cf7d1c18c0afbae79952645bb0c1a36bd655563f"
+    },
+    {
+      "path": "tools/authority-audit/g2bRecoveryAnchor.mjs",
+      "sha256": "d2bf039a3c1b6b519ef4eb7635a1f111af11aff02141cb5045fc8bcc93dbb669"
+    },
+    {
+      "path": "tools/authority-audit/m3l3R3CanonicalPolicyParser.mjs",
+      "sha256": "c1b98eadecc77babf6cc08a676758fcab26ac4968590a5eb0994ff412f449fb6"
+    },
+    {
+      "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs",
+      "sha256": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578"
+    },
+    {
+      "path": "tools/authority-audit/invokeWindowsExecutable.ps1",
+      "sha256": "2a7d2e0c9847005e31b2806e11a0a2bde5663f81754c924b79524c42dd006ad5"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3CurrentLiveExecutor.mjs",
+      "sha256": "362ab6aab25c13c8e22833d89c0f09fd5fd57dc39fc2add385f58a9f57c03931"
+    },
+    {
+      "path": "tools/authority-audit/g2bM3RecoveryAnchorRuntime.mjs",
+      "sha256": "0751b91f1766e6b4bda0050975df0d5fed223ac410a5a37a0af22075b6b66b60"
+    },
+    {
+      "path": "tools/authority-audit/g2bV3DiagnosticContinuityAttestation.mjs",
+      "sha256": "b3daa007f5943b49ea72fb76e8f5a73491a800d729fc866ff3dd3df3d02d6b46"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bM3CurrentLiveExecutor.test.mjs",
+      "sha256": "0e897f59078fb9d09d0126d4e8acc20737844d9495b01faca699ce2f8375db2f"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bM3RecoveryAnchorRuntime.test.mjs",
+      "sha256": "7383bc9a3107993df7ee4056fad78a5a7867f9b72b657d8ce48cf3d1d2cd8261"
+    },
+    {
+      "path": "tools/authority-audit-tests/g2bV3DiagnosticContinuityAttestation.test.mjs",
+      "sha256": "c3b746597d27737cab921ccdf5e2c841a2b4a7c691ce9c3e21702fbb4c89b408"
+    }
+  ],
+  "historicalSourceLockMatchCurrentBytes": false,
+  "deltas": [
+    {
+      "path": "tools/authority-audit-tests/g2bExplicitSetIamPolicyAuthTransport.test.mjs",
+      "classification": "TEST_ONLY",
+      "runtimeEntryPointReachable": false,
+      "proof": "test-runner-only; dependency-injected fake processRunner; no production runtime imports test files"
+    }
+  ]
+}

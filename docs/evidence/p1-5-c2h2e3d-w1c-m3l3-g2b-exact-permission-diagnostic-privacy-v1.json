@@ -1,0 +1,10 @@
+{
+  "schema": "myweb.g2b.exact-permission-diagnostic-privacy-evidence.v1",
+  "rawMemberPersisted": false,
+  "rawPrincipalPersisted": false,
+  "rawCredentialPersisted": false,
+  "rawOAuthTokenPersisted": false,
+  "authorizationHeaderPersisted": false,
+  "rawProviderOutputPersisted": false,
+  "safeResultClassPersisted": "DIAGNOSTIC_REQUEST_FAILURE"
+}

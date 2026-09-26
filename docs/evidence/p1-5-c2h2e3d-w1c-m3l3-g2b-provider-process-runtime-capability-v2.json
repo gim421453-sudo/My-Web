@@ -1,0 +1,53 @@
+{
+  "schema": "myweb.g2b.m3.provider-process-diagnostic-runtime-capability.v2",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-PROVIDER-PROCESS-ROOT-CAUSE-DIAGNOSTIC-V2",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "capabilities": [
+    {
+      "capability": "LOCAL_MUTATION_COMMAND_CONTRACT_INSPECTION",
+      "classification": "SUPPORTED_AND_USEFUL"
+    },
+    {
+      "capability": "WRITER_SERVICE_ACCOUNT_IAM_POLICY_READ",
+      "classification": "SUPPORTED_NOT_USEFUL"
+    },
+    {
+      "capability": "SERVICE_ACCOUNT_TEST_IAM_PERMISSIONS_API",
+      "classification": "SUPPORTED_BUT_NO_SOURCE_LOCKED_EXECUTOR"
+    },
+    {
+      "capability": "GCLOUD_SERVICE_ACCOUNT_TEST_IAM_PERMISSIONS_COMMAND",
+      "classification": "UNSUPPORTED"
+    },
+    {
+      "capability": "BOUNDED_CLOUD_AUDIT_LOG_LOOKUP",
+      "classification": "UNSAFE_WITHOUT_FAILED_MUTATION_TIME_WINDOW"
+    },
+    {
+      "capability": "PROVIDER_NON_MUTATING_REQUEST_VALIDATION",
+      "classification": "UNSUPPORTED"
+    }
+  ],
+  "failedMutationTimeWindowAvailable": false,
+  "failedMutationTargetAvailable": true,
+  "failedMutationMethodAvailable": true,
+  "operationGenerationCorrelationAvailable": false,
+  "privacySafeLogFilterPossible": false,
+  "boundedLogQueryPossible": false,
+  "auditLogDiagnosticRequired": false,
+  "permissionDiagnosticMateriallyUseful": true,
+  "permissionDiagnosticSafelyReachable": false,
+  "iamPolicyDiagnosticRequired": false,
+  "iamPolicyReadsMax": 0,
+  "projectIamReadsMax": 0,
+  "testIamPermissionsCallsMax": 0,
+  "cloudLoggingReadsMax": 0,
+  "otherRemoteReadsMax": 0,
+  "totalPhysicalRemoteReadsMax": 0,
+  "mutationsMax": 0,
+  "iamMutationsMax": 0,
+  "m3MutationsMax": 0,
+  "m4MutationsMax": 0,
+  "retries": 0,
+  "rollbacks": 0
+}

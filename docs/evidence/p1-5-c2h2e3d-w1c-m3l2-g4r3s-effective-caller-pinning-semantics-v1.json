@@ -1,0 +1,25 @@
+{
+  "schema": "myweb.m3l2.g4r3s.effective-caller-pinning-semantics.v1",
+  "g4r3dPayloadSha256": "6dcce593886701d31bd341bf91d6edf080cd76082fb39dcfb30aec23a7dc27ef",
+  "g4r3dResultDocumentSha256": "5f842adf69e2dfe3c33326a5109ddd2c3b6ff29bc7149f32197b479afc1df7bd",
+  "g4r2CompositeSha256": "790c903219ec3cb7f9aa536c2c3881b8fc889471fd0505f05c38060d1835d0c1",
+  "g4r1AttestationSha256": "5ac0ad87de153ec0e43289a224d1a91ff5407cc66c3ec3bfcb5596a9b108843e",
+  "officialSemantics": { "authListExcludesOverrides": true, "accountFlagOverridesCoreAccount": true, "accessTokenCanIgnoreActiveAccount": true, "credentialFileOverrideExists": true, "impersonationOverridesSelectedAccount": true, "environmentOverridesExist": true, "configurationNonePropertyEmpty": true },
+  "localRuntimeAnalysis": { "processLaunchModule": "tools/authority-audit/windowsGcloudProcessAdapter.mjs", "processLaunchSymbol": "runWindowsProcess", "childEnvMode": "INHERIT_ALL", "workingDirectory": "INHERITED", "currentCommandArgvPinned": false },
+  "authOverrideInventory": { "environmentSurfaces": ["CLOUDSDK_AUTH_ACCESS_TOKEN", "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE", "CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT"], "configProperties": ["auth/access_token_file", "auth/credential_file_override", "auth/impersonate_service_account", "core/account"], "flagsFileReachable": false, "valuesPersisted": 0 },
+  "configurationNoneSemantics": { "status": "PROVEN_PROPERTY_EMPTY", "noneConfigProperties": "NONE", "explicitAccountContract": "SUPPORTED" },
+  "accountPinningSemantics": { "accountFlagCoreAccount": "PROVEN", "configAccountToctou": "PROVEN_CLOSED", "accountPinnedOperations": ["OP-B", "OP-C", "OP-D", "OP-E"], "opADiscoveryRole": "BOOTSTRAP_ONLY_NOT_LATER_CALLER_PROOF" },
+  "credentialFallbackSemantics": { "accessTokenOverride": "PROVEN_YES", "credentialFileOverride": "FORBIDDEN", "impersonationOverride": "FORBIDDEN", "childOverrideInheritance": "yes", "pinnedMissingCredentialFallback": "UNRESOLVED" },
+  "toctouClosure": { "configAccountAfterPinning": "PROVEN_CLOSED", "childAuthEnv": "PROVEN_CLOSED", "midSessionOverride": "BLOCK", "failureBehavior": "STOP_BEFORE_PRESTATE_OR_MUTATION" },
+  "principalKindContract": { "allowedKind": "validated email; service-account suffix maps to serviceAccount and other validated email maps to user", "cardinality": "EXACTLY_ONE", "normalization": "NONE_EXCEPT_DOCUMENTED_TRANSPORT_FRAMING" },
+  "memberConstructionContract": { "status": "PROVEN", "constructor": "callerMember exact suffix rule from current runtime", "targetRole": "roles/iam.serviceAccountTokenCreator", "prestateEqualsOpE": "BY_CONSTRUCTION" },
+  "futureIdentityContext": { "storage": "IN_MEMORY_ONLY", "immutable": true, "discoveryMax": 1, "exactDecision": true, "restartResumable": false, "rediscoveryAfterPrestate": 0 },
+  "proposedPatchScope": [
+    { "path": "tools/authority-audit/m3RuntimeCommandGraph.mjs", "sha256": "619eb27635f3a8896b46362c231099b2b90ce3c792cac85e05008b2df44d078a" },
+    { "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs", "sha256": "512eaa9fa4fc5ea4f394e1a90116425142e4555df58b65e5d1c41b0d1a56190f" }
+  ],
+  "externalCapabilityImpact": { "status": "ARGV_REATTESTATION_REQUIRED", "reason": "future explicit account/configuration and sanitized environment change command/runtime contract" },
+  "privacy": { "rawIdentityPersisted": false, "rawMemberPersisted": false, "overrideValuesPersisted": false, "rawConfigPersisted": false, "rawOutputPersisted": false, "valuesPersisted": 0 },
+  "futureAuthorityRequirements": { "m3l3ApprovalGranted": false, "m4ApprovalGranted": false, "historicalIdentityRequired": false, "unapprovedImpersonation": "BLOCK", "m3MutationDiagnostic": false },
+  "verdict": "P1_5_C2H2E3D_W1C_M3L2_G4R3S_PINNED_ACCOUNT_CREDENTIAL_FALLBACK_UNRESOLVED"
+}

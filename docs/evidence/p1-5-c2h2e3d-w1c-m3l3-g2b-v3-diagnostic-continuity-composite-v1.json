@@ -1,0 +1,14 @@
+{
+  "schema": "myweb.g2b.v3-diagnostic-continuity-execution-composite.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-V3-DIAGNOSTIC-CONTINUITY",
+  "sourceLockManifestSha256": "f84bebd54657910f7a135150c42e641fc9b27e519f8647ce2b7b9366b8fa5440",
+  "attestationSha256": "a43c5314e2728894e399f2e93ee45c54e014d5583ada6a7dd81070b20508a844",
+  "continuityPass": true,
+  "historicalEvidenceCompatibleWithCurrentDirectContext": true,
+  "historicalEvidenceCompatibleWithCurrentM3": true,
+  "m3ExecutionGuard": {
+    "preLiveReadinessRequired": true,
+    "approvalConsumptionPoint": "WHEN_FIRST_APPROVED_EXACT_WRITER_SERVICE_ACCOUNT_GET_IAM_POLICY_PRESTATE_REQUEST_BEGINS",
+    "anchorVerifiedBeforeRemote": true
+  }
+}

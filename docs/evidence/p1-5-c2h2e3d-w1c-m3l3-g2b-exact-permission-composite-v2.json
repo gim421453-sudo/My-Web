@@ -1,0 +1,35 @@
+{
+  "schema": "myweb.g2b.exact-permission-diagnostic-execution-composite.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-EXACT-SERVICE-ACCOUNT-PERMISSION-DIAGNOSTIC",
+  "boundM3OperationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "currentM3State": "CONFIRMED_ABSENT_AFTER_RESOLVEDSTORE_FIXED_INDETERMINATE_MUTATION",
+  "recoveryExecutionEvidenceSha256": "0db8f9d3d6307cd519b0cc4c2fc0ef955287bd83009bf0b8cd9c4b6fc96fe74e",
+  "recoveryResultDocumentSha256": "8998bc5f40f4a42730c1c119639ed43a2e884425f9f1396ab85cd824b868750d",
+  "recoveryAnchorEvidenceSha256": "b063fb36de707548505e6c0defb878af12158107df3489730f376357f39d24da",
+  "supersededDiagnosticPacketSha256": "20da3c1b0c5816dff7c68c6765d8343120b11ab421cb8eb050f4ad90e70498c4",
+  "consumedHistoricalDiagnosticPacketSha256": "34891d23ee91160cb1f83f5084917ba21ab0b3a94bc5ebaf0e1f5be8dbe974b8",
+  "historicalDiagnosticExecutionEvidenceSha256": "d191beb25c9be2f134c2b0f2f7709b664337286774a6e29afa7809ebe526ed33",
+  "historicalDiagnosticResultDocumentSha256": "b3d062f437a0832c2d303216232d0775be5900d72467d4b081139fc676fc1a65",
+  "targetResource": "projects/my-management-app-8a933/serviceAccounts/myweb-class-mig-writer-g2@my-management-app-8a933.iam.gserviceaccount.com",
+  "exactPermission": "iam.serviceAccounts.setIamPolicy",
+  "permissionCount": 1,
+  "implementationAttestationSha256": "45234e36dc1d404334b141a8ef0b70e79e504f7e56a28588c58bf74d31908463",
+  "runtimeCapabilityAttestationSha256": "e1d721ee3d693a777dfe3789d8d136213a2bb62fc099e2c12c05b103300e0961",
+  "sourceLockManifestSha256": "13267043da4c2860eae7d29392653db9c80c148da9bb3d8cbc98936c9167cc0d",
+  "resultDomain": [
+    "PERMISSION_PRESENT_CONFIRMED",
+    "PERMISSION_ABSENT_CONFIRMED",
+    "DIAGNOSTIC_REQUEST_FAILURE",
+    "DIAGNOSTIC_AUTH_FAILURE",
+    "DIAGNOSTIC_PARSE_FAILURE",
+    "PRIVACY_GUARD_FAILURE",
+    "UNEXPECTED_RESPONSE"
+  ],
+  "privacy": {
+    "rawCallerPrincipalPersisted": false,
+    "rawCredentialPersisted": false,
+    "rawResponsePersisted": false,
+    "rawOutputPersisted": false
+  },
+  "approvalConsumptionPoint": "WHEN_FIRST_APPROVED_EXACT_SERVICE_ACCOUNT_TEST_IAM_PERMISSIONS_CALL_BEGINS"
+}

@@ -1,0 +1,22 @@
+{
+  "schema": "myweb.g2b.root-cause-fixed.final-execution-composite.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-ROOT-CAUSE-FIXED-LIVE",
+  "operationGeneration": "323af4e6-f1c6-4766-bc9f-39608dba78dc",
+  "targetResource": "myweb-class-mig-writer-g2@my-management-app-8a933.iam.gserviceaccount.com",
+  "targetRole": "roles/iam.serviceAccountTokenCreator",
+  "graphIdentity": "g2b-current-live-2acde94a839976d0",
+  "implementationAttestationSha256": "b64d6b2f1c0877138ff27d0c3ad546afd9272d15ee5c3422b66a67ac2e66dd8d",
+  "runtimeCapabilityAttestationSha256": "4dc6b97ba2e46041bb2cf019e5c40497cbdaf014cdb27141533b16362ea6f991",
+  "finalExecutionCompositeSha256": "9eaa53c4a602343ff8dd873c952270f55c4e7aac1ae8533bd915eaf5c76d3dd2",
+  "targetBoundExecutorVerified": true,
+  "legacyWriterSurfaceReachableFromCurrentExecutor": false,
+  "recoveryAnchorRequired": true,
+  "freshPrestateRequired": true,
+  "m4Allowed": false,
+  "firestoreAllowed": false,
+  "accessTokenAllowed": false,
+  "cloudLoggingAllowed": false,
+  "testIamPermissionsAllowed": false,
+  "serviceAccountKeyAllowed": false,
+  "privacy": { "rawIdentityPersisted": false, "rawMemberPersisted": false, "rawPolicyPersisted": false, "rawOutputPersisted": false }
+}

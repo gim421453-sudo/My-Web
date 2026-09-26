@@ -1,0 +1,440 @@
+{
+  "schema": "myweb.m3l2.g4r3r2.post-identity-patch-final-execution-composite.v1",
+  "forensicChain": {
+    "f1Attestation": "845c4ce63d9830966ab331afd641cae127f106d3f93d03ef704a5f79659eb33b",
+    "g4r3hGeneration1Status": "HISTORICAL_INCONSISTENT_ATTESTATION_CHAIN"
+  },
+  "currentImplementationAuthority": {
+    "g4r3hR2Attestation": "dd488891964eeac9427557b95c5cf46a42bb2f5969bbc6bcba6f55c176c79adc",
+    "g4r3hR2ResultDocumentSha256": "dc7650788218f7aae178f8d657c81bc816a4848e4061e0364aa0c99b34b911e1"
+  },
+  "currentRuntimeAuthority": {
+    "g4r3r1Attestation": "82e72c67adf78a837c82c877505ab6265cfa64fda8e14e280964860c1e7909b9",
+    "g4r3r1ResultDocumentSha256": "11bcb124f12500805da2f8b2937c1456caf10e0ec9bab3fbf63e6bbd911278b7"
+  },
+  "sourceLocks": [
+    {
+      "path": "docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4-fail-closed-outcome-classifier-v1.json",
+      "sha256": "c566d058bebaff6901114d52a65852dede1fc9cf267ed57dcfbbdd7b345655cd"
+    },
+    {
+      "path": "docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4r3d-exact-caller-target-member-identity-contract-v1.json",
+      "sha256": "dde99d5f2d1054b2cde2a61dac96ed3e51159086bb83046992cf4470409fe042"
+    },
+    {
+      "path": "docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4r3f-pinned-account-credential-fallback-v1.json",
+      "sha256": "57818a3d48f1e447257c9ec5d76a843fea365c1cc101b04dd0edd544ce3c9479"
+    },
+    {
+      "path": "docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4r3h-r2-current-state-exact-identity-implementation-v1.json",
+      "sha256": "5b0359ec2fc2e2b324e9136e55825378c472120e6cc18fc703e32763f3246d66"
+    },
+    {
+      "path": "docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4r3s-effective-caller-pinning-semantics-v1.json",
+      "sha256": "090c4eec2ac1bc75c5615a3dd1ddc1606bfe47b1830cf602201f6001e533ee95"
+    },
+    {
+      "path": "docs/p1-5-c2h2e3d-w1c-m3l2-g4r3h-r2-current-state-exact-identity-implementation-superseding-attestation.md",
+      "sha256": "dc7650788218f7aae178f8d657c81bc816a4848e4061e0364aa0c99b34b911e1"
+    },
+    {
+      "path": "tools/authority-audit-tests/f4WriterPolicyStructureDiagnostic.test.mjs",
+      "sha256": "a8fa37a466588652649815fa93750b50f2746fafd20c742f15f30895c5792346"
+    },
+    {
+      "path": "tools/authority-audit-tests/g4r3dExactCallerTargetMemberIdentityContract.test.mjs",
+      "sha256": "f8b4ee177bcbf9216167d32c3a8b8278f2e311248964d2c5a16613f1f04cba07"
+    },
+    {
+      "path": "tools/authority-audit-tests/g4r3fPinnedAccountCredentialFallback.test.mjs",
+      "sha256": "ea57da0ab70e251e4bdd57e4d788884cb7d762e3094bcd29dfcd12ce27d84c87"
+    },
+    {
+      "path": "tools/authority-audit-tests/g4r3hExactEffectiveCallerIdentity.test.mjs",
+      "sha256": "0b258aa28b2b76e7b7140cc9ec1f116fdf9ed64fe192f0885c807b708b530767"
+    },
+    {
+      "path": "tools/authority-audit-tests/g4r3hExactEffectiveCallerIdentityAttestation.test.mjs",
+      "sha256": "7b6d45b16f76b37b192a817aba12fa38f8b5432d46a989bd2ee1a4c47c370661"
+    },
+    {
+      "path": "tools/authority-audit-tests/g4r3hR2CurrentStateExactIdentityImplementation.test.mjs",
+      "sha256": "cc83e622ad4a028922f9a2b89cedd77dda328f3d0b39726a3b5a9c51ec814b0f"
+    },
+    {
+      "path": "tools/authority-audit-tests/g4r3sEffectiveCallerPinningSemantics.test.mjs",
+      "sha256": "891dea1de6d593d042f5493fde645a6bd8153fe2d0352a7ce688ce8d45546787"
+    },
+    {
+      "path": "tools/authority-audit-tests/m3MutationOutcomeClassifierG4.test.mjs",
+      "sha256": "683b461b5dcebdb05ec1d546bf73c3f6218249ecad043283491a3d8ffc3dbf21"
+    },
+    {
+      "path": "tools/authority-audit-tests/m3RuntimeCommandGraph.test.mjs",
+      "sha256": "fb2c8956f0e6d07c12b5117a5c5736b7231c48b344d0b776f57d8783872a6f2b"
+    },
+    {
+      "path": "tools/authority-audit-tests/windowsGcloudProcessAdapter.test.mjs",
+      "sha256": "966d2dad7e8375fa9dac3fec0656bc2a9422dc066afd1ad10631ec72174c2be5"
+    },
+    {
+      "path": "tools/authority-audit-tests/windowsProcessSynthetic.test.mjs",
+      "sha256": "d2f4419bc7438f03c220c0b8e00cc835c1a3f2fa74f7a973990eb2211dc4b21a"
+    },
+    {
+      "path": "tools/authority-audit/f4WriterPolicyStructureDiagnostic.mjs",
+      "sha256": "d9593117005c72b5d197bd4d581c16f804952e8893e9fc52f767f71e19132a84"
+    },
+    {
+      "path": "tools/authority-audit/g4FailClosedOutcomeClassifierAttestation.mjs",
+      "sha256": "8426f11409effe22b2cbcbec27f9c1c7d0ca0c12a7d69360c289bf30a86f2ba4"
+    },
+    {
+      "path": "tools/authority-audit/g4r3dExactCallerTargetMemberIdentityContract.mjs",
+      "sha256": "951b1aaa19d439192b68e8945907116a92873fb1dfd19e2ace10ae7328e01674"
+    },
+    {
+      "path": "tools/authority-audit/g4r3fPinnedAccountCredentialFallback.mjs",
+      "sha256": "a7eab51050912f3dcd57eec0f8b630414357ced3150708104413f035abe4ce75"
+    },
+    {
+      "path": "tools/authority-audit/g4r3hExactEffectiveCallerIdentity.mjs",
+      "sha256": "4085cd10998b1cc8e7c8b77b1cdd37b5d995b7723d4cb8125296c8a4a7e46003"
+    },
+    {
+      "path": "tools/authority-audit/g4r3hR2CurrentStateExactIdentityImplementation.mjs",
+      "sha256": "e18e06168af3553990c6c57e8a7271a0dc5d6914322ee60d433760219601f1ef"
+    },
+    {
+      "path": "tools/authority-audit/g4r3sEffectiveCallerPinningSemantics.mjs",
+      "sha256": "2547686907253842320334f364697e39d5185b0f278b05eb4acfd635072b45ea"
+    },
+    {
+      "path": "tools/authority-audit/m3RuntimeCommandGraph.mjs",
+      "sha256": "36776cebe1f29b0ad95237f6bbe526f48993956efb214e870668cc56ea44b030"
+    },
+    {
+      "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs",
+      "sha256": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578"
+    }
+  ],
+  "sdkLocks": [
+    {
+      "logicalId": "CAP_01",
+      "operations": [
+        "ROLE_STAGE1",
+        "ROLE_CANONICAL"
+      ],
+      "path": "sdk/lib/surface/iam/roles/describe.py",
+      "sha256": "cd591253cbe70fcf12f3145cca2667203fa606b9842afa344de24c6c2eac3739"
+    },
+    {
+      "logicalId": "CAP_02",
+      "operations": [
+        "ROLE_STAGE1",
+        "ROLE_CANONICAL"
+      ],
+      "path": "sdk/lib/googlecloudsdk/command_lib/iam/iam_util.py",
+      "sha256": "eea6f9241e9ba05260e9ea1c7d62ef1b26e4f854179e9348945f0088c91ab30c"
+    },
+    {
+      "logicalId": "CAP_03",
+      "operations": [
+        "ROLE_STAGE1",
+        "ROLE_CANONICAL",
+        "OP_B",
+        "OP_C_PRE",
+        "OP_C_POST",
+        "OP_E"
+      ],
+      "path": "sdk/lib/googlecloudsdk/command_lib/iam/flags.py",
+      "sha256": "49a3552d38e32245cb5b5c26cc3df6e1096f91e3d49acbf11eda2014ae536ee2"
+    },
+    {
+      "logicalId": "CAP_04",
+      "operations": [
+        "OP_A"
+      ],
+      "path": "sdk/lib/surface/auth/list.py",
+      "sha256": "5e6effb9cd500b77f157ca4ee2480ac2dbaa6a03a89a56c1bb9b8fd8c08f2c9f"
+    },
+    {
+      "logicalId": "CAP_05",
+      "operations": [
+        "OP_A",
+        "OP_B",
+        "OP_C_PRE",
+        "OP_D_PRE",
+        "OP_E",
+        "OP_C_POST",
+        "OP_D_POST"
+      ],
+      "path": "sdk/lib/googlecloudsdk/core/credentials/store.py",
+      "sha256": "1fcb3b856eb1584491d6f6160983808ca1f3574e44de86f53ac8d86f882e2a6f"
+    },
+    {
+      "logicalId": "CAP_06",
+      "operations": [
+        "OP_B"
+      ],
+      "path": "sdk/lib/surface/iam/service_accounts/describe.py",
+      "sha256": "e44a2fa74029ddf2205212c4ae5242abb396926389d01e7df0b7dc84c2ad9e97"
+    },
+    {
+      "logicalId": "CAP_07",
+      "operations": [
+        "OP_B",
+        "OP_C_PRE",
+        "OP_C_POST",
+        "OP_E"
+      ],
+      "path": "sdk/lib/googlecloudsdk/api_lib/iam/util.py",
+      "sha256": "c937f8fba54e954e6df7c36b05c15c3481cf3f491e9deb8836ca236c6f4f1ace"
+    },
+    {
+      "logicalId": "CAP_08",
+      "operations": [
+        "OP_C_PRE",
+        "OP_C_POST"
+      ],
+      "path": "sdk/lib/surface/iam/service_accounts/get_iam_policy.py",
+      "sha256": "d462fb1e622d70dc1396b9834a3e73cfd42253939fc8d38f018a0a2b368493cb"
+    },
+    {
+      "logicalId": "CAP_09",
+      "operations": [
+        "OP_D_PRE",
+        "OP_D_POST"
+      ],
+      "path": "sdk/lib/surface/projects/get_iam_policy.py",
+      "sha256": "8c4b508f7d8edb65469e8379960af9fab9ad111b56b9867a4c1657598fa3b5b5"
+    },
+    {
+      "logicalId": "CAP_10",
+      "operations": [
+        "OP_D_PRE",
+        "OP_D_POST"
+      ],
+      "path": "sdk/lib/googlecloudsdk/command_lib/projects/flags.py",
+      "sha256": "8428e8ee07add7609a62ba6d3abf295fca96d9078a5e94e676297f2792748955"
+    },
+    {
+      "logicalId": "CAP_11",
+      "operations": [
+        "OP_D_PRE",
+        "OP_D_POST"
+      ],
+      "path": "sdk/lib/googlecloudsdk/command_lib/projects/util.py",
+      "sha256": "9201fc0e4a3a244ac30eaf6b7ac538c27beee36f1a9b2c9c01e1aa21baa174c6"
+    },
+    {
+      "logicalId": "CAP_12",
+      "operations": [
+        "OP_D_PRE",
+        "OP_D_POST"
+      ],
+      "path": "sdk/lib/googlecloudsdk/api_lib/cloudresourcemanager/projects_api.py",
+      "sha256": "e08ed37b822d57201fab09c7d117e31fa5ab2fbb840f600cbdf87402e6370823"
+    },
+    {
+      "logicalId": "CAP_13",
+      "operations": [
+        "OP_E"
+      ],
+      "path": "sdk/lib/surface/iam/service_accounts/add_iam_policy_binding.yaml",
+      "sha256": "fcf41f4485dcdb29457feb081a82829013ff74c78543e3d1777fe6b01ad22042"
+    },
+    {
+      "logicalId": "CAP_14",
+      "operations": [
+        "OP_E"
+      ],
+      "path": "sdk/lib/googlecloudsdk/command_lib/util/apis/yaml_command_translator.py",
+      "sha256": "45eed2296837b2b4eadc9a228f050574ba8629ceec059f5cbb546fbb9460f796"
+    },
+    {
+      "logicalId": "CAP_15",
+      "operations": [
+        "OP_E"
+      ],
+      "path": "sdk/lib/googlecloudsdk/command_lib/iam/resources.yaml",
+      "sha256": "4f98b44238a7f137be027c6338283a5e4ce7e402fb2270e718c1a0ccce692ee8"
+    }
+  ],
+  "graph": {
+    "nodeCount": 9,
+    "executionEdgeCount": 8,
+    "predecessorMetadataEdgeCount": 7,
+    "nodes": [
+      "ROLE_STAGE1",
+      "ROLE_CANONICAL",
+      "OP_A",
+      "OP_B",
+      "OP_C_PRE",
+      "OP_D_PRE",
+      "OP_E",
+      "OP_C_POST",
+      "OP_D_POST"
+    ],
+    "graphIdentity": "db970e486979b1a82b4245141236d534e2b754bd345c2dc0c913e02232d5a424"
+  },
+  "externalCapabilities": {
+    "count": 15,
+    "bound": 15,
+    "unbound": 0,
+    "sdkVersion": "580.0.0",
+    "sdkPathContainment": "PASS"
+  },
+  "identity": {
+    "legacyFingerprintAuthorizationReachability": 0,
+    "opABootstrapContract": {
+      "role": "BOOTSTRAP_DISCOVERY_ONLY",
+      "cardinality": "EXACTLY_ONE",
+      "usedAsLaterCallerProof": false
+    },
+    "identityContext": {
+      "createdMax": 1,
+      "immutable": true,
+      "restartResumable": false
+    },
+    "exactMemberConstruction": {
+      "constructedCount": 1,
+      "rederivedAfterContext": 0
+    },
+    "sessionConfigRoot": {
+      "opAEqualsSession": "BY_CONSTRUCTION",
+      "pinned": true,
+      "reread": false
+    },
+    "childEnvironmentSnapshot": {
+      "createdOnce": true,
+      "mutableParentReused": false
+    },
+    "accountPinning": {
+      "operations": [
+        "OP_B",
+        "OP_C_PRE",
+        "OP_D_PRE",
+        "OP_E",
+        "OP_C_POST",
+        "OP_D_POST"
+      ],
+      "unpinnedRetryReachable": false
+    },
+    "configurationPinning": {
+      "mode": "NONE",
+      "conflictingFlagReachable": false,
+      "flagsFileReachable": false
+    },
+    "authOverrideClosure": {
+      "accessTokenArgv": false,
+      "accessTokenEnvironment": false,
+      "credentialFileEnvironment": false,
+      "impersonationArgv": false,
+      "impersonationEnvironment": false
+    }
+  },
+  "prestate": {
+    "freshRequired": true,
+    "r1b4Reusable": false,
+    "target": "LOCKED_WRITER_SERVICE_ACCOUNT",
+    "role": "roles/iam.serviceAccountTokenCreator",
+    "exactMember": "TRANSIENT_IMMUTABLE_SESSION_MEMBER",
+    "resultDomain": [
+      "TARGET_MEMBER_PRESENT",
+      "TARGET_MEMBER_ABSENT",
+      "AMBIGUOUS",
+      "READ_FAILURE"
+    ],
+    "sameMemberAsMutation": "BY_CONSTRUCTION"
+  },
+  "mutation": {
+    "maxAttempts": 1,
+    "retries": 0,
+    "rollbacks": 0,
+    "secondMutationReachable": false,
+    "sameCallerContext": "SAME_SESSION_IDENTITY_CONTEXT"
+  },
+  "classifier": {
+    "unknownNonzero": "INDETERMINATE",
+    "errorPrefixV1ProvesNonApplication": false,
+    "timeoutAfterStart": "INDETERMINATE",
+    "unknownDefault": "INDETERMINATE",
+    "confirmedFailureRules": []
+  },
+  "poststate": {
+    "required": true,
+    "resultDomain": [
+      "TARGET_MEMBER_PRESENT_CONFIRMED",
+      "TARGET_MEMBER_ABSENT",
+      "AMBIGUOUS",
+      "READ_FAILURE"
+    ],
+    "indeterminateRecoveryMode": "SEPARATE_APPROVAL",
+    "preexistingBindingAdoptionPolicy": "REQUIRES_SEPARATE_GATE",
+    "successSemantics": "PROCESS_SUCCESS_PLUS_EXACT_POSTSTATE_PRESENT_CONFIRMED"
+  },
+  "futureLiveBudget": {
+    "localIdentityDiscoveryMax": 1,
+    "remoteIamPrestateReadsMax": 5,
+    "iamMutationAttemptsMax": 1,
+    "remoteIamPoststateReadsMax": 2,
+    "retriesMax": 0,
+    "cloudLoggingReadsMax": 0,
+    "projectIamReadsMax": 2,
+    "testIamPermissionsMax": 0,
+    "accessTokenCallsMax": 0,
+    "firestoreCallsMax": 0,
+    "m4MutationsMax": 0
+  },
+  "approvalConsumption": {
+    "point": "WHEN_FRESH_EXACT_PRESTATE_READ_BEGINS",
+    "restartRequiresNewApproval": true,
+    "sessionRestartable": false
+  },
+  "crashSemantics": {
+    "afterPrestateBeforeMutation": "NO_RESUME_NEW_APPROVAL_REQUIRED",
+    "duringMutation": "INDETERMINATE_NO_RETRY_NO_ROLLBACK",
+    "afterSuccessBeforePoststate": "UNCONFIRMED_SEPARATE_READ_APPROVAL_REQUIRED"
+  },
+  "forbiddenReachability": {
+    "m4": false,
+    "firestore": false,
+    "accessTokenGeneration": false,
+    "writerImpersonation": false,
+    "serviceAccountKeyAccess": false,
+    "cloudLogging": false,
+    "projectIamMutation": false
+  },
+  "skippedTestPolicy": {
+    "gcloudVersionHelpStatus": "NOT_RUN_BY_ZERO_GCLOUD_POLICY",
+    "authorityClass": "NON_BLOCKING_BY_SOURCE_ATTESTATION",
+    "compensatingSourceAttestation": {
+      "sdkVersion": "580.0.0",
+      "sdkPathContainment": "PASS",
+      "launcherIdentity": "BOUND_BY_WINDOWS_ADAPTER_AND_SDK_SOURCE_LOCKS",
+      "capabilitySourceLockCount": 15
+    }
+  },
+  "privacy": {
+    "rawIdentityPersisted": false,
+    "rawIamPolicyPersisted": false,
+    "rawProcessOutputPersisted": false,
+    "configRootPersisted": false,
+    "credentialMaterialPersisted": false,
+    "personalAbsolutePathPersisted": false
+  },
+  "historicalAuthorityStatus": {
+    "g4r1": "HISTORICAL_ONLY_FOR_PRE_IDENTITY_PATCH_RUNTIME",
+    "g4r2": "HISTORICAL_STRUCTURALLY_VALID_BUT_BLOCKED_PRE_IDENTITY_PATCH_COMPOSITE",
+    "g4r3hGeneration1": "HISTORICAL_INCONSISTENT_ATTESTATION_CHAIN",
+    "currentImplementationAuthority": "G4R3H_R2",
+    "currentRuntimeCapabilityAuthority": "G4R3R1"
+  },
+  "futureAuthority": {
+    "m3l3ApprovalEligible": true,
+    "m3l3LiveApprovalGranted": false,
+    "m4ApprovalGranted": false
+  },
+  "verdict": "P1_5_C2H2E3D_W1C_M3L2_G4R3R2_POST_IDENTITY_PATCH_FINAL_EXECUTION_COMPOSITE_PASS_M3L3_APPROVAL_ELIGIBLE"
+}

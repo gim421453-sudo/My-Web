@@ -1,0 +1,57 @@
+{
+  "schema": "myweb.m3l2.g4.fail-closed-outcome-classifier.v1",
+  "r1b4EvidenceSha256": "4ea429535604ab20b7130280c7209b693ec9a655eb9e9e21094b531bf6027966",
+  "r1b4ResultDocumentSha256": "85453bf6d4c0aa3e8241cdbd1c390fac0b40bcdc40b9874a22034860f52bf9c4",
+  "r1b4Verdict": "P1_5_C2H2E3D_W1C_M3L2_R1B4_TARGET_ROLE_ABSENCE_PROVEN",
+  "currentM3State": "ABSENT_PROVEN",
+  "historicalClassifierDefect": "INDETERMINATE",
+  "preG4RuntimeLocks": [
+    { "path": "tools/authority-audit/m3RuntimeCommandGraph.mjs", "sha256": "53f948c4e2e993cf394ae22439ed8aed83ed3442c231964d08e5667498504751" },
+    { "path": "tools/authority-audit/gcloudStderrDiagnosticAnalyzer.mjs", "sha256": "660734f2c7d42bf2e23ed2f3a92081456621c3a0469eed7a1c3787a31358d656" },
+    { "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs", "sha256": "512eaa9fa4fc5ea4f394e1a90116425142e4555df58b65e5d1c41b0d1a56190f" }
+  ],
+  "postG4RuntimeLocks": [
+    { "path": "tools/authority-audit/m3RuntimeCommandGraph.mjs", "sha256": "619eb27635f3a8896b46362c231099b2b90ce3c792cac85e05008b2df44d078a" },
+    { "path": "tools/authority-audit/gcloudStderrDiagnosticAnalyzer.mjs", "sha256": "660734f2c7d42bf2e23ed2f3a92081456621c3a0469eed7a1c3787a31358d656" },
+    { "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs", "sha256": "512eaa9fa4fc5ea4f394e1a90116425142e4555df58b65e5d1c41b0d1a56190f" }
+  ],
+  "testLocks": [
+    { "path": "tools/authority-audit-tests/m3RuntimeCommandGraph.test.mjs", "sha256": "a85ca4c7755eff64f5d0f13fca3e6e8ffd100b6d1ebd3138c82392a19a1898d4" },
+    { "path": "tools/authority-audit-tests/m3MutationOutcomeClassifierG4.test.mjs", "sha256": "683b461b5dcebdb05ec1d546bf73c3f6218249ecad043283491a3d8ffc3dbf21" },
+    { "path": "tools/authority-audit-tests/g4FailClosedOutcomeClassifierAttestation.test.mjs", "sha256": "898ff2bd9050ea3eb5303997048a44356d36926b4e59f68464f2b6b498110dfe" }
+  ],
+  "classifierSemantics": {
+    "unknownNonzeroClassification": "INDETERMINATE",
+    "errorPrefixV1ProvesRemoteNonApplication": "no",
+    "timeoutAfterMutationStart": "INDETERMINATE",
+    "unknownMutationResultDefault": "INDETERMINATE",
+    "confirmedFailureStandard": "REMOTE_NON_APPLICATION_PROVEN_BY_CLOSED_RULE",
+    "confirmedFailureRuleIds": [],
+    "successSemantics": "EXIT_0_NORMAL_RESPONSE_CONFIRMED_SUCCESS",
+    "historicalM3L2ForensicOverride": "INDETERMINATE"
+  },
+  "runtimeInvariants": {
+    "automaticMutationRetryAdded": false,
+    "automaticRollbackAdded": false,
+    "externalCommandSurfaceChanged": false,
+    "opEArgvChanged": false,
+    "opCArgvChanged": false
+  },
+  "privacy": {
+    "rawPolicyPersisted": false,
+    "rawStdoutPersisted": false,
+    "rawStderrPersisted": false,
+    "memberIdentityPersisted": false,
+    "etagPersisted": false,
+    "conditionPersisted": false,
+    "tokenPersisted": false,
+    "personalPathPersisted": false
+  },
+  "futureAuthority": {
+    "historicalRg2cReusable": false,
+    "historicalG2R1Reusable": false,
+    "freshRuntimeReattestationRequired": true,
+    "newMutationCompositeRequired": true,
+    "newLiveApprovalRequired": true
+  }
+}

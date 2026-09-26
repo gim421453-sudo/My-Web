@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "preflight": "node run-rules-tests.mjs --preflight",
-    "test": "node run-rules-tests.mjs"
+    "test": "node run-rules-tests.mjs",
+    "test:trusted-backend": "node run-trusted-backend-tests.mjs"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.0",

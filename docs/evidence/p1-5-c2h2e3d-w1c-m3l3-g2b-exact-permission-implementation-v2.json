@@ -1,0 +1,43 @@
+{
+  "schema": "myweb.g2b.exact-permission-diagnostic-implementation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-EXACT-SERVICE-ACCOUNT-PERMISSION-DIAGNOSTIC",
+  "sourceLockManifestSha256": "13267043da4c2860eae7d29392653db9c80c148da9bb3d8cbc98936c9167cc0d",
+  "exactPermissionDerivation": "PROVEN",
+  "mutationApiSurface": "iam.projects.serviceAccounts",
+  "mutationMethod": "SetIamPolicy",
+  "mutationResourceType": "ServiceAccount",
+  "exactMutationRequiredPermission": "iam.serviceAccounts.setIamPolicy",
+  "permissionDerivationEvidence": [
+    "CURRENT_G2B_MUTATION_USES_SERVICE_ACCOUNT_ADD_IAM_POLICY_BINDING",
+    "IAM_V1_SERVICE_ACCOUNT_SET_IAM_POLICY_METHOD_ID",
+    "PRIOR_EXACT_SAME_RESOURCE_PERMISSION_DIAGNOSTIC_CONTRACT"
+  ],
+  "testIamPermissionsSupported": true,
+  "testIamPermissionsResourceForm": "projects/{project}/serviceAccounts/{serviceAccountEmail}",
+  "requestContract": {
+    "resource": "exact service-account resource",
+    "permissions": [
+      "iam.serviceAccounts.setIamPolicy"
+    ]
+  },
+  "responseContract": "returned permissions are the granted subset of the requested permissions",
+  "executorBound": true,
+  "requestBuilderBound": true,
+  "responseParserBound": true,
+  "authTransportBound": true,
+  "privacyGuardBound": true,
+  "classifierBound": true,
+  "safeFailureMetadataBound": true,
+  "transportSchema": "myweb.g2b.exact-permission-transport.v2",
+  "cachedCredentialOnly": true,
+  "credentialRefreshBlocked": true,
+  "resultDomain": [
+    "PERMISSION_PRESENT_CONFIRMED",
+    "PERMISSION_ABSENT_CONFIRMED",
+    "DIAGNOSTIC_REQUEST_FAILURE",
+    "DIAGNOSTIC_AUTH_FAILURE",
+    "DIAGNOSTIC_PARSE_FAILURE",
+    "PRIVACY_GUARD_FAILURE",
+    "UNEXPECTED_RESPONSE"
+  ]
+}

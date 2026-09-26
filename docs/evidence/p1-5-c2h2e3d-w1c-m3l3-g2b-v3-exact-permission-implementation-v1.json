@@ -1,0 +1,16 @@
+{
+  "schema": "myweb.g2b.v3-exact-permission-implementation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-EXACT-SERVICE-ACCOUNT-PERMISSION-DIAGNOSTIC-V3",
+  "sourceLockManifestSha256": "b61acbbcf6470c75182b877300999bbfda37b01594fe172cef71ba5d63488f96",
+  "requestBuilder": "buildG2BExactPermissionRequest",
+  "responseParser": "classifyG2BExactPermissionResponse",
+  "transport": "Cloud SDK apitools-compatible requests transport with current credential refresh blocked",
+  "exactEndpointTemplate": "v1/{+resource}:testIamPermissions",
+  "exactHttpMethod": "POST",
+  "exactResourceFormat": "projects/{project}/serviceAccounts/{serviceAccountEmail}",
+  "freshCredentialRequired": true,
+  "credentialRefreshAllowed": false,
+  "zeroNetworkReadyProofSha256": "f0bf0b1a3ae19ba141fdeafa7f5710fa875cb2fbac6d92d38a928927d715aeb0",
+  "privacyGuardBound": true,
+  "safeFailureMetadataBound": true
+}

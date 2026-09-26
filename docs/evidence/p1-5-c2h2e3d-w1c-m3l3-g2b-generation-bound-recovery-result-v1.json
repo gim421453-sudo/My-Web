@@ -1,0 +1,12 @@
+{
+  "schema": "myweb.g2b.generation-bound-recovery.result.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-GENERATION-BOUND-READ-ONLY-RECOVERY-LIVE",
+  "interruptedM3Generation": "8b30e1da-8d4d-4ded-ad94-cf62aabcc981",
+  "recoveryResult": "RECOVERY_NOT_ESTABLISHED",
+  "currentExactTokenCreatorBindingState": "NOT_ESTABLISHED",
+  "approvalConsumed": true,
+  "recoveryServiceAccountIamPolicyReadsUsed": 1,
+  "totalPhysicalRemoteRecoveryCallsUsed": 1,
+  "setIamPolicyCalls": 0,
+  "iamMutations": 0
+}

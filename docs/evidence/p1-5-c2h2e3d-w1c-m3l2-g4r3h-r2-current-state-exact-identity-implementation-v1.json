@@ -1,0 +1,52 @@
+{
+  "schema": "myweb.m3l2.g4r3h-r2.current-state-exact-identity-implementation.v1",
+  "generation": 2,
+  "generation1Status": "HISTORICAL_INCONSISTENT_ATTESTATION_CHAIN",
+  "f1AttestationSha256": "845c4ce63d9830966ab331afd641cae127f106d3f93d03ef704a5f79659eb33b",
+  "f1ResultDocumentSha256": "a8cf31f138a5010a4c25831579498e269e58c30d91e03db621612540aea80ef7",
+  "upstreamLocks": {
+    "g4r3fPayload": "4f8b1c2fd110abfeeb44279ead491684d2f88068979ec397c3d714cd4b4c7b25",
+    "g4r3fResult": "8f55f841ffd48e138cf6471c1694bb5056fad4dd014964ff9fd1ad30b1dd1490",
+    "g4r3sPayload": "5f679e024fd20dcc1f7a7c362ea7fa2df05c57a0618fedbf9756b9205de84acf",
+    "g4r3sResult": "1b32e9ac0966c8e3bb95d5a8b59ec5ad544047583ffc9afbc01fcf34b49ee802",
+    "g4r3dPayload": "6dcce593886701d31bd341bf91d6edf080cd76082fb39dcfb30aec23a7dc27ef",
+    "g4r3dResult": "5f842adf69e2dfe3c33326a5109ddd2c3b6ff29bc7149f32197b479afc1df7bd"
+  },
+  "runtimeLocks": [
+    { "path": "tools/authority-audit/m3RuntimeCommandGraph.mjs", "sha256": "36776cebe1f29b0ad95237f6bbe526f48993956efb214e870668cc56ea44b030", "role": "m3-exact-identity-runtime" },
+    { "path": "tools/authority-audit/windowsGcloudProcessAdapter.mjs", "sha256": "b2d04308371d832bbdfb62cdd2c3569e3685de0b340f6de14aea38118fbe7578", "role": "bounded-windows-process-adapter" },
+    { "path": "tools/authority-audit/g4r3hExactEffectiveCallerIdentity.mjs", "sha256": "4085cd10998b1cc8e7c8b77b1cdd37b5d995b7723d4cb8125296c8a4a7e46003", "role": "generation-one-verifier-reference" },
+    { "path": "tools/authority-audit/f4WriterPolicyStructureDiagnostic.mjs", "sha256": "d9593117005c72b5d197bd4d581c16f804952e8893e9fc52f767f71e19132a84", "role": "privacy-safe-logical-command-template" },
+    { "path": "tools/authority-audit/g4FailClosedOutcomeClassifierAttestation.mjs", "sha256": "8426f11409effe22b2cbcbec27f9c1c7d0ca0c12a7d69360c289bf30a86f2ba4", "role": "g4-classifier-attestation" },
+    { "path": "tools/authority-audit/g4r3fPinnedAccountCredentialFallback.mjs", "sha256": "a7eab51050912f3dcd57eec0f8b630414357ced3150708104413f035abe4ce75", "role": "pinned-account-sdk-proof" },
+    { "path": "tools/authority-audit/g4r3sEffectiveCallerPinningSemantics.mjs", "sha256": "2547686907253842320334f364697e39d5185b0f278b05eb4acfd635072b45ea", "role": "effective-caller-semantics" },
+    { "path": "tools/authority-audit/g4r3dExactCallerTargetMemberIdentityContract.mjs", "sha256": "951b1aaa19d439192b68e8945907116a92873fb1dfd19e2ace10ae7328e01674", "role": "exact-identity-design-contract" }
+  ],
+  "testLocks": [
+    { "path": "tools/authority-audit-tests/g4r3hExactEffectiveCallerIdentity.test.mjs", "sha256": "0b258aa28b2b76e7b7140cc9ec1f116fdf9ed64fe192f0885c807b708b530767", "role": "identity-contract-tests" },
+    { "path": "tools/authority-audit-tests/g4r3hExactEffectiveCallerIdentityAttestation.test.mjs", "sha256": "7b6d45b16f76b37b192a817aba12fa38f8b5432d46a989bd2ee1a4c47c370661", "role": "generation-one-attestation-tests" },
+    { "path": "tools/authority-audit-tests/m3RuntimeCommandGraph.test.mjs", "sha256": "fb2c8956f0e6d07c12b5117a5c5736b7231c48b344d0b776f57d8783872a6f2b", "role": "m3-graph-and-classifier-tests" },
+    { "path": "tools/authority-audit-tests/windowsGcloudProcessAdapter.test.mjs", "sha256": "966d2dad7e8375fa9dac3fec0656bc2a9422dc066afd1ad10631ec72174c2be5", "role": "windows-adapter-local-command-test" },
+    { "path": "tools/authority-audit-tests/windowsProcessSynthetic.test.mjs", "sha256": "d2f4419bc7438f03c220c0b8e00cc835c1a3f2fa74f7a973990eb2211dc4b21a", "role": "windows-adapter-synthetic-test" },
+    { "path": "tools/authority-audit-tests/m3MutationOutcomeClassifierG4.test.mjs", "sha256": "683b461b5dcebdb05ec1d546bf73c3f6218249ecad043283491a3d8ffc3dbf21", "role": "g4-classifier-tests" },
+    { "path": "tools/authority-audit-tests/f4WriterPolicyStructureDiagnostic.test.mjs", "sha256": "a8fa37a466588652649815fa93750b50f2746fafd20c742f15f30895c5792346", "role": "logical-template-tests" },
+    { "path": "tools/authority-audit-tests/g4r3fPinnedAccountCredentialFallback.test.mjs", "sha256": "ea57da0ab70e251e4bdd57e4d788884cb7d762e3094bcd29dfcd12ce27d84c87", "role": "sdk-fallback-tests" },
+    { "path": "tools/authority-audit-tests/g4r3sEffectiveCallerPinningSemantics.test.mjs", "sha256": "891dea1de6d593d042f5493fde645a6bd8153fe2d0352a7ce688ce8d45546787", "role": "pinning-semantics-tests" },
+    { "path": "tools/authority-audit-tests/g4r3dExactCallerTargetMemberIdentityContract.test.mjs", "sha256": "f8b4ee177bcbf9216167d32c3a8b8278f2e311248964d2c5a16613f1f04cba07", "role": "identity-design-tests" }
+  ],
+  "evidenceLocks": [
+    { "path": "docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4r3f-pinned-account-credential-fallback-v1.json", "sha256": "57818a3d48f1e447257c9ec5d76a843fea365c1cc101b04dd0edd544ce3c9479", "role": "g4r3f-evidence" },
+    { "path": "docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4r3s-effective-caller-pinning-semantics-v1.json", "sha256": "090c4eec2ac1bc75c5615a3dd1ddc1606bfe47b1830cf602201f6001e533ee95", "role": "g4r3s-evidence" },
+    { "path": "docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4r3d-exact-caller-target-member-identity-contract-v1.json", "sha256": "dde99d5f2d1054b2cde2a61dac96ed3e51159086bb83046992cf4470409fe042", "role": "g4r3d-evidence" },
+    { "path": "docs/evidence/p1-5-c2h2e3d-w1c-m3l2-g4-fail-closed-outcome-classifier-v1.json", "sha256": "c566d058bebaff6901114d52a65852dede1fc9cf267ed57dcfbbdd7b345655cd", "role": "g4-classifier-evidence" }
+  ],
+  "identityContract": { "activeIdentityCardinality": "EXACTLY_ONE", "legacyFingerprintAuthorizationReachable": false, "exactMemberConstructedCount": 1, "contextCreatedCountMax": 1, "contextImmutable": true, "memberRederivationAfterContext": 0, "persisted": false },
+  "sessionContract": { "opAConfigRootEqualsSession": "BY_CONSTRUCTION", "downstreamConfigRootEqualsSession": "BY_CONSTRUCTION", "childEnvironmentSnapshotCount": 1, "mutableParentEnvironmentReread": false, "sanitizedOverrideSurfaces": ["CLOUDSDK_AUTH_ACCESS_TOKEN", "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE", "CLOUDSDK_AUTH_IMPERSONATE_SERVICE_ACCOUNT"] },
+  "commandContract": { "accountPinnedOperations": ["OP_B", "OP_C_PRE", "OP_D_PRE", "OP_E", "OP_C_POST", "OP_D_POST"], "configurationNone": true, "duplicateAccountFlagReachable": false, "duplicateConfigurationFlagReachable": false, "unpinnedRetryReachable": false },
+  "prestateContract": { "resultDomain": "TARGET_MEMBER_PRESENT|TARGET_MEMBER_ABSENT|AMBIGUOUS|READ_FAILURE", "exactComparison": true, "sameMemberAtMutation": "BY_CONSTRUCTION", "failureBlocksMutation": true },
+  "classifierContract": { "unknownNonzero": "INDETERMINATE", "timeoutAfterMutationStart": "INDETERMINATE", "errorPrefixProvesNonApplication": false, "confirmedFailureRules": [], "mutationMax": 1, "retry": 0, "rollback": 0 },
+  "forbiddenReachability": { "m4": false, "firestore": false, "tokenGeneration": false, "writerImpersonation": false, "serviceAccountKey": false, "cloudLogging": false, "projectIamMutation": false },
+  "privacy": { "rawIdentityPersisted": false, "rawCommandPersisted": false, "rawEnvironmentPersisted": false, "rawPolicyPersisted": false, "personalAbsolutePathPersisted": false },
+  "futureAuthority": { "g4r3r1Eligible": true, "m3l3LiveApprovalGranted": false },
+  "verdict": "P1_5_C2H2E3D_W1C_M3L2_G4R3H_R2_CURRENT_STATE_SUPERSEDING_ATTESTATION_PASS_G4R3R1_ELIGIBLE"
+}

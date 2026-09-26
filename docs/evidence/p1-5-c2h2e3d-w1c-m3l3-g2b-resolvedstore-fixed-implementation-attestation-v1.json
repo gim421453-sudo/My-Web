@@ -1,0 +1,11 @@
+{
+  "schema": "myweb.g2b.resolved-store-fixed.implementation-attestation.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-ROOT-CAUSE-FIXED-RESOLVEDSTORE-FIXED-LIVE",
+  "operationGeneration": "ac1c8343-5837-4a75-ad55-c93ac320f937",
+  "implementationAttestationSha256": "1991eeb6c3f43ab5f9aeeb6a1fb28d5ca8cf69e565dfb5b077684b57a434a2c0",
+  "resolvedStoreReferenceDefectFixed": true,
+  "sourceLockCount": 12,
+  "allRequiredLocalLocksMatch": true,
+  "rawMemberPersisted": false,
+  "rawPrincipalPersisted": false
+}

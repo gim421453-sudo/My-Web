@@ -1,0 +1,15 @@
+{
+  "schema": "myweb.g2b.exact-permission-diagnostic-v2-result.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-EXACT-SERVICE-ACCOUNT-PERMISSION-DIAGNOSTIC-V2",
+  "approvalConsumed": true,
+  "diagnosticResult": "DIAGNOSTIC_REQUEST_FAILURE",
+  "exactMutationPermissionState": "NOT_ESTABLISHED",
+  "m3AuthorizationDefect": "NOT_CONFIRMED_BY_EXACT_PERMISSION_DIAGNOSTIC",
+  "nextApprovalRequired": true,
+  "nextApprovalType": "M3_PROVIDER_PROCESS_LOCAL_SETUP_FAILURE_ROOT_CAUSE_DIAGNOSTIC",
+  "remoteOperationsAfterResult": 0,
+  "retryAllowed": false,
+  "secondDiagnosticAllowed": false,
+  "m3MutationAllowed": false,
+  "m4Allowed": false
+}

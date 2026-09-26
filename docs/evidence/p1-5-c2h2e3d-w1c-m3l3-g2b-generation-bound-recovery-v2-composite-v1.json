@@ -1,0 +1,10 @@
+{
+  "schema": "myweb.g2b.generation-bound-recovery-v2.execution-composite.v1",
+  "stage": "P1.5-C2H2E3D-W1C-M3L3-G2B-M3-GENERATION-BOUND-READ-ONLY-RECOVERY-V2",
+  "sourceLockManifestSha256": "fa8d0e00691320a7f2a4e34566a9487e96de60606e59fc5af3a2afc492fc29d7",
+  "implementationAttestationSha256": "877251f901a1214c8c5d30e37316fe73dd4e1dbbf4bbc0bb8cbb381462b7de36",
+  "runtimeCapabilityAttestationSha256": "25198c49ae0147ff2255ee2638f8bff88aa317cda28d28abbcaba70a8001f504",
+  "prospectiveSafetyEvidenceSha256": "5837206515a09b62dbd11dbd510084303941c2574f2cc33b493038d497c7e71e",
+  "remoteOperations": 0,
+  "mutationReachable": false
+}
