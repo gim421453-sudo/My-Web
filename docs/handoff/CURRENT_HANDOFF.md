@@ -7,8 +7,8 @@ Status: RECOVERY_VERIFICATION_PASS_WITH_MANUAL_CHECKS
 
 - 저장소: `C:/Users/USER/Documents/My Web`
 - 브랜치: `checkpoint/notice-auth-recovery-20260723`
-- HEAD: `392a72110009d0f9ad3dbeff585416adbd542133` (`chore: add cross-device handoff and documentation automation`)
-- upstream 표시: ahead 0 / behind 0. fetch하지 않아 원격 최신성은 `NOT VERIFIED`.
+- Recovery 구현·검증 commit: `b153f10ed565b93bd5549bd71596278ab4a087b6` (`fix: complete MY WEB recovery verification`). 이 handoff follow-up은 해당 commit 직후의 문서 전용 commit으로 저장한다.
+- upstream은 recovery commit 직후 ahead 1 / behind 0으로 표시됐다. 이후 handoff 전용 commit으로 local ahead는 2가 된다. fetch하지 않아 원격 최신성은 `NOT VERIFIED`.
 - 활성 Rules는 `firebase.json`이 지정하는 `firestore.rules`. `firestore.rules.next`, `firestore.rules.console-current`, backup은 배포 대상으로 설정되어 있지 않다.
 - IAM: `IAM_STATUS = HOLD`; 이번 작업에서 IAM 문서나 원격 권한을 변경하지 않았다.
 
@@ -23,7 +23,8 @@ Status: RECOVERY_VERIFICATION_PASS_WITH_MANUAL_CHECKS
 - 최종 회귀: `npm test` PASS; Functions unit `557/557 PASS` (Node 22); `npm run typecheck`, `npm run build`, `npm run build:admin` PASS; configured/candidate Rules Emulator `39/39 PASS`; headless Browser E2E `11/11 PASS`; 기존 Browser SDK role matrix `74/74 PASS`; `git diff --check` PASS. lint script는 없다. 빌드의 기존 sourcemap, `use client`, chunk size 경고는 남는다.
 - 보조 4-profile runner는 `tools/firestore-rules-tests/node_modules/firebase-tools`가 없어 전용 preflight 실패했다. 루트 CLI를 재사용한 시도는 helper가 고정한 port `8085`의 emulator 시작 오류로 중단됐고, 사후 listener는 없었다. 이는 이번 필수 configured/candidate Rules 39개 테스트와 Browser SDK matrix 결과를 바꾸지 않으며 추가 4-profile 재실행은 `NOT VERIFIED`로 남긴다.
 - 수동 확인: headless 검증으로 기능 경로는 닫혔다. 실제 창 크기/인쇄물의 시각적 외관만 `MANUAL_CHECK_REQUIRED`; 존재하지 않는 role×CRUD UI 조합은 `NOT_APPLICABLE`. non-owner App Next preview는 현재 `owner-preview-only` release gate 정책대로 차단된다.
-- `CURRENT_HANDOFF.md` 갱신 뒤 intended files만 검토·선별 stage하고 `fix: complete MY WEB recovery verification` 커밋을 진행한다. push는 하지 않는다. 최종 handoff follow-up에 구현 commit ID와 clean/remaining manual-check 상태를 기록한다.
+- intended files 32개를 선택적으로 stage하고 staged name/stat/diff check를 검토한 뒤 `fix: complete MY WEB recovery verification` commit을 생성했다. stage에는 임시 `.env.local`, debug logs, 임시 대체 config가 포함되지 않았다. push는 하지 않았다.
+- handoff 문서는 구현 commit `b153f10ed565b93bd5549bd71596278ab4a087b6`을 기록하며, 이번 후속 문서 commit 자체의 SHA는 비자기참조 handoff 규칙상 본문에 포함하지 않는다. 현재 브랜치 상태는 Git으로 다시 확인할 수 있다.
 - Cross-device readiness: `READY_WITH_WARNINGS` — 지원 Node 22 기준 필수 자동 게이트 PASS; Node 24는 미지원 runtime 비교 실패로 기록했고 수동 시각 점검만 남는다. IAM HOLD 유지.
 
 ## 이전 최종 검증 시도 및 갱신된 결과 (2026-09-30)
