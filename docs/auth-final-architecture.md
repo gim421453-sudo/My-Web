@@ -53,7 +53,7 @@ type AccountStatus = "pending" | "active" | "rejected" | "disabled";
 
 ## AppSession
 
-신규 세션 모델은 [src/auth/authTypes.ts](<C:\Users\USER\Documents\My Web\src\auth\authTypes.ts>)에 있습니다.
+신규 세션 모델은 [src/auth/authTypes.ts](<C:\dev\My Web\src\auth\authTypes.ts>)에 있습니다.
 
 ```ts
 interface AppSession {
@@ -124,7 +124,7 @@ system owner의 `currentWorkspaceId`가 존재하지 않는 workspace를 가리�
 
 ## 오류 정책
 
-오류 코드는 [src/auth/authErrors.ts](<C:\Users\USER\Documents\My Web\src\auth\authErrors.ts>)에서 관리합니다.
+오류 코드는 [src/auth/authErrors.ts](<C:\dev\My Web\src\auth\authErrors.ts>)에서 관리합니다.
 
 네트워크 오류, Firestore 일시 오류, 부가 작업 오류는 자동 로그아웃으로 처리하지 않습니다. 명시적 로그아웃, 토큰 무효화, 사용자 삭제 같은 상황만 세션 종료 후보입니다.
 
@@ -143,7 +143,7 @@ system owner의 `currentWorkspaceId`가 존재하지 않는 workspace를 가리�
 
 ## 핵심 파일
 
-- [src/auth/sessionService.ts](<C:\Users\USER\Documents\My Web\src\auth\sessionService.ts>)
-- [src/auth/AuthProvider.tsx](<C:\Users\USER\Documents\My Web\src\auth\AuthProvider.tsx>)
-- [src/workspace/workspaceService.ts](<C:\Users\USER\Documents\My Web\src\workspace\workspaceService.ts>)
-- [src/permissions/permissionService.ts](<C:\Users\USER\Documents\My Web\src\permissions\permissionService.ts>)
+- [src/auth/sessionService.ts](<C:\dev\My Web\src\auth\sessionService.ts>)
+- [src/auth/AuthProvider.tsx](<C:\dev\My Web\src\auth\AuthProvider.tsx>)
+- [src/workspace/workspaceService.ts](<C:\dev\My Web\src\workspace\workspaceService.ts>)
+- [src/permissions/permissionService.ts](<C:\dev\My Web\src\permissions\permissionService.ts>)

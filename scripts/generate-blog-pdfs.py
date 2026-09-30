@@ -252,27 +252,27 @@ def command_pdf():
     story = []
     story.append(section("기본 위치"))
     story.append(code_block(r'''
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 set "NODE=C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"
 '''))
     story.append(note_box('이 PDF의 명령어는 긴 Node 경로를 줄이기 위해 "%NODE%" 변수를 사용합니다. 새 CMD 창을 열면 기본 위치 명령을 먼저 실행하세요.', "blue"))
 
     story.append(section("통합 사이트 실행"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 npm run dev
 """))
     story.append(p("접속 주소: http://127.0.0.1:5173/", "body"))
     story.append(subsection("npm이 안 될 때 대체 실행"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" scripts\generate-firebase-config.mjs
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" node_modules\vite\bin\vite.js --host 127.0.0.1 --port 5173
 """))
 
     story.append(section("관리자 사이트 실행"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 set PM_STATIC_PREVIEW_PORT=5181
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" scripts\static-preview.cjs
 """))
@@ -293,21 +293,21 @@ taskkill /PID PID번호 /F
     story.append(code_block(r"""
 netstat -ano | findstr :5173
 taskkill /PID PID번호 /F
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 npm run dev
 """))
     story.append(subsection("관리자 서버"))
     story.append(code_block(r"""
 netstat -ano | findstr :5181
 taskkill /PID PID번호 /F
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 set PM_STATIC_PREVIEW_PORT=5181
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" scripts\static-preview.cjs
 """))
 
     story.append(section("Firebase 설정 파일 다시 생성"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" scripts\generate-firebase-config.mjs
 findstr PM_APP_TARGET pm-env.js
 findstr PM_APP_TARGET dist-admin\pm-env.js
@@ -315,7 +315,7 @@ findstr PM_APP_TARGET dist-admin\pm-env.js
 
     story.append(section("통합 사이트 빌드"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" scripts\generate-firebase-config.mjs
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" node_modules\typescript\bin\tsc --noEmit
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" node_modules\vite\bin\vite.js build
@@ -324,7 +324,7 @@ cd /d "C:\Users\USER\Documents\My Web"
 
     story.append(section("관리자 사이트 빌드"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 set VITE_APP_TARGET=admin-standalone
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" scripts\generate-firebase-config.mjs
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" node_modules\typescript\bin\tsc --noEmit
@@ -337,7 +337,7 @@ set VITE_APP_TARGET=
 
     story.append(section("코드 문법 점검"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --check app.js
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --check services\authService.js
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" --check services\systemAdminService.js
@@ -347,7 +347,7 @@ cd /d "C:\Users\USER\Documents\My Web"
 
     story.append(section("시스템 오너 지정"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" scripts\set-system-owner.mjs --email 본인이메일@example.com
 """))
     story.append(subsection("워크스페이스 이름 지정"))
@@ -358,7 +358,7 @@ cd /d "C:\Users\USER\Documents\My Web"
     story.append(section("오너 제외 회원 초기화"))
     story.append(note_box("오너 계정은 남기고 나머지 Auth 계정/회원 문서를 삭제합니다. 업무 데이터는 최대한 남기는 스크립트입니다.", "red"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" scripts\delete-non-owner-accounts.mjs --owner-email 본인이메일@example.com
 """))
     story.append(p("실행 중 아래 문구를 정확히 입력해야 삭제됩니다.", "body"))
@@ -367,7 +367,7 @@ cd /d "C:\Users\USER\Documents\My Web"
     story.append(section("전체 테스트 데이터 초기화"))
     story.append(note_box("주의: Auth 전체 사용자, Firestore users, workspaces 컬렉션 문서를 삭제하는 테스트용 초기화입니다.", "red"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" scripts\reset-firebase-test-data.mjs
 """))
     story.append(p("실행 중 아래 문구를 정확히 입력해야 삭제됩니다.", "body"))
@@ -375,7 +375,7 @@ cd /d "C:\Users\USER\Documents\My Web"
 
     story.append(section("Firestore Rules"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 notepad firestore.rules
 """))
     story.append(p("Firebase Console에서 붙여넣고 게시합니다. Firebase CLI가 있으면 아래 명령으로 배포할 수 있습니다.", "body"))
@@ -383,7 +383,7 @@ notepad firestore.rules
 
     story.append(section("버전과 모드 확인"))
     story.append(code_block(r"""
-cd /d "C:\Users\USER\Documents\My Web"
+cd /d "C:\dev\My Web"
 findstr "authService.js?v= systemAdminService.js?v= app.js?v=" index.html
 findstr "authService.js?v= systemAdminService.js?v= app.js?v=" dist-admin\index.html
 findstr PM_APP_TARGET pm-env.js

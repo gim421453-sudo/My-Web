@@ -1,14 +1,13 @@
 # MY WEB 현재 작업 인계
 
-Last updated: 2026-09-30 (Asia/Seoul)
+Last updated: 2026-10-01 (Asia/Seoul)
 Status: RECOVERY_VERIFICATION_PASS_WITH_MANUAL_CHECKS
 
 ## 프로젝트 기준
 
-- 저장소: `C:/Users/USER/Documents/My Web`
+- 저장소: `C:/dev/My Web`
 - 브랜치: `checkpoint/notice-auth-recovery-20260723`
-- Recovery 구현·검증 commit: `b153f10ed565b93bd5549bd71596278ab4a087b6` (`fix: complete MY WEB recovery verification`). 이 handoff follow-up은 해당 commit 직후의 문서 전용 commit으로 저장한다.
-- upstream은 recovery commit 직후 ahead 1 / behind 0으로 표시됐다. 이후 handoff 전용 commit으로 local ahead는 2가 된다. fetch하지 않아 원격 최신성은 `NOT VERIFIED`.
+- 현재 확인된 HEAD: `501a7ca6adceb0370467b914528b066fb49015f7`; 브랜치 `checkpoint/notice-auth-recovery-20260723`가 `origin/checkpoint/notice-auth-recovery-20260723`와 ahead 0 / behind 0으로 동기화되어 있다. 이번 경로 정합성 작업은 문서와 안내용 스크립트만 수정했으며 commit/push는 하지 않는다.
 - 활성 Rules는 `firebase.json`이 지정하는 `firestore.rules`. `firestore.rules.next`, `firestore.rules.console-current`, backup은 배포 대상으로 설정되어 있지 않다.
 - IAM: `IAM_STATUS = HOLD`; 이번 작업에서 IAM 문서나 원격 권한을 변경하지 않았다.
 
@@ -129,8 +128,10 @@ Status: RECOVERY_VERIFICATION_PASS_WITH_MANUAL_CHECKS
 
 ## 작업 트리와 다음 작업
 
-- 기존 미커밋 구현·문서 변경을 보존했다. 감사 중 문서 설명을 정정했고 감사 보고서와 과거 handoff 스냅샷을 추가했다.
+- 2026-10-01 경로 변경 점검: 실제 repository root는 `C:\dev\My Web`; HEAD는 `501a7ca6adceb0370467b914528b066fb49015f7`; upstream과 0 ahead / 0 behind; `.env`는 존재하고 ignored다. 현행 문서 링크와 `scripts/generate-blog-pdfs.py`의 실행 예시, 이 handoff의 저장소 경로를 새 위치로 갱신했다. 남은 이전 경로 표기는 역사 메모 `HANDOFF.md`와 recovery 보고서/사전 감사 스냅샷에 한정되어 보존했다. `git diff --check` 통과; 기능 테스트는 실행하지 않았다.
+- 이번 작업으로 변경된 파일: `docs/auth-final-architecture.md`, `docs/firestore-rules-migration-plan.md`, `docs/firestore-rules-version-comparison.md`, `docs/handoff/CURRENT_HANDOFF.md`, `docs/my-web-overnight-full-audit-report.md`, `scripts/generate-blog-pdfs.py`.
 - cross-project 내용을 포함한 `docs/handoffs/archive-2026-07-09-CODEX_HANDOFF_now_backup.md`는 제거 상태로 유지한다. 나머지 archive는 유지한다.
-- stage된 파일은 없다. Git add/commit은 미검증 Browser UI 조합이 남아 보류했다. push/pull/fetch/merge/rebase/switch/checkout/reset/clean/stash 또는 branch 변경은 수행하지 않았다. `GIT_COMMIT = SKIPPED`, `GIT_PUSH = NOT_PERFORMED`.
+- 작업 종료 시 위 6개 파일에 unstaged 변경이 있다. 기존 index 변경은 없으며, push/pull/fetch/merge/rebase/switch/checkout/reset/clean/stash 또는 branch 변경은 수행하지 않았다. `GIT_COMMIT = SKIPPED`, `GIT_PUSH = NOT_PERFORMED`.
 - 다음 작업: production 및 owner-preview manifest 범위를 바꾸지 않은 채 Emulator 인증 Browser에서 legacy UI의 역할별 목록/상세/허용·거부 CRUD/direct URL/logout 조합 중 남은 항목을 이어서 검증한다. App Next non-owner 경로는 현재 `owner-preview-only` 정책으로 막히는 범위를 그대로 기록한다. 남은 조합 검증 뒤 최종 regression 및 선택적 stage/commit 게이트를 다시 평가한다. teacher의 assignment-scoped trusted backend endpoint 미연결은 기존 fail-closed 제한으로 유지한다.
-- Cross-device readiness: `BLOCKED` — active Rules, direct Browser SDK Rules matrix, emulator integration 및 회귀 결과는 기록되어 있으나, 이번에는 실제 Browser UI 입력 승인이 시간 초과되어 남은 legacy UI role matrix를 실행할 수 없었다. 승인된 브라우저 제어가 가능해지면 격리 harness를 재구성해 이어서 검증한다. IAM은 `HOLD` 유지.
+- 다음 작업은 남아 있는 legacy UI role matrix 검증이다. 이 경로 점검은 기존 기능 검증 범위를 변경하지 않았다. IAM은 `HOLD` 유지.
+- Cross-device readiness: `READY_WITH_WARNINGS` — 현재 경로, branch/HEAD, upstream 동기화 및 변경 파일을 기록했다. 이전 경로는 역사 기록에서만 남는다. 기존 남은 검증 및 IAM HOLD는 위 상태 그대로 유지한다.

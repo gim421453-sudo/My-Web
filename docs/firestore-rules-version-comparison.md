@@ -14,7 +14,7 @@
 
 ## 현재 실제 데이터 상태 요약
 
-읽기 전용 감사 스크립트 [audit-user-auth-data.mjs](<C:\Users\USER\Documents\My Web\scripts\audit-user-auth-data.mjs>) 실행 결과를 기준으로 정리했습니다.
+읽기 전용 감사 스크립트 [audit-user-auth-data.mjs](<C:\dev\My Web\scripts\audit-user-auth-data.mjs>) 실행 결과를 기준으로 정리했습니다.
 
 - Firestore `users` 문서 수: 3
 - Firebase Auth 사용자 수: 3
@@ -39,8 +39,8 @@
 
 감사 출력:
 
-- [auth-data-audit.json](<C:\Users\USER\Documents\My Web\output\auth-data-audit.json>)
-- [auth-data-audit.md](<C:\Users\USER\Documents\My Web\output\auth-data-audit.md>)
+- [auth-data-audit.json](<C:\dev\My Web\output\auth-data-audit.json>)
+- [auth-data-audit.md](<C:\dev\My Web\output\auth-data-audit.md>)
 
 ## 세 Rules 파일 정보
 

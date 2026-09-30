@@ -119,12 +119,12 @@ function normalizeLegacyDisabled(value) {
 
 확인된 주요 사용처:
 
-- [authService.js](<C:\Users\USER\Documents\My Web\services\authService.js>)는 로그인 중 `users/{uid}`를 생성/보정합니다.
-- [authService.js](<C:\Users\USER\Documents\My Web\services\authService.js>)는 `workspace_members`를 active membership 발견에 사용합니다.
-- [authService.js](<C:\Users\USER\Documents\My Web\services\authService.js>)는 `workspace_members`, `workspaceMembers`, nested members를 batch로 보정할 수 있습니다.
-- [authService.js](<C:\Users\USER\Documents\My Web\services\authService.js>)는 `role/currentRole/workspaceRole`을 로그인 세션에 계속 반영합니다.
-- [app.js](<C:\Users\USER\Documents\My Web\app.js>)는 `workspace_id`, `workspaceId`, `currentWorkspaceId`를 혼합합니다.
-- [chatService.js](<C:\Users\USER\Documents\My Web\services\chatService.js>)는 `role/currentRole/workspaceRole`을 권한 판단에 씁니다.
+- [authService.js](<C:\dev\My Web\services\authService.js>)는 로그인 중 `users/{uid}`를 생성/보정합니다.
+- [authService.js](<C:\dev\My Web\services\authService.js>)는 `workspace_members`를 active membership 발견에 사용합니다.
+- [authService.js](<C:\dev\My Web\services\authService.js>)는 `workspace_members`, `workspaceMembers`, nested members를 batch로 보정할 수 있습니다.
+- [authService.js](<C:\dev\My Web\services\authService.js>)는 `role/currentRole/workspaceRole`을 로그인 세션에 계속 반영합니다.
+- [app.js](<C:\dev\My Web\app.js>)는 `workspace_id`, `workspaceId`, `currentWorkspaceId`를 혼합합니다.
+- [chatService.js](<C:\dev\My Web\services\chatService.js>)는 `role/currentRole/workspaceRole`을 권한 판단에 씁니다.
 
 따라서 Rules 강화 전에 “로그인 중 자동 복구 쓰기”를 읽기 중심으로 바꾸거나, 최소한 삭제된 워크스페이스는 절대 복구하지 않도록 별도 설계가 필요합니다.
 

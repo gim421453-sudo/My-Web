@@ -32,7 +32,7 @@
 
 ## 데이터 지도
 
-workspace 범위 collection은 [workspaceDataService.js](<C:\Users\USER\Documents\My Web\services\workspaceDataService.js>)의 `COLLECTION_KEYS`가 기준이다. 확인된 핵심은 `schedules`, `notices`, `subjects`, `teachers`, `materials`, `assignments`, `portfolios`, `penalties`, `exams`, `people`, `friendAwards`, `requests`, `timetable`, `timetableSets`, `periodTimes`, `meals`, `attendance`, `examSchedules`, `records`, `lessons`, `projects`, `budget`, `systemReports`, `academic`, `academicSchedules`, `homeLetters`, `schoolNotices`, `mealApplications`, `afterschool*`, `specialLecture*`, `clubs`, `club*`이다.
+workspace 범위 collection은 [workspaceDataService.js](<C:\dev\My Web\services\workspaceDataService.js>)의 `COLLECTION_KEYS`가 기준이다. 확인된 핵심은 `schedules`, `notices`, `subjects`, `teachers`, `materials`, `assignments`, `portfolios`, `penalties`, `exams`, `people`, `friendAwards`, `requests`, `timetable`, `timetableSets`, `periodTimes`, `meals`, `attendance`, `examSchedules`, `records`, `lessons`, `projects`, `budget`, `systemReports`, `academic`, `academicSchedules`, `homeLetters`, `schoolNotices`, `mealApplications`, `afterschool*`, `specialLecture*`, `clubs`, `club*`이다.
 
 전역/계정 경로는 `users/{uid}`, `systemOwners/{uid}`, `workspace_members`, `workspaceMembers` 호환 경로, `invitations`, `user_devices`, `notifications`, `systemNotices`, `adminLogs`, `adminApplications`, `workspaceJoinRequests`, `systemIntegrations`, `systemIntegrationLogs` 등이 코드에 나타난다. 실제 Rules 허용은 현재 Rules 파일과 Emulator 검증이 필요하다.
 
@@ -62,11 +62,11 @@ V129/V137 상세보기 allowlist가 subjects, teachers, materials, assignments, 
 
 상세 체크리스트와 후속 설계는 이 문서에서 반복하지 않고 다음 문서를 기준으로 한다.
 
-- [master manual checklist](<C:\Users\USER\Documents\My Web\docs\my-web-master-manual-test-checklist.md>)
-- [gap/legacy audit](<C:\Users\USER\Documents\My Web\docs\my-web-gap-duplicate-legacy-audit.md>)
-- [Batch 10C preflight](<C:\Users\USER\Documents\My Web\docs\owner-preview-exam-grade-management-batch10c-preflight-audit.md>)
-- [Batch 10D preflight](<C:\Users\USER\Documents\My Web\docs\owner-preview-portfolio-batch10d-preflight-plan.md>)
-- [document index](<C:\Users\USER\Documents\My Web\docs\my-web-documentation-index.md>)
+- [master manual checklist](<C:\dev\My Web\docs\my-web-master-manual-test-checklist.md>)
+- [gap/legacy audit](<C:\dev\My Web\docs\my-web-gap-duplicate-legacy-audit.md>)
+- [Batch 10C preflight](<C:\dev\My Web\docs\owner-preview-exam-grade-management-batch10c-preflight-audit.md>)
+- [Batch 10D preflight](<C:\dev\My Web\docs\owner-preview-portfolio-batch10d-preflight-plan.md>)
+- [document index](<C:\dev\My Web\docs\my-web-documentation-index.md>)
 
 ## 다음 순서
 
