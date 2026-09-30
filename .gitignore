@@ -3,6 +3,7 @@ dist-admin
 
 # dependencies
 node_modules/
+.npm-cache/
 
 # build
 dist/

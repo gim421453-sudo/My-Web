@@ -10,19 +10,44 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function systemOwnerDataIsActive(data) {
+      return (!("status" in data) || data.status == "active")
+        && (!("disabled" in data) || (data.disabled is bool && data.disabled == false))
+        && (!("active" in data) || (data.active is bool && data.active == true));
+    }
+
+    function membershipIsActive(data) {
+      return data.status in ["active", "accepted"]
+        && (!("disabled" in data) || (data.disabled is bool && data.disabled == false))
+        && (!("active" in data) || (data.active is bool && data.active == true));
+    }
+
+    function userIsActive(uid) {
+      let profileExists = exists(/databases/$(database)/documents/users/$(uid));
+      let profile = profileExists
+        ? get(/databases/$(database)/documents/users/$(uid)).data
+        : {};
+      return profileExists
+        && profile.status == "active"
+        && (!("disabled" in profile) || (profile.disabled is bool && profile.disabled == false));
+    }
+
     function isSystemOwner() {
       return signedIn()
+        && userIsActive(request.auth.uid)
         && exists(/databases/$(database)/documents/systemOwners/$(request.auth.uid))
-        && (
-          !("status" in get(/databases/$(database)/documents/systemOwners/$(request.auth.uid)).data)
-          || get(/databases/$(database)/documents/systemOwners/$(request.auth.uid)).data.status == "active"
+        && systemOwnerDataIsActive(
+          get(/databases/$(database)/documents/systemOwners/$(request.auth.uid)).data
         );
     }
 
     function isWorkspaceMember(workspaceId) {
       return signedIn()
+        && userIsActive(request.auth.uid)
         && exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid))
-        && get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.status in ["active", "accepted"];
+        && membershipIsActive(
+          get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data
+        );
     }
 
     function workspaceRole(workspaceId) {
@@ -241,6 +266,19 @@ service cloud.firestore {
       ];
     }
 
+    function teacherScopeRequiredCollection(collectionId) {
+      return isSensitiveWorkspaceCollection(collectionId);
+    }
+
+    function workspaceDataMatchesPath(workspaceId, data) {
+      return (!("workspaceId" in data) || data.workspaceId == workspaceId)
+        && (!("workspace_id" in data) || data.workspace_id == workspaceId);
+    }
+
+    function canWriteWorkspaceRole(workspaceId) {
+      return workspaceRole(workspaceId) in ["super_manager", "manager", "teacher", "normal"];
+    }
+
     function isOwnerData(data) {
       return signedIn()
         && (
@@ -271,9 +309,9 @@ service cloud.firestore {
 
     function canReadWorkspaceData(workspaceId, collectionId, data) {
       return isSystemOwner()
-        || (
-          isWorkspaceMember(workspaceId)
-          && (
+          || (
+            isWorkspaceMember(workspaceId)
+            && (
             !isSensitiveWorkspaceCollection(collectionId)
             || isWorkspaceManager(workspaceId)
             || isOwnerData(data)
@@ -286,6 +324,8 @@ service cloud.firestore {
       return isSystemOwner()
         || (
           isWorkspaceMember(workspaceId)
+          && canWriteWorkspaceRole(workspaceId)
+          && workspaceDataMatchesPath(workspaceId, data)
           && (
             isWorkspaceManager(workspaceId)
             || (
@@ -296,7 +336,6 @@ service cloud.firestore {
             || (
               !isSensitiveWorkspaceCollection(collectionId)
               && collectionId in [
-                "settings",
                 "schedules",
                 "subjects",
                 "teachers",
@@ -329,10 +368,9 @@ service cloud.firestore {
                 "omrForms"
               ]
             )
-            || isOwnerData(data)
             || (
-              workspaceRole(workspaceId) == "teacher"
-              && collectionId in ["attendance", "assignments", "lessons", "exams", "records"]
+              isOwnerData(data)
+              && !(workspaceRole(workspaceId) == "teacher" && teacherScopeRequiredCollection(collectionId))
             )
           )
         );
@@ -470,6 +508,7 @@ service cloud.firestore {
           || isWorkspaceManager(workspaceId)
           || (
             isWorkspaceMember(workspaceId)
+            && canWriteWorkspaceRole(workspaceId)
             && resource.data.authorUid == request.auth.uid
           );
       }
@@ -656,6 +695,7 @@ service cloud.firestore {
           || (
             signedIn()
             && thread.workspaceId is string
+            && isWorkspaceMember(thread.workspaceId)
             && (
               isWorkspaceManager(thread.workspaceId)
               || request.auth.uid in thread.participantUids
@@ -705,8 +745,6 @@ service cloud.firestore {
               "lastMessageAuthorUid",
               "lastMessageAt",
               "updatedAt",
-              "participantUids",
-              "participantRoles",
               "relatedLogId",
               "relatedLogIds",
               "readBy",
@@ -731,6 +769,7 @@ service cloud.firestore {
           || (
             signedIn()
             && thread.workspaceId is string
+            && isWorkspaceMember(thread.workspaceId)
             && (
               isWorkspaceManager(thread.workspaceId)
               || request.auth.uid in thread.participantUids
@@ -834,6 +873,8 @@ service cloud.firestore {
 
       function isThreadParticipant() {
         return signedIn()
+          && threadWorkspaceId() is string
+          && isWorkspaceMember(threadWorkspaceId())
           && request.auth.uid in resource.data.participantUids;
       }
 
@@ -847,6 +888,7 @@ service cloud.firestore {
           || (
             signedIn()
             && threadWorkspaceId() is string
+            && isWorkspaceMember(threadWorkspaceId())
             && (
               isWorkspaceManager(threadWorkspaceId())
               || isThreadParticipant()
@@ -891,8 +933,6 @@ service cloud.firestore {
               "lastMessageAuthorUid",
               "lastMessageAt",
               "updatedAt",
-              "participantUids",
-              "participantRoles",
               "relatedLogIds",
               "readBy",
               "unreadByUid"
@@ -911,6 +951,7 @@ service cloud.firestore {
             || (
               signedIn()
               && parentThread().workspaceId is string
+              && isWorkspaceMember(parentThread().workspaceId)
               && (
                 isWorkspaceManager(parentThread().workspaceId)
                 || request.auth.uid in parentThread().participantUids

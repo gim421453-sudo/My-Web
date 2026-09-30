@@ -9,7 +9,9 @@ import {
 } from "../src/auth/verifiedActor.js";
 
 const projectId = "demo-myweb-trusted-backend";
-const healthUrl = `http://127.0.0.1:5002/${projectId}/us-central1/trustedBackendHealth`;
+const functionsHost = String(process.env.FUNCTIONS_EMULATOR_HOST || "127.0.0.1:5002");
+assert.match(functionsHost, /^(127\.0\.0\.1|localhost):[1-9][0-9]{0,4}$/);
+const healthUrl = `http://${functionsHost}/${projectId}/us-central1/trustedBackendHealth`;
 const authHost = String(process.env.FIREBASE_AUTH_EMULATOR_HOST || "");
 
 assert.match(authHost, /^(127\.0\.0\.1|localhost):[1-9][0-9]{0,4}$/);

@@ -224,9 +224,22 @@ export async function buildAppSession(
     };
   }
 
+  let legacyMembershipDiagnosticsDenied = false;
   const [membershipResult, legacyMemberships] = await Promise.all([
     repository.getNestedMembership(currentWorkspaceId, firebaseUser.uid),
-    repository.getLegacyMembershipDiagnostics(currentWorkspaceId, firebaseUser.uid),
+    repository.getLegacyMembershipDiagnostics(currentWorkspaceId, firebaseUser.uid)
+      .catch((error: unknown) => {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          String((error as { code?: unknown }).code) === "permission-denied"
+        ) {
+          legacyMembershipDiagnosticsDenied = true;
+          return [];
+        }
+        throw error;
+      }),
   ]);
   const firstLegacyMembership = legacyMemberships.find((item) => item.exists) ?? null;
   workspaceResolution = {
@@ -246,6 +259,13 @@ export async function buildAppSession(
     warnings.push({
       code: "LEGACY_MEMBERSHIP_PRESENT",
       message: "Legacy membership exists and is ignored for authority decisions.",
+      details: { currentWorkspaceId },
+    });
+  }
+  if (legacyMembershipDiagnosticsDenied) {
+    warnings.push({
+      code: "LEGACY_MEMBERSHIP_DIAGNOSTIC_DENIED",
+      message: "Legacy membership diagnostics were denied; canonical nested membership remains authoritative.",
       details: { currentWorkspaceId },
     });
   }

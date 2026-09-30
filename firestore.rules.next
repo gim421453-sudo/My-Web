@@ -7,7 +7,8 @@ service cloud.firestore {
     // ===============================================================
     //
     // Authority model:
-    // - users/{uid}.globalRole is the global role source: "system_owner" | "user".
+    // - systemOwners/{uid} is the canonical system_owner authority source.
+    // - users/{uid}.globalRole is validated profile data, not system_owner authority.
     // - workspaces/{workspaceId}/members/{uid}.role is the workspace role source.
     // - workspace_members and workspaceMembers are treated as legacy read-only
     //   data during migration and are not authority sources.
@@ -35,10 +36,21 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(uid)).data;
     }
 
+    function notDisabled(data) {
+      return !("disabled" in data)
+        || (data.disabled is bool && data.disabled == false);
+    }
+
+    function membershipIsActive(data) {
+      return data.status == "active"
+        && notDisabled(data)
+        && (!("active" in data) || (data.active is bool && data.active == true));
+    }
+
     function userIsActive(uid) {
-      return userExists(uid)
-        && userData(uid).status == "active"
-        && userData(uid).disabled != true;
+      let existsUser = userExists(uid);
+      let data = existsUser ? userData(uid) : {};
+      return existsUser && data.status == "active" && notDisabled(data);
     }
 
     function validGlobalRole(role) {
@@ -64,10 +76,18 @@ service cloud.firestore {
       return status in ["active", "pending", "accepted", "disabled", "suspended"];
     }
 
+    function systemOwnerDataIsActive(data) {
+      return (!("status" in data) || data.status == "active")
+        && notDisabled(data)
+        && (!("active" in data) || (data.active is bool && data.active == true));
+    }
+
     function isSystemOwner() {
       return signedIn()
-        && userIsActive(request.auth.uid)
-        && userData(request.auth.uid).globalRole == "system_owner";
+        && exists(/databases/$(database)/documents/systemOwners/$(request.auth.uid))
+        && systemOwnerDataIsActive(
+          get(/databases/$(database)/documents/systemOwners/$(request.auth.uid)).data
+        );
     }
 
     function memberExists(workspaceId, uid) {
@@ -79,72 +99,97 @@ service cloud.firestore {
     }
 
     function isWorkspaceMember(workspaceId) {
-      return signedIn()
-        && userIsActive(request.auth.uid)
-        && memberExists(workspaceId, request.auth.uid)
-        && memberData(workspaceId, request.auth.uid).status == "active"
-        && validWorkspaceRole(memberData(workspaceId, request.auth.uid).role);
+      return workspaceRole(workspaceId) != null;
     }
 
     function workspaceRole(workspaceId) {
-      return isWorkspaceMember(workspaceId)
-        ? memberData(workspaceId, request.auth.uid).role
+      let authenticated = signedIn();
+      let uid = authenticated ? request.auth.uid : "";
+      let userExistsForRole = userExists(uid);
+      let membershipExistsForRole = memberExists(workspaceId, uid);
+      let user = userExistsForRole ? userData(uid) : {};
+      let membership = membershipExistsForRole ? memberData(workspaceId, uid) : {};
+      return authenticated
+        && userExistsForRole
+        && user.status == "active"
+        && notDisabled(user)
+        && membershipExistsForRole
+        && membershipIsActive(membership)
+        && validWorkspaceRole(membership.role)
+        ? membership.role
         : null;
     }
 
     function isWorkspaceAdmin(workspaceId) {
-      return isWorkspaceMember(workspaceId)
-        && workspaceRole(workspaceId) in ["super_manager", "manager"];
+      return workspaceRole(workspaceId) in ["super_manager", "manager"];
     }
 
     function isWorkspaceStaff(workspaceId) {
-      return isWorkspaceMember(workspaceId)
-        && workspaceRole(workspaceId) in ["super_manager", "manager", "teacher"];
+      return workspaceRole(workspaceId) in ["super_manager", "manager", "teacher"];
     }
 
     function isSuperManager(workspaceId) {
-      return isWorkspaceMember(workspaceId)
-        && workspaceRole(workspaceId) == "super_manager";
+      return workspaceRole(workspaceId) == "super_manager";
     }
 
     function isManager(workspaceId) {
-      return isWorkspaceMember(workspaceId)
-        && workspaceRole(workspaceId) == "manager";
+      return workspaceRole(workspaceId) == "manager";
     }
 
     function isTeacher(workspaceId) {
-      return isWorkspaceMember(workspaceId)
-        && workspaceRole(workspaceId) == "teacher";
+      return workspaceRole(workspaceId) == "teacher";
     }
 
     function canGrantRole(workspaceId, targetUid, requestedRole) {
+      let actorRole = workspaceRole(workspaceId);
       return validWorkspaceRole(requestedRole)
         && request.auth.uid != targetUid
         && (
           isSystemOwner()
           || (
-            isSuperManager(workspaceId)
+            actorRole == "super_manager"
             && requestedRole in ["manager", "teacher", "normal", "viewer", "print_account"]
           )
           || (
-            isManager(workspaceId)
+            actorRole == "manager"
             && requestedRole in ["teacher", "normal", "viewer", "print_account"]
           )
         );
     }
 
     function canManageExistingMember(workspaceId, targetUid) {
+      let actorRole = workspaceRole(workspaceId);
       return request.auth.uid != targetUid
         && validWorkspaceRole(resource.data.role)
         && (
           isSystemOwner()
           || (
-            isSuperManager(workspaceId)
+            actorRole == "super_manager"
             && resource.data.role in ["manager", "teacher", "normal", "viewer", "print_account"]
           )
           || (
-            isManager(workspaceId)
+            actorRole == "manager"
             && resource.data.role in ["teacher", "normal", "viewer", "print_account"]
+          )
+        );
+    }
+
+    function canManageMemberRoleChange(workspaceId, targetUid, currentRole, requestedRole) {
+      let actorRole = workspaceRole(workspaceId);
+      return request.auth.uid != targetUid
+        && validWorkspaceRole(currentRole)
+        && validWorkspaceRole(requestedRole)
+        && (
+          isSystemOwner()
+          || (
+            actorRole == "super_manager"
+            && currentRole in ["manager", "teacher", "normal", "viewer", "print_account"]
+            && requestedRole in ["manager", "teacher", "normal", "viewer", "print_account"]
+          )
+          || (
+            actorRole == "manager"
+            && currentRole in ["teacher", "normal", "viewer", "print_account"]
+            && requestedRole in ["teacher", "normal", "viewer", "print_account"]
           )
         );
     }
@@ -238,7 +283,7 @@ service cloud.firestore {
           || data.pendingInviteCodeId == null
           || data.pendingInviteCodeId is string
         )
-        && data.disabled != true;
+        && notDisabled(data);
     }
 
     function validSelfUserCreate(uid) {
@@ -264,7 +309,8 @@ service cloud.firestore {
         && validUserDocument(uid, request.resource.data)
         && request.resource.data.globalRole == resource.data.globalRole
         && request.resource.data.status == resource.data.status
-        && request.resource.data.disabled == resource.data.disabled
+        && notDisabled(request.resource.data)
+        && notDisabled(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           "displayName",
           "emailVerified",
@@ -368,18 +414,49 @@ service cloud.firestore {
     }
 
     function writeNormalData(workspaceId, data) {
+      let owner = isSystemOwner();
+      let actorRole = owner ? null : workspaceRole(workspaceId);
       return workspaceScopedData(workspaceId, data)
         && (
-          isSystemOwner()
-          || isWorkspaceAdmin(workspaceId)
-          || isTeacher(workspaceId)
+          owner
+          || actorRole in ["super_manager", "manager", "teacher"]
           || (
-            isWorkspaceMember(workspaceId)
-            && workspaceRole(workspaceId) == "normal"
+            actorRole == "normal"
             && (
               !("authorUid" in data)
               || data.authorUid == request.auth.uid
             )
+          )
+        );
+    }
+
+    function teacherScopeRequiredCollection(collectionId) {
+      return collectionId in [
+        "people",
+        "friendAwards",
+        "penalties",
+        "exams",
+        "attendance",
+        "assignments",
+        "lessons",
+        "records",
+        "portfolios",
+        "academicSchedules",
+        "studentAccessLogs"
+      ];
+    }
+
+    function writeOwnedWorkspaceData(workspaceId, collectionId, data) {
+      let owner = isSystemOwner();
+      let actorRole = owner ? null : workspaceRole(workspaceId);
+      return workspaceScopedData(workspaceId, data)
+        && ownsDocument(data)
+        && (
+          owner
+          || actorRole in ["super_manager", "manager", "normal"]
+          || (
+            actorRole == "teacher"
+            && !teacherScopeRequiredCollection(collectionId)
           )
         );
     }
@@ -467,8 +544,12 @@ service cloud.firestore {
           || isSelf(uid);
 
         allow update: if validMemberDocument(workspaceId, uid, request.resource.data)
-          && canManageExistingMember(workspaceId, uid)
-          && canGrantRole(workspaceId, uid, request.resource.data.role);
+          && canManageMemberRoleChange(
+            workspaceId,
+            uid,
+            resource.data.role,
+            request.resource.data.role
+          );
 
         allow delete: if canManageExistingMember(workspaceId, uid);
       }
@@ -493,8 +574,7 @@ service cloud.firestore {
 
       match /students/{docId} {
         allow read: if readSensitiveWorkspaceData(workspaceId, resource.data);
-        allow create, update: if writeManagerData(workspaceId, request.resource.data)
-          || writeTeacherData(workspaceId, request.resource.data);
+        allow create, update: if writeManagerData(workspaceId, request.resource.data);
         allow delete: if writeManagerData(workspaceId, resource.data);
       }
 
@@ -504,11 +584,11 @@ service cloud.firestore {
           && (
             isSystemOwner()
             || isWorkspaceAdmin(workspaceId)
-            || ownsDocument(request.resource.data)
+            || writeOwnedWorkspaceData(workspaceId, "friends", request.resource.data)
           );
         allow delete: if isSystemOwner()
           || isWorkspaceAdmin(workspaceId)
-          || ownsDocument(resource.data);
+          || writeOwnedWorkspaceData(workspaceId, "friends", resource.data);
       }
 
       match /people/{docId} {
@@ -530,37 +610,32 @@ service cloud.firestore {
       }
 
       match /attendance/{docId} {
-        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data)
-          || isTeacher(workspaceId);
-        allow create, update: if writeTeacherData(workspaceId, request.resource.data);
+        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data);
+        allow create, update: if writeManagerData(workspaceId, request.resource.data);
         allow delete: if writeManagerData(workspaceId, resource.data);
       }
 
       match /assignments/{docId} {
-        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data)
-          || isTeacher(workspaceId);
-        allow create, update: if writeTeacherData(workspaceId, request.resource.data);
+        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data);
+        allow create, update: if writeManagerData(workspaceId, request.resource.data);
         allow delete: if writeManagerData(workspaceId, resource.data);
       }
 
       match /lessons/{docId} {
-        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data)
-          || isTeacher(workspaceId);
-        allow create, update: if writeTeacherData(workspaceId, request.resource.data);
+        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data);
+        allow create, update: if writeManagerData(workspaceId, request.resource.data);
         allow delete: if writeManagerData(workspaceId, resource.data);
       }
 
       match /records/{docId} {
-        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data)
-          || isTeacher(workspaceId);
-        allow create, update: if writeTeacherData(workspaceId, request.resource.data);
+        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data);
+        allow create, update: if writeManagerData(workspaceId, request.resource.data);
         allow delete: if writeManagerData(workspaceId, resource.data);
       }
 
       match /exams/{docId} {
-        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data)
-          || isTeacher(workspaceId);
-        allow create, update: if writeTeacherData(workspaceId, request.resource.data);
+        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data);
+        allow create, update: if writeManagerData(workspaceId, request.resource.data);
         allow delete: if writeManagerData(workspaceId, resource.data);
       }
 
@@ -570,11 +645,11 @@ service cloud.firestore {
           && (
             isSystemOwner()
             || isWorkspaceAdmin(workspaceId)
-            || ownsDocument(request.resource.data)
+            || writeOwnedWorkspaceData(workspaceId, "portfolios", request.resource.data)
           );
         allow delete: if isSystemOwner()
           || isWorkspaceAdmin(workspaceId)
-          || ownsDocument(resource.data);
+          || writeOwnedWorkspaceData(workspaceId, "portfolios", resource.data);
       }
 
       match /materials/{docId} {
@@ -594,7 +669,7 @@ service cloud.firestore {
           );
         allow delete: if isSystemOwner()
           || isWorkspaceAdmin(workspaceId)
-          || ownsDocument(resource.data);
+          || (ownsDocument(resource.data) && writeNormalData(workspaceId, resource.data));
       }
 
       match /schedules/{docId} {
@@ -608,7 +683,7 @@ service cloud.firestore {
           );
         allow delete: if isSystemOwner()
           || isWorkspaceAdmin(workspaceId)
-          || ownsDocument(resource.data);
+          || (ownsDocument(resource.data) && writeNormalData(workspaceId, resource.data));
       }
 
       match /requests/{docId} {
@@ -616,7 +691,7 @@ service cloud.firestore {
           || isWorkspaceAdmin(workspaceId)
           || ownsDocument(resource.data);
         allow create: if workspaceScopedData(workspaceId, request.resource.data)
-          && ownsDocument(request.resource.data);
+          && writeOwnedWorkspaceData(workspaceId, "requests", request.resource.data);
         allow update: if writeManagerData(workspaceId, request.resource.data);
         allow delete: if deleteManagerData(workspaceId);
       }
@@ -650,10 +725,10 @@ service cloud.firestore {
           || isWorkspaceAdmin(workspaceId)
           || ownsDocument(resource.data);
         allow create, update: if workspaceScopedData(workspaceId, request.resource.data)
-          && ownsDocument(request.resource.data);
+          && writeOwnedWorkspaceData(workspaceId, "mealApplications", request.resource.data);
         allow delete: if isSystemOwner()
           || isWorkspaceAdmin(workspaceId)
-          || ownsDocument(resource.data);
+          || writeOwnedWorkspaceData(workspaceId, "mealApplications", resource.data);
       }
 
       match /examSchedules/{docId} {
@@ -693,11 +768,11 @@ service cloud.firestore {
           && (
             isSystemOwner()
             || isWorkspaceAdmin(workspaceId)
-            || ownsDocument(request.resource.data)
+            || writeOwnedWorkspaceData(workspaceId, "projects", request.resource.data)
           );
         allow delete: if isSystemOwner()
           || isWorkspaceAdmin(workspaceId)
-          || ownsDocument(resource.data);
+          || writeOwnedWorkspaceData(workspaceId, "projects", resource.data);
       }
 
       match /budget/{docId} {
@@ -708,7 +783,7 @@ service cloud.firestore {
 
       match /systemReports/{docId} {
         allow create: if workspaceScopedData(workspaceId, request.resource.data)
-          && ownsDocument(request.resource.data);
+          && writeOwnedWorkspaceData(workspaceId, "systemReports", request.resource.data);
         allow read, update, delete: if isSystemOwner() || isWorkspaceAdmin(workspaceId);
       }
 
@@ -726,8 +801,8 @@ service cloud.firestore {
       }
 
       match /afterschoolAttendance/{docId} {
-        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data) || isTeacher(workspaceId);
-        allow create, update: if writeTeacherData(workspaceId, request.resource.data);
+        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data);
+        allow create, update: if writeManagerData(workspaceId, request.resource.data);
         allow delete: if writeManagerData(workspaceId, resource.data);
       }
 
@@ -744,8 +819,8 @@ service cloud.firestore {
       }
 
       match /specialLectureAttendance/{docId} {
-        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data) || isTeacher(workspaceId);
-        allow create, update: if writeTeacherData(workspaceId, request.resource.data);
+        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data);
+        allow create, update: if writeManagerData(workspaceId, request.resource.data);
         allow delete: if writeManagerData(workspaceId, resource.data);
       }
 
@@ -768,8 +843,8 @@ service cloud.firestore {
       }
 
       match /clubAttendance/{docId} {
-        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data) || isTeacher(workspaceId);
-        allow create, update: if writeTeacherData(workspaceId, request.resource.data);
+        allow read: if readSensitiveWorkspaceData(workspaceId, resource.data);
+        allow create, update: if writeManagerData(workspaceId, request.resource.data);
         allow delete: if writeManagerData(workspaceId, resource.data);
       }
 
@@ -1045,12 +1120,13 @@ service cloud.firestore {
       function canReadChat(data) {
         return isSystemOwner()
           || (
-            threadWorkspaceId(data) is string
-            && isWorkspaceAdmin(threadWorkspaceId(data))
-          )
-          || (
             signedIn()
-            && request.auth.uid in data.participantUids
+            && threadWorkspaceId(data) is string
+            && isWorkspaceMember(threadWorkspaceId(data))
+            && (
+              isWorkspaceAdmin(threadWorkspaceId(data))
+              || request.auth.uid in data.participantUids
+            )
           );
       }
 
@@ -1092,12 +1168,13 @@ service cloud.firestore {
       function canReadThread(data) {
         return isSystemOwner()
           || (
-            data.workspaceId is string
-            && isWorkspaceAdmin(data.workspaceId)
-          )
-          || (
             signedIn()
-            && request.auth.uid in data.participantUids
+            && data.workspaceId is string
+            && isWorkspaceMember(data.workspaceId)
+            && (
+              isWorkspaceAdmin(data.workspaceId)
+              || request.auth.uid in data.participantUids
+            )
           );
       }
 
@@ -1114,12 +1191,13 @@ service cloud.firestore {
       function canReadSupportThread(data) {
         return isSystemOwner()
           || (
-            data.workspaceId is string
-            && isWorkspaceAdmin(data.workspaceId)
-          )
-          || (
             signedIn()
-            && request.auth.uid in data.participantUids
+            && data.workspaceId is string
+            && isWorkspaceMember(data.workspaceId)
+            && (
+              isWorkspaceAdmin(data.workspaceId)
+              || request.auth.uid in data.participantUids
+            )
           );
       }
 
@@ -1153,12 +1231,19 @@ service cloud.firestore {
         }
 
         allow read: if isSystemOwner()
-          || isWorkspaceAdmin(parentThread().workspaceId)
-          || request.auth.uid in parentThread().participantUids;
+          || (
+            parentThread().workspaceId is string
+            && isWorkspaceMember(parentThread().workspaceId)
+            && (
+              isWorkspaceAdmin(parentThread().workspaceId)
+              || request.auth.uid in parentThread().participantUids
+            )
+          );
         allow create: if signedIn()
           && request.resource.data.threadId == threadId
           && request.resource.data.authorUid == request.auth.uid
           && request.resource.data.workspaceId == parentThread().workspaceId
+          && isWorkspaceMember(parentThread().workspaceId)
           && (
             isWorkspaceAdmin(parentThread().workspaceId)
             || request.auth.uid in parentThread().participantUids

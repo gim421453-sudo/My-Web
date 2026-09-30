@@ -37,7 +37,16 @@ const inviteFields = functionBody(rules, "inviteHasAllowedFields", "inviteHasVal
 const inviteTypes = functionBody(rules, "inviteHasValidTypes", "validInviteCreate");
 const inviteCreate = functionBody(rules, "validInviteCreate", "validInviteUpdate");
 const inviteUpdate = functionBody(rules, "validInviteUpdate", "isWorkspaceManager");
+const workspaceWriteRole = functionBody(rules, "canWriteWorkspaceRole", "isOwnerData");
+const workspaceWriteData = functionBody(rules, "workspaceDataMatchesPath", "canWriteWorkspaceRole");
+const workspaceWrite = functionBody(rules, "canWriteWorkspaceData", "selfUserUpdateAllowed");
 const menuRole = functionBody(app, "effectiveMenuRoleV59", "authMenuKeysV31");
+const privacyPrivilegedRole = functionBody(app, "isPrivilegedRoleV95", "isTeacherRoleV95");
+const privacyTeacherRole = functionBody(app, "isTeacherRoleV95", "ownerUidV95");
+const activeTeacherWriteGate = app.slice(
+  app.indexOf("const canBeforeV157"),
+  app.indexOf("renderStudentManagementV156 = function renderStudentManagementV157"),
+);
 const authBootstrap = functionBody(authService, "firebaseEnsureUserStructureInternal", "firebaseRegisterDevice");
 const adminRoleUpdate = functionBody(adminService, "updateUserAdminFields", "repairUserPermission");
 const approveJoinRequest = functionBody(adminService, "approveJoinRequest", "rejectJoinRequest");
@@ -91,6 +100,17 @@ test("workspace menu role comes from the canonical in-memory resolver", () => {
   assert.match(menuRole, /canonicalWorkspaceRoleByUserV160/);
   assert.doesNotMatch(menuRole, /workspace_members|canonicalRoleResolved/);
 });
+test("sensitive-row visibility uses canonical role, not legacy profile role", () => {
+  assert.match(privacyPrivilegedRole, /effectiveMenuRoleV59\(user\)/);
+  assert.doesNotMatch(privacyPrivilegedRole, /user\?\.role/);
+  assert.match(privacyTeacherRole, /effectiveMenuRoleV59\(user\)/);
+  assert.doesNotMatch(privacyTeacherRole, /user\?\.role/);
+});
+test("teacher scoped mutations are hidden until an assignment-verified write path exists", () => {
+  assert.match(activeTeacherWriteGate, /role === "teacher"/);
+  assert.match(activeTeacherWriteGate, /TEACHER_ASSIGNMENT_REQUIRED_ACTION_KEYS_V157\.has\(key\)/);
+  assert.match(activeTeacherWriteGate, /return false/);
+});
 test("system_owner login is resolved from systemOwners", () => {
   assert.match(rules, /documents\/systemOwners\/\$\(request\.auth\.uid\)/);
   assert.doesNotMatch(functionBody(rules, "isSystemOwner", "isWorkspaceMember"), /documents\/users/);
@@ -110,6 +130,20 @@ test("generic workspace writes cannot bypass protected collection rules", () => 
   for (const collectionId of ["members", "inviteCodes", "notices"]) {
     assert.match(genericWorkspaceRule, new RegExp(`"${collectionId}"`));
   }
+});
+test("generic workspace writes reject read-only roles and mismatched workspace payloads", () => {
+  assert.match(workspaceWriteRole, /"super_manager", "manager", "teacher", "normal"/);
+  assert.doesNotMatch(workspaceWriteRole, /"viewer"|"print_account"/);
+  assert.match(workspaceWriteData, /data\.workspaceId == workspaceId/);
+  assert.match(workspaceWriteData, /data\.workspace_id == workspaceId/);
+  assert.match(workspaceWrite, /canWriteWorkspaceRole\(workspaceId\)/);
+  assert.match(workspaceWrite, /workspaceDataMatchesPath\(workspaceId, data\)/);
+});
+test("configured Firestore Rules require teacher scope before sensitive academic writes", () => {
+  assert.match(rules, /function teacherScopeRequiredCollection\(collectionId\)/);
+  assert.match(rules, /return isSensitiveWorkspaceCollection\(collectionId\)/);
+  assert.match(rules, /isOwnerData\(data\)\s*&& !\(workspaceRole\(workspaceId\) == "teacher" && teacherScopeRequiredCollection\(collectionId\)\)/);
+  assert.doesNotMatch(rules, /workspaceRole\(workspaceId\) == "teacher"\s*&& collectionId in \["attendance", "assignments", "lessons", "exams", "records"\]/);
 });
 test("auth bootstrap performs canonical read-only role resolution", () => {
   assert.match(authBootstrap, /canonical-session-read-only/);

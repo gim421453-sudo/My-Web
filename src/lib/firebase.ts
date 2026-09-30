@@ -1,6 +1,14 @@
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import {
+  connectAuthEmulator,
+  getAuth,
+  type Auth,
+} from "firebase/auth";
+import {
+  connectFirestoreEmulator,
+  getFirestore,
+  type Firestore,
+} from "firebase/firestore";
 import {
   recordAppNextAuthInstanceCreated,
   recordAppNextFirebaseInit,
@@ -60,3 +68,29 @@ export const auth: Auth = getAuth(app);
 recordAppNextAuthInstanceCreated();
 export const firestore: Firestore = getFirestore(app);
 export const db = firestore;
+
+function connectLocalFirebaseEmulators(): void {
+  const authHost = import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_HOST;
+  const firestoreHost = import.meta.env.VITE_FIREBASE_FIRESTORE_EMULATOR_HOST;
+  if (!authHost && !firestoreHost) return;
+  if (!import.meta.env.DEV) return;
+
+  const validLoopbackHost = (value: string | undefined): boolean =>
+    /^(127\.0\.0\.1|localhost):([1-9][0-9]{0,4})$/.test(String(value || ""))
+    && Number(String(value).split(":").pop()) <= 65535;
+
+  if (!authHost || !firestoreHost
+    || !validLoopbackHost(authHost) || !validLoopbackHost(firestoreHost)) {
+    throw new Error("Firebase Emulator endpoints must both be loopback hosts in development mode.");
+  }
+
+  const [firestoreEmulatorHost, firestoreEmulatorPort] = firestoreHost.split(":");
+  connectAuthEmulator(auth, `http://${authHost}`, { disableWarnings: true });
+  connectFirestoreEmulator(
+    firestore,
+    firestoreEmulatorHost,
+    Number(firestoreEmulatorPort),
+  );
+}
+
+connectLocalFirebaseEmulators();

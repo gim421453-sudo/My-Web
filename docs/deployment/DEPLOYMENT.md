@@ -22,7 +22,7 @@ npm install
 npm run build
 ```
 
-`npm run build`는 설정 생성과 TypeScript 검사 후 Vite 빌드를 실행하며 Hosting 대상인 `dist`를 만듭니다. 관리자 전용 정적 빌드는 `npm run build:admin`으로 `dist-admin`에 생성되며, 현재 `firebase.json`의 Hosting 공개 경로에는 연결되어 있지 않습니다. 이 문서 갱신 시점에는 빌드를 실행하지 않았으므로 빌드 성공 및 산출물 최신성은 미검증입니다.
+`npm run build`는 설정 생성과 TypeScript 검사 후 Vite 빌드를 실행하며 Hosting 대상인 `dist`를 만듭니다. 관리자 전용 정적 빌드는 `npm run build:admin`으로 `dist-admin`에 생성되며, 현재 `firebase.json`의 Hosting 공개 경로에는 연결되어 있지 않습니다. 2026-09-27 현재 작업 트리에서 `npm run build`와 `npm run build:admin`이 모두 통과했습니다. 어느 산출물도 production 배포 증거가 아닙니다.
 
 ## 배포, 데이터베이스 및 도메인
 
@@ -33,3 +33,13 @@ npm run build
 ## 배포 후 확인 및 복구
 
 운영 배포 후 검증 결과나 Hosting 릴리스 복구 절차는 이번 점검에서 확인하지 않았습니다. 복구 초안은 [`docs/my-web-deployment-rollback-manual-draft.md`](../my-web-deployment-rollback-manual-draft.md)에 있으며 운영 절차로 확정된 상태가 아닙니다. 데이터 및 Firestore 규칙 변경은 코드 배포와 별도로 승인·검증해야 합니다.
+
+## 최근 로컬 검증 (2026-09-30)
+
+- `npm test`: PASS; 앱 타깃 격리, role/security, auth, trusted backend adapter, auth modules 및 시간표·공지 안정성 검사를 포함합니다.
+- Functions `npm test`: 지원 Node 22.23.2에서 `557/557 PASS`.
+- `npm run typecheck`, `npm run build`, `npm run build:admin`: PASS. 빌드 로그에는 기존 sourcemap, `use client`, 대형 chunk 경고가 있으나 두 빌드는 완료됐습니다.
+- configured active/candidate Firestore Rules Emulator 및 Browser SDK 회귀: `39/39 PASS`; 기존 Browser SDK 역할 matrix `74/74 PASS`.
+- demo Auth/Firestore Emulator 기반 headless Playwright recovery UI: `11/11 PASS`; Functions/Auth/Firestore integration: 지원 Node 22에서 `11/11 PASS`.
+- Functions `engines.node`는 `22`입니다. Node 24.16.0에서는 같은 integration 조건에서 registry enrollment suite의 assertion 실패가 재현되어 지원 runtime 비교 결과로 기록했습니다. 운영 Functions 배포나 production 접근은 하지 않았습니다.
+- `git diff --check`와 `node --check app.js`: PASS. lint는 루트 `package.json`에 스크립트가 없어 `NOT AVAILABLE`입니다.

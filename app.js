@@ -11558,6 +11558,7 @@ async function startCurrentUserRealtimeV50() {
   currentUserUnsubscribeV50 = window.PMSystemAdminService.subscribeCurrentUser(uid, async (data) => {
     if (!data || !currentUser || (currentUser.uid || currentUser.id) !== uid) return;
     const previousGate = isApprovalGateUserV54(currentUser);
+    const previousRole = currentUser.role;
     const previousWorkspace = userWorkspaceIdV54(currentUser);
     let ownerByRegistry = currentUserSystemOwnerCacheV61[uid] === true;
     if (!ownerByRegistry && window.PMSystemAdminService?.isSystemOwner) {
@@ -19375,11 +19376,15 @@ function currentWorkspaceIdV95() {
 }
 
 function isPrivilegedRoleV95(user = currentUser) {
-  return PRIVILEGED_ROLES_V95.has(user?.role);
+  const role = typeof effectiveMenuRoleV59 === "function"
+    ? effectiveMenuRoleV59(user)
+    : "";
+  return PRIVILEGED_ROLES_V95.has(role);
 }
 
 function isTeacherRoleV95(user = currentUser) {
-  return user?.role === "teacher";
+  return typeof effectiveMenuRoleV59 === "function"
+    && effectiveMenuRoleV59(user) === "teacher";
 }
 
 function ownerUidV95(row = {}) {
@@ -39402,9 +39407,19 @@ tableV7 = function tableV157(key, rows) {
 };
 
 const canBeforeV157 = can;
+const TEACHER_ASSIGNMENT_REQUIRED_ACTION_KEYS_V157 = new Set([
+  "attendance", "assignments", "lessons", "exams", "records", "portfolios",
+  "people", "friendAwards", "penalties", "academic", "academicSchedules",
+  "afterschool", "specialLectures", "clubs"
+]);
 can = function canV157(action, key) {
+  const role = schoolReadRoleV157();
+  if (
+    role === "teacher"
+    && ["create", "edit", "del"].includes(action)
+    && TEACHER_ASSIGNMENT_REQUIRED_ACTION_KEYS_V157.has(key)
+  ) return false;
   if (schoolReadModeV157() && ["create", "edit", "del"].includes(action)) {
-    const role = schoolReadRoleV157();
     const user = (typeof authCurrentUserV31 === "function" ? authCurrentUserV31() : null) || currentUser || {};
     const explicit = false;
     if (["portfolios", "records"].includes(key) && role === "teacher") return false;

@@ -8,6 +8,7 @@
     "dev": "vite",
     "dev:lan": "vite --host 0.0.0.0 --port 5173",
     "typecheck": "tsc --noEmit",
+    "test:recovery:browser": "firebase emulators:exec --config firebase.recovery.json --project demo-myweb-recovery-e2e --only auth,firestore \"node --test --test-concurrency=1 tests/browser/recovery-ui.e2e.test.mjs\"",
     "prebuild": "npm run firebase:config",
     "build": "npm run typecheck && vite build",
     "postbuild": "node scripts/copy-static-assets.mjs dist",
@@ -32,7 +33,10 @@
     "vite": "^7.0.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "firebase-tools": "^15.31.0",
+    "playwright": "^1.63.0"
   }
 }

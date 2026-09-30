@@ -1,6 +1,7 @@
 ﻿# AGENTS.md
 
 ## Repository expectations
+- 자동 개발·문서화·검증·인계 작업은 현재 Git 저장소 루트 안에서만 수행한다. 루트 밖 파일을 읽거나 만들거나 수정·삭제하지 않으며, Codex에 보이는 다른 프로젝트나 sibling repository를 조사·수정하지 않는다. 사용자가 명시적으로 요청한 경우에만 cross-project 작업을 수행한다.
 - 변경 전에 관련 파일을 먼저 읽고 짧은 계획을 제안한다.
 - 대규모 리팩터링보다 최소 변경을 선호한다.
 - 새 의존성 추가 전에는 반드시 사용자 확인을 요청한다.
@@ -9,7 +10,7 @@
 ## Commands
 - Install: `npm install`
 - Dev: `npm run dev`
-- Lint: `npm run lint`
+- Lint: 현재 루트 `package.json`에 스크립트 없음
 - Test: `npm test`
 - Build: `npm run build`
 
@@ -106,6 +107,8 @@ Actual Git operations such as:
 
 are performed by the user unless the user explicitly changes this policy.
 
+현재 Git 상태 조회와 diff 검증은 가능하지만, `fetch`, `merge`, `rebase`, `switch`, `checkout`, `reset`, `clean`, `stash` 및 force 작업도 사용자가 명시적으로 요청하기 전에는 수행하지 않는다.
+
 ## Final response requirement
 
 After updating the handoff, include a short confirmation:
@@ -137,4 +140,3 @@ Rules:
 7. Preserve existing project-specific documentation; never replace it with generic content unnecessarily.
 8. Never write secret values into managed documents.
 <!-- PROJECT_DOCUMENTATION_POLICY_END -->
-

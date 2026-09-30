@@ -3,15 +3,26 @@ import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
 import { deleteDoc, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 
-const PROJECT_ID = "personal-management-rules-auth-test";
+const PROJECT_ID = "demo-myweb-auth-rules";
 const rules = readFileSync(new URL("../../firestore.rules.next", import.meta.url), "utf8");
+const emulatorAddress = String(process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080");
+const emulatorMatch = /^(127\.0\.0\.1|localhost):([1-9][0-9]{0,4})$/.exec(emulatorAddress);
+if (!emulatorMatch || Number(emulatorMatch[2]) > 65535) {
+  throw new Error("FIRESTORE_EMULATOR_HOST must be a loopback host and valid port.");
+}
+const FIRESTORE_EMULATOR_HOST = emulatorMatch[1];
+const FIRESTORE_EMULATOR_PORT = Number(emulatorMatch[2]);
 
 let testEnv;
 
 before(async () => {
   testEnv = await initializeTestEnvironment({
     projectId: PROJECT_ID,
-    firestore: { rules },
+    firestore: {
+      rules,
+      host: FIRESTORE_EMULATOR_HOST,
+      port: FIRESTORE_EMULATOR_PORT,
+    },
   });
 });
 
@@ -20,7 +31,7 @@ beforeEach(async () => {
 });
 
 after(async () => {
-  await testEnv.cleanup();
+  if (testEnv) await testEnv.cleanup();
 });
 
 function dbFor(uid) {
@@ -77,13 +88,13 @@ async function seedWorkspaceRole(workspaceId, uid, role, userOverrides = {}) {
   await seed(`workspaces/${workspaceId}/members/${uid}`, memberDoc(uid, role, { workspaceId }));
 }
 
-async function seedSystemOwner(uid = "owner", overrides = {}) {
+async function seedSystemOwner(uid = "owner", userOverrides = {}, ownerOverrides = {}) {
   await seed(`users/${uid}`, userDoc(uid, {
     status: "active",
     globalRole: "system_owner",
-    ...overrides,
+    ...userOverrides,
   }));
-  await seed(`systemOwners/${uid}`, { uid, createdAt: "seed" });
+  await seed(`systemOwners/${uid}`, { uid, createdAt: "seed", ...ownerOverrides });
 }
 
 test("01. 미로그인 사용자는 기본 사용자 문서를 읽을 수 없다", async () => {
@@ -177,6 +188,9 @@ test("17. active system_owner는 시스템 전용 문서에 접근할 수 있다
 
 test("18. disabled system_owner는 systemOwners 문서가 있어도 권한이 거부된다", async () => {
   await seedSystemOwner("disabledOwner", {
+    status: "disabled",
+    disabled: true,
+  }, {
     status: "disabled",
     disabled: true,
   });

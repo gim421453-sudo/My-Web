@@ -48,6 +48,8 @@ No service-account file or production credential is needed.
 
 From the repository root in PowerShell:
 
+The Functions Emulator does not inherit arbitrary custom variables from the parent shell into its function worker. Keep `MYWEB_TRUSTED_BACKEND_MODE=emulator` in `functions/.env.local` for the emulator runtime (the same non-secret setting is shown in `functions/.env.example`); the parent-shell assignment below is also used by the integration command. Preserve any other local entries and never commit `.env.local`.
+
 ```powershell
 $env:MYWEB_TRUSTED_BACKEND_MODE = "emulator"
 $previousXdgConfigHome = $env:XDG_CONFIG_HOME
@@ -71,6 +73,8 @@ try {
 ```
 
 The isolated CLI config prevents an existing workstation Firebase login from injecting a temporary credential into the Functions Emulator. `emulators:exec` shuts down the Emulator processes after the integration command. Verify the configured ports are free before and after the run. Do not use `.firebaserc`, `firebase use`, login, deploy, or a production project ID.
+
+Select Node 22 in the current PowerShell process before running the integration; `functions/package.json` declares `engines.node = 22`. Node 24 is outside the Functions runtime contract and produced a different integration result in the recovery A/B check. Do not persist a workstation-specific Node path in the repository or Windows environment.
 
 ## Health Endpoint
 

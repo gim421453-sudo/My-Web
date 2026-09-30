@@ -26,10 +26,11 @@ npm install
 npm run dev
 npm run typecheck
 npm test
+npm run test:recovery:browser
 npm run build
 ```
 
-`npm run dev`와 `npm run build`는 먼저 Firebase 설정 생성 작업을 실행합니다. 관리자 정적 빌드는 `npm run build:admin`으로 생성합니다. 현재 `package.json`에는 `lint` 스크립트가 없습니다.
+`npm run test:recovery:browser`는 demo Firebase Auth/Firestore Emulator와 loopback Vite만 사용하는 격리된 복구 UI 검사입니다. `npm run dev`와 `npm run build`는 먼저 Firebase 설정 생성 작업을 실행합니다. 관리자 정적 빌드는 `npm run build:admin`으로 생성합니다. 현재 `package.json`에는 `lint` 스크립트가 없습니다.
 
 ## 환경 설정
 
@@ -47,3 +48,5 @@ npm run build
 ## 현재 상태와 추가 문서
 
 React 기반 인증·워크스페이스 화면은 점진적으로 통합 중이며 일부 화면은 조회 전용 또는 개발 미리보기입니다. 현재 작업 및 검증 상태는 [크로스 디바이스 인계 문서](docs/handoff/CURRENT_HANDOFF.md), Firebase 설정과 배포 확인 상태는 [배포 문서](docs/deployment/DEPLOYMENT.md)에 기록합니다. 최근 릴리스 변경은 [CHANGELOG.md](CHANGELOG.md)를 참고하세요.
+
+현재 권한 복구 점검에서는 민감 행 UI 필터가 canonical 역할을 사용하도록 하고, 교사의 민감 학사 데이터 직접 쓰기를 assignment 범위 검증 서버 경로가 연결될 때까지 제한했습니다. 활성 Firestore Rules는 읽기 전용 `viewer`와 `print_account`의 직접 workspace 쓰기 및 경로와 다른 workspace 식별자 payload를 거부합니다. 역할별 수동·Emulator 검증 현황은 [서브계정 권한 점검 체크리스트](docs/testing/SUBACCOUNT_PERMISSION_TEST_CHECKLIST.md)를 참고하세요.

@@ -1,5 +1,7 @@
 # HANDOFF.md
 
+> 참고: 이 문서는 과거 작업 메모입니다. 현재 검증 상태는 `docs/handoff/CURRENT_HANDOFF.md`를 기준으로 하고, 아래의 오래된 상태·권한 설명은 현재 구현 근거로 사용하지 않습니다.
+
 ## 한 줄 요약
 Firebase Auth + Firestore 기반 개인/워크스페이스 관리 웹앱이며, 현재 최우선 작업은 일반 계정의 권한/워크스페이스 연결 오류와 역할 변경 후 `Missing or insufficient permissions`가 발생하는 문제를 안정화하는 것입니다.
 
@@ -27,7 +29,7 @@ Firebase Auth + Firestore 기반 개인/워크스페이스 관리 웹앱이며, 
 - 위 로컬 설정 파일과 Admin SDK JSON은 GitHub에 올리면 안 됩니다.
 - 기존 루트 핸드오프 문서는 원문 보존을 위해 `docs/handoffs/`로 archive 처리했습니다.
   - `docs/handoffs/archive-2026-07-09-CODEX_HANDOFF.md`
-  - `docs/handoffs/archive-2026-07-09-CODEX_HANDOFF_now_backup.md`
+  - `docs/handoffs/archive-2026-07-09-CODEX_HANDOFF_now_backup.md`는 다른 프로젝트 내용이 포함되어 저장소에서 제거했습니다.
 - 발표용 UI 스냅샷 산출물이 있습니다.
   - `output/presentation-ui-snapshot.pdf`
   - `output/presentation-ui-snapshot/`
@@ -80,7 +82,7 @@ Firebase Auth + Firestore 기반 개인/워크스페이스 관리 웹앱이며, 
 - 시스템 관리의 `회원 권한 복구`는 복구 후 대시보드로 이동하지 않고 현재 시스템 관리 화면에 머물러야 합니다.
 
 ## 제약사항
-- 루트의 현재 작업용 핸드오프는 이 `HANDOFF.md` 하나만 유지합니다.
+- 현재 세션의 작업 인계는 `docs/handoff/CURRENT_HANDOFF.md`에서 유지합니다.
 - 기존 핸드오프 원문은 삭제하지 않고 `docs/handoffs/`에 보관합니다.
 - `.env`, Firebase 설정값, Admin SDK JSON, UID, 이메일, API 키 등 민감정보는 문서/PDF/이미지/로그에 노출하지 않습니다.
 - 복사본 폴더가 아니라 반드시 `C:\Users\USER\Documents\My Web`에서만 작업합니다.

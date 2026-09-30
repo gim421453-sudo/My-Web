@@ -1,6 +1,7 @@
 # ChatGPT Project Continuation Instructions
 
 When this ChatGPT session can access the repository:
+0. Confirm the current Git repository root and work only inside it. Do not inspect or modify sibling repositories, other projects, or files outside this root unless the user explicitly asks for cross-project work.
 1. Read `AGENTS.md`.
 2. Read `PROJECT_DOCS.config`.
 3. Read `docs/handoff/CURRENT_HANDOFF.md`.

@@ -222,6 +222,14 @@ const tests = [
     const result = normalization.normalizeAccountStatus({ status: "active" });
     assert.equal(result.status, "active");
   }],
+  ["canonical systemOwner authority requires active and non-disabled record state", () => {
+    assert.equal(normalization.isActiveSystemOwnerAuthority({ schemaVersion: 1 }), true);
+    assert.equal(normalization.isActiveSystemOwnerAuthority({ status: "active", disabled: false, active: true }), true);
+    assert.equal(normalization.isActiveSystemOwnerAuthority({ status: "disabled" }), false);
+    assert.equal(normalization.isActiveSystemOwnerAuthority({ disabled: true }), false);
+    assert.equal(normalization.isActiveSystemOwnerAuthority({ active: false }), false);
+    assert.equal(normalization.isActiveSystemOwnerAuthority({ disabled: "false" }), false);
+  }],
   ["disabled string false is not disabled", () => {
     const result = normalization.normalizeAccountStatus({ disabled: "false" });
     assert.equal(result.status, "active");
@@ -283,6 +291,29 @@ const tests = [
     assert.equal(session.currentWorkspaceRole, null);
     assert.ok(session.warnings.some((warning) => warning.code === "MEMBERSHIP_NOT_FOUND"));
   }],
+  ["denied legacy membership diagnostics do not block canonical login session", async () => {
+    const session = await sessionService.buildAppSession(makeUser(), makeRepository({
+      async getUserDocument(uid) {
+        return {
+          exists: true,
+          data: {
+            uid,
+            status: "active",
+            currentWorkspaceId: "workspace-main",
+          },
+        };
+      },
+      async getLegacyMembershipDiagnostics() {
+        throw Object.assign(new Error("permission denied"), { code: "permission-denied" });
+      },
+    }));
+
+    assert.equal(session.currentWorkspaceId, "workspace-main");
+    assert.equal(session.currentWorkspaceRole, "normal");
+    assert.ok(session.warnings.some(
+      (warning) => warning.code === "LEGACY_MEMBERSHIP_DIAGNOSTIC_DENIED",
+    ));
+  }],
   ["invalid workspace role creates warning", async () => {
     const session = await sessionService.buildAppSession(makeUser(), makeRepository({
       async getUserDocument(uid) {
@@ -319,6 +350,28 @@ const tests = [
 
     assert.equal(session.globalRole, "system_owner");
     assert.equal(session.isSystemOwner, true);
+  }],
+  ["users.globalRole spoof cannot grant system_owner without canonical systemOwners document", async () => {
+    const session = await sessionService.buildAppSession(makeUser(), makeRepository({
+      async getUserDocument(uid) {
+        return {
+          exists: true,
+          data: {
+            uid,
+            status: "active",
+            globalRole: "system_owner",
+            currentWorkspaceId: null,
+          },
+        };
+      },
+      async hasSystemOwnerDocument() {
+        return false;
+      },
+    }));
+
+    assert.equal(session.globalRole, "user");
+    assert.equal(session.isSystemOwner, false);
+    assert.ok(session.warnings.some((warning) => warning.code === "GLOBAL_ROLE_MISMATCH"));
   }],
   ["systemOwners and globalRole mismatch creates warning", async () => {
     const session = await sessionService.buildAppSession(makeUser(), makeRepository({

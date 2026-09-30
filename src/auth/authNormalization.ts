@@ -1,6 +1,5 @@
 import {
   GLOBAL_ROLES,
-  isGlobalRole,
   type GlobalRole,
 } from "../permissions/roles";
 import {
@@ -18,6 +17,12 @@ export function normalizeLegacyDisabled(value: unknown): boolean | null {
 
 export function isAccountStatus(value: unknown): value is AccountStatus {
   return ACCOUNT_STATUSES.includes(value as AccountStatus);
+}
+
+export function isActiveSystemOwnerAuthority(data: Record<string, unknown>): boolean {
+  return (!Object.prototype.hasOwnProperty.call(data, "status") || data.status === "active")
+    && (!Object.prototype.hasOwnProperty.call(data, "disabled") || data.disabled === false)
+    && (!Object.prototype.hasOwnProperty.call(data, "active") || data.active === true);
 }
 
 export function createSessionWarning(
@@ -77,12 +82,9 @@ export function resolveGlobalRole(params: {
   legacyWorkspaceRole?: unknown;
 }): { globalRole: GlobalRole; warnings: SessionWarning[] } {
   const warnings: SessionWarning[] = [];
-  const userGlobalRole = isGlobalRole(params.usersGlobalRole)
-    ? params.usersGlobalRole
-    : GLOBAL_ROLES.USER;
   const computedRole = params.systemOwnerExists
     ? GLOBAL_ROLES.SYSTEM_OWNER
-    : userGlobalRole;
+    : GLOBAL_ROLES.USER;
 
   const legacyRoleFields = {
     role: params.legacyRole,
@@ -99,13 +101,16 @@ export function resolveGlobalRole(params: {
   }
 
   if (
-    params.systemOwnerExists &&
-    params.usersGlobalRole !== GLOBAL_ROLES.SYSTEM_OWNER
+    (params.systemOwnerExists && params.usersGlobalRole !== GLOBAL_ROLES.SYSTEM_OWNER) ||
+    (!params.systemOwnerExists && params.usersGlobalRole === GLOBAL_ROLES.SYSTEM_OWNER)
   ) {
     warnings.push(createSessionWarning(
       "GLOBAL_ROLE_MISMATCH",
-      "systemOwners authority says system_owner but users.globalRole does not mirror it.",
-      { usersGlobalRole: params.usersGlobalRole },
+      "users.globalRole does not match canonical systemOwners authority and is not used to grant system_owner.",
+      {
+        usersGlobalRole: params.usersGlobalRole,
+        systemOwnerDocumentExists: params.systemOwnerExists,
+      },
     ));
   }
 

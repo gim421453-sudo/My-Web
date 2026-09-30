@@ -21,6 +21,7 @@ import {
   createFirestoreWorkspaceRepository,
   type WorkspaceRepository,
 } from "../workspace/workspaceRepository";
+import { isActiveSystemOwnerAuthority } from "./authNormalization";
 
 export interface UserDocumentResult {
   exists: boolean;
@@ -67,7 +68,7 @@ export function createFirestoreAuthRepository(
 
     async hasSystemOwnerDocument(uid) {
       const snap = await getDoc(doc(firestore, "systemOwners", uid));
-      return snap.exists();
+      return snap.exists() && isActiveSystemOwnerAuthority(snap.data());
     },
 
     async findPrimaryOwnerWorkspaceMembership(uid) {
