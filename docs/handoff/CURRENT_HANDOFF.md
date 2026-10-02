@@ -1,13 +1,16 @@
 # MY WEB 현재 작업 인계
 
-Last updated: 2026-10-01 (Asia/Seoul)
+Last updated: 2026-10-03 (Asia/Seoul)
 Status: RECOVERY_VERIFICATION_PASS_WITH_MANUAL_CHECKS
 
 ## 프로젝트 기준
 
-- 저장소: `C:/dev/My Web`
-- 브랜치: `checkpoint/notice-auth-recovery-20260723`
-- 현재 확인된 HEAD: `501a7ca6adceb0370467b914528b066fb49015f7`; 브랜치 `checkpoint/notice-auth-recovery-20260723`가 `origin/checkpoint/notice-auth-recovery-20260723`와 ahead 0 / behind 0으로 동기화되어 있다. 이번 경로 정합성 작업은 문서와 안내용 스크립트만 수정했으며 commit/push는 하지 않는다.
+- 저장소: 이 저장소의 루트 폴더 (컴퓨터에 따라 폴더 이름이 `My Web` 또는 `My-Web`으로 다를 수 있음)
+- 브랜치: `main`
+- 현재 확인된 HEAD: `14e125579f0245def0241fd2afe81648ff075fec`; `main`이 upstream `origin/main`과 ahead 0 / behind 0으로 동기화되어 있다 (2026-10-03, 로컬 추적 ref 기준, fetch 없이 확인).
+- 체크포인트 브랜치 `checkpoint/notice-auth-recovery-20260723`는 `main`에 병합 완료되었고, 브랜치 자체는 로컬/원격에 보존 중이다.
+- 검증 현황 (2026-10-02 병합 후 결과): `npm test` `933/933 PASS`; `npm run typecheck` PASS; Firestore Rules Emulator `39/39 PASS`; `npm audit` 루트 29건(high 16) / functions 9건(high 2); Browser E2E(`npm run test:recovery:browser`)는 Playwright 브라우저 미설치로 `NOT RUN`; Browser SDK 역할 매트릭스는 실행 스크립트 없음으로 `NOT RUN`.
+- PR #1(`fdad789`)의 5개 파일(`firebase.json`, `ProtectedRoute.tsx`, `RequireAuth.tsx`, `RequireWorkspaceRole.tsx`, `pages/Login.tsx`) 비교 결과 누락 없음. AppNext 가드는 `previewMode` 때문에 리다이렉트 대신 안내 문구로 접근을 막는다. `src` 안에서 `pages/Login`을 import하는 곳이 없다(정리 후보).
 - 활성 Rules는 `firebase.json`이 지정하는 `firestore.rules`. `firestore.rules.next`, `firestore.rules.console-current`, backup은 배포 대상으로 설정되어 있지 않다.
 - IAM: `IAM_STATUS = HOLD`; 이번 작업에서 IAM 문서나 원격 권한을 변경하지 않았다.
 
