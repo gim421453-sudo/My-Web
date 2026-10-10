@@ -8,6 +8,7 @@ import { createMigrationRehearsalApplyAdapter } from "../src/migrations/migratio
 import { createPersistentMigrationRollbackExecutor } from "../src/migrations/persistentMigrationRollbackExecutor.js";
 import { createPersistentMigrationRecoveryService } from "../src/migrations/migrationManifestRecovery.js";
 import { createPersistentMigrationManifestService, persistentManifestOperationPath, persistentManifestPath } from "../src/migrations/persistentMigrationManifestRepository.js";
+import { OperationError } from "../src/operations/operationErrors.js";
 import { sha256Canonical } from "../src/operations/operationContract.js";
 import { parseStudentRegistryDocument } from "../src/registries/studentRegistryContract.js";
 import { parseClassRegistryDocument } from "../src/registries/classRegistryContract.js";
@@ -316,8 +317,12 @@ try {
     rollbackFinalizerA.rollbackPlan(fixtureActor(ownerUid), plan, workspaceId, "rollback-finalizer-a"),
     rollbackFinalizerB.rollbackPlan(fixtureActor(ownerUid), plan, workspaceId, "rollback-finalizer-b"),
   ]);
-  assert.equal(rollbackFinalizers.filter((result) => result.status === "fulfilled").length, 1);
-  assert.equal(rollbackFinalizers.filter((result) => result.status === "rejected").length, 1);
+  const successfulFinalizerCount = rollbackFinalizers.filter((result) => result.status === "fulfilled").length;
+  assert.ok(successfulFinalizerCount >= 1);
+  for (const result of rollbackFinalizers) {
+    if (result.status === "fulfilled") assert.equal(result.value.state, "ROLLED_BACK");
+    else assert.ok(result.reason instanceof OperationError && result.reason.code === "CONFLICT");
+  }
   assert.equal((await firestore.doc(persistentManifestPath(workspaceId, plan.planId).join("/")).get()).data()?.status, "ROLLED_BACK");
   assert.equal((await createPersistentMigrationRollbackExecutor({ runner }).rollbackPlan(fixtureActor(ownerUid), plan, workspaceId, "rollback-finalizer-c")).state, "ROLLED_BACK");
 

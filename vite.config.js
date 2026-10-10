@@ -46,6 +46,23 @@ module.exports = defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
         appNext: resolve(__dirname, "app-next.html")
+      },
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replaceAll("\\", "/");
+          if (normalizedId.includes("/node_modules/@firebase/firestore")
+            || normalizedId.includes("/node_modules/firebase/firestore")) {
+            return "firebase-firestore";
+          }
+          if (normalizedId.includes("/node_modules/@firebase/auth")
+            || normalizedId.includes("/node_modules/firebase/auth")) {
+            return "firebase-auth";
+          }
+          if (normalizedId.includes("/node_modules/firebase/")
+            || normalizedId.includes("/node_modules/@firebase/")) {
+            return "firebase-vendor";
+          }
+        }
       }
     }
   }

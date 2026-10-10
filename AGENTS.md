@@ -29,11 +29,15 @@ OWNER: Codex
 ## 현재 인계 요약 (2026-10-10)
 
 - 현재 브랜치: `main`
-- 현재 확인된 HEAD: `69e2565e40ee24461a8470d61f3d6dc4cd96f49b`
-- upstream: `origin/main`, ahead 0 / behind 0
-- 이번 작업: 저장소 OWNER를 Codex로 명시하고, 담당표/연동 규칙/Claude 차단 설정/연동 메모/핸드오프를 문서화한다.
-- 알려진 Git 상태 이슈: `git status`와 `git diff`가 `fatal: this operation must be run in a work tree`로 실패한다. `git rev-parse --is-inside-work-tree`는 `true`, `git branch --show-current`는 `main`, `git log -5`와 upstream rev-list는 정상 확인됐다.
-- 이번 작업에서 앱 코드, 의존성, 빌드 설정, 앱 런타임 설정은 변경하지 않는다.
+- 현재 확인된 HEAD: `fb36b4d54a7e4278a836a6e4e865261c78e287de`
+- upstream: `origin/main`, ahead 1 / behind 0. 기존 문서 변경과 이번 작업은 unstaged이며, stage/commit/push는 하지 않았다.
+- 2026-10-10 전체 정밀진단 최신 결과: `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin`, Functions 단위 테스트 `557/557`, Functions Emulator 통합 테스트 `11/11`, Firestore Rules Emulator `39/39`, recovery Browser E2E `11/11` 통과. 의존성 후속 조치 뒤 `npm test`, 두 빌드와 타입 검사를 재통과했다.
+- 의존성 감사: Vite를 7.3.7, esbuild를 0.28.2로 기존 호환 범위 안에서 갱신해 esbuild 취약점 1건을 제거했다. root `npm audit` 잔여 22건(12 high, 10 moderate), `npm audit --omit=dev` 12건(4 high, 8 moderate). Functions `npm audit`는 0건으로 재확인했다. `--force`/주요 버전 강제 변경은 하지 않았다.
+- 잔여 위험: Firebase Web SDK의 `@firebase/firestore@4.17.2`가 `@grpc/grpc-js ~1.9.0`을 고정해 high 2개 advisory가 남는다. 버전 강제는 선언 범위 위반이다. 설치된 취약 버전은 확인되지만 이번 `dist/assets` 검색에서 gRPC 코드 포함은 찾지 못했다(브라우저 악용 가능성 전체를 증명하는 검사는 아님). Firebase CLI/Admin 및 Rules Unit Testing 경로의 나머지 advisory는 major 업데이트 또는 권고 downgrade가 제시되어 별도 호환성 검토 전 보류했다.
+- 빌드 경고 조치: `AuthContext.tsx`의 불필요한 `use client` 지시문을 제거하고 Firebase 청크를 분리했다. 최대 앱 청크는 427.74 kB로 500 kB 초과 경고가 사라졌다. 비모듈 HTML `<script>` 안내와 React Router 의존성의 무시 가능한 `use client` 지시문 경고는 남아 있다.
+- 남은 검증/위험: root 의존성 감사 잔여 취약점은 추가 상위 의존성/주요 버전 변경 검토가 필요하다. `lint` 스크립트는 없다. 실서비스 로그인/권한/데이터 경로와 배포는 건드리거나 검증하지 않았다.
+- 현재 변경 파일 7개: `AGENTS.md`, `docs/handoff/CURRENT_HANDOFF.md`, `functions/package-lock.json`, `functions/test/migrationRehearsal.integration.ts`, `package-lock.json`, `src/context/AuthContext.tsx`, `vite.config.js`. 모두 unstaged이며 stage/commit/push는 하지 않았다.
+- 작업 트리 경로: 현재 세션에서 예전 OneDrive 경로는 존재하지 않고 저장소는 `C:\dev\My-Web`에 있다. Git 읽기/검사는 승인된 접근으로 수행했다.
 # AGENTS.md
 
 ## Repository expectations
