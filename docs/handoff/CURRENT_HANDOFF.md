@@ -6,15 +6,16 @@ Status: DEPENDENCY_REMEDIATION_PARTIAL_WITH_SUPPLEMENTAL_RULES_FAILURE
 ## 의존성 취약점 조사 후속 (2026-10-10)
 
 - 목표: 사용자가 요청한 `codex/dependency-investigation` 브랜치에서 취약점 조치와 호환성 회귀 확인을 계속한다.
-- 브랜치/HEAD: `codex/dependency-investigation`, `eda5966a3ac62a03c730aa6915a3ad810cd8cd2a`; 기준 시점 `origin/codex/dependency-investigation`과 0 ahead / 0 behind. 시작 시 기존 조사 변경 파일 6개와 테스트 생성 로그 2개가 있었으며, 이 후속 작업에서 이어서 확인했다.
+- 브랜치/작업 기준 HEAD: `codex/dependency-investigation`, 시작 시 `eda5966a3ac62a03c730aa6915a3ad810cd8cd2a`; 당시 원격과 0 ahead / 0 behind. 시작 시 기존 조사 변경 파일 6개와 테스트 생성 로그 2개가 있었으며, 이 후속 작업에서 이어서 확인했다.
 - 완료: root `firebase-admin`을 `^13.6.0`에서 `^14.5.0`으로 올렸다. 별도 `tools/firestore-rules-tests`의 `firebase-tools`, `firebase`, `@firebase/rules-unit-testing`을 15.33.0, 12.19.0, 5.0.2 계열로 갱신하고 semver 호환 자동 수정을 적용했다. Rules fixture에는 active `users/{uid}` 프로필을 추가해 현재 규칙 계약에 맞췄다. `--force`나 gRPC override는 사용하지 않았다.
 - 감사 마지막 성공 수치(root): `npm audit` 16건(높음 12, 보통 4), `npm audit --omit=dev` 4건(모두 높음). 별도 Rules 테스트 프로젝트는 16건(높음 12, 보통 4), Functions는 0건이었다. 이전 root 감사 22건(높음 12, 보통 10), 운영 경로 12건(높음 4, 보통 8)에서 감소했다. 이번 마무리 시 감사 재조회는 자동 검토에서 외부 npm 보안 레지스트리에 dependency 메타데이터를 전송할 위험으로 거부됐으므로, 위 수치는 직전 감사 결과이며 현재 최신 상태 재확인 값은 아니다.
 - 잔여 고위험 경로: Firebase Web SDK의 `@firebase/firestore@4.17.2`가 `@grpc/grpc-js ~1.9.0`을 참조하고 설치된 grpc-js는 `1.9.16`이다. 해당 범위에는 두 advisory가 적용되고 수정 버전은 1.13.6/1.14.5 이상이다. SDK가 선언한 범위를 벗어나므로 강제 override는 적용하지 않았다. advisory의 영향 조건은 각각 특정 optional client-certificate 인증/RBAC 구성 및 서버 method handler 오류 메시지 노출이다. 의존성 감사 finding은 남지만, 설치 사실만으로 이 앱에서 취약한 코드 경로가 악용된다고 단정할 수도 없다. 생성된 웹 번들에서 gRPC 코드 검색 결과는 없었고, 이것은 패키지 취약점 해소나 전체 악용 가능성 부재의 증거는 아니다. 참고: [GHSA-m9gg-hp2v-232j](https://github.com/advisories/GHSA-m9gg-hp2v-232j), [GHSA-f596-whhp-79r4](https://github.com/advisories/GHSA-f596-whhp-79r4).
 - 통과: 후속 변경 후 `npm test`, `npm run build`(TypeScript 검사 포함), `npm run build:admin`, `npm ls --depth=0`(root 및 Rules 보조 패키지), `git diff --check`. 앞선 같은 취약점 작업의 emulator 검증은 active/candidate Rules 39/39 및 recovery Browser E2E 11/11 PASS였다.
 - 실패/제한: 별도 `tools/firestore-rules-tests` suite는 active profile fixtures 보정 후 일부 membership update 테스트에서 Firestore Rules의 expression evaluation 최대 1,000개 한도에 도달했다. 이 보조 suite는 PASS가 아니며, root의 configured Rules 39/39 통과와 별도 결과로 기록한다. 새 npm audit은 외부 전송 보안 검토로 차단돼 재실행 불가. 실서비스 Firebase/배포 확인은 하지 않았다. 기본/관리자 빌드는 성공했지만 비모듈 HTML script 및 React Router `use client` 경고가 남는다.
 - 파일 변경: `package.json`, `package-lock.json`, `tools/firestore-rules-tests/package.json`, `tools/firestore-rules-tests/package-lock.json`, `tools/firestore-rules-tests/tests/helpers.mjs`, `tools/firestore-rules-tests/tests/users.rules.test.mjs`, `CHANGELOG.md`, `AGENTS.md`, 이 파일. 테스트에서 생성된 `firestore-debug.log`, `tools/firestore-rules-tests/firestore-debug.log`는 미추적이며 커밋하지 않는다.
+- 코드/의존성 변경 9개 파일은 `137c2ef` (`fix: reduce dependency audit vulnerabilities`)로 커밋하고 원격 조사 브랜치에 푸시했다. 이후 푸시 상태를 기록하기 위해 `AGENTS.md`와 이 핸드오프를 갱신 중이다. 테스트 로그 두 개 외에는 tracked 변경이 남지 않았다.
 - 다음 단계: 먼저 Rules 보조 suite의 expression budget 실패 케이스와 남은 high advisory 경로를 격리 분석한다. npm audit 재확인은 승인된 네트워크 조건이 있을 때만 실행한다. advisory 수정이 상위 SDK 범위를 깨거나 Firebase major downgrade를 요구하면 별도 회귀시험 없이 반영하지 않는다.
-- Cross-device readiness: `READY_WITH_WARNINGS` — 브랜치/HEAD, 수정 파일, 실행한 검사, 남은 advisory, supplemental suite 실패 및 다음 조치가 기록됐다. npm 재감사와 운영 Firebase 동작은 미확인이다.
+- Cross-device readiness: `READY_WITH_WARNINGS` — 브랜치/작업 기준 HEAD, 코드 커밋·푸시 결과, 수정 파일, 실행한 검사, 남은 advisory, supplemental suite 실패 및 다음 조치가 기록됐다. npm 재감사와 운영 Firebase 동작은 미확인이다.
 
 ## 프로젝트 기준
 
