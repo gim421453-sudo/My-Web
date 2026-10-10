@@ -28,9 +28,10 @@ OWNER: Codex
 
 ## 현재 인계 요약 (2026-10-10)
 
-- 현재 브랜치: `main`
-- 현재 확인된 HEAD: `fb36b4d54a7e4278a836a6e4e865261c78e287de`
-- upstream: `origin/main`, ahead 1 / behind 0. 기존 문서 변경과 이번 작업은 unstaged이며, stage/commit/push는 하지 않았다.
+- 현재 브랜치: `codex/dependency-investigation`
+- 조사 기준 커밋: `273cb52` (`fix: update dependency audit and stabilize emulator tests`), base는 원격에 푸시한 `main`의 `fb36b4d54a7e4278a836a6e4e865261c78e287de`다.
+- 의존성 조사: Vite/esbuild 호환 업데이트만 반영했고 테스트 및 양쪽 빌드를 통과했다. root 감사 22건(높음 12, 보통 10), 운영 의존성 12건(높음 4, 보통 8), Functions 0건이다. Firebase Web SDK가 취약 범위의 `@grpc/grpc-js@1.9.16`을 선언 범위 `~1.9.0`으로 가져오는 것이 주요 잔여 경로이며, 강제 override는 하지 않았다.
+- 미해결 조치: Firebase SDK/CLI/Admin 및 Rules 테스트 도구의 major 업데이트/권고 downgrade는 조사 브랜치에서 호환성 실험과 Emulator/운영자 스크립트 회귀 검증 후 별도 결정한다. 실서비스 Firebase 검증은 하지 않았다.
 - 2026-10-10 전체 정밀진단 최신 결과: `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin`, Functions 단위 테스트 `557/557`, Functions Emulator 통합 테스트 `11/11`, Firestore Rules Emulator `39/39`, recovery Browser E2E `11/11` 통과. 의존성 후속 조치 뒤 `npm test`, 두 빌드와 타입 검사를 재통과했다.
 - 의존성 감사: Vite를 7.3.7, esbuild를 0.28.2로 기존 호환 범위 안에서 갱신해 esbuild 취약점 1건을 제거했다. root `npm audit` 잔여 22건(12 high, 10 moderate), `npm audit --omit=dev` 12건(4 high, 8 moderate). Functions `npm audit`는 0건으로 재확인했다. `--force`/주요 버전 강제 변경은 하지 않았다.
 - 잔여 위험: Firebase Web SDK의 `@firebase/firestore@4.17.2`가 `@grpc/grpc-js ~1.9.0`을 고정해 high 2개 advisory가 남는다. 버전 강제는 선언 범위 위반이다. 설치된 취약 버전은 확인되지만 이번 `dist/assets` 검색에서 gRPC 코드 포함은 찾지 못했다(브라우저 악용 가능성 전체를 증명하는 검사는 아님). Firebase CLI/Admin 및 Rules Unit Testing 경로의 나머지 advisory는 major 업데이트 또는 권고 downgrade가 제시되어 별도 호환성 검토 전 보류했다.

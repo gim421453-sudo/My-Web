@@ -6,8 +6,8 @@ Status: LOCAL_GATES_PASS_WITH_ROOT_AUDIT_RESIDUALS
 ## 프로젝트 기준
 
 - 저장소: 이 저장소의 루트 폴더 (컴퓨터에 따라 폴더 이름이 `My Web` 또는 `My-Web`으로 다를 수 있음)
-- 브랜치: `main`
-- 현재 확인된 HEAD: `fb36b4d54a7e4278a836a6e4e865261c78e287de`; `main`이 upstream `origin/main`보다 ahead 1 / behind 0이다 (2026-10-10, 로컬 추적 ref 기준, fetch 없이 확인). 진단 시작 시 작업 트리는 깨끗했고, 현재 핸드오프/AGENTS 갱신분이 unstaged 상태다.
+- 현재 작업 브랜치: `codex/dependency-investigation`
+- 조사 기준 커밋: `273cb52` (`fix: update dependency audit and stabilize emulator tests`), base는 원격에 푸시한 `main`의 `fb36b4d54a7e4278a836a6e4e865261c78e287de`다.
 - 체크포인트 브랜치 `checkpoint/notice-auth-recovery-20260723`는 `main`에 병합 완료되었고, 브랜치 자체는 로컬/원격에 보존 중이다.
 - 검증 현황 (2026-10-02 병합 후 결과): `npm test` `933/933 PASS`; `npm run typecheck` PASS; Firestore Rules Emulator `39/39 PASS`; `npm audit` 루트 29건(high 16) / functions 9건(high 2); Browser E2E(`npm run test:recovery:browser`)는 Playwright 브라우저 미설치로 `NOT RUN`; Browser SDK 역할 매트릭스는 실행 스크립트 없음으로 `NOT RUN`.
 - PR #1(`fdad789`)의 5개 파일(`firebase.json`, `ProtectedRoute.tsx`, `RequireAuth.tsx`, `RequireWorkspaceRole.tsx`, `pages/Login.tsx`) 비교 결과 누락 없음. AppNext 가드는 `previewMode` 때문에 리다이렉트 대신 안내 문구로 접근을 막는다. `src` 안에서 `pages/Login`을 import하는 곳이 없다(정리 후보).
@@ -17,16 +17,16 @@ Status: LOCAL_GATES_PASS_WITH_ROOT_AUDIT_RESIDUALS
 ## 최신 전체 정밀진단 및 의존성 후속 조치 (2026-10-10)
 
 - 상태: 로컬 자동 검사와 에뮬레이터 검증은 모두 통과했다. 다만 root 의존성 감사에 취약점이 남아 있으므로 전체를 무조건 정상/취약점 없음으로 판정하지 않는다.
-- 환경: 저장소 `C:\dev\My-Web`, 브랜치 `main`, HEAD `fb36b4d54a7e4278a836a6e4e865261c78e287de`, upstream `origin/main` 대비 ahead 1 / behind 0 (로컬 추적 ref 기준). 코드 변경과 문서 갱신은 unstaged이며 stage/commit/push/브랜치 전환은 하지 않았다.
+- 환경: 저장소 `C:\dev\My-Web`, 작업 브랜치 `codex/dependency-investigation`, 조사 기준 커밋 `273cb52`; base는 푸시된 `main`의 `fb36b4d54a7e4278a836a6e4e865261c78e287de`다. 기존 `main` 미푸시 커밋은 GitHub에 푸시했고, 검증된 작업 변경은 이 조사 브랜치의 커밋으로 분리했다.
 - 통과: `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin`; Node 22에서 Functions 단위 테스트 `557/557`; Firebase Emulator Functions 통합 테스트 `11/11`; Firestore Rules Emulator `39/39`; recovery Browser E2E `11/11`. 의존성 후속 조치 후 `npm test`, 타입 검사 및 두 빌드를 재실행해 통과를 확인했다.
 - 빌드 경고: `src/context/AuthContext.tsx`의 Vite 앱과 무관한 `use client` 지시문을 제거했고 `vite.config.js`에서 Firebase를 분할했다. 500 kB 초과 경고는 해소됐다(최대 AppNext 427.74 kB, Firestore 388.78 kB). 기존 비모듈 HTML `<script>` 안내와 React Router 패키지의 무시 가능한 `use client` 지시문은 잔존한다.
 - 의존성 감사/조치: 비강제 `npm audit fix` 및 호환 범위의 `npm update vite esbuild`를 적용했다. Vite `7.3.5 → 7.3.7`, esbuild `0.27.7 → 0.28.2`; esbuild 취약점 1건이 없어졌다. root `npm audit`은 22건(12 high, 10 moderate), production-only는 12건(4 high, 8 moderate)으로 감소했다. Functions audit은 0건으로 재확인했다.
 - 취약점 영향/호환성: high advisory 2개는 Firebase Web SDK가 `@firebase/firestore@4.17.2 → @grpc/grpc-js ~1.9.0`을 의존하는 경로다. 현재 설치된 `@grpc/grpc-js@1.9.16`은 advisory 취약 범위이며, 자동 권고는 Firebase `9.14.0`으로 downgrade하는 breaking 변경이다. 상위 SDK는 grpc 범위를 `~1.9.0`으로 선언하므로 1.13.6 이상 override는 선언 계약을 깨뜨린다. gRPC 문자열/코드는 생성된 `dist/assets`에서 검색되지 않았지만, 이는 패키지 취약점 해소나 전면적인 악용 불가 증명이 아니다.
 - 기타 잔여: Firebase CLI, Firebase Admin, Rules Unit Testing 전이 경로가 포함된다. 감사 자동 수정은 `firebase-tools@14.23.0`, `firebase-admin@14.5.0`, `@firebase/rules-unit-testing@2.0.7` 등 major 변경/downgrade를 제시한다. 각각 로컬 Emulator CLI, 운영자 스크립트 및 Rules 테스트에 사용되므로 별도 호환성·회귀 계획 없이 적용하지 않았다. `--force`는 사용하지 않았다.
 - 통합 테스트 보정: 동시 migration finalizer가 완료 후 재시도를 정상 멱등 응답으로 처리할 수 있어 테스트가 단일 성공만 강제하던 경쟁 조건을 보정했다. 허용 상태는 단일 성공+`CONFLICT` 또는 재생 포함 `ROLLED_BACK` 성공이다.
-- 변경 파일 7개: `AGENTS.md`, `docs/handoff/CURRENT_HANDOFF.md`, `functions/package-lock.json`, `functions/test/migrationRehearsal.integration.ts`, `package-lock.json`, `src/context/AuthContext.tsx`, `vite.config.js`. 테스트용 `.env.local`, 로그 및 임시 JRE는 제거했다.
+- 변경 파일 7개는 `273cb52`에 기록됨: `AGENTS.md`, `docs/handoff/CURRENT_HANDOFF.md`, `functions/package-lock.json`, `functions/test/migrationRehearsal.integration.ts`, `package-lock.json`, `src/context/AuthContext.tsx`, `vite.config.js`. 테스트용 `.env.local`, 로그 및 임시 JRE는 제거했다.
 - 알려진 제한: root audit 잔여 취약점은 상위 의존성 업데이트/주요 버전 변경 검토가 필요하다. 실서비스 로그인, 원격 Firebase 권한·데이터, 배포 및 IAM 변경은 수행하지 않았으므로 해당 경로의 정상 작동은 이번 결과로 보증하지 않는다. root lint 스크립트는 없다.
-- 남은 단계: (1) Firebase SDK/CLI/Admin 및 Rules 테스트 패키지 업데이트를 분리 브랜치에서 시험하고 Emulator/운영자 스크립트 회귀 테스트, (2) 비모듈 HTML 스크립트가 기존 전역 순서 의존성을 보존하는지 조사한 뒤 경고 처리만 할지 구조 변경할지 결정, (3) 배포 전 실제 인증·권한·데이터 흐름은 별도 승인된 검증 절차로 확인한다. 이번에는 운영 Firebase에 접속하지 않았다.
+- 남은 단계: (1) 이 조사 브랜치에서 Firebase SDK/CLI/Admin 및 Rules 테스트 패키지의 개별 후보를 격리 시험하고 Emulator/운영자 스크립트 회귀 테스트, (2) 비모듈 HTML 스크립트의 전역 순서 의존성을 조사, (3) 배포 전 실제 인증·권한·데이터 흐름은 별도 승인된 검증 절차로 확인한다. 이번에는 운영 Firebase에 접속하지 않았다.
 
 ## 전체 정밀진단 (2026-10-10)
 
