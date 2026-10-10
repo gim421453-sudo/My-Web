@@ -1,18 +1,45 @@
 # MY WEB 현재 작업 인계
 
-Last updated: 2026-10-03 (Asia/Seoul)
-Status: RECOVERY_VERIFICATION_PASS_WITH_MANUAL_CHECKS
+Last updated: 2026-10-10 (Asia/Seoul)
+Status: AGENTS_OWNERSHIP_DOCUMENTATION_UPDATED
 
 ## 프로젝트 기준
 
 - 저장소: 이 저장소의 루트 폴더 (컴퓨터에 따라 폴더 이름이 `My Web` 또는 `My-Web`으로 다를 수 있음)
 - 브랜치: `main`
-- 현재 확인된 HEAD: `14e125579f0245def0241fd2afe81648ff075fec`; `main`이 upstream `origin/main`과 ahead 0 / behind 0으로 동기화되어 있다 (2026-10-03, 로컬 추적 ref 기준, fetch 없이 확인).
+- 현재 확인된 HEAD: `69e2565e40ee24461a8470d61f3d6dc4cd96f49b`; `main`이 upstream `origin/main`과 ahead 0 / behind 0으로 동기화되어 있다 (2026-10-10, 로컬 추적 ref 기준, fetch 없이 확인).
 - 체크포인트 브랜치 `checkpoint/notice-auth-recovery-20260723`는 `main`에 병합 완료되었고, 브랜치 자체는 로컬/원격에 보존 중이다.
 - 검증 현황 (2026-10-02 병합 후 결과): `npm test` `933/933 PASS`; `npm run typecheck` PASS; Firestore Rules Emulator `39/39 PASS`; `npm audit` 루트 29건(high 16) / functions 9건(high 2); Browser E2E(`npm run test:recovery:browser`)는 Playwright 브라우저 미설치로 `NOT RUN`; Browser SDK 역할 매트릭스는 실행 스크립트 없음으로 `NOT RUN`.
 - PR #1(`fdad789`)의 5개 파일(`firebase.json`, `ProtectedRoute.tsx`, `RequireAuth.tsx`, `RequireWorkspaceRole.tsx`, `pages/Login.tsx`) 비교 결과 누락 없음. AppNext 가드는 `previewMode` 때문에 리다이렉트 대신 안내 문구로 접근을 막는다. `src` 안에서 `pages/Login`을 import하는 곳이 없다(정리 후보).
 - 활성 Rules는 `firebase.json`이 지정하는 `firestore.rules`. `firestore.rules.next`, `firestore.rules.console-current`, backup은 배포 대상으로 설정되어 있지 않다.
 - IAM: `IAM_STATUS = HOLD`; 이번 작업에서 IAM 문서나 원격 권한을 변경하지 않았다.
+## AGENTS 정비 세션 (2026-10-10)
+
+- 목표: 사용자 제공 담당표에 따라 이 저장소가 Codex 담당인지 확인하고, `AGENTS.md`/핸드오프/연동 메모/Claude 차단 설정을 한 번에 정비한다.
+- 담당 확인: 실제 저장소 경로는 `C:\dev\My-Web`; 폴더/노트북 이름이 담당표의 `My Web(노트북 My-Web)`에 해당하므로 OWNER는 `Codex`다.
+- 완료:
+  - `AGENTS.md` 맨 위에 OWNER, 고정 담당표, 작업 규칙, 연동 규칙, 현재 인계 요약을 추가했다.
+  - `CLAUDE.md`를 확인했고 `@@AGENTS_IMPORT@@` 플레이스홀더는 없었다. 기존 `@AGENTS.md` import를 유지했다.
+  - `docs/integration.md`를 생성해 `My Web` → `program-hub` Service Access API 이용권 확인 계획을 기록했다.
+  - `.claude/settings.json`을 생성해 Claude의 `Edit`, `Write`, `NotebookEdit`, git commit/push/checkout/switch 계열 수정을 deny했다.
+  - 앱 코드, 의존성, 빌드 설정, 앱 런타임 설정은 변경하지 않았다.
+- 읽기/상태 확인:
+  - 읽은 문서: `AGENTS.md`, `CLAUDE.md`, `HANDOFF.md`, `docs/handoff/CURRENT_HANDOFF.md`.
+  - 현재 브랜치: `main`.
+  - 최근 로그: `69e2565 docs: update handoff after main merge`, `14e1255 ..`, `ddcb8a4 merge: synchronize main history before integration`, `5d92af5 chore: update MY WEB paths after workspace move`, `501a7ca docs: record recovery handoff commit`.
+  - `git status`와 `git diff`는 `fatal: this operation must be run in a work tree`로 실패한다. `git rev-parse --is-inside-work-tree=true`, `git rev-parse --is-bare-repository=false`, `git branch --show-current=main`, `git log -5`, `git rev-list --left-right --count HEAD...'@{u}' = 0 0`은 정상 확인됐다.
+- 검증:
+  - 문서 정비 작업이므로 앱 테스트/빌드는 실행하지 않았다.
+  - `git ls-files --modified --others --exclude-standard`는 정비 전 변경/미추적 파일을 반환하지 않았다.
+- 분류:
+  - 커밋 대상: `AGENTS.md`, `docs/handoff/CURRENT_HANDOFF.md`, `docs/integration.md`, `.claude/settings.json`.
+  - `.gitignore` 대상: 없음.
+  - 사용자 확인 필요: `git status`/`git diff` 실패 원인. Git 내부 상태 또는 실행 환경 문제로 보이며, 커밋 전 사용자가 로컬 터미널에서 `git status -sb`를 재확인하는 것이 안전하다.
+- 남은 일:
+  - 사용자가 로컬 터미널에서 `git status -sb`가 정상 동작하는지 확인한다.
+  - 문제가 없으면 문서 정비 변경만 선택적으로 stage/commit한다.
+- 다음 단계:
+  - 제안 커밋 명령은 최종 응답에 PowerShell 명령으로만 제공한다. 이 세션에서는 브랜치 전환, stage, commit, push를 하지 않는다.
 
 ## 최종 Functions Emulator Node runtime 진단 및 회귀 (2026-09-30)
 
