@@ -6,8 +6,8 @@ Status: LOCAL_GATES_PASS_WITH_ROOT_AUDIT_RESIDUALS
 ## 프로젝트 기준
 
 - 저장소: 이 저장소의 루트 폴더 (컴퓨터에 따라 폴더 이름이 `My Web` 또는 `My-Web`으로 다를 수 있음)
-- 현재 작업 브랜치: `codex/dependency-investigation`
-- 조사 기준 커밋: `273cb52` (`fix: update dependency audit and stabilize emulator tests`), base는 원격에 푸시한 `main`의 `fb36b4d54a7e4278a836a6e4e865261c78e287de`다.
+- 현재 작업 브랜치: `codex/dependency-investigation` (원격 추적: `origin/codex/dependency-investigation`)
+- 조사 기준 커밋: `273cb52` (`fix: update dependency audit and stabilize emulator tests`), 문서 후속 커밋 `5dc8753`에 이어졌으며 base는 원격에 푸시한 `main`의 `fb36b4d54a7e4278a836a6e4e865261c78e287de`다.
 - 체크포인트 브랜치 `checkpoint/notice-auth-recovery-20260723`는 `main`에 병합 완료되었고, 브랜치 자체는 로컬/원격에 보존 중이다.
 - 검증 현황 (2026-10-02 병합 후 결과): `npm test` `933/933 PASS`; `npm run typecheck` PASS; Firestore Rules Emulator `39/39 PASS`; `npm audit` 루트 29건(high 16) / functions 9건(high 2); Browser E2E(`npm run test:recovery:browser`)는 Playwright 브라우저 미설치로 `NOT RUN`; Browser SDK 역할 매트릭스는 실행 스크립트 없음으로 `NOT RUN`.
 - PR #1(`fdad789`)의 5개 파일(`firebase.json`, `ProtectedRoute.tsx`, `RequireAuth.tsx`, `RequireWorkspaceRole.tsx`, `pages/Login.tsx`) 비교 결과 누락 없음. AppNext 가드는 `previewMode` 때문에 리다이렉트 대신 안내 문구로 접근을 막는다. `src` 안에서 `pages/Login`을 import하는 곳이 없다(정리 후보).
@@ -17,7 +17,7 @@ Status: LOCAL_GATES_PASS_WITH_ROOT_AUDIT_RESIDUALS
 ## 최신 전체 정밀진단 및 의존성 후속 조치 (2026-10-10)
 
 - 상태: 로컬 자동 검사와 에뮬레이터 검증은 모두 통과했다. 다만 root 의존성 감사에 취약점이 남아 있으므로 전체를 무조건 정상/취약점 없음으로 판정하지 않는다.
-- 환경: 저장소 `C:\dev\My-Web`, 작업 브랜치 `codex/dependency-investigation`, 조사 기준 커밋 `273cb52`; base는 푸시된 `main`의 `fb36b4d54a7e4278a836a6e4e865261c78e287de`다. 기존 `main` 미푸시 커밋은 GitHub에 푸시했고, 검증된 작업 변경은 이 조사 브랜치의 커밋으로 분리했다.
+- 환경: 저장소 `C:\dev\My-Web`, 작업 브랜치 `codex/dependency-investigation`가 `origin/codex/dependency-investigation`을 추적하며 작업 트리는 깨끗하다. 조사 코드 커밋 `273cb52`와 문서 후속 커밋 `5dc8753`은 원격 브랜치에 푸시됐다. base는 푸시된 `main`의 `fb36b4d54a7e4278a836a6e4e865261c78e287de`다.
 - 통과: `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin`; Node 22에서 Functions 단위 테스트 `557/557`; Firebase Emulator Functions 통합 테스트 `11/11`; Firestore Rules Emulator `39/39`; recovery Browser E2E `11/11`. 의존성 후속 조치 후 `npm test`, 타입 검사 및 두 빌드를 재실행해 통과를 확인했다.
 - 빌드 경고: `src/context/AuthContext.tsx`의 Vite 앱과 무관한 `use client` 지시문을 제거했고 `vite.config.js`에서 Firebase를 분할했다. 500 kB 초과 경고는 해소됐다(최대 AppNext 427.74 kB, Firestore 388.78 kB). 기존 비모듈 HTML `<script>` 안내와 React Router 패키지의 무시 가능한 `use client` 지시문은 잔존한다.
 - 의존성 감사/조치: 비강제 `npm audit fix` 및 호환 범위의 `npm update vite esbuild`를 적용했다. Vite `7.3.5 → 7.3.7`, esbuild `0.27.7 → 0.28.2`; esbuild 취약점 1건이 없어졌다. root `npm audit`은 22건(12 high, 10 moderate), production-only는 12건(4 high, 8 moderate)으로 감소했다. Functions audit은 0건으로 재확인했다.

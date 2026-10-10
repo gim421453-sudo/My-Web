@@ -37,7 +37,7 @@ OWNER: Codex
 - 잔여 위험: Firebase Web SDK의 `@firebase/firestore@4.17.2`가 `@grpc/grpc-js ~1.9.0`을 고정해 high 2개 advisory가 남는다. 버전 강제는 선언 범위 위반이다. 설치된 취약 버전은 확인되지만 이번 `dist/assets` 검색에서 gRPC 코드 포함은 찾지 못했다(브라우저 악용 가능성 전체를 증명하는 검사는 아님). Firebase CLI/Admin 및 Rules Unit Testing 경로의 나머지 advisory는 major 업데이트 또는 권고 downgrade가 제시되어 별도 호환성 검토 전 보류했다.
 - 빌드 경고 조치: `AuthContext.tsx`의 불필요한 `use client` 지시문을 제거하고 Firebase 청크를 분리했다. 최대 앱 청크는 427.74 kB로 500 kB 초과 경고가 사라졌다. 비모듈 HTML `<script>` 안내와 React Router 의존성의 무시 가능한 `use client` 지시문 경고는 남아 있다.
 - 남은 검증/위험: root 의존성 감사 잔여 취약점은 추가 상위 의존성/주요 버전 변경 검토가 필요하다. `lint` 스크립트는 없다. 실서비스 로그인/권한/데이터 경로와 배포는 건드리거나 검증하지 않았다.
-- 현재 변경 파일 7개: `AGENTS.md`, `docs/handoff/CURRENT_HANDOFF.md`, `functions/package-lock.json`, `functions/test/migrationRehearsal.integration.ts`, `package-lock.json`, `src/context/AuthContext.tsx`, `vite.config.js`. 모두 unstaged이며 stage/commit/push는 하지 않았다.
+- 변경 파일 7개는 조사 브랜치의 `273cb52`에 커밋했고, 문서 인계 갱신을 포함한 브랜치는 `origin/codex/dependency-investigation`에 푸시했다. 현재 작업 트리는 깨끗하며 main도 `origin/main`과 동기화되어 있다.
 - 작업 트리 경로: 현재 세션에서 예전 OneDrive 경로는 존재하지 않고 저장소는 `C:\dev\My-Web`에 있다. Git 읽기/검사는 승인된 접근으로 수행했다.
 # AGENTS.md
 
