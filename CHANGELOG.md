@@ -4,6 +4,10 @@ All notable release-relevant changes to this project should be documented here.
 
 ## Unreleased
 
+### 보안
+
+- Firebase Admin과 Firestore Rules 테스트 도구 의존성을 호환 범위에서 갱신해 npm 감사 경고를 줄였습니다. 일부 전이 의존성 advisory와 보조 Rules Emulator suite의 expression budget 실패는 조사 브랜치에서 후속 검토 중입니다.
+
 ### 보안 및 인증
 
 - 채팅·지원 스레드와 메시지의 참여자 접근을 같은 workspace의 활성 membership으로 제한하고, 일반 참여자의 참여자 목록 변경 및 비활성 플래그 불일치 membership 접근을 Rules에서 차단했습니다.

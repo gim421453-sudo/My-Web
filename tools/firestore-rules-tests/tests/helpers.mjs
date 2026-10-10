@@ -142,6 +142,13 @@ export async function seedFixtures(entries = []) {
 
 export async function seedActors() {
   await seedFixtures([
+    [`users/${OWNER_UID}`, baseUser(OWNER_UID)],
+    [`users/${SUPER_MANAGER_UID}`, baseUser(SUPER_MANAGER_UID)],
+    [`users/${MANAGER_UID}`, baseUser(MANAGER_UID)],
+    [`users/${TEACHER_UID}`, baseUser(TEACHER_UID)],
+    [`users/${NORMAL_UID}`, baseUser(NORMAL_UID)],
+    [`users/${VIEWER_UID}`, baseUser(VIEWER_UID)],
+    [`users/${PRINT_UID}`, baseUser(PRINT_UID)],
     [`systemOwners/${OWNER_UID}`, { status: "active" }],
     [membershipPath(SUPER_MANAGER_UID), baseMembership(SUPER_MANAGER_UID, "super_manager")],
     [membershipPath(MANAGER_UID), baseMembership(MANAGER_UID, "manager")],

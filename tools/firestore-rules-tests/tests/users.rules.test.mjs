@@ -34,6 +34,7 @@ describe("users rules", { concurrency: false }, () => {
   test("system owner can perform an approved user status update", async () => {
     await seedFixtures([
       [`systemOwners/${OWNER_UID}`, { status: "active" }],
+      [`users/${OWNER_UID}`, baseUser(OWNER_UID)],
       [`users/${TARGET_UID}`, baseUser(TARGET_UID)],
     ]);
     await assertSucceeds(updateDoc(doc(authedDb(OWNER_UID), "users", TARGET_UID), {

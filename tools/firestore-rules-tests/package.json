@@ -9,8 +9,8 @@
     "test:trusted-backend": "node run-trusted-backend-tests.mjs"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "5.0.0",
-    "firebase": "12.15.0",
-    "firebase-tools": "15.22.4"
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.33.0"
   }
 }
