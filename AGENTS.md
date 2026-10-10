@@ -26,15 +26,15 @@ OWNER: Codex
 - 상대 프로젝트의 담당이 다른 AI여도 저장소는 읽기만 하고, 필요한 변경은 docs/integration.md에 요청으로 남긴다. 상대 저장소를 직접 수정하지 않는다.
 - 연동 때문에 현재 프로젝트의 구조를 크게 바꾸지 않는다.
 
-## 현재 인계 요약 (2026-10-10)
+## 현재 인계 요약 (2026-10-11)
 
 - 최신 취약점 조사 후속(2026-10-10): 작업 브랜치는 `codex/dependency-investigation`, 기준 HEAD는 `eda5966a3ac62a03c730aa6915a3ad810cd8cd2a`이며 원격과 0 ahead / 0 behind다. root `firebase-admin`은 `13.6.0 → 14.5.0`, 별도 `tools/firestore-rules-tests`의 `firebase-tools`/Firebase SDK/Rules Unit Testing은 각각 `15.33.0`/`12.19.0`/`5.0.2` 계열로 갱신했다. 강제 override는 하지 않았다.
-- 마지막으로 정상 완료된 npm 감사 결과: root 16건(높음 12, 보통 4), 운영 의존성만 4건(모두 높음), Rules 보조 패키지 16건(높음 12, 보통 4), Functions 0건. 이후 재감사는 네트워크 격리 및 의존성 메타데이터 외부 전송 검토 차단으로 실행하지 못했으므로 이 수치는 당시 결과이지 이번 확인에서 새로 검증한 수치가 아니다.
+- 2026-10-11 npm 보안 레지스트리 재감사 완료: root 16건(높음 12, 보통 4), `npm audit --omit=dev` 4건(모두 높음), Rules 보조 패키지 16건(높음 12, 보통 4), Functions 0건. root 및 Rules 감사는 잔여 취약점 때문에 exit code 1로 종료했으며 레지스트리 연결/조회는 성공했다. root 감사 자동 권고는 Firebase 9.14.0, Firebase CLI 14.23.0 등 major downgrade를 제시하므로 적용하지 않았다.
 - 취약점 조치: `npm audit fix`의 호환 범위 변경으로 root 및 보조 Rules 도구 감사 건수를 낮췄다. 남은 high advisory 중 `@grpc/grpc-js@1.9.16`은 Firebase Web SDK의 `@firebase/firestore@4.17.2`가 선언한 `~1.9.0` 경로이며, 보안 수정 버전은 그 범위 밖이다. `dist` 번들에는 gRPC 코드가 포함되지 않았고 Browser E2E는 통과했지만, 의존성 finding 자체는 남으며 전체 악용 불가를 증명하지 않는다. 적용 조건이 특정 서버 인증서/RBAC 구성인 두 advisory는 [GHSA-m9gg-hp2v-232j](https://github.com/advisories/GHSA-m9gg-hp2v-232j), [GHSA-f596-whhp-79r4](https://github.com/advisories/GHSA-f596-whhp-79r4)다.
-- 검증: 이번 후속 조치 뒤 `npm test`, `npm run build`(타입 검사 포함), `npm run build:admin`은 재실행해 통과했다. 직전 후속 검증의 Firestore Rules Emulator 39/39 및 recovery Browser E2E 11/11도 통과했다. 별도 `tools/firestore-rules-tests` 전체 suite는 fixture를 활성 사용자 프로필 계약에 맞춘 뒤에도 일부 membership 테스트가 Rules 평가식 1,000개 한도 초과로 실패해 PASS로 판정하지 않는다.
+- 검증: 취약점 수정 뒤 `npm test`, `npm run build`(타입 검사 포함), `npm run build:admin` 통과. 직전 후속 검증의 Firestore Rules Emulator 39/39 및 recovery Browser E2E 11/11도 통과했다. 2026-10-11 별도 `tools/firestore-rules-tests` 재실행은 체크섬 검증한 임시 Temurin JRE 21과 demo project/loopback에서 suite 본체까지 진행했지만 exit code 1이다. 사용자 프로필 및 invite 테스트 대부분은 통과하고, 기존 membership 허용 update 및 compatibility update 일부가 Firestore Rules 1,000 expression 평가 한도로 실패했다. 8083을 점유하던 이번 작업의 이전 Emulator Java 프로세스는 종료했고 기본 포트 및 임시 설정은 원복했다. 운영 Firebase 접속은 없었다.
 - 변경 파일: `package.json`, `package-lock.json`, `tools/firestore-rules-tests/package.json`, `tools/firestore-rules-tests/package-lock.json`, `tools/firestore-rules-tests/tests/helpers.mjs`, `tools/firestore-rules-tests/tests/users.rules.test.mjs`, `CHANGELOG.md`, `AGENTS.md`, `docs/handoff/CURRENT_HANDOFF.md`. Emulator가 만든 `firestore-debug.log` 두 개는 미추적 상태로 남아 있어 커밋 대상이 아니다.
 - 코드/의존성 조치 9개 파일은 `137c2ef` (`fix: reduce dependency audit vulnerabilities`)로 커밋되어 `origin/codex/dependency-investigation`에 푸시했다. 이어서 이 요약과 핸드오프를 푸시 결과에 맞게 갱신 중이다. 로그 두 개 외 tracked 변경은 없다.
-- 현재 검토: `git diff --check` 통과. root와 Rules 보조 도구의 최상위 의존성 누락은 `npm ls --depth=0`에서 확인되지 않았다. 실서비스 Firebase는 사용하지 않았다. 다음 단계는 보조 Rules suite의 expression budget 실패 원인과 남은 npm advisory를 각각 격리해 분석한 뒤, 네트워크 허용 상태에서 `npm audit`을 새로 실행하는 것이다.
+- 현재 검토: `git diff --check` 통과. root와 Rules 보조 도구의 최상위 의존성 누락은 `npm ls --depth=0`에서 확인되지 않았다. 임시 JRE와 Emulator 프로세스는 정리했다. 로그 두 개(`firestore-debug.log`, `tools/firestore-rules-tests/firestore-debug.log`)는 테스트 산출물로 미추적 상태다. 다음 단계는 membership update 권한 규칙의 expression 비용을 분석하고 남은 advisory를 상위 SDK/CLI 호환성 단위로 분해하는 것이다. npm 감사는 재실행했으므로 레지스트리 재연결은 필요하지 않다.
 
 - 현재 브랜치: `codex/dependency-investigation`
 - 조사 기준 커밋: `273cb52` (`fix: update dependency audit and stabilize emulator tests`), base는 원격에 푸시한 `main`의 `fb36b4d54a7e4278a836a6e4e865261c78e287de`다.
