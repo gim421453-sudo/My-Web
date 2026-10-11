@@ -93,6 +93,22 @@ service cloud.firestore {
         );
     }
 
+    function canUpdateMembershipRole(workspaceId, targetUid, existingRole, requestedRole) {
+      let isOwner = isSystemOwner();
+      let actorRole = isOwner ? "system_owner" : workspaceRole(workspaceId);
+      let canManageExisting = actorRole == "super_manager"
+        ? existingRole in ["manager", "teacher", "normal", "viewer", "print_account"]
+        : actorRole == "manager"
+          && existingRole in ["teacher", "normal", "viewer", "print_account"];
+      let canGrantRequested = actorRole == "super_manager"
+        ? requestedRole in ["manager", "teacher", "normal", "viewer", "print_account"]
+        : actorRole == "manager"
+          && requestedRole in ["teacher", "normal", "viewer", "print_account"];
+      return signedIn()
+        && targetUid != request.auth.uid
+        && (isOwner || (canManageExisting && canGrantRequested));
+    }
+
     function optionalString(data, field, maxSize) {
       return !(field in data) || (data[field] is string && data[field].size() <= maxSize);
     }
@@ -174,8 +190,12 @@ service cloud.firestore {
         : request.resource.data.workspaceId != resource.data.workspaceId ? false
         : !(request.resource.data.updatedAt is timestamp) ? false
         : request.resource.data.updatedBy != request.auth.uid ? false
-        : !canManageExistingMember(workspaceId, uid, resource.data.role) ? false
-        : canGrantWorkspaceRole(workspaceId, uid, request.resource.data.role);
+        : canUpdateMembershipRole(
+          workspaceId,
+          uid,
+          resource.data.role,
+          request.resource.data.role
+        );
     }
 
     function inviteHasAllowedFields(data) {

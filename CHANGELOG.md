@@ -6,7 +6,8 @@ All notable release-relevant changes to this project should be documented here.
 
 ### 보안
 
-- Firebase Admin과 Firestore Rules 테스트 도구 의존성을 호환 범위에서 갱신해 npm 감사 경고를 줄였습니다. 일부 전이 의존성 advisory와 보조 Rules Emulator suite의 expression budget 실패는 조사 브랜치에서 후속 검토 중입니다.
+- membership 역할 변경 시 기존·요청 역할의 관리자 권한을 단일 경로에서 검증해 Firestore Rules 평가식 사용량을 줄였습니다. 전체 보조 Rules Emulator suite 171/171 통과.
+- Firebase Admin과 Firestore Rules 테스트 도구 의존성을 호환 범위에서 갱신해 npm 감사 경고를 줄였습니다. 일부 전이 의존성 advisory는 별도 조사 브랜치에서 후속 검토 중입니다.
 
 ### 보안 및 인증
 
