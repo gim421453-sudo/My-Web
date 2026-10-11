@@ -26,7 +26,15 @@ OWNER: Codex
 - 상대 프로젝트의 담당이 다른 AI여도 저장소는 읽기만 하고, 필요한 변경은 docs/integration.md에 요청으로 남긴다. 상대 저장소를 직접 수정하지 않는다.
 - 연동 때문에 현재 프로젝트의 구조를 크게 바꾸지 않는다.
 
-## 현재 인계 요약 (2026-10-11)
+## 최신 인계 요약 (2026-10-12)
+
+- 최종 상태: `FULL_REGRESSION_PASS_WITH_DEPENDENCY_ADVISORIES`. 현재 브랜치는 `main`, HEAD는 `6058771` (`fix: reduce firestore membership rules expression budget`)이다. Rules expression budget 차단 요인은 해결됐고 전체 자동 회귀 기준은 통과했다. npm advisory는 미해결 잔여 위험이다.
+- Firestore Rules: membership 역할 변경 경로에서 `canUpdateMembershipRole`로 기존 역할 관리 권한과 요청 역할 부여 권한을 통합해 평가식 사용량을 줄였다. 자기 역할 변경 금지, `system_owner` 권한, 기존 역할 허용 범위를 유지했다. Rules Emulator 전체 suite `171/171 PASS`; 변경은 `main`에 반영 및 push 완료.
+- 의존성 조사: `codex/dependency-audit-remediation` 결과는 main에 반영하지 않았다. root 감사 16건(높음 12, 보통 4), production-only 높은 위험 4건, Rules 도구 16건(높음 12, 보통 4), Functions 0건이다. Firebase 13/Rules Unit Testing 6 시험은 expression 한도 문제 재발과 감사 개선 부재로 철회했고, `firebase-tools` 14.23.0 하향은 critical 1건 포함 22건으로 악화되어 철회했다. 검증된 안전한 remediation은 없으며 manifest/lockfile은 기준 상태다.
+- 전체 회귀: 별도 `codex/full-regression`에서 `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin` 통과, Functions 단위 테스트 `557/557`, Functions Emulator 통합 11개 흐름, Browser E2E `11/11` 통과. 최종 Rules suite `171/171 PASS`. 격리 런타임은 Node `22.23.2`/Temurin JRE 21 계열, demo project와 loopback emulator만 사용했다. 운영 Firebase 접근 및 배포는 없었다.
+- 남은 작업은 npm advisory 후속 조사, 필요 시 Node 22 개발환경 정식화, 기존 수동 UI/출력 검증뿐이다. 별도 승인 전까지 IAM은 `HOLD`로 유지한다. 강제 override, major downgrade, `npm audit fix --force`는 적용하지 않았다.
+
+## 과거 인계 요약 기록 (2026-10-11; 현재 상태는 위 요약과 `docs/handoff/CURRENT_HANDOFF.md` 참조)
 
 - 최신 취약점 조사 후속(2026-10-10): 작업 브랜치는 `codex/dependency-investigation`, 기준 HEAD는 `eda5966a3ac62a03c730aa6915a3ad810cd8cd2a`이며 원격과 0 ahead / 0 behind다. root `firebase-admin`은 `13.6.0 → 14.5.0`, 별도 `tools/firestore-rules-tests`의 `firebase-tools`/Firebase SDK/Rules Unit Testing은 각각 `15.33.0`/`12.19.0`/`5.0.2` 계열로 갱신했다. 강제 override는 하지 않았다.
 - 2026-10-11 npm 보안 레지스트리 재감사 완료: root 16건(높음 12, 보통 4), `npm audit --omit=dev` 4건(모두 높음), Rules 보조 패키지 16건(높음 12, 보통 4), Functions 0건. root 및 Rules 감사는 잔여 취약점 때문에 exit code 1로 종료했으며 레지스트리 연결/조회는 성공했다. root 감사 자동 권고는 Firebase 9.14.0, Firebase CLI 14.23.0 등 major downgrade를 제시하므로 적용하지 않았다.

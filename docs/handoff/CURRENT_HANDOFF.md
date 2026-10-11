@@ -1,9 +1,20 @@
 # MY WEB 현재 작업 인계
 
-Last updated: 2026-10-11 (Asia/Seoul)
-Status: DEPENDENCY_AUDIT_CONFIRMED_WITH_RULES_SUITE_FAILURE
+Last updated: 2026-10-12 (Asia/Seoul)
+Status: FULL_REGRESSION_PASS_WITH_DEPENDENCY_ADVISORIES
 
-## 의존성 취약점 조사 후속 (2026-10-11)
+## 최종 통합 상태 (2026-10-12)
+
+- 저장소: `C:\dev\My-Web`; 브랜치 `main`; HEAD `6058771` (`fix: reduce firestore membership rules expression budget`). Rules expression budget 차단 요인은 해결됐고 전체 자동 회귀 기준은 통과했다. npm advisory는 미해결 잔여 위험이다.
+- Rules 수정: membership 역할 변경의 Rules 평가식 사용량을 줄였다. `canUpdateMembershipRole` 경로로 기존 역할 관리 권한과 요청 역할 부여 권한을 통합했고, 자기 역할 변경 금지, `system_owner` 권한, 기존 역할 허용 범위를 유지했다. Firestore Emulator Rules 전체 suite `171/171 PASS`; 수정은 main에 반영 및 push 완료됐다.
+- 의존성 조사 브랜치 `codex/dependency-audit-remediation`은 병합하지 않았다. root `npm audit` 16건(높음 12, 보통 4), `npm audit --omit=dev` 높은 위험 4건, Rules 도구 audit 16건(높음 12, 보통 4), Functions audit 0건이다. Firebase 13 / Rules Unit Testing 6 시험은 Rules 1000-expression 문제가 재발하고 audit 개선이 없어 철회했다. `firebase-tools` 14.23.0 하향은 critical 1건 포함 총 22건으로 악화되어 철회했다. 안전성이 검증된 dependency remediation은 없으며 package 및 lockfile은 기준 상태로 복원됐다.
+- 전체 회귀 브랜치 `codex/full-regression`에서 `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin` 통과, Functions 단위 테스트 `557/557 PASS`, Functions Emulator 통합 11개 흐름 PASS, Browser E2E `11/11 PASS`였다. main baseline에서 발견된 Rules 1000-expression 실패는 Rules 수정 후 최종 suite `171/171 PASS`로 해결됐다.
+- 격리 검증 런타임은 Node `22.23.2` / Temurin JRE 21 계열이며 demo project와 loopback emulator만 사용했다. 운영 Firebase 접근, 운영 데이터 변경, production 배포는 없었다.
+- 잔여 작업: npm advisory 후속 조사; 필요 시 Node 22 개발환경 정식화; 기존 수동 UI/출력 검증. 별도 승인 전 IAM `HOLD`를 유지한다. 강제 override, major downgrade, `npm audit fix --force`는 적용하지 않았다.
+- 작업 금지/반복 방지: dependency remediation 및 full regression 브랜치는 main에 병합하지 않았다. 코드, Firestore rules, dependency manifest/lockfile은 이 문서 통합 작업에서 수정하지 않는다. 미추적 `firestore-debug.log` 파일은 보존하며 변경하지 않는다.
+- Cross-device readiness: `READY_WITH_WARNINGS` — 현재 main의 HEAD, 최종 Rules/회귀 결과, 잔여 advisory, 미실행 수동 검증과 IAM HOLD를 기록했다.
+
+## 과거 기록: 의존성 취약점 조사 후속 (2026-10-11; 아래 당시 브랜치 결과는 위 최종 상태로 대체됨)
 
 - 목표: 사용자가 요청한 `codex/dependency-investigation` 브랜치에서 취약점 조치와 호환성 회귀 확인을 계속한다.
 - 브랜치/작업 기준 HEAD: `codex/dependency-investigation`, 시작 시 `eda5966a3ac62a03c730aa6915a3ad810cd8cd2a`; 당시 원격과 0 ahead / 0 behind. 시작 시 기존 조사 변경 파일 6개와 테스트 생성 로그 2개가 있었으며, 이 후속 작업에서 이어서 확인했다.
@@ -22,8 +33,8 @@ Status: DEPENDENCY_AUDIT_CONFIRMED_WITH_RULES_SUITE_FAILURE
 ## 프로젝트 기준
 
 - 저장소: 이 저장소의 루트 폴더 (컴퓨터에 따라 폴더 이름이 `My Web` 또는 `My-Web`으로 다를 수 있음)
-- 현재 작업 브랜치: `codex/dependency-investigation` (원격 추적: `origin/codex/dependency-investigation`)
-- 조사 기준 커밋: `273cb52` (`fix: update dependency audit and stabilize emulator tests`), 문서 후속 커밋 `5dc8753`에 이어졌으며 base는 원격에 푸시한 `main`의 `fb36b4d54a7e4278a836a6e4e865261c78e287de`다.
+- 현재 작업 브랜치: `main` (HEAD `6058771`); Rules expression budget 수정은 main에 반영 및 push 완료.
+- 과거 dependency 조사 및 full regression은 각각 `codex/dependency-audit-remediation`, `codex/full-regression`에서 수행했으며 main에 병합하지 않았다.
 - 체크포인트 브랜치 `checkpoint/notice-auth-recovery-20260723`는 `main`에 병합 완료되었고, 브랜치 자체는 로컬/원격에 보존 중이다.
 - 검증 현황 (2026-10-02 병합 후 결과): `npm test` `933/933 PASS`; `npm run typecheck` PASS; Firestore Rules Emulator `39/39 PASS`; `npm audit` 루트 29건(high 16) / functions 9건(high 2); Browser E2E(`npm run test:recovery:browser`)는 Playwright 브라우저 미설치로 `NOT RUN`; Browser SDK 역할 매트릭스는 실행 스크립트 없음으로 `NOT RUN`.
 - PR #1(`fdad789`)의 5개 파일(`firebase.json`, `ProtectedRoute.tsx`, `RequireAuth.tsx`, `RequireWorkspaceRole.tsx`, `pages/Login.tsx`) 비교 결과 누락 없음. AppNext 가드는 `previewMode` 때문에 리다이렉트 대신 안내 문구로 접근을 막는다. `src` 안에서 `pages/Login`을 import하는 곳이 없다(정리 후보).
