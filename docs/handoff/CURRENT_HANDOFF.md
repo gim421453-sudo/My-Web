@@ -5,7 +5,7 @@ Status: FULL_REGRESSION_PASS_WITH_DEPENDENCY_ADVISORIES
 
 ## 최종 통합 상태 (2026-10-12)
 
-- 저장소: `C:\dev\My-Web`; 브랜치 `main`; HEAD `6058771` (`fix: reduce firestore membership rules expression budget`). Rules expression budget 차단 요인은 해결됐고 전체 자동 회귀 기준은 통과했다. npm advisory는 미해결 잔여 위험이다.
+- 저장소: `C:\dev\My-Web`; 브랜치 `main`; 코드 기준 커밋 `6058771` (`fix: reduce firestore membership rules expression budget`). 최종 문서 갱신은 main에 커밋·푸시 완료됐다. Rules expression budget 차단 요인은 해결됐고 전체 자동 회귀 기준은 통과했다. npm advisory는 미해결 잔여 위험이다.
 - Rules 수정: membership 역할 변경의 Rules 평가식 사용량을 줄였다. `canUpdateMembershipRole` 경로로 기존 역할 관리 권한과 요청 역할 부여 권한을 통합했고, 자기 역할 변경 금지, `system_owner` 권한, 기존 역할 허용 범위를 유지했다. Firestore Emulator Rules 전체 suite `171/171 PASS`; 수정은 main에 반영 및 push 완료됐다.
 - 의존성 조사 브랜치 `codex/dependency-audit-remediation`은 병합하지 않았다. root `npm audit` 16건(높음 12, 보통 4), `npm audit --omit=dev` 높은 위험 4건, Rules 도구 audit 16건(높음 12, 보통 4), Functions audit 0건이다. Firebase 13 / Rules Unit Testing 6 시험은 Rules 1000-expression 문제가 재발하고 audit 개선이 없어 철회했다. `firebase-tools` 14.23.0 하향은 critical 1건 포함 총 22건으로 악화되어 철회했다. 안전성이 검증된 dependency remediation은 없으며 package 및 lockfile은 기준 상태로 복원됐다.
 - 전체 회귀 브랜치 `codex/full-regression`에서 `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin` 통과, Functions 단위 테스트 `557/557 PASS`, Functions Emulator 통합 11개 흐름 PASS, Browser E2E `11/11 PASS`였다. main baseline에서 발견된 Rules 1000-expression 실패는 Rules 수정 후 최종 suite `171/171 PASS`로 해결됐다.
