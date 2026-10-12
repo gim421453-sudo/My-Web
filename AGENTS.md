@@ -152,19 +152,40 @@ Allowed:
 
 Codex may inspect Git state when necessary for accurate documentation.
 
-Actual Git operations such as:
+For every meaningful development, bug-fix, refactor, security, or investigation task, use this default workflow:
 
-- clone
-- init
-- add
-- commit
-- pull
-- push
-- remote changes
+1. Synchronize `main` with the latest `origin/main` before starting.
+2. Do not implement, fix, refactor, or investigate directly on `main`.
+3. Create a separate `codex/*` branch for each task, based on the synchronized `main`.
+4. Prefer a separate Git worktree for each branch when practical.
+5. Implement or investigate on the task branch/worktree.
+6. Run checks appropriate to the change, such as tests, typecheck, build, Rules, Functions, or Browser validation.
+7. Run `git diff --check`.
+8. Do not use `git add .` or `git add -A` by default; explicitly stage only intended files.
+9. Commit on the task branch and push it to `origin` as a recovery point.
+10. Synchronize `main` with the latest `origin/main` again before integration.
+11. Prefer `--ff-only` when merging the task branch into `main`.
+12. If fast-forward is not possible, do not force it; inspect and resolve the divergence cause first.
+13. Run the core regression checks again on `main` after integration.
+14. Push `main` only after those checks pass.
+15. Update `CURRENT_HANDOFF` and other relevant project documents to describe the final `main` state.
+16. Verify the integration is present on `main` and the remote before cleaning up temporary worktrees or branches.
 
-are performed by the user unless the user explicitly changes this policy.
+Branch naming recommendations:
 
-현재 Git 상태 조회와 diff 검증은 가능하지만, `fetch`, `merge`, `rebase`, `switch`, `checkout`, `reset`, `clean`, `stash` 및 force 작업도 사용자가 명시적으로 요청하기 전에는 수행하지 않는다.
+- `codex/feat-*`
+- `codex/fix-*`
+- `codex/refactor-*`
+- `codex/security-*`
+- `codex/test-*`
+- `codex/docs-*`
+- `codex/investigation-*`
+
+Investigation and experiments also use a separate branch/worktree. If they yield no source change, do not merge the experiment branch solely for that reason; integrate only the useful findings into final documentation. Keep debug/emulator logs, temporary runtimes, and generated artifacts out of commits unless intentionally required.
+
+Never use `git reset --hard`; force push is prohibited by default. Direct pushes to `main` are limited to verified merge results and final documentation updates. Production Firebase data changes, production deployments, and IAM changes remain subject to existing approval and HOLD policies. For urgent fixes, use a `codex/fix-*` branch whenever practical.
+
+Git operations (including fetch, branch/worktree creation, staging, commit, merge, push, and cleanup) remain subject to explicit user authorization under this repository policy. This documented workflow defines the sequence when those operations are authorized; it does not authorize destructive or force operations. The user may instead perform the Git commands themselves.
 
 ## Final response requirement
 

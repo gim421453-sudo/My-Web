@@ -12,6 +12,7 @@ Status: FULL_REGRESSION_PASS_WITH_DEPENDENCY_ADVISORIES
 - 격리 검증 런타임은 Node `22.23.2` / Temurin JRE 21 계열이며 demo project와 loopback emulator만 사용했다. 운영 Firebase 접근, 운영 데이터 변경, production 배포는 없었다.
 - 잔여 작업: npm advisory 후속 조사; 필요 시 Node 22 개발환경 정식화; 기존 수동 UI/출력 검증. 별도 승인 전 IAM `HOLD`를 유지한다. 강제 override, major downgrade, `npm audit fix --force`는 적용하지 않았다.
 - 작업 금지/반복 방지: dependency remediation 및 full regression 브랜치는 main에 병합하지 않았다. 코드, Firestore rules, dependency manifest/lockfile은 이 문서 통합 작업에서 수정하지 않는다. 미추적 `firestore-debug.log` 파일은 보존하며 변경하지 않는다.
+- Git 운영 표준: 의미 있는 작업마다 main 최신화 후 별도 `codex/*` 브랜치와 가능하면 worktree에서 수행하고, 검증·명시적 stage·commit·원격 복구 지점·검증된 main 병합 순서를 따르는 정책을 채택했다. 조사 결과는 코드 변경이 없으면 문서에만 통합한다.
 - Cross-device readiness: `READY_WITH_WARNINGS` — 현재 main의 HEAD, 최종 Rules/회귀 결과, 잔여 advisory, 미실행 수동 검증과 IAM HOLD를 기록했다.
 
 ## 과거 기록: 의존성 취약점 조사 후속 (2026-10-11; 아래 당시 브랜치 결과는 위 최종 상태로 대체됨)
