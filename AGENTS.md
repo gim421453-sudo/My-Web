@@ -26,9 +26,21 @@ OWNER: Codex
 - 상대 프로젝트의 담당이 다른 AI여도 저장소는 읽기만 하고, 필요한 변경은 docs/integration.md에 요청으로 남긴다. 상대 저장소를 직접 수정하지 않는다.
 - 연동 때문에 현재 프로젝트의 구조를 크게 바꾸지 않는다.
 
-## 최신 인계 요약 (2026-10-12)
+## 최신 인계 요약 (2026-10-15)
 
-- 최종 상태: `FULL_REGRESSION_PASS_WITH_DEPENDENCY_ADVISORIES`. 현재 브랜치는 `main`; 코드 기준 커밋은 `6058771` (`fix: reduce firestore membership rules expression budget`)이고, 최종 문서 갱신은 main에 커밋·푸시 완료됐다. Rules expression budget 차단 요인은 해결됐고 전체 자동 회귀 기준은 통과했다. npm advisory는 미해결 잔여 위험이다.
+- App Next 공지 CRUD 최종 검증을 `codex/feat-app-next-core-crud` worktree에서 완료했다. Browser recovery suite `13/13 PASS`; `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin`, `git diff --check`도 통과했다. demo project와 loopback Emulator만 사용했으며 production 접근/데이터 변경/deploy/IAM/Rules/Functions/dependency 변경은 없었다.
+- browser suite 실행 전 지정 포트에 stale emulator listener가 없고 locator 파일도 없었다. suite가 demo Auth/Firestore Emulator를 시작해 정상 종료했고, stale emulator 프로세스 종료는 불필요했다. 생성된 `firestore-debug.log`는 종료 및 잠금 해제 확인 후 삭제했다. 기존 `tmp/recovery-browser-emulator-debug.log`는 이번 실행 산출물이 아니어서 보존했다.
+- 수정된 마지막 오류·지연 UI 테스트까지 통과했다. Firebase WebChannel 내부 confirmation read를 개별 HTTP 요청으로 차단하는 brittle E2E 주입은 제거되어 있고, 네트워크/server-confirm 오류 분류는 deterministic 유틸 테스트 경계에서 검사한다. build의 기존 Vite 비모듈 script 및 React Router `use client` 경고는 비차단 경고로 남았다.
+- Git worktree 및 branch 확인: `codex/feat-app-next-core-crud`, HEAD `9bf213f`. Firebase 설정 생성 파일 diff는 없으며, 금지 파일 diff는 0이다. 상세 변경 목록은 `docs/handoff/CURRENT_HANDOFF.md`를 참조한다. commit/push/merge는 하지 않았다.
+- 남은 수동 비교 항목은 운영 앱과 App Next의 legacy 공지 표시/정렬을 실제 사용자 화면 기준으로 대조하는 것이다. 브라우저 자동화 역할 및 CRUD 검증에는 남은 `MANUAL_REQUIRED`가 없다. 최종 요청 검증 조건을 충족해 `COMMIT_READY`이며, 사용자 제한에 따라 stage/commit/push/merge는 수행하지 않았다.
+
+## 과거 인계 요약 (2026-10-12; 당시 결과는 위 최신 요약과 `docs/handoff/CURRENT_HANDOFF.md` 참조)
+
+- 현재 별도 작업 브랜치 `codex/feat-app-next-core-crud`에서 App Next 공지 CRUD vertical slice를 구현했다. active Firestore Rules 변경 없이 기존 `workspaces/{workspaceId}/notices` 권한 계약을 사용하며, `system_owner`/`super_manager`/`manager`는 App Next 표식 공지를 관리하고 `teacher`/`normal`은 본인 공지만 관리한다. `viewer`/`print_account`는 쓰기 불가다. `RequireWorkspaceRole`, 서비스 계층, server-confirmed UI, 입력/권한/네트워크 오류 처리 및 테스트를 추가했다.
+- 마지막 완료 전체 browser suite는 사용자 확인 기준 13개 중 12 PASS, 1 FAIL이다. 남은 실패는 Firestore WebChannel 내부의 confirmation read를 특정 HTTP request로 mock하려던 테스트 설계였다. E2E에서 transport 차단을 제거하고, unavailable 및 server-confirm 오류 분류를 관련 유틸에 deterministic error로 주입하는 단위 검사로 분리했다. 삭제 matcher는 완료 상태 문구를 확인한다. 제품 권한/서버 확인 코드는 수정하지 않았다. 신규 단위 검사는 통과했으나 targeted 및 전체 browser 실행은 현재 실행 컨텍스트에서 Emulator Hub 4400이 열리지 않아 테스트 본체에 도달하지 못했다. 13/13은 미확인이다. browser gate 미충족으로 전체 후속 regression/build는 실행하지 않았다. commit/push/merge는 하지 않았다.
+- `.git` 연결 파일은 존재하고 `git rev-parse`는 worktree 루트를 반환하지만, 현재 실행 권한에서 `git status`/`git diff`가 `must be run in a work tree`로 실패했다. 최종 변경 목록과 금지 파일 무변경은 재확인 필요하다. `firestore-debug.log` 제거는 파일 접근 거부로 완료되지 않았다. 상세 결과는 `docs/handoff/CURRENT_HANDOFF.md`를 참조한다.
+
+- 과거 main 상태 기록: `FULL_REGRESSION_PASS_WITH_DEPENDENCY_ADVISORIES`. 당시 코드 기준 커밋은 `6058771` (`fix: reduce firestore membership rules expression budget`)이고, 문서 갱신은 main에 커밋·푸시 완료됐다. 아래 요약은 해당 시점의 기록이다.
 - Firestore Rules: membership 역할 변경 경로에서 `canUpdateMembershipRole`로 기존 역할 관리 권한과 요청 역할 부여 권한을 통합해 평가식 사용량을 줄였다. 자기 역할 변경 금지, `system_owner` 권한, 기존 역할 허용 범위를 유지했다. Rules Emulator 전체 suite `171/171 PASS`; 변경은 `main`에 반영 및 push 완료.
 - 의존성 조사: `codex/dependency-audit-remediation` 결과는 main에 반영하지 않았다. root 감사 16건(높음 12, 보통 4), production-only 높은 위험 4건, Rules 도구 16건(높음 12, 보통 4), Functions 0건이다. Firebase 13/Rules Unit Testing 6 시험은 expression 한도 문제 재발과 감사 개선 부재로 철회했고, `firebase-tools` 14.23.0 하향은 critical 1건 포함 22건으로 악화되어 철회했다. 검증된 안전한 remediation은 없으며 manifest/lockfile은 기준 상태다.
 - 전체 회귀: 별도 `codex/full-regression`에서 `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin` 통과, Functions 단위 테스트 `557/557`, Functions Emulator 통합 11개 흐름, Browser E2E `11/11` 통과. 최종 Rules suite `171/171 PASS`. 격리 런타임은 Node `22.23.2`/Temurin JRE 21 계열, demo project와 loopback emulator만 사용했다. 운영 Firebase 접근 및 배포는 없었다.

@@ -31,7 +31,17 @@ import {
   type AppNextWorkspaceNoticeSource,
 } from "./appNextWorkspaceNoticesUtils";
 import {
+  appNextWorkspaceNoticeWritePolicy,
+  APP_NEXT_NOTICE_WRITE_ROLES,
+  type AppNextWorkspaceNoticeManagementRecord,
+} from "./appNextWorkspaceNoticeCrudUtils";
+import {
+  AppNextWorkspaceNoticeCrud,
+} from "./AppNextWorkspaceNoticeCrud";
+import RequireWorkspaceRole from "../components/guards/RequireWorkspaceRole";
+import {
   appNextDiagnosticFingerprint,
+  getAppNextNoticeRouteDiagnostics,
   recordAppNextNoticeDiagnostics,
 } from "./appNextDiagnostics";
 
@@ -198,6 +208,7 @@ export function AppNextWorkspaceNotices() {
     reloadSession,
   } = useAuth();
   const [notices, setNotices] = useState<AppNextWorkspaceNoticeRecord[]>([]);
+  const [managedNotices, setManagedNotices] = useState<AppNextWorkspaceNoticeManagementRecord[]>([]);
   const [source, setSource] = useState<AppNextWorkspaceNoticeSource>("none");
   const [readCount, setReadCount] = useState(0);
   const [filteredCount, setFilteredCount] = useState(0);
@@ -240,6 +251,10 @@ export function AppNextWorkspaceNotices() {
       session,
     ],
   );
+  const writePolicy = useMemo(
+    () => appNextWorkspaceNoticeWritePolicy({ phase, session }),
+    [phase, session],
+  );
   const workspaceResolutionDiagnostics = useMemo(() => {
     const resolution = session?.workspaceResolution;
     return {
@@ -259,9 +274,11 @@ export function AppNextWorkspaceNotices() {
     session?.isSystemOwner,
     session?.workspaceResolution,
   ]);
+  const writeDiagnostics = getAppNextNoticeRouteDiagnostics();
 
   const resetNoticeState = useCallback(() => {
     setNotices([]);
+    setManagedNotices([]);
     setSource("none");
     setReadCount(0);
     setFilteredCount(0);
@@ -286,8 +303,8 @@ export function AppNextWorkspaceNotices() {
 
   const loadWorkspaceNotices = useCallback(async (
     requestMode: NoticeRequestMode = "default",
-  ) => {
-    if (inFlightRef.current) return;
+  ): Promise<boolean> => {
+    if (inFlightRef.current) return false;
 
     const startedAt = new Date().toISOString();
     setLastRequestedReadMode(requestMode);
@@ -306,7 +323,7 @@ export function AppNextWorkspaceNotices() {
       lastErrorKind: "none",
       lastReadStartedAt: startedAt,
       listenerCount: 0,
-      writeApiImported: false,
+      writeApiImported: true,
       automaticSignOut: "none",
     });
 
@@ -332,10 +349,10 @@ export function AppNextWorkspaceNotices() {
         displayedCount: 0,
         currentWorkspaceFingerprint,
         listenerCount: 0,
-        writeApiImported: false,
+        writeApiImported: true,
         automaticSignOut: "none",
       });
-      return;
+      return false;
     }
 
     inFlightRef.current = true;
@@ -349,6 +366,7 @@ export function AppNextWorkspaceNotices() {
       });
 
       setNotices(result.notices);
+      setManagedNotices(result.managedNotices);
       setSource(result.source);
       setReadCount(result.readCount);
       setFilteredCount(result.filteredCount);
@@ -386,10 +404,11 @@ export function AppNextWorkspaceNotices() {
         pendingWrites: String(result.hasPendingWrites),
         currentWorkspaceFingerprint,
         listenerCount: 0,
-        writeApiImported: false,
+        writeApiImported: true,
         automaticSignOut: "none",
       });
       setMessage(result.notices.length ? "" : "등록된 워크스페이스 공지사항이 없습니다.");
+      return true;
     } catch (error) {
       const kind = classifyNoticeError(error);
       resetNoticeState();
@@ -418,10 +437,11 @@ export function AppNextWorkspaceNotices() {
         pendingWrites: "-",
         currentWorkspaceFingerprint,
         listenerCount: 0,
-        writeApiImported: false,
+        writeApiImported: true,
         automaticSignOut: "none",
       });
       setMessage(errorMessage(kind, requestMode));
+      return false;
     } finally {
       const completedAt = new Date().toISOString();
       setLastReadCompletedAt(completedAt);
@@ -436,6 +456,7 @@ export function AppNextWorkspaceNotices() {
     readPolicy.canRead,
     readPolicy.reason,
     readPolicy.workspaceRole,
+    writePolicy.canCreate,
     resetNoticeState,
     phase,
     session?.status,
@@ -550,7 +571,7 @@ export function AppNextWorkspaceNotices() {
         <div>
           <h2>워크스페이스 공지</h2>
           <p>
-            현재 선택된 워크스페이스의 <code>{"workspaces/{workspace}/notices"}</code> 문서를 운영 화면과 같은 범위로 읽기 전용 조회합니다.
+            현재 선택된 워크스페이스의 <code>{"workspaces/{workspace}/notices"}</code>를 조회합니다. App Next에서 만든 공지만 기존 권한에 따라 관리할 수 있습니다.
           </p>
         </div>
         <button
@@ -610,6 +631,26 @@ export function AppNextWorkspaceNotices() {
         <dt>workspace role</dt>
         <dd>{readPolicy.workspaceRole}</dd>
       </dl>
+
+      {readPolicy.canRead && writePolicy.canCreate && session?.currentWorkspaceId ? (
+        <RequireWorkspaceRole
+          allowedRoles={APP_NEXT_NOTICE_WRITE_ROLES}
+          allowSystemOwnerBypass
+          requireWorkspace
+          previewMode
+          useExistingAuthProvider
+          defaultNewAuth
+          currentRoute="notices"
+          requestedRoute="notices"
+          menuVisible
+        >
+          <AppNextWorkspaceNoticeCrud
+            workspaceId={session.currentWorkspaceId}
+            managedNotices={managedNotices}
+            onServerConfirmed={() => loadWorkspaceNotices("server")}
+          />
+        </RequireWorkspaceRole>
+      ) : null}
 
       {loading ? <p className="app-next-message">이전 결과와 구분하기 위해 새 요청을 처리 중입니다.</p> : null}
       {message && !loading ? <p className="app-next-message">{message}</p> : null}
@@ -736,23 +777,19 @@ export function AppNextWorkspaceNotices() {
             <dt>noticeReadCount</dt>
             <dd>{String(readCount)}</dd>
             <dt>noticeCreateCount</dt>
-            <dd>0</dd>
+            <dd>{String(writeDiagnostics.createCount)}</dd>
             <dt>noticeUpdateCount</dt>
-            <dd>0</dd>
+            <dd>{String(writeDiagnostics.updateCount)}</dd>
             <dt>noticeDeleteCount</dt>
-            <dd>0</dd>
-            <dt>noticeSeedCount</dt>
-            <dd>0</dd>
-            <dt>noticeRestoreCount</dt>
-            <dd>0</dd>
-            <dt>noticeMergeSourceCount</dt>
-            <dd>0</dd>
+            <dd>{String(writeDiagnostics.deleteCount)}</dd>
+            <dt>write attempt count</dt>
+            <dd>{String(writeDiagnostics.writeAttemptCount)}</dd>
             <dt>lastNoticeWriteReason</dt>
-            <dd>none</dd>
+            <dd>{writeDiagnostics.lastWriteReason}</dd>
             <dt>listener count</dt>
             <dd>0</dd>
             <dt>write API imported</dt>
-            <dd>false</dd>
+            <dd>true</dd>
             <dt>automatic signOut</dt>
             <dd>none</dd>
           </dl>

@@ -18,8 +18,9 @@ Expected:
 - auth module tests pass
 - timetable stability checks pass
 - build succeeds
-- workspace notice tests confirm read-only imports
-- no Firestore write APIs in app-next workspace notice files
+- notice write-policy tests match active membership roles
+- CRUD service verifies server state after create/update/delete
+- mutation controls are guarded by `RequireWorkspaceRole`
 - no `signOut(...)` in the workspace notice screen
 
 ## Browser Comparison
@@ -77,15 +78,31 @@ Confirm aggregate diagnostics only:
 - `dateMappingBySchema`
 - `categoryMappingBySchema`
 - `listener count = 0`
-- `write API imported = false`
+- `write API imported = true`
+- write attempt/create/update/delete counts
+- last server-confirmation or error category
 - `automatic signOut = none`
+
+## CRUD Role Matrix
+
+Use only a demo project and loopback Auth/Firestore Emulator:
+
+- `system_owner`, `super_manager`, and `manager` can manage App Next-marked notices in the selected workspace
+- `teacher` and `normal` can create and manage only their own App Next-marked notices
+- `viewer` and `print_account` can read but cannot see write controls or write through Firestore
+- non-active, signed-out, and workspace-less sessions cannot write
+- cross-workspace path/payload mismatch is rejected by Rules
+- create/update/delete show completion only after server confirmation; simulate permission denial and network loss
+- legacy and system notice documents without the App Next marker never receive edit/delete controls
 
 ## Must Not Happen
 
-- Firestore write
+- write to an unmarked legacy/system notice
+- viewer or print-account write
+- cross-workspace write
+- optimistic success before server confirmation
 - listener creation
 - read receipt update
-- notice edit/delete/create
 - automatic sign out
 - raw UID/email/workspace ID exposure
 - operational app redirect
@@ -98,8 +115,20 @@ Because the operational general notice tab and the system-owner workspace notice
 - general notice tab: `store.notices` filtered order
 - system-owner workspace notice management: `createdAt` descending
 
-app-next currently follows a stable workspace-notice read-only order:
+App Next follows the existing stable workspace-notice read order:
 
 ```text
 pinned desc -> published/created/notice date desc -> legacy snapshot order -> document id asc
 ```
+
+## Final Review Results (2026-10-15)
+
+- `npm run test:recovery:browser`: PASS, 13 tests / 13 pass / 0 fail / 0 skipped / 0 todo. This covers seven legacy roles, role switching, pending/rejected/disabled fail-closed, protected App Next URL, role CRUD with Firestore state, input/permission/error/server-confirmation delay UI, and runtime/loopback safety.
+- `npm test`: PASS (exit code 0).
+- `npm run typecheck`: PASS (exit code 0).
+- `npm run build`: PASS (exit code 0).
+- `npm run build:admin`: PASS (exit code 0).
+- `git diff --check`: PASS. Generated Firebase config files had no diff; prohibited Rules/dependency manifests and lockfiles had zero diff. Emulator-generated `firestore-debug.log` was unlocked and removed after Emulator shutdown.
+- Emulator used demo project `demo-myweb-recovery-e2e` and loopback services only. No stale listener or locator was present before execution; no process needed termination. Existing Vite non-module script and React Router `use client` messages were non-blocking build warnings.
+- Automatic browser checks have no remaining `MANUAL_REQUIRED`. Manual comparison of legacy notice display/order against the operational app remains a separate visual sign-off item.
+- No production Firebase/data access, deployment, IAM, Rules, Functions, or dependency changes.

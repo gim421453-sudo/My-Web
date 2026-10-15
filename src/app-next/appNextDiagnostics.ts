@@ -106,6 +106,10 @@ export interface AppNextNoticeRouteDiagnosticsSnapshot {
   workspaceMasked: string;
   lastLoadSource: string;
   writeAttemptCount: number;
+  createCount: number;
+  updateCount: number;
+  deleteCount: number;
+  lastWriteReason: string;
 }
 
 export interface AppNextRouteDiagnosticsSnapshot {
@@ -587,8 +591,15 @@ let noticeDiagnostics: AppNextNoticeDiagnosticsSnapshot = {
   sameServerUsersCurrentWorkspace: "unknown",
   sameResolvedWorkspace: "unknown",
   listenerCount: 0,
-  writeApiImported: false,
+  writeApiImported: true,
   automaticSignOut: "none",
+};
+let noticeWriteDiagnostics = {
+  writeAttemptCount: 0,
+  createCount: 0,
+  updateCount: 0,
+  deleteCount: 0,
+  lastWriteReason: "none",
 };
 
 function installAppNextDiagnosticsWindows(): void {
@@ -1228,7 +1239,34 @@ export function getAppNextNoticeRouteDiagnostics(): AppNextNoticeRouteDiagnostic
     duplicateNoticeCount: 0,
     workspaceMasked: noticeDiagnostics.currentWorkspaceFingerprint,
     lastLoadSource: noticeDiagnostics.lastCompletedReadMode,
-    writeAttemptCount: 0,
+    ...noticeWriteDiagnostics,
+  };
+}
+
+export function recordAppNextNoticeWriteAttempt(
+  action: "create" | "update" | "delete",
+): void {
+  noticeWriteDiagnostics = {
+    ...noticeWriteDiagnostics,
+    writeAttemptCount: noticeWriteDiagnostics.writeAttemptCount + 1,
+    lastWriteReason: `${action}:pending`,
+  };
+}
+
+export function recordAppNextNoticeWriteResult(
+  action: "create" | "update" | "delete",
+  reason: string,
+  confirmed: boolean,
+): void {
+  const confirmedCountKey = action === "create"
+    ? "createCount"
+    : action === "update"
+      ? "updateCount"
+      : "deleteCount";
+  noticeWriteDiagnostics = {
+    ...noticeWriteDiagnostics,
+    ...(confirmed ? { [confirmedCountKey]: noticeWriteDiagnostics[confirmedCountKey] + 1 } : {}),
+    lastWriteReason: `${action}:${reason}`,
   };
 }
 

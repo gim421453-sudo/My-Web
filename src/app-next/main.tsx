@@ -27,7 +27,7 @@ function AppNextDisabled() {
   return (
     <main className="app-next-shell">
       <section className="app-next-card app-next-muted">
-        <p>App Next 읽기 전용</p>
+        <p>App Next</p>
         <h1>이 시험 화면은 비활성화되어 있습니다.</h1>
         <p>개발 환경 rollback: <code>?appNextAuth=off</code></p>
       </section>

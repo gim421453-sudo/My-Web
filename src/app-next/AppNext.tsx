@@ -756,7 +756,7 @@ export function AppNext({
   return (
     <main className="app-next-shell">
       <header className="app-next-header">
-        <p>App Next 읽기 전용</p>
+        <p>App Next</p>
         <h1>{pageTitle}</h1>
         <span className={`app-next-badge app-next-${stateMessage.tone}`}>
           {stateMessage.title}

@@ -498,6 +498,70 @@ button.secondary {
   padding: 16px;
 }
 
+.app-next-notice-crud {
+  border-top: 1px solid #d7e0ee;
+  margin-top: 20px;
+  padding-top: 16px;
+}
+
+.app-next-notice-crud h3 {
+  margin: 0 0 8px;
+}
+
+.app-next-notice-form {
+  display: grid;
+  gap: 12px;
+  max-width: 760px;
+}
+
+.app-next-notice-form label {
+  color: #344054;
+  display: grid;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.app-next-notice-form input,
+.app-next-notice-form textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font: inherit;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.app-next-notice-form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.app-next-notice-manage-list {
+  border-top: 1px solid #e4e7ec;
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 12px 0 0;
+}
+
+.app-next-notice-manage-list li {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.app-next-notice-manage-list strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.app-next-error {
+  border-color: #fda29b;
+  color: #b42318 !important;
+}
+
 .app-next-device-head span {
   border-radius: 999px;
   background: #ecfdf3;

@@ -164,6 +164,7 @@ const appNextRouteUtils = loadTsModule("src/app-next/appNextRouteUtils.ts");
 const appNextLoginDevicesUtils = loadTsModule("src/app-next/appNextLoginDevicesUtils.ts");
 const appNextNotificationsUtils = loadTsModule("src/app-next/appNextNotificationsUtils.ts");
 const appNextWorkspaceNoticesUtils = loadTsModule("src/app-next/appNextWorkspaceNoticesUtils.ts");
+const appNextWorkspaceNoticeCrudUtils = loadTsModule("src/app-next/appNextWorkspaceNoticeCrudUtils.ts");
 const appNextDashboardUtils = loadTsModule("src/app-next/appNextDashboardUtils.ts");
 const appNextAccountSettingsUtils = loadTsModule("src/app-next/appNextAccountSettingsUtils.ts");
 const appNextTimetableReadonlyUtils = loadTsModule("src/app-next/appNextTimetableReadonlyUtils.ts");
@@ -4784,7 +4785,7 @@ const tests = [
     assert.match(noticeSource, /filteredCount: result\.filteredCount/);
     assert.match(noticeSource, /getDocFromServer/);
     assert.match(noticeSource, /listenerCount: 0/);
-    assert.match(noticeSource, /writeApiImported: false/);
+    assert.match(noticeSource, /writeApiImported: true/);
     assert.match(noticeSource, /automaticSignOut: "none"/);
     assert.match(noticeSource, /canonicalSource: "AppSession\.currentWorkspaceId"/);
     assert.match(noticeSource, /서버 사용자 기준 세션 다시 확인/);
@@ -5720,6 +5721,75 @@ const tests = [
     assert.equal(records[0].title, "Selected");
     assert.equal(result.excludedReasons["workspace-mismatch"], 1);
   }],
+  ["app-next notice create role policy follows active membership Rules", () => {
+    for (const role of ["super_manager", "manager", "teacher", "normal"]) {
+      const policy = appNextWorkspaceNoticeCrudUtils.appNextWorkspaceNoticeWritePolicy({
+        phase: "authenticated",
+        session: makeSession({ currentWorkspaceId: "wsA", currentWorkspaceRole: role }),
+      });
+      assert.equal(policy.canCreate, true, role);
+      assert.equal(policy.workspaceId, "wsA");
+    }
+
+    for (const role of ["viewer", "print_account"]) {
+      const policy = appNextWorkspaceNoticeCrudUtils.appNextWorkspaceNoticeWritePolicy({
+        phase: "authenticated",
+        session: makeSession({ currentWorkspaceId: "wsA", currentWorkspaceRole: role }),
+      });
+      assert.equal(policy.canCreate, false, role);
+      assert.equal(policy.canManageAll, false, role);
+    }
+  }],
+  ["app-next notice owner and manager can manage all managed notices while authors manage only theirs", () => {
+    const policyFor = (role, uid = "writer", isSystemOwner = false) => appNextWorkspaceNoticeCrudUtils.appNextWorkspaceNoticeWritePolicy({
+      phase: "authenticated",
+      session: makeSession({
+        uid,
+        currentWorkspaceId: "wsA",
+        currentWorkspaceRole: role,
+        globalRole: isSystemOwner ? "system_owner" : "user",
+        isSystemOwner,
+      }),
+    });
+    for (const role of ["super_manager", "manager"]) {
+      assert.equal(appNextWorkspaceNoticeCrudUtils.canManageAppNextWorkspaceNotice(policyFor(role), "another-user"), true);
+    }
+    const teacher = policyFor("teacher");
+    assert.equal(appNextWorkspaceNoticeCrudUtils.canManageAppNextWorkspaceNotice(teacher, "writer"), true);
+    assert.equal(appNextWorkspaceNoticeCrudUtils.canManageAppNextWorkspaceNotice(teacher, "another-user"), false);
+    assert.equal(appNextWorkspaceNoticeCrudUtils.canManageAppNextWorkspaceNotice(policyFor("normal"), "writer"), true);
+    assert.equal(appNextWorkspaceNoticeCrudUtils.canManageAppNextWorkspaceNotice(policyFor("viewer"), "writer"), false);
+    assert.equal(appNextWorkspaceNoticeCrudUtils.canManageAppNextWorkspaceNotice(policyFor(null, "owner", true), "another-user"), true);
+    assert.equal(policyFor(null, "owner", true).canCreate, true);
+  }],
+  ["app-next notice writes fail closed for inactive and workspace-less sessions", () => {
+    for (const session of [
+      makeSession({ status: "pending", currentWorkspaceId: "wsA", currentWorkspaceRole: "manager" }),
+      makeSession({ currentWorkspaceId: null, currentWorkspaceRole: "manager" }),
+      makeSession({ currentWorkspaceId: "wsA", currentWorkspaceRole: "manager" }),
+    ]) {
+      const policy = appNextWorkspaceNoticeCrudUtils.appNextWorkspaceNoticeWritePolicy({
+        phase: session.status === "pending" ? "account_action_required" : session.currentWorkspaceId ? "error" : "authenticated",
+        session,
+      });
+      assert.equal(policy.canCreate, false);
+      assert.equal(policy.canManageAll, false);
+    }
+  }],
+  ["app-next notice draft validation trims and bounds fields", () => {
+    assert.equal(appNextWorkspaceNoticeCrudUtils.validateAppNextWorkspaceNoticeDraft({ title: " ", content: "body" }), "제목을 입력해 주세요.");
+    assert.equal(appNextWorkspaceNoticeCrudUtils.validateAppNextWorkspaceNoticeDraft({ title: "title", content: " " }), "내용을 입력해 주세요.");
+    assert.equal(appNextWorkspaceNoticeCrudUtils.validateAppNextWorkspaceNoticeDraft({ title: "t".repeat(121), content: "body" }), "제목은 120자 이내로 입력해 주세요.");
+    assert.equal(appNextWorkspaceNoticeCrudUtils.validateAppNextWorkspaceNoticeDraft({ title: "title", content: "x".repeat(5001) }), "내용은 5,000자 이내로 입력해 주세요.");
+    assert.equal(appNextWorkspaceNoticeCrudUtils.validateAppNextWorkspaceNoticeDraft({ title: " title ", content: " body " }), null);
+  }],
+  ["app-next notice write errors classify injected network and server-confirmation failures", () => {
+    const unavailable = Object.assign(new Error("demo Firestore unavailable"), { code: "firestore/unavailable" });
+    const unconfirmed = Object.assign(new Error("server response did not match"), { code: "app-next-write-unconfirmed" });
+
+    assert.match(appNextWorkspaceNoticeCrudUtils.appNextWorkspaceNoticeWriteErrorMessage(unavailable, "create"), /네트워크 오류/);
+    assert.match(appNextWorkspaceNoticeCrudUtils.appNextWorkspaceNoticeWriteErrorMessage(unconfirmed, "update"), /서버에서 확인하지 못했습니다/);
+  }],
   ["app-next workspace notices blocks pending rejected and disabled states", () => {
     for (const status of ["pending", "rejected", "disabled"]) {
       const policy = appNextWorkspaceNoticesUtils.appNextWorkspaceNoticeReadPolicy({
@@ -6008,6 +6078,17 @@ const tests = [
     assert.equal(source.includes("limit("), false);
     assert.equal(source.includes("orderBy"), false);
     assert.equal(source.includes("where("), false);
+  }],
+  ["app-next notice CRUD service scopes paths and verifies server state after each write", () => {
+    const source = readFileSync(path.resolve(projectRoot, "src/app-next/appNextWorkspaceNoticeCrudService.ts"), "utf8");
+    assert.match(source, /collection\(getFirebaseDb\(\), "workspaces", input\.workspaceId, "notices"\)/);
+    assert.match(source, /appNextManaged: true/);
+    assert.match(source, /getDocFromServer\(ref\)/);
+    assert.match(source, /await updateDoc\(ref/);
+    assert.match(source, /await deleteDoc\(ref\)/);
+    assert.match(source, /assertConfirmedNotice/);
+    assert.equal(source.includes("writeBatch"), false);
+    assert.equal(source.includes("runTransaction"), false);
   }],
   ["app-next workspace notices has no read receipt or sign out actions", () => {
     const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextWorkspaceNotices.tsx"), "utf8");
@@ -7745,7 +7826,7 @@ const tests = [
     assert.equal(serviceSource.includes("updateDoc"), false);
     assert.equal(serviceSource.includes("deleteDoc"), false);
     assert.match(componentSource, /listenerCount:\s*0/);
-    assert.match(componentSource, /writeApiImported:\s*false/);
+    assert.match(componentSource, /writeApiImported:\s*true/);
   }],
   ["app-next dashboard is an actual RequireAuth consumer", () => {
     const source = readFileSync(path.resolve(projectRoot, "src/app-next/AppNext.tsx"), "utf8");

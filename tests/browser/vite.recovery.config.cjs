@@ -1,7 +1,12 @@
 const { readFileSync } = require("node:fs");
-const { resolve } = require("node:path");
+const { dirname, resolve } = require("node:path");
 const { defineConfig } = require("vite");
 const base = require("../../vite.config.js");
+const firebasePackageRoot = resolve(dirname(require.resolve("firebase/app")), "../..");
+const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST || "127.0.0.1:9099";
+const [firestoreEmulatorAddress, firestoreEmulatorPort] = (
+  process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080"
+).split(":");
 
 const localFirebaseCompat = {
   "/__recovery__/firebase-app-compat.js": "firebase/firebase-app-compat.js",
@@ -24,8 +29,8 @@ function recoveryBrowserPlugin() {
             const initializeApp = firebase.initializeApp.bind(firebase);
             firebase.initializeApp = (...args) => {
               const app = initializeApp(...args);
-              firebase.auth(app).useEmulator("http://127.0.0.1:9099");
-              firebase.firestore(app).useEmulator("127.0.0.1", 8080);
+              firebase.auth(app).useEmulator("http://${authEmulatorHost}");
+              firebase.firestore(app).useEmulator("${firestoreEmulatorAddress}", ${Number(firestoreEmulatorPort)});
               return app;
             };
           })();
@@ -46,7 +51,7 @@ function recoveryBrowserPlugin() {
         }
         const relative = localFirebaseCompat[pathname];
         if (!relative) return next();
-        const filePath = resolve(__dirname, "../../node_modules", relative);
+        const filePath = resolve(firebasePackageRoot, relative.replace(/^firebase\//, ""));
         res.statusCode = 200;
         res.setHeader("content-type", "text/javascript; charset=utf-8");
         res.setHeader("cache-control", "no-store");

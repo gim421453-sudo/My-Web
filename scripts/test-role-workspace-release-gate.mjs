@@ -17,6 +17,8 @@ const files = {
   app: readText("app.js"),
   appNextMain: readText("src/app-next/main.tsx"),
   appNext: readText("src/app-next/AppNext.tsx"),
+  appNextManifest: readText("shared/ownerPreviewReleaseManifest.js"),
+  appNextManifestAdapter: readText("src/release/ownerPreviewReleaseManifestAdapter.ts"),
   appNextRoutes: readText("src/app-next/appNextRouteUtils.ts"),
   roles: readText("src/permissions/roles.ts"),
   permissions: readText("src/permissions/permissions.ts"),
@@ -221,6 +223,21 @@ test("app-next route list includes release-gate preview and readonly routes", "v
   for (const route of appNextRoutes) {
     contains(files.appNextRoutes, `"${route}"`, route);
   }
+});
+
+test("app-next notices beta release is explicitly workspace-role scoped for CRUD", "implemented-needs-manual-test", () => {
+  const start = files.appNextManifest.indexOf('appNextFeature("notices"');
+  const end = files.appNextManifest.indexOf('appNextFeature("admin-preview"', start);
+  assert.ok(start >= 0 && end > start, "notice feature definition exists");
+  const feature = files.appNextManifest.slice(start, end);
+  contains(feature, 'ownerPreview: false');
+  contains(feature, 'hasRead: true');
+  contains(feature, 'hasWrite: true');
+  contains(feature, 'globalRoles: ["system_owner", "user"]');
+  contains(feature, "workspaceRoles: allWorkspaceRoles");
+  contains(feature, 'releaseStage: "beta"');
+  contains(files.appNextManifestAdapter, "feature.ownerPreview && globalRole !== \"system_owner\"");
+  contains(files.appNextHtml, "ownerPreviewReleaseManifest.js?v=2");
 });
 
 test("app-next signed_out and non-active states route to account status screens", "verified-complete", () => {

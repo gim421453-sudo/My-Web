@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 import { setTimeout as delay } from "node:timers/promises";
 import { after, before, test } from "node:test";
 import { chromium } from "playwright";
@@ -14,7 +15,11 @@ const PASSWORD = "RecoveryDemoOnly-2026!";
 const WORKSPACE_A = "ws-recovery-e2e-a";
 const WORKSPACE_B = "ws-recovery-e2e-b";
 const APP_URL = "http://127.0.0.1:5179/";
+const AUTH_EMULATOR_HOST = process.env.FIREBASE_AUTH_EMULATOR_HOST || "127.0.0.1:9099";
+const FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const require = createRequire(import.meta.url);
+const VITE_BIN = path.resolve(path.dirname(require.resolve("vite")), "../../bin/vite.js");
 const FIXTURES = [
   ["owner", "system_owner"],
   ["super", "super_manager"],
@@ -104,6 +109,14 @@ async function seedDemoFixtures() {
     visibility: "public",
     authorUid: "recovery-e2e-owner",
   });
+  await adminDb.doc(`workspaces/${WORKSPACE_B}/notices/e2e-other-workspace-notice`).set({
+    workspaceId: WORKSPACE_B,
+    title: "Other workspace notice",
+    content: "Must stay outside the selected workspace",
+    authorUid: "recovery-e2e-owner",
+    appNextManaged: true,
+    createdFrom: "app-next",
+  });
   await adminDb.doc(`workspaces/${WORKSPACE_B}/schedules/e2e-other-workspace`).set({
     id: "e2e-other-workspace",
     workspaceId: WORKSPACE_B,
@@ -155,8 +168,8 @@ async function waitForVite() {
 
 before(async () => {
   assert.equal(process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT, PROJECT_ID, "Firebase project는 명시된 demo project여야 합니다.");
-  requireLoopback("FIREBASE_AUTH_EMULATOR_HOST", process.env.FIREBASE_AUTH_EMULATOR_HOST, 9099);
-  requireLoopback("FIRESTORE_EMULATOR_HOST", process.env.FIRESTORE_EMULATOR_HOST, 8080);
+  requireLoopback("FIREBASE_AUTH_EMULATOR_HOST", AUTH_EMULATOR_HOST);
+  requireLoopback("FIRESTORE_EMULATOR_HOST", FIRESTORE_EMULATOR_HOST);
   assert.ok(!process.env.FIREBASE_CONFIG || process.env.FIREBASE_CONFIG.includes("demo-myweb-recovery-e2e"), "Firebase CLI config가 demo project를 가리켜야 합니다.");
 
   adminApp = initializeApp({ projectId: PROJECT_ID }, "recovery-browser-e2e");
@@ -172,13 +185,13 @@ before(async () => {
     VITE_FIREBASE_STORAGE_BUCKET: `${PROJECT_ID}.appspot.com`,
     VITE_FIREBASE_MESSAGING_SENDER_ID: "000000000000",
     VITE_FIREBASE_APP_ID: "1:000000000000:web:recoverydemo",
-    VITE_FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099",
-    VITE_FIREBASE_FIRESTORE_EMULATOR_HOST: "127.0.0.1:8080",
+    VITE_FIREBASE_AUTH_EMULATOR_HOST: AUTH_EMULATOR_HOST,
+    VITE_FIREBASE_FIRESTORE_EMULATOR_HOST: FIRESTORE_EMULATOR_HOST,
     VITE_ENABLE_NEW_AUTH_REQUIRE_AUTH: "true",
     PLAYWRIGHT_BROWSERS_PATH: "0",
   };
   viteProcess = spawn(process.execPath, [
-    path.join(ROOT, "node_modules/vite/bin/vite.js"),
+    VITE_BIN,
     "--config", path.join(ROOT, "tests/browser/vite.recovery.config.cjs"),
     "--host", "127.0.0.1", "--port", "5179", "--strictPort",
   ], { cwd: ROOT, env: childEnv, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
@@ -226,6 +239,33 @@ async function login(page, shortName) {
   await page.locator('#loginForm button[type="submit"]').click();
   await page.locator("#loginScreen").waitFor({ state: "hidden", timeout: 20_000 });
   await page.locator("#app").waitFor({ state: "visible", timeout: 10_000 });
+}
+
+async function loginAppNext(page, shortName) {
+  await page.goto(`${APP_URL}app-next.html#/login`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "이메일/비밀번호 고급 옵션" }).click();
+  await page.locator('input[type="email"]').fill(`recovery-e2e-${shortName}@example.test`);
+  await page.locator('input[type="password"]').fill(PASSWORD);
+  await page.locator("form button[type=submit]").click();
+  await page.waitForFunction(
+    () => document.body.innerText.includes("signed_in")
+      || document.body.innerText.includes("로그아웃")
+      || document.body.innerText.includes("활성 계정")
+      || document.body.innerText.includes("시스템 오너 계정")
+      || Boolean(document.querySelector('[role="alert"]')),
+    null,
+    { timeout: 40_000 },
+  );
+  await page.goto(`${APP_URL}app-next.html#/notices`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "워크스페이스 공지" }).waitFor({ timeout: 30_000 });
+  await page.getByText("Recovery E2E seeded notice", { exact: true }).waitFor({ timeout: 20_000 });
+}
+
+async function queryNoticeByTitle(title) {
+  return adminDb.collection(`workspaces/${WORKSPACE_A}/notices`)
+    .where("title", "==", title)
+    .limit(1)
+    .get();
 }
 
 async function expectBrowserRule(page, action, expectedCode) {
@@ -390,6 +430,199 @@ test("App Next 보호 direct URL은 로그아웃·비소유자에서 차단되�
     } finally {
       await context.close();
     }
+  }
+});
+
+test("App Next 공지 CRUD 역할별 UI와 Firestore 서버 상태를 확인한다", { timeout: 300_000 }, async () => {
+  const roles = [
+    ["owner", "system_owner", "all"],
+    ["super", "super_manager", "all"],
+    ["manager", "manager", "all"],
+    ["teacher", "teacher", "own"],
+    ["normal", "normal", "own"],
+    ["viewer", "viewer", "read"],
+    ["print", "print_account", "read"],
+  ];
+
+  for (const [shortName, role, access] of roles) {
+      const uid = `recovery-e2e-${shortName}`;
+      const foreignId = `app-next-foreign-${shortName}`;
+      const ownId = `app-next-own-${shortName}`;
+      const foreignTitle = `App Next foreign ${role}`;
+      const ownTitle = `App Next own ${role}`;
+      await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${foreignId}`).set({
+        workspaceId: WORKSPACE_A,
+        title: foreignTitle,
+        content: "Marked App Next fixture",
+        authorUid: "recovery-e2e-owner",
+        appNextManaged: true,
+        createdFrom: "app-next",
+      });
+      if (access === "own") {
+        await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${ownId}`).set({
+          workspaceId: WORKSPACE_A,
+          title: ownTitle,
+          content: "Own marked fixture",
+          authorUid: uid,
+          appNextManaged: true,
+          createdFrom: "app-next",
+        });
+      }
+
+      const { context, page } = await createPage();
+      try {
+        await loginAppNext(page, shortName);
+        assert.equal(await page.locator(".app-next-notice-crud").count(), access === "read" ? 0 : 1,
+          `${role} CRUD 섹션 표시`);
+        assert.equal(await page.getByText("Other workspace notice", { exact: true }).count(), 0,
+          `${role} 다른 워크스페이스 공지 격리`);
+        assert.equal(await page.getByRole("button", { name: "수정" }).count(), access === "read" ? 0 : 1,
+          `${role} 관리 가능한 표식 공지 수`);
+
+        if (access === "read") {
+          await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${foreignId}`).delete();
+          return;
+        }
+
+        const manageList = page.locator(".app-next-notice-manage-list");
+        assert.equal(await manageList.locator("li").filter({ hasText: "Recovery E2E seeded notice" }).count(), 0,
+          `${role} 표식 없는 legacy 공지에는 관리 버튼이 없어야 합니다.`);
+        const visibleForeignRow = manageList.locator("li").filter({ hasText: foreignTitle });
+        assert.equal(await visibleForeignRow.count(), access === "all" ? 1 : 0,
+          `${role} 타 작성자 표식 공지 관리 범위`);
+        if (access === "own") {
+          assert.equal(await manageList.locator("li").filter({ hasText: ownTitle }).count(), 1,
+            `${role} 본인 작성 공지가 관리 목록에 표시되어야 합니다.`);
+        }
+
+        if (access === "all") {
+          await visibleForeignRow.getByRole("button", { name: "수정" }).click();
+          await page.getByLabel("제목").fill(`${foreignTitle} edited`);
+          await page.getByLabel("내용").fill("server-confirmed foreign update");
+          await page.getByRole("button", { name: "수정 저장" }).click();
+          await page.getByRole("status").filter({ hasText: "수정" }).waitFor();
+          assert.equal((await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${foreignId}`).get()).get("title"), `${foreignTitle} edited`);
+          const editedForeignRow = manageList.locator("li").filter({ hasText: `${foreignTitle} edited` });
+          page.once("dialog", (dialog) => dialog.accept());
+          await editedForeignRow.getByRole("button", { name: "삭제" }).click();
+          await page.getByRole("status").filter({ hasText: "공지 삭제를 서버에서 확인했습니다." }).waitFor();
+          assert.equal((await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${foreignId}`).get()).exists, false);
+        }
+
+        const title = `App Next created ${role}`;
+        await page.getByLabel("제목").fill(title);
+        await page.getByLabel("내용").fill(`Created by ${role}`);
+        await page.getByRole("button", { name: "공지 등록" }).click();
+        await page.getByRole("status").filter({ hasText: "등록을 서버에서 확인" }).waitFor({ timeout: 20_000 });
+        let created = await queryNoticeByTitle(title);
+        assert.equal(created.size, 1, `${role} 생성 문서가 Emulator 서버에서 조회되어야 합니다.`);
+        const createdId = created.docs[0].id;
+        assert.equal(created.docs[0].get("authorUid"), uid);
+        assert.equal(created.docs[0].get("appNextManaged"), true);
+
+        const createdRow = manageList.locator("li").filter({ hasText: title });
+        await createdRow.getByRole("button", { name: "수정" }).click();
+        await page.getByLabel("제목").fill(`${title} edited`);
+        await page.getByLabel("내용").fill(`Updated by ${role}`);
+        await page.getByRole("button", { name: "수정 저장" }).click();
+        await page.getByRole("status").filter({ hasText: "수정" }).waitFor({ timeout: 20_000 });
+        const updated = await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${createdId}`).get();
+        assert.equal(updated.get("title"), `${title} edited`);
+        assert.equal(updated.get("content"), `Updated by ${role}`);
+
+        const updatedRow = manageList.locator("li").filter({ hasText: `${title} edited` });
+        page.once("dialog", (dialog) => dialog.accept());
+        await updatedRow.getByRole("button", { name: "삭제" }).click();
+        await page.getByRole("status").filter({ hasText: "공지 삭제를 서버에서 확인했습니다." }).waitFor({ timeout: 20_000 });
+        assert.equal((await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${createdId}`).get()).exists, false);
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.getByRole("heading", { name: "워크스페이스 공지" }).waitFor({ timeout: 20_000 });
+        assert.equal(await page.getByText(`${title} edited`, { exact: true }).count(), 0,
+          `${role} 새로고침 후 삭제된 문서가 없어야 합니다.`);
+      } finally {
+        await context.close();
+        await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${foreignId}`).delete().catch(() => {});
+        await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${ownId}`).delete().catch(() => {});
+        const created = await adminDb.collection(`workspaces/${WORKSPACE_A}/notices`)
+          .where("title", "==", `App Next created ${role}`)
+          .get();
+        await Promise.all(created.docs.map((item) => item.ref.delete()));
+      }
+  }
+});
+
+test("App Next 공지 CRUD 오류·검증·서버 확인 지연 상태를 처리한다", { timeout: 120_000 }, async () => {
+  const ownedId = "app-next-error-owned-teacher";
+  const ownedTitle = "App Next error-owned teacher";
+  await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${ownedId}`).set({
+    workspaceId: WORKSPACE_A,
+    title: ownedTitle,
+    content: "permission fixture",
+    authorUid: "recovery-e2e-teacher",
+    appNextManaged: true,
+    createdFrom: "app-next",
+  });
+  const { context, page } = await createPage();
+  try {
+    await loginAppNext(page, "teacher");
+    const manageList = page.locator(".app-next-notice-manage-list");
+    assert.equal(await manageList.locator("li").filter({ hasText: "Recovery E2E seeded notice" }).count(), 0);
+
+    await page.getByLabel("제목").fill("  ");
+    await page.getByLabel("내용").fill("invalid draft");
+    await page.getByRole("button", { name: "공지 등록" }).click();
+    await page.getByRole("alert").filter({ hasText: "제목을 입력" }).waitFor();
+    assert.equal((await queryNoticeByTitle("  ")).size, 0);
+
+    await adminDb.doc(`workspaces/${WORKSPACE_A}/members/recovery-e2e-teacher`).update({ status: "disabled" });
+    const ownedRow = manageList.locator("li").filter({ hasText: ownedTitle });
+    page.once("dialog", (dialog) => dialog.accept());
+    await ownedRow.getByRole("button", { name: "삭제" }).click();
+    await page.getByRole("alert").filter({ hasText: "권한이 없습니다" }).waitFor({ timeout: 15_000 });
+    assert.equal((await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${ownedId}`).get()).exists, true);
+  } finally {
+    await context.close();
+    await adminDb.doc(`workspaces/${WORKSPACE_A}/members/recovery-e2e-teacher`).update({ status: "active" });
+    await adminDb.doc(`workspaces/${WORKSPACE_A}/notices/${ownedId}`).delete();
+  }
+
+  const { context: networkContext, page: networkPage } = await createPage();
+  try {
+    await loginAppNext(networkPage, "manager");
+    let firestoreRequestSeen;
+    const firestoreRequest = new Promise((resolve) => { firestoreRequestSeen = resolve; });
+    let firstFirestoreRequest = true;
+    const firestoreEmulatorOrigin = `http://${FIRESTORE_EMULATOR_HOST}`;
+    await networkPage.route(`${firestoreEmulatorOrigin}/**`, async (route) => {
+      if (firstFirestoreRequest) {
+        firstFirestoreRequest = false;
+        firestoreRequestSeen(route.request());
+        await delay(1200);
+      }
+      await route.continue();
+    });
+    const title = "App Next confirmation delay";
+    await networkPage.getByLabel("제목").fill(title);
+    await networkPage.getByLabel("내용").fill("wait for server confirmation");
+    await networkPage.getByRole("button", { name: "공지 등록" }).click();
+    await Promise.race([
+      firestoreRequest,
+      delay(15_000).then(() => { throw new Error(`Firestore Emulator 요청을 관찰하지 못했습니다: ${firestoreEmulatorOrigin}`); }),
+    ]);
+    assert.equal(await networkPage.getByRole("status").filter({ hasText: "등록을 서버에서 확인" }).count(), 0,
+      "서버 확인 전에는 성공 상태가 없어야 합니다.");
+    assert.equal(await networkPage.getByRole("button", { name: "서버 확인 중" }).isDisabled(), true,
+      "서버 확인 중 중복 제출을 막아야 합니다.");
+    await networkPage.evaluate(() => document.querySelector(".app-next-notice-form button[type=submit]")?.click());
+    await networkPage.getByRole("status").filter({ hasText: "등록을 서버에서 확인" }).waitFor({ timeout: 20_000 });
+    assert.equal((await queryNoticeByTitle(title)).size, 1, "빠른 이중 입력에도 공지는 한 건만 생성되어야 합니다.");
+
+  } finally {
+    await networkContext.close();
+    const docs = await adminDb.collection(`workspaces/${WORKSPACE_A}/notices`)
+      .where("title", "==", "App Next confirmation delay")
+      .get();
+    await Promise.all(docs.docs.map((item) => item.ref.delete()));
   }
 });
 

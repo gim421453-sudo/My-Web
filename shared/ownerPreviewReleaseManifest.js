@@ -74,7 +74,7 @@
       requiredWorkspaceRoles: options.workspaceRoles || [],
       workspaceRequired: Boolean(options.workspaceRequired),
       hasRead: Boolean(options.hasRead),
-      hasWrite: false,
+      hasWrite: Boolean(options.hasWrite),
       serverConfirmed: Boolean(options.serverConfirmed),
       automaticTestEvidence: options.automaticTestEvidence || "scripts/test-auth-modules.mjs",
       manualTestEvidence: options.manualTestEvidence || "",
@@ -226,12 +226,17 @@
       globalRoles: ownerOnly,
       firstOwnerPreviewIncluded: true,
     }),
-    appNextFeature("notices", "app-next read-only workspace notices.", {
+    appNextFeature("notices", "app-next workspace notices with guarded CRUD.", {
+      ownerPreview: false,
       hasRead: true,
+      hasWrite: true,
       workspaceRequired: true,
       serverConfirmed: true,
-      globalRoles: ownerOnly,
+      globalRoles: ["system_owner", "user"],
+      workspaceRoles: allWorkspaceRoles,
       firstOwnerPreviewIncluded: true,
+      automaticTestEvidence: "scripts/test-auth-modules.mjs",
+      manualTestEvidence: "notice server-confirm browser verification",
     }),
     appNextFeature("admin-preview", "app-next ProtectedRoute owner/admin preview.", {
       hasRead: true,

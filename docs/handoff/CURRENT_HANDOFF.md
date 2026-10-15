@@ -1,7 +1,19 @@
 # MY WEB 현재 작업 인계
 
-Last updated: 2026-10-12 (Asia/Seoul)
-Status: FULL_REGRESSION_PASS_WITH_DEPENDENCY_ADVISORIES
+Last updated: 2026-10-15 (Asia/Seoul)
+Status: APP_NEXT_NOTICE_CRUD_IMPLEMENTED_AUTOMATED_BROWSER_RECHECK_BLOCKED
+
+## 현재 작업 브랜치 인계 (2026-10-15)
+
+- 작업 경로: `C:\dev\My-Web\tmp\codex-branches\feat-app-next-core-crud`; 브랜치 `codex/feat-app-next-core-crud`. 이 작업은 main에 반영하지 않았으며 commit/push/merge하지 않았다.
+- App Next 공지 CRUD vertical slice를 추가했다. 신규 쓰기는 기존 `workspaces/{workspaceId}/notices` Rules 계약을 따르고, App Next 표식 문서만 수정/삭제 대상으로 제공한다. `system_owner`, `super_manager`, `manager`는 관리 표식 문서를 관리하고 `teacher`, `normal`은 본인 문서만 관리한다. `viewer`와 `print_account`는 쓰기 UI 및 서비스 정책에서 거부된다.
+- UI는 기존 `RequireWorkspaceRole` guard, 새 공지 폼/목록, 권한·네트워크·한도 오류 안내를 사용한다. 쓰기 완료 후 `getDocFromServer` 및 서버 목록 재조회를 확인하며 optimistic success는 표시하지 않는다. 기존 legacy 화면/CRUD, Firestore Rules, Functions, 의존성은 수정하지 않았다.
+- 최종 검증: `npm run test:recovery:browser` 13 tests / 13 pass / 0 fail / 0 skipped / 0 todo. 이어서 `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin` 모두 종료 코드 0으로 통과했다. 기존 Vite 비모듈 script 및 React Router `use client` 경고가 있었으나 빌드는 정상 완료했다.
+- FAIL 원인/조치: 마지막 오류 테스트는 Playwright route로 Firestore Emulator 요청을 abort해 UI alert를 기대했다. Firestore Web SDK의 열린 WebChannel에서는 confirmation read가 독립된 안정적 HTTP request로 노출되지 않을 수 있어, 내부 메시지를 route 하나로 식별하는 방식은 brittle하다. E2E에서 네트워크 route를 통한 실패 주입을 제거했다. 브라우저는 기존 권한 거부 흐름으로 실제 `role=alert` 전달을 검증하고, `scripts/test-auth-modules.mjs`에서 `firestore/unavailable` 및 `app-next-write-unconfirmed` 오류를 유틸 경계에 직접 주입해 분류를 검사한다.
+- 최종 service 재확인: create는 `addDoc` 후 `getDocFromServer(ref)`, update는 `updateDoc` 후 `getDocFromServer(ref)`, delete는 `deleteDoc` 후 `getDocFromServer(ref)` 결과의 부재를 확인한다. 제품 권한·데이터 계약과 Firestore 코드는 이번 최종 점검에서 변경하지 않았다.
+- 검증 환경: 작업 디렉터리와 `.git` worktree 연결, 브랜치 `codex/feat-app-next-core-crud`, HEAD `9bf213f`를 확인했다. 시작 시 지정 emulator 포트 listener와 locator 파일은 없었다. demo Auth/Firestore Emulator가 suite 중 정상 기동·종료했고 stale 프로세스 종료는 불필요했다. 생성된 `firestore-debug.log`는 종료 및 단독 잠금 확인 후 제거했다. 2026-10-14에 생성된 기존 `tmp/recovery-browser-emulator-debug.log`는 이번 진단 산출물이 아니므로 보존했다.
+- Git 최종 검증: Firebase 설정 파일 `pm-env.js`, `firebase-config.local.js`, `pm-firebase-config.js`에는 diff가 없다. 금지 파일(`firestore.rules`, package manifests/lockfiles, Functions 및 Rules 도구 manifests/lockfiles) diff 0. `git diff --check` 통과. 자세한 status/stat/name-status는 최종 보고에 기록한다. commit/push/merge는 수행하지 않았다.
+- 남은 일: 운영 앱과 App Next의 legacy 공지 표시/정렬을 실제 사용자 화면 기준으로 수동 비교한다. 자동 browser CRUD/역할 검증의 `MANUAL_REQUIRED`는 없다. 필수 자동 검증 및 Git 조건을 충족해 `COMMIT_READY`다. 사용자 제한에 따라 stage/commit/push/merge는 수행하지 않았다.
 
 ## 최종 통합 상태 (2026-10-12)
 
@@ -13,7 +25,7 @@ Status: FULL_REGRESSION_PASS_WITH_DEPENDENCY_ADVISORIES
 - 잔여 작업: npm advisory 후속 조사; 필요 시 Node 22 개발환경 정식화; 기존 수동 UI/출력 검증. 별도 승인 전 IAM `HOLD`를 유지한다. 강제 override, major downgrade, `npm audit fix --force`는 적용하지 않았다.
 - 작업 금지/반복 방지: dependency remediation 및 full regression 브랜치는 main에 병합하지 않았다. 코드, Firestore rules, dependency manifest/lockfile은 이 문서 통합 작업에서 수정하지 않는다. 미추적 `firestore-debug.log` 파일은 보존하며 변경하지 않는다.
 - Git 운영 표준: 의미 있는 작업마다 main 최신화 후 별도 `codex/*` 브랜치와 가능하면 worktree에서 수행하고, 검증·명시적 stage·commit·원격 복구 지점·검증된 main 병합 순서를 따르는 정책을 채택했다. 조사 결과는 코드 변경이 없으면 문서에만 통합한다.
-- Cross-device readiness: `READY_WITH_WARNINGS` — 현재 main의 HEAD, 최종 Rules/회귀 결과, 잔여 advisory, 미실행 수동 검증과 IAM HOLD를 기록했다.
+- Cross-device readiness: `READY_WITH_WARNINGS` — 현재 브랜치는 `codex/feat-app-next-core-crud`; Git status/diff는 실행 권한 문제로 미확인이다. App Next browser matrix와 최종 build 재확인은 emulator/파일쓰기 실행 환경 문제로 남아 있다. IAM HOLD 유지.
 
 ## 과거 기록: 의존성 취약점 조사 후속 (2026-10-11; 아래 당시 브랜치 결과는 위 최종 상태로 대체됨)
 

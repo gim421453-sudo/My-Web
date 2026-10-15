@@ -16,6 +16,9 @@ import {
   type AppNextWorkspaceNoticeSchemaSequenceItem,
   type AppNextWorkspaceNoticeSource,
 } from "./appNextWorkspaceNoticesUtils";
+import type {
+  AppNextWorkspaceNoticeManagementRecord,
+} from "./appNextWorkspaceNoticeCrudUtils";
 
 export interface LoadAppNextWorkspaceNoticesInput {
   workspaceId: string;
@@ -25,6 +28,7 @@ export interface LoadAppNextWorkspaceNoticesInput {
 
 export interface LoadAppNextWorkspaceNoticesResult {
   notices: AppNextWorkspaceNoticeRecord[];
+  managedNotices: AppNextWorkspaceNoticeManagementRecord[];
   source: AppNextWorkspaceNoticeSource;
   readCount: number;
   filteredCount: number;
@@ -68,9 +72,24 @@ export async function loadAppNextWorkspaceNoticesReadonly({
       maxCount,
     },
   );
+  const managedNotices = snapshot.docs.flatMap((item) => {
+    const data = item.data();
+    if (
+      data.appNextManaged !== true
+      || data.workspaceId !== workspaceId
+      || typeof data.authorUid !== "string"
+    ) return [];
+    return [{
+      id: item.id,
+      title: typeof data.title === "string" ? data.title : "",
+      content: typeof data.content === "string" ? data.content : "",
+      authorUid: data.authorUid,
+    }];
+  });
 
   return {
     notices: normalized.records,
+    managedNotices,
     source: useServer ? "firestore-server" : "firestore",
     readCount: snapshot.docs.length,
     filteredCount: normalized.filteredCount,

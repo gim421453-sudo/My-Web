@@ -158,7 +158,7 @@ export function decideOwnerPreviewFeatureAccess(input: OwnerPreviewAccessInput):
 
   const globalRole = input.isSystemOwner ? "system_owner" : input.globalRole ?? null;
 
-  if (feature.releaseStage === "beta" && globalRole !== "system_owner") {
+  if (feature.releaseStage === "beta" && feature.ownerPreview && globalRole !== "system_owner") {
     return {
       allowed: false,
       feature,
