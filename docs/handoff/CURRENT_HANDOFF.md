@@ -1,9 +1,25 @@
 # MY WEB 현재 작업 인계
 
-Last updated: 2026-10-15 (Asia/Seoul)
-Status: APP_NEXT_NOTICE_CRUD_IMPLEMENTED_AUTOMATED_BROWSER_RECHECK_BLOCKED
+Last updated: 2026-10-16 (Asia/Seoul)
+Status: APP_NEXT_SCHEDULE_CRUD_AUTOMATED_PASS_COMMIT_READY
 
-## 현재 작업 브랜치 인계 (2026-10-15)
+## 현재 작업 브랜치 인계 (2026-10-16)
+
+- 저장소/worktree: `C:\dev\My-Web\tmp\codex-branches\feat-app-next-schedule-crud`; 브랜치 `codex/feat-app-next-schedule-crud`; HEAD `6e1e0b9ca8dd3c70a961904b050ef3806a5d7ec3`. 로컬 main/origin/main 기준도 동일하다(이번 작업에서 fetch하지 않음). upstream은 없으며 ahead/behind는 미확인이다. 시작 시 clean worktree였고 현재 변경은 모두 unstaged/untracked 상태다.
+- 목적/완료: App Next 일정 조회 화면에 기존 운영 schema 기반 생성·수정·삭제, 권한 Guard, 서버 확인, 입력/오류/중복 제출 처리를 추가했다. 경로 `#/schedules-readonly`는 호환성을 위해 유지했다. marker 및 migration 없이 `workspaces/{workspaceId}/schedules`만 사용한다.
+- 권한: canonical system owner와 활성 workspace 관리자 2종은 C/U/D, teacher/normal은 C/U(타 작성자 일정 포함), viewer/print_account는 읽기만 허용한다. 삭제는 teacher/normal 본인 일정에도 허용되지 않는다. Rules와 legacy `defaultActionPermissionsV31`에서 이 계약을 확인했다. 비활성 membership은 실제 Rules 쓰기 거부 후, 새 로그인에서는 workspace 조회 거부/session 오류로 fail-closed 된다.
+- 서버 확인: create `setDoc`/update `updateDoc` 후 `getDocFromServer`로 편집 필드와 workspace를 검증한다. delete `deleteDoc` 후 서버 부재를 검증한다. 완료 상태는 서버 목록 재조회까지 성공한 뒤 표시한다. 수동 refresh가 저장과 겹치면 저장 이전 조회를 마친 뒤 새 서버 조회를 수행한다. 임의 transport 차단이나 production 테스트 hook은 없다.
+- 호환성: 기존 canonical 일정은 marker 없이 수정 가능하고 unknown/작성자/장소 필드는 보존한다. `name`, `startAt` 등 mixed schema는 기존 읽기 fallback으로 계속 보인다. 날짜·시간 표현을 변환해야 하는 문서는 이번 편집 대상에서 제외하며 운영 화면을 사용한다.
+- 검증: 전체 `npm run test:recovery:browser` 15/15 PASS, fail/skip/todo 0. 기존 13개와 새 일정 역할·오류 UI 2개가 통과했다. 7역할 권한과 실제 Firestore 상태, forged caller 역할의 Rules 거부, workspace 경계, 생성/수정/삭제 및 새로고침, legacy 필드 보존, mixed 조회, 입력 오류, 중복 submit/진행 상태/수동 조회 중첩, permission alert, 비활성 membership 차단, runtime/non-loopback 검사 포함이다. 단위 검사는 실제 service에 fake SDK를 주입해 unavailable 및 create/update/delete confirmation mismatch를 검사한다.
+- 전체 회귀: `npm test` PASS(auth 모듈 659개), `npm run typecheck` PASS, `npm run build` PASS, `npm run build:admin` PASS. release gate 32/32 PASS. Node 24.18.0과 Temurin JRE 21을 사용했다. Firebase 세션 환경은 demo 값만 지정했고 browser는 demo-myweb-recovery-e2e와 loopback Emulator만 사용했다. Functions/전체 별도 Rules suite는 이번에 실행하지 않았다.
+- 발견/조치: 일정 삭제 문구 조사 오류를 수정했다. legacy owner Browser 검사는 로그인 직후 데이터 동기화 및 자동 페이지 복원 완료 전에 메뉴를 클릭할 수 있어 준비 조건을 보강했다. 공지 release gate의 문자열 검사도 factory 기본 beta 값이 반영된 실제 manifest를 확인하도록 수정했다. 기존 제품 권한을 약화하지 않았다.
+- 변경 파일: `app-next.html`, `src/app-next/{AppNext.tsx,AppNextSchedulesReadOnly.tsx,AppNextScheduleCrud.tsx,appNextScheduleCrudService.ts,appNextScheduleCrudUtils.ts,appNextSchedulesReadonlyService.ts,appNextDiagnostics.ts,styles.css}`, `shared/ownerPreviewReleaseManifest.js`, `scripts/{app-next-schedules-crud-tests.mjs,test-auth-modules.mjs,test-role-workspace-release-gate.mjs}`, `tests/browser/recovery-ui.e2e.test.mjs`, `README.md`, `CHANGELOG.md`, `AGENTS.md`, 이 handoff, 일정 Pilot 문서. 소스 삭제는 없다.
+- Git/환경 최종 점검(2026-10-16): production Firebase read/write/deploy/IAM 변경 없음. Rules/Functions/의존성 및 금지 manifests/lockfiles diff 0, 운영 앱 `app.js`/`services` diff 0, 생성 Firebase 설정 diff 0. Emulator/Vite 종료와 파일 잠금 해제를 확인한 뒤 이번 `firestore-debug.log`를 삭제했다. `git diff --check` PASS. 수정 파일 15개 + 새 파일 4개이며 staged 변경은 없다. tmp runtime/스크린샷은 commit 대상이 아니다. 전날 완료한 자동 테스트 이후 기능 코드는 변경하지 않았고 이번 재개에서는 로그 정리·Git 점검·인계 마무리만 수행했다.
+- 남은 일/알려진 제한: `MANUAL_REQUIRED`는 실제 사용자 기기의 운영 앱↔App Next 표시·정렬·필터·상세·출력 비교다. 혼합 날짜 schema 편집 지원은 별도 설계가 필요하다. 실제 offline transport 상황은 Browser 차단 hack 없이 단위 오류 주입으로 검사했으며 장시간 연결 끊김 UX는 수동 확인 대상이다. 기존 npm advisory 미해결/IAM HOLD 유지. 개발일지는 config에 따라 생성하지 않았다.
+- 다음 단계: 변경 diff와 위 수동 비교 범위를 검토한다. 별도 사용자 지시 전까지 stage/commit/push/merge하지 않는다. upstream 없음과 로컬 미커밋 상태를 다음 PC에서 반드시 확인한다. 운영 데이터/Rules 배포/Functions 수정/의존성 조치는 이 작업을 이유로 재개하지 않는다.
+- Cross-device readiness: `READY_WITH_WARNINGS` — 자동 검증은 통과했고 미커밋 변경, upstream 없음, 수동 비교와 기존 advisory를 기록했다. `COMMIT_READY`는 이 작업의 자동 검증 준비 상태이며 production 배포 승인이 아니다.
+
+## 이전 공지 CRUD 인계 기록 (2026-10-15; 현재 상태는 위 일정 작업 참조)
 
 - 작업 경로: `C:\dev\My-Web\tmp\codex-branches\feat-app-next-core-crud`; 브랜치 `codex/feat-app-next-core-crud`. 이 작업은 main에 반영하지 않았으며 commit/push/merge하지 않았다.
 - App Next 공지 CRUD vertical slice를 추가했다. 신규 쓰기는 기존 `workspaces/{workspaceId}/notices` Rules 계약을 따르고, App Next 표식 문서만 수정/삭제 대상으로 제공한다. `system_owner`, `super_manager`, `manager`는 관리 표식 문서를 관리하고 `teacher`, `normal`은 본인 문서만 관리한다. `viewer`와 `print_account`는 쓰기 UI 및 서비스 정책에서 거부된다.

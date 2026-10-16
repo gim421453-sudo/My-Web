@@ -261,6 +261,10 @@ export interface AppNextSchedulesDiagnosticsSnapshot {
   scheduleLoadCount: number;
   scheduleReadCount: number;
   scheduleWriteAttemptCount: number;
+  scheduleCreateCount: number;
+  scheduleUpdateCount: number;
+  scheduleDeleteCount: number;
+  lastScheduleWriteResult: string;
   scheduleListenerStartCount: number;
   scheduleActiveListenerCount: number;
   scheduleCacheHitCount: number;
@@ -490,6 +494,10 @@ let schedulesDiagnostics: AppNextSchedulesDiagnosticsSnapshot = {
   scheduleLoadCount: 0,
   scheduleReadCount: 0,
   scheduleWriteAttemptCount: 0,
+  scheduleCreateCount: 0,
+  scheduleUpdateCount: 0,
+  scheduleDeleteCount: 0,
+  lastScheduleWriteResult: "none",
   scheduleListenerStartCount: 0,
   scheduleActiveListenerCount: 0,
   scheduleCacheHitCount: 0,
@@ -1212,16 +1220,30 @@ export function recordAppNextSchedulesDiagnostics(
   schedulesDiagnostics = {
     ...schedulesDiagnostics,
     ...next,
-    scheduleWriteAttemptCount: next.scheduleWriteAttemptCount ?? 0,
+    scheduleWriteAttemptCount: next.scheduleWriteAttemptCount ?? schedulesDiagnostics.scheduleWriteAttemptCount,
     scheduleListenerStartCount: next.scheduleListenerStartCount ?? 0,
     scheduleActiveListenerCount: next.scheduleActiveListenerCount ?? 0,
-    firestoreWriteAttemptCount: next.firestoreWriteAttemptCount ?? 0,
+    firestoreWriteAttemptCount: next.firestoreWriteAttemptCount ?? schedulesDiagnostics.firestoreWriteAttemptCount,
     workspaceListenerCount: next.workspaceListenerCount ?? 0,
   };
 }
 
 export function getAppNextSchedulesDiagnostics(): AppNextSchedulesDiagnosticsSnapshot {
   return { ...schedulesDiagnostics };
+}
+
+export function recordAppNextScheduleWriteAttempt(): void {
+  schedulesDiagnostics.scheduleWriteAttemptCount += 1;
+  schedulesDiagnostics.firestoreWriteAttemptCount += 1;
+  schedulesDiagnostics.lastScheduleWriteResult = "pending";
+}
+
+export function recordAppNextScheduleWriteResult(action: "create" | "update" | "delete", confirmed: boolean): void {
+  schedulesDiagnostics.lastScheduleWriteResult = confirmed ? "server-confirmed" : "failed";
+  if (!confirmed) return;
+  if (action === "create") schedulesDiagnostics.scheduleCreateCount += 1;
+  else if (action === "update") schedulesDiagnostics.scheduleUpdateCount += 1;
+  else schedulesDiagnostics.scheduleDeleteCount += 1;
 }
 
 export function getAppNextNoticeRouteDiagnostics(): AppNextNoticeRouteDiagnosticsSnapshot {

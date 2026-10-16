@@ -492,7 +492,7 @@ export function AppNext({
     "error",
   ].includes(routeDecision.currentRoute);
   const pageTitle = activeTab === "schedules-readonly"
-    ? "일정 조회"
+    ? "일정"
     : activeTab === "dashboard"
     ? "메인 대시보드"
     : activeTab === "timetable-readonly"
@@ -803,7 +803,7 @@ export function AppNext({
             className={activeTab === "schedules-readonly" ? "active" : "secondary"}
             onClick={() => handleRoute("schedules-readonly")}
           >
-            일정 조회
+            일정
           </button>
           <button
             type="button"
@@ -995,6 +995,7 @@ export function AppNext({
             onSnapshot={handleRequireAuthSnapshot}
           >
             <AppNextSchedulesReadOnly
+              key={`${session?.uid ?? ""}:${session?.currentWorkspaceId ?? ""}`}
               currentRoute={routeDecision.currentRoute}
               requestedRoute={routeDecision.requestedRoute}
               onNavigate={(route) => handleRoute(route)}

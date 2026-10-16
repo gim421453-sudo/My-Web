@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -235,9 +236,25 @@ test("app-next notices beta release is explicitly workspace-role scoped for CRUD
   contains(feature, 'hasWrite: true');
   contains(feature, 'globalRoles: ["system_owner", "user"]');
   contains(feature, "workspaceRoles: allWorkspaceRoles");
-  contains(feature, 'releaseStage: "beta"');
+  const context = {};
+  vm.runInNewContext(files.appNextManifest, context);
+  const runtimeFeature = context.PM_OWNER_PREVIEW_RELEASE_MANIFEST_V1.features.find((item) => item.route === "#/notices");
+  assert.equal(runtimeFeature.releaseStage, "beta");
   contains(files.appNextManifestAdapter, "feature.ownerPreview && globalRole !== \"system_owner\"");
-  contains(files.appNextHtml, "ownerPreviewReleaseManifest.js?v=2");
+  contains(files.appNextHtml, "ownerPreviewReleaseManifest.js?v=3");
+});
+
+test("app-next schedules beta release has workspace-scoped CRUD and no owner-only gate", "verified-complete", () => {
+  const context = {};
+  vm.runInNewContext(files.appNextManifest, context);
+  const feature = context.PM_OWNER_PREVIEW_RELEASE_MANIFEST_V1.features.find((item) => item.route === "#/schedules-readonly");
+  assert.equal(feature.releaseStage, "beta");
+  assert.equal(feature.ownerPreview, false);
+  assert.equal(feature.hasWrite, true);
+  assert.equal(feature.workspaceRequired, true);
+  for (const role of ["super_manager", "manager", "teacher", "normal", "viewer", "print_account"]) {
+    assert.ok(feature.workspaceRoles.includes(role));
+  }
 });
 
 test("app-next signed_out and non-active states route to account status screens", "verified-complete", () => {

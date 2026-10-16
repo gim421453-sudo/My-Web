@@ -4,6 +4,11 @@ All notable release-relevant changes to this project should be documented here.
 
 ## Unreleased
 
+### 기능
+
+- App Next 일정 화면에 기존 workspace 일정 schema 기반 등록·수정·삭제를 추가했습니다. 활성 역할 Guard, 입력 검증, 중복 제출 방지 및 문서·목록 서버 확인을 적용했습니다.
+- 일정 생성·수정은 기존 Rules의 관리자·교사·일반 역할, 삭제는 전역 system owner와 workspace 관리자 역할에 한정합니다. 기존 canonical 일정의 작성자·추가 필드는 보존하고 mixed schema 조회를 유지합니다.
+
 ### 보안
 
 - membership 역할 변경 시 기존·요청 역할의 관리자 권한을 단일 경로에서 검증해 Firestore Rules 평가식 사용량을 줄였습니다. 전체 보조 Rules Emulator suite 171/171 통과.

@@ -2,6 +2,8 @@
 
 개인 일정과 학습·업무 자료를 한곳에서 관리하는 웹 애플리케이션입니다. 현재 기본 화면은 일정, 공지, 과목, 시험·성적, 포트폴리오 등을 다루며, 별도 React 화면에는 인증·워크스페이스 기반 조회 기능과 개발 미리보기 화면이 있습니다.
 
+App Next 공지와 일정 화면은 기존 workspace 데이터에 권한 Guard와 서버 확인을 적용한 CRUD를 제공합니다. 일정의 교사·일반 역할은 생성·수정만 가능하며 삭제는 관리자 역할로 제한됩니다. 일정 경로는 기존 `app-next.html#/schedules-readonly`를 유지합니다. 세부 계약과 검증 범위는 [일정 문서](docs/app-next-schedules-read-only-pilot.md)를 참고하세요.
+
 ## 기술 구성
 
 - 기존 브라우저 앱: HTML, CSS, JavaScript (`index.html`, `app.js`)

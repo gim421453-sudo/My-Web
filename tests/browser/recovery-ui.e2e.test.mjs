@@ -314,8 +314,22 @@ for (const [shortName, role] of FIXTURES) {
         assert.match(await page.locator("#pageTitle").innerText(), /프린트|출력|시험/,
           `print_account이 print 화면에 도달해야 합니다. 현재 메뉴: ${await page.locator("#nav").innerText()}`);
       } else {
+        await page.waitForFunction(() => typeof store !== "undefined"
+          && store.schedules?.some((row) => row.title === "Recovery E2E seeded schedule"),
+        null, { timeout: 15_000 });
+        await page.waitForFunction(() => window.PMNavigationPersistenceDiagnostics?.snapshot()?.restoreCompleted === true);
         await scheduleNav.click();
-        await page.getByText("Recovery E2E seeded schedule", { exact: true }).waitFor({ timeout: 15_000 });
+        try {
+          await page.getByText("Recovery E2E seeded schedule", { exact: true }).waitFor({ timeout: 15_000 });
+        } catch (error) {
+          const diagnostics = await page.evaluate(() => ({
+            page: document.querySelector("#pageTitle")?.textContent,
+            navigation: window.PMNavigationPersistenceDiagnostics?.snapshot(),
+            scheduleCount: typeof store !== "undefined" ? store.schedules?.length : -1,
+            content: document.querySelector("#content")?.textContent?.slice(0, 600),
+          }));
+          throw new Error(`${error.message}\n${JSON.stringify(diagnostics)}`, { cause: error });
+        }
         const seededRow = page.getByRole("row").filter({ hasText: "Recovery E2E seeded schedule" });
         await seededRow.getByRole("button", { name: "보기" }).click();
         await page.locator("#messageDialog[open]").waitFor({ state: "visible" });
@@ -623,6 +637,161 @@ test("App Next 공지 CRUD 오류·검증·서버 확인 지연 상태를 처리
       .where("title", "==", "App Next confirmation delay")
       .get();
     await Promise.all(docs.docs.map((item) => item.ref.delete()));
+  }
+});
+
+test("App Next 일정 역할별 CRUD는 canonical 서버 상태와 일치한다", { timeout: 300_000 }, async () => {
+  for (const [shortName, role] of FIXTURES) {
+    const writable = !["viewer", "print_account"].includes(role);
+    const deletable = ["system_owner", "super_manager", "manager"].includes(role);
+    const legacyId = `schedule-legacy-${shortName}`;
+    const legacyTitle = `Legacy schedule ${role}`;
+    await adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/${legacyId}`).set({
+      title: legacyTitle, date: "2026-10-15", start_time: "09:00", end_time: "10:00",
+      type: "학교", importance: "보통", status: "예정", memo: "Legacy memo",
+      createdByUid: "different-author", extraLegacyField: "keep-me",
+    });
+    const mixedId = `schedule-mixed-${shortName}`;
+    await adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/${mixedId}`).set({
+      name: `Mixed schedule ${role}`, startAt: "2026-10-15T11:00:00Z", description: "Mixed fixture",
+    });
+    const { context, page } = await createPage();
+    let createdId;
+    try {
+      await loginAppNext(page, shortName);
+      await page.goto(`${APP_URL}app-next.html#/schedules-readonly`, { waitUntil: "domcontentloaded" });
+      await page.getByText(legacyTitle, { exact: true }).first().waitFor();
+      await page.getByText(`Mixed schedule ${role}`, { exact: true }).first().waitFor();
+      assert.equal(await page.getByText("Other workspace fixture", { exact: true }).count(), 0);
+      const crud = page.locator(".app-next-schedule-crud");
+      assert.equal(await crud.count(), writable ? 1 : 0, `${role} 일정 쓰기 UI`);
+
+      const scopeResult = await page.evaluate(async ({ role, shortName, workspaceA, workspaceB }) => {
+        const service = await import("/src/app-next/appNextScheduleCrudService.ts");
+        const input = {
+          phase: "authenticated", workspaceId: workspaceB,
+          session: { uid: `recovery-e2e-${shortName}`, status: "active", currentWorkspaceId: workspaceA,
+            currentWorkspaceRole: role, globalRole: role === "system_owner" ? "system_owner" : "user", isSystemOwner: role === "system_owner" },
+          title: "Forbidden scoped write", date: "2026-10-15", start_time: "", end_time: "", type: "기타", importance: "보통", status: "예정", memo: "",
+        };
+        try { await service.createAppNextSchedule(input); return "allowed"; } catch (error) { return error.code; }
+      }, { role, shortName, workspaceA: WORKSPACE_A, workspaceB: WORKSPACE_B });
+      assert.equal(scopeResult, "workspace-mismatch", `${role} 서비스 workspace 경계`);
+      if (!deletable) {
+        const ruleResult = await page.evaluate(async ({ shortName, writable, legacyId, workspace }) => {
+          const service = await import("/src/app-next/appNextScheduleCrudService.ts");
+          // A forged caller role cannot override the authenticated user's Firestore Rules.
+          const input = { phase: "authenticated", workspaceId: workspace,
+            session: { uid: `recovery-e2e-${shortName}`, status: "active", currentWorkspaceId: workspace,
+              currentWorkspaceRole: "manager", globalRole: "user", isSystemOwner: false },
+            scheduleId: legacyId, title: "Forbidden readonly write", date: "2026-10-15",
+            start_time: "", end_time: "", type: "기타", importance: "보통", status: "예정", memo: "" };
+          try {
+            if (writable) await service.deleteAppNextSchedule(input);
+            else await service.createAppNextSchedule(input);
+            return "allowed";
+          } catch (error) { return error.code; }
+        }, { shortName, writable, legacyId, workspace: WORKSPACE_A });
+        assert.equal(ruleResult, "permission-denied", `${role} 실제 Rules 쓰기/삭제 거부`);
+      }
+      if (!writable) continue;
+
+      await crud.getByLabel("수정할 일정").selectOption(legacyId);
+      assert.equal(await crud.getByLabel("일정 메모").inputValue(), "Legacy memo");
+      assert.equal(await crud.getByRole("button", { name: "일정 삭제", exact: true }).count(), deletable ? 1 : 0);
+      await crud.getByLabel("일정 제목").fill(`${legacyTitle} edited`);
+      await crud.getByRole("button", { name: "일정 수정 저장" }).click();
+      await crud.getByRole("status").filter({ hasText: "일정 수정을 서버에서 확인했습니다." }).waitFor();
+      const legacy = await adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/${legacyId}`).get();
+      assert.equal(legacy.get("title"), `${legacyTitle} edited`, `${role} 다른 작성자의 일정 수정`);
+      assert.equal(legacy.get("extraLegacyField"), "keep-me");
+      assert.equal(legacy.get("createdByUid"), "different-author");
+
+      const title = `App Next schedule ${role}`;
+      await crud.getByLabel("일정 제목").fill(title);
+      await crud.getByLabel("일정 날짜").fill("2026-10-16");
+      await crud.getByLabel("시작 시간").fill("13:00");
+      await crud.getByLabel("종료 시간").fill("14:00");
+      await crud.getByLabel("일정 메모").fill("Canonical create");
+      const pending = await crud.locator("form").evaluate(async (form) => {
+        form.requestSubmit(); form.requestSubmit();
+        document.querySelector(".app-next-dashboard-hero button")?.click();
+        await Promise.resolve();
+        return { disabled: form.querySelector('[type="submit"]').disabled,
+          completed: form.innerText.includes("서버에서 확인했습니다.") };
+      });
+      assert.equal(pending.disabled, true, `${role} in-flight 중 중복 제출 차단`);
+      assert.equal(pending.completed, false, `${role} 서버 확인 전 성공 금지`);
+      await crud.getByRole("status").filter({ hasText: "일정 등록을 서버에서 확인했습니다." }).waitFor();
+      await page.getByText(title, { exact: true }).first().waitFor();
+      const created = await adminDb.collection(`workspaces/${WORKSPACE_A}/schedules`).where("title", "==", title).get();
+      assert.equal(created.size, 1, `${role} 중복 생성 없음`);
+      createdId = created.docs[0].id;
+      assert.equal(created.docs[0].get("workspace_id"), WORKSPACE_A);
+      assert.equal(created.docs[0].get("start_time"), "13:00");
+      assert.equal(created.docs[0].get("appNextManaged"), undefined);
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.getByText(title, { exact: true }).first().waitFor();
+      await crud.getByLabel("수정할 일정").selectOption(createdId);
+      await crud.getByLabel("일정 제목").fill(`${title} edited`);
+      await crud.getByLabel("일정 상태").selectOption("완료");
+      await crud.getByRole("button", { name: "일정 수정 저장" }).click();
+      await crud.getByRole("status").filter({ hasText: "일정 수정을 서버에서 확인했습니다." }).waitFor();
+      assert.equal((await adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/${createdId}`).get()).get("status"), "완료");
+      if (deletable) {
+        await crud.getByLabel("수정할 일정").selectOption(createdId);
+        page.once("dialog", (dialog) => dialog.accept());
+        await crud.getByRole("button", { name: "일정 삭제", exact: true }).click();
+        await crud.getByRole("status").filter({ hasText: "일정 삭제를 서버에서 확인했습니다." }).waitFor();
+        assert.equal((await adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/${createdId}`).get()).exists, false);
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.getByText(`${legacyTitle} edited`, { exact: true }).first().waitFor();
+        assert.equal(await page.getByText(`${title} edited`, { exact: true }).count(), 0);
+      }
+      if (role === "manager") {
+        await page.screenshot({ path: path.join(ROOT, "tmp/schedule-crud-desktop.png"), fullPage: true });
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.screenshot({ path: path.join(ROOT, "tmp/schedule-crud-mobile.png"), fullPage: true });
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "모바일 가로 overflow 없음");
+      }
+    } finally {
+      await context.close();
+      await adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/${legacyId}`).delete();
+      await adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/${mixedId}`).delete();
+      if (createdId) await adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/${createdId}`).delete();
+    }
+  }
+});
+
+test("App Next 일정 입력·권한 오류 UI와 비활성 membership을 검증한다", { timeout: 120_000 }, async () => {
+  const { context, page } = await createPage();
+  try {
+    await loginAppNext(page, "teacher");
+    await page.goto(`${APP_URL}app-next.html#/schedules-readonly`, { waitUntil: "domcontentloaded" });
+    const crud = page.locator(".app-next-schedule-crud");
+    await crud.getByLabel("일정 제목").fill("  ");
+    await crud.getByRole("button", { name: "일정 등록" }).click();
+    await crud.getByRole("alert").filter({ hasText: "일정 제목을 입력" }).waitFor();
+    await crud.getByLabel("일정 제목").fill("Invalid clock range");
+    await crud.getByLabel("일정 날짜").fill("2026-10-15");
+    await crud.getByLabel("시작 시간").fill("15:00");
+    await crud.getByLabel("종료 시간").fill("14:00");
+    await crud.getByRole("button", { name: "일정 등록" }).click();
+    await crud.getByRole("alert").filter({ hasText: "종료 시간은 시작 시간보다" }).waitFor();
+    await crud.getByLabel("종료 시간").fill("16:00");
+    await adminDb.doc(`workspaces/${WORKSPACE_A}/members/recovery-e2e-teacher`).update({ status: "disabled" });
+    await crud.getByRole("button", { name: "일정 등록" }).click();
+    await crud.getByRole("alert").filter({ hasText: "일정 작업 권한이 없습니다" }).waitFor();
+    assert.equal((await adminDb.collection(`workspaces/${WORKSPACE_A}/schedules`).where("title", "==", "Invalid clock range").get()).size, 0);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => {
+      const state = window.PMAppNextAuthRouteMatrixDiagnostics?.snapshot();
+      return state?.accountPhase === "error" && state.hasWorkspace === false;
+    });
+    assert.equal(await page.locator(".app-next-schedule-crud").count(), 0);
+  } finally {
+    await adminDb.doc(`workspaces/${WORKSPACE_A}/members/recovery-e2e-teacher`).update({ status: "active" });
+    await context.close();
   }
 });
 

@@ -26,7 +26,15 @@ OWNER: Codex
 - 상대 프로젝트의 담당이 다른 AI여도 저장소는 읽기만 하고, 필요한 변경은 docs/integration.md에 요청으로 남긴다. 상대 저장소를 직접 수정하지 않는다.
 - 연동 때문에 현재 프로젝트의 구조를 크게 바꾸지 않는다.
 
-## 최신 인계 요약 (2026-10-15)
+## 최신 인계 요약 (2026-10-16)
+
+- 일정 CRUD 작업: `codex/feat-app-next-schedule-crud`, worktree `tmp/codex-branches/feat-app-next-schedule-crud`, 기준 HEAD `6e1e0b9`. 시작 시 작업 트리는 깨끗했고 로컬 main/origin/main 기준도 같은 커밋이었다. 이 브랜치는 upstream이 없어 ahead/behind는 미확인이다. main 작업 및 stage/commit/push/merge는 수행하지 않았다.
+- App Next 기존 `#/schedules-readonly` 경로를 유지하며 canonical 일정 CRUD를 구현했다. 활성 Rules와 legacy 기본 action 권한은 일치한다: system_owner/super_manager/manager는 생성·수정·삭제, teacher/normal은 생성·수정만 가능하며 작성자 제한은 없다. viewer/print_account는 조회만 가능하다. RequireAuth와 RequireWorkspaceRole, 서비스 preflight 및 서버 Rules로 workspace/권한 경계를 유지한다.
+- `workspaces/{workspaceId}/schedules`의 운영 필드와 동일한 데이터를 쓰며 marker/별도 collection/migration은 없다. create/update는 write 후 `getDocFromServer`의 전체 편집 필드를 확인하고 delete는 서버 부재를 확인한다. 완료 문구는 목록 서버 재조회까지 통과해야 표시한다. 중복 제출 ref guard와 저장 중 수동 조회의 오래된 응답 재사용 방지를 추가했다. alternate 날짜 schema는 조회를 유지하되 자동 변환 없이 운영 화면에서 수정한다.
+- 최종 검증: 전체 browser suite 15/15 PASS(기존 13개 + 일정 2개, skip/todo 0), npm test PASS(auth 모듈 659개), typecheck/build/build:admin PASS, release gate 32/32 PASS. 서비스 오류·server-confirm mismatch는 실제 서비스에 fake SDK를 넣어 deterministic하게 검증했다. 모바일 가로 넘침 검사와 desktop/mobile 캡처도 완료했다. Node 24.18.0 / Temurin JRE 21, demo project + loopback만 사용했다.
+- 2026-10-16 최종 정리: Rules/Functions/의존성 manifest·lockfile 및 운영 앱 코드 diff 0, 생성 Firebase 설정 diff 0, `git diff --check` PASS. Emulator/Vite 종료와 파일 잠금 해제를 확인한 뒤 이번 `firestore-debug.log`를 삭제했다. 수정 파일 15개와 새 파일 4개가 unstaged/untracked 상태이며 stage/commit/push/merge는 하지 않았다. `COMMIT_READY`; IAM HOLD와 기존 npm advisory, 수동 비교 항목은 유지한다. 상세 내용은 `docs/handoff/CURRENT_HANDOFF.md`와 `docs/app-next-schedules-read-only-pilot.md`에 기록한다.
+
+## 이전 공지 CRUD 인계 기록 (2026-10-15; 현재 일정 작업 상태는 위 요약 참조)
 
 - App Next 공지 CRUD 최종 검증을 `codex/feat-app-next-core-crud` worktree에서 완료했다. Browser recovery suite `13/13 PASS`; `npm test`, `npm run typecheck`, `npm run build`, `npm run build:admin`, `git diff --check`도 통과했다. demo project와 loopback Emulator만 사용했으며 production 접근/데이터 변경/deploy/IAM/Rules/Functions/dependency 변경은 없었다.
 - browser suite 실행 전 지정 포트에 stale emulator listener가 없고 locator 파일도 없었다. suite가 demo Auth/Firestore Emulator를 시작해 정상 종료했고, stale emulator 프로세스 종료는 불필요했다. 생성된 `firestore-debug.log`는 종료 및 잠금 해제 확인 후 삭제했다. 기존 `tmp/recovery-browser-emulator-debug.log`는 이번 실행 산출물이 아니어서 보존했다.

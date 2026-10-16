@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import ts from "typescript";
+import { scheduleCrudTests } from "./app-next-schedules-crud-tests.mjs";
 
 const requireNative = createRequire(import.meta.url);
 const projectRoot = process.cwd();
@@ -219,6 +220,7 @@ const ownerLegacyFixture = makeLegacySession({
 });
 
 const tests = [
+  ...scheduleCrudTests(loadTsModule, projectRoot),
   ["status active creates active status", () => {
     const result = normalization.normalizeAccountStatus({ status: "active" });
     assert.equal(result.status, "active");
@@ -6631,13 +6633,13 @@ const tests = [
     assert.equal(/\bsignOut\s*\(/.test(componentSource), false);
     assert.match(componentSource, /scheduleReadCount \+= 1/);
   }],
-  ["app-next schedules diagnostics are privacy-safe zero-write counters", () => {
+  ["app-next schedules diagnostics preserve write counts and remain listener-free", () => {
     const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
     const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextSchedulesReadOnly.tsx"), "utf8");
     assert.match(diagnosticsSource, /AppNextSchedulesDiagnosticsSnapshot/);
     assert.match(diagnosticsSource, /PMAppNextSchedulesDiagnostics/);
     assert.match(diagnosticsSource, /recordAppNextSchedulesDiagnostics/);
-    assert.match(componentSource, /scheduleWriteAttemptCount:\s*0/);
+    assert.match(componentSource, /scheduleWriteAttemptCount: getAppNextSchedulesDiagnostics\(\).scheduleWriteAttemptCount/);
     assert.match(componentSource, /scheduleListenerStartCount:\s*0/);
     assert.match(componentSource, /scheduleActiveListenerCount:\s*0/);
     assert.match(diagnosticsSource, /detailPanelOpen/);

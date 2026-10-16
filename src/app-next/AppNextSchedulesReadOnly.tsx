@@ -13,6 +13,7 @@ import {
 } from "../auth/useAuth";
 import {
   getAppNextAuthRouteMatrixDiagnostics,
+  getAppNextSchedulesDiagnostics,
   recordAppNextSchedulesDiagnostics,
 } from "./appNextDiagnostics";
 import {
@@ -30,6 +31,9 @@ import {
   type AppNextScheduleRecord,
   type AppNextSchedulesNormalized,
 } from "./appNextSchedulesReadonlyUtils";
+import RequireWorkspaceRole from "../components/guards/RequireWorkspaceRole";
+import { AppNextScheduleCrud } from "./AppNextScheduleCrud";
+import { APP_NEXT_SCHEDULE_WRITE_ROLES, appNextScheduleWritePolicy, type AppNextScheduleManagementRecord } from "./appNextScheduleCrudUtils";
 
 type ScheduleErrorCode =
   | "none"
@@ -229,6 +233,11 @@ export function AppNextSchedulesReadOnly({
   const [loading, setLoading] = useState(false);
   const [errorCode, setErrorCode] = useState<ScheduleErrorCode>("none");
   const [normalized, setNormalized] = useState<AppNextSchedulesNormalized>(emptyNormalized);
+  const [managementRecords, setManagementRecords] = useState<AppNextScheduleManagementRecord[]>([]);
+  const sessionKey = `${session?.uid ?? ""}:${session?.currentWorkspaceId ?? ""}:${phase}`;
+  const sessionKeyRef = useRef(sessionKey);
+  sessionKeyRef.current = sessionKey;
+  const writePolicy = appNextScheduleWritePolicy({ phase, session });
   const [duplicateLoadDetected, setDuplicateLoadDetected] = useState(false);
   const [filter, setFilter] = useState<AppNextScheduleFilter>(APP_NEXT_EMPTY_SCHEDULE_FILTER);
   const [selectedKey, setSelectedKey] = useState("");
@@ -303,7 +312,7 @@ export function AppNextSchedulesReadOnly({
       scheduleRenderCount,
       scheduleLoadCount,
       scheduleReadCount,
-      scheduleWriteAttemptCount: 0,
+      scheduleWriteAttemptCount: getAppNextSchedulesDiagnostics().scheduleWriteAttemptCount,
       scheduleListenerStartCount: 0,
       scheduleActiveListenerCount: 0,
       scheduleCacheHitCount,
@@ -336,7 +345,7 @@ export function AppNextSchedulesReadOnly({
       timedScheduleCount: normalized.timedRecords.length,
       selectedFilter,
       firestoreReadCount: scheduleReadCount,
-      firestoreWriteAttemptCount: 0,
+      firestoreWriteAttemptCount: getAppNextSchedulesDiagnostics().firestoreWriteAttemptCount,
       authListenerCount: authDiagnostics.authStateListenerCount,
       workspaceListenerCount: 0,
       currentRoute,
@@ -364,11 +373,13 @@ export function AppNextSchedulesReadOnly({
     sensitiveValueDetected,
   ]);
 
-  const loadSchedules = useCallback(async (forceRefresh = false) => {
+  const loadSchedules = useCallback(async (forceRefresh = false): Promise<boolean> => {
+    const requestSessionKey = sessionKeyRef.current;
     if (!policy.routeAllowed) {
       setLoading(false);
       setErrorCode(policy.reason === "loading" ? "none" : "unknown");
       setNormalized(emptyNormalized);
+      setManagementRecords([]);
       setSelectedKey("");
       setSelectedCardKey("");
       updateDiagnostics({
@@ -377,13 +388,14 @@ export function AppNextSchedulesReadOnly({
         totalScheduleCount: 0,
         visibleScheduleCount: 0,
       });
-      return;
+      return false;
     }
 
     if (!policy.canRead || !session?.currentWorkspaceId) {
       setLoading(false);
       setErrorCode("workspace-missing");
       setNormalized(emptyNormalized);
+      setManagementRecords([]);
       setSelectedKey("");
       setSelectedCardKey("");
       updateDiagnostics({
@@ -392,11 +404,17 @@ export function AppNextSchedulesReadOnly({
         totalScheduleCount: 0,
         visibleScheduleCount: 0,
       });
-      return;
+      return false;
     }
 
     const cacheKey = session.currentWorkspaceId;
     const existingRequest = schedulesInFlight.get(cacheKey);
+    // A post-write refresh must not reuse a query that started before the write.
+    if (forceRefresh && existingRequest) {
+      await existingRequest.catch(() => undefined);
+      if (sessionKeyRef.current !== requestSessionKey) return false;
+      return loadSchedules(true);
+    }
     if (existingRequest || inFlightRef.current) {
       setLoading(true);
       updateDiagnostics({
@@ -406,7 +424,9 @@ export function AppNextSchedulesReadOnly({
       if (existingRequest) {
         try {
           const result = await existingRequest;
+          if (sessionKeyRef.current !== requestSessionKey) return false;
           setNormalized(result.normalized);
+          setManagementRecords(result.managementRecords);
           setSelectedKey((current) => (
             current && result.normalized.visibleRecords.some((schedule) => schedule.stableKey === current)
               ? current
@@ -423,7 +443,9 @@ export function AppNextSchedulesReadOnly({
             errorCode: "none",
             duplicateLoadDetected: false,
           });
+          return true;
         } catch (loadError) {
+          if (sessionKeyRef.current !== requestSessionKey) return false;
           const nextError = classifyScheduleError(loadError);
           setErrorCode(nextError);
           updateDiagnostics({
@@ -431,11 +453,12 @@ export function AppNextSchedulesReadOnly({
             errorCode: nextError,
             duplicateLoadDetected: false,
           });
+          return false;
         } finally {
           setLoading(false);
         }
       }
-      return;
+      return false;
     }
 
     if (forceRefresh) {
@@ -455,6 +478,7 @@ export function AppNextSchedulesReadOnly({
     if (cached) {
       scheduleCacheHitCount += 1;
       setNormalized(cached.normalized);
+      setManagementRecords(cached.managementRecords);
       setErrorCode("none");
       setLoading(false);
       updateDiagnostics({
@@ -463,7 +487,7 @@ export function AppNextSchedulesReadOnly({
         scheduleCacheHitCount,
         lastScheduleReadMode: "cache",
       });
-      return;
+      return true;
     }
 
     inFlightRef.current = true;
@@ -487,8 +511,10 @@ export function AppNextSchedulesReadOnly({
     schedulesInFlight.set(cacheKey, request);
     try {
       const result = await request;
+      if (sessionKeyRef.current !== requestSessionKey) return false;
       schedulesCache.set(cacheKey, result);
       setNormalized(result.normalized);
+      setManagementRecords(result.managementRecords);
       setSelectedKey((current) => (
         current && result.normalized.visibleRecords.some((schedule) => schedule.stableKey === current)
           ? current
@@ -518,9 +544,12 @@ export function AppNextSchedulesReadOnly({
         lastScheduleFromCache: result.fromCache,
         lastSchedulePendingWrites: result.hasPendingWrites,
       });
+      return true;
     } catch (loadError) {
+      if (sessionKeyRef.current !== requestSessionKey) return false;
       const nextError = classifyScheduleError(loadError);
       setNormalized(emptyNormalized);
+      setManagementRecords([]);
       setSelectedKey("");
       setSelectedCardKey("");
       setErrorCode(nextError);
@@ -530,6 +559,7 @@ export function AppNextSchedulesReadOnly({
         totalScheduleCount: 0,
         visibleScheduleCount: 0,
       });
+      return false;
     } finally {
       if (schedulesInFlight.get(cacheKey) === request) schedulesInFlight.delete(cacheKey);
       inFlightRef.current = false;
@@ -588,9 +618,8 @@ export function AppNextSchedulesReadOnly({
     <>
       <section className="app-next-panel app-next-dashboard-hero">
         <div>
-          <p className="app-next-muted-label">App Next 일정 조회 전용 Pilot</p>
-          <h2>일정 조회</h2>
-          <p>운영 일정 데이터는 유지하고, app-next에서 같은 workspace의 일정만 읽기 전용으로 확인합니다.</p>
+          <p className="app-next-muted-label">App Next</p>
+          <h2>일정</h2>
         </div>
         <button
           type="button"
@@ -616,12 +645,22 @@ export function AppNextSchedulesReadOnly({
           <ValueRow label="완료" value={String(normalized.completedRecords.length)} />
           <ValueRow label="지난 일정" value={String(normalized.pastRecords.length)} />
           <ValueRow label="숨김/삭제 제외" value={String(normalized.hiddenRecords.length)} />
-          <ValueRow label="읽기 전용" value="예" />
+          <ValueRow label="읽기 전용" value={writePolicy.canCreate ? "아니요" : "예"} />
         </dl>
         {errorCode !== "none" && !loading ? (
           <p className="app-next-message">{errorMessage(errorCode)}</p>
         ) : null}
       </section>
+
+      {policy.canRead && writePolicy.canCreate && session?.currentWorkspaceId ? (
+        <RequireWorkspaceRole allowedRoles={APP_NEXT_SCHEDULE_WRITE_ROLES} allowSystemOwnerBypass
+          requireWorkspace previewMode useExistingAuthProvider defaultNewAuth
+          currentRoute={currentRoute} requestedRoute={requestedRoute} menuVisible>
+          <AppNextScheduleCrud key={`${session.uid}:${session.currentWorkspaceId}`}
+            workspaceId={session.currentWorkspaceId} records={managementRecords} loading={loading}
+            onServerConfirmed={() => loadSchedules(true)} />
+        </RequireWorkspaceRole>
+      ) : null}
 
       {!policy.hasWorkspace ? (
         <section className="app-next-panel">

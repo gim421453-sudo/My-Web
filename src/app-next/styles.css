@@ -745,3 +745,20 @@ button.secondary {
     width: 100%;
   }
 }
+.app-next-schedule-crud {
+  border-top: 1px solid #d1d5db;
+  padding: 20px 0;
+}
+
+.app-next-schedule-crud > label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.app-next-schedule-crud select,
+.app-next-schedule-crud input,
+.app-next-schedule-crud textarea {
+  min-width: 0;
+  max-width: 100%;
+}

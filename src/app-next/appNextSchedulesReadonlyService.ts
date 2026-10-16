@@ -9,6 +9,7 @@ import {
 import {
   collections,
 } from "../services/firestoreSchema";
+import { scheduleManagementRecord, type AppNextScheduleManagementRecord } from "./appNextScheduleCrudUtils";
 import {
   normalizeAppNextSchedulesStore,
   type AppNextSchedulesNormalized,
@@ -21,6 +22,7 @@ export interface LoadAppNextSchedulesReadonlyInput {
 }
 
 export interface LoadAppNextSchedulesReadonlyResult {
+  managementRecords: AppNextScheduleManagementRecord[];
   normalized: AppNextSchedulesNormalized;
   rawReadCount: number;
   collectionReadCount: number;
@@ -38,11 +40,15 @@ export async function loadAppNextSchedulesReadonly({
     ? await getDocsFromServer(ref)
     : await getDocs(ref);
   const schedules = snapshot.docs.map((documentSnapshot) => ({
-    id: documentSnapshot.id,
     ...documentSnapshot.data(),
+    id: documentSnapshot.id,
   }));
 
   return {
+    managementRecords: snapshot.docs.flatMap((item) => {
+      const record = scheduleManagementRecord(item.id, item.data(), workspaceId);
+      return record ? [record] : [];
+    }),
     normalized: normalizeAppNextSchedulesStore({
       schedules,
     }, {

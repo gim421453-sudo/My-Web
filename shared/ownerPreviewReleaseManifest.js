@@ -209,11 +209,15 @@
       globalRoles: ownerOnly,
       firstOwnerPreviewIncluded: true,
     }),
-    appNextFeature("schedules-readonly", "app-next read-only schedules pilot.", {
+    appNextFeature("schedules-readonly", "app-next workspace schedules with guarded CRUD.", {
+      notes: "Workspace schedule CRUD; deletion is limited to system owner and workspace managers.",
+      ownerPreview: false,
       hasRead: true,
+      hasWrite: true,
       workspaceRequired: true,
       serverConfirmed: true,
-      globalRoles: ownerOnly,
+      globalRoles: ["system_owner", "user"],
+      workspaceRoles: allWorkspaceRoles,
       firstOwnerPreviewIncluded: true,
     }),
     appNextFeature("devices", "app-next read-only login devices.", {
