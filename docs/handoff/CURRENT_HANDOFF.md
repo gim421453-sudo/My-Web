@@ -1,7 +1,14 @@
 # MY WEB 현재 작업 인계
 
-Last updated: 2026-10-16 (Asia/Seoul)
-Status: APP_NEXT_SCHEDULE_CRUD_AUTOMATED_PASS_COMMIT_READY
+Last updated: 2026-10-17 (Asia/Seoul)
+Status: LOGIN_COPY_UPDATED
+
+## 현재 로그인 문구 작업
+
+- 저장소 `C:\dev\My-Web`, 브랜치 `codex/fix-login-copy`, 기준 HEAD `cf55bedbfb6657ead3e3286fe9e231768a77a29c`. 시작 시 main/origin/main 작업 트리는 clean이었다. 별도 브랜치에서만 수정했고 stage/commit/push/merge는 하지 않았다.
+- index.html/app.js의 기본 제목을 `통합 관리프로그램`으로 변경했다. 이전 기본 이름은 표시 단계에서만 치환하고 사용자 지정 이름 및 저장 데이터는 보존한다. 초대 안내 문구의 정적 HTML과 동적 재생성 및 직접 접근 코드를 함께 제거했다. 회원가입/초대코드 등록 버튼과 인증 로직은 유지한다.
+- `npm test` PASS. 문구·기본 이름 호환 및 사용자 이름 보존 회귀 검사는 `scripts/test-login-copy.mjs`에 추가했다. 실제 로그인/운영 Firebase 검사는 수행하지 않았다. Rules/Functions/의존성/다른 시간표 worktree는 변경하지 않았다.
+- 변경 파일: index.html, app.js, scripts/test-login-copy.mjs, AGENTS.md, 이 문서. 로컬 미커밋 상태이므로 다른 PC에서 자동 복구된다고 가정하지 않는다. 아래 일정 기록은 과거 상태다.
 
 ## 현재 작업 브랜치 인계 (2026-10-16)
 

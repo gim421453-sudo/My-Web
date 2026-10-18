@@ -63,7 +63,7 @@ let accounts = [];
 
 const initialStore = {
   settings: {
-    siteName: "개인 관리 프로그램",
+    siteName: "통합 관리프로그램",
     logoText: "PM",
     systemNotice: "시스템 공지사항입니다. 홈페이지 관리에서 수정할 수 있습니다.",
     editMode: false,
@@ -471,9 +471,11 @@ function init() {
 }
 
 function applySettings() {
-  document.title = store.settings.siteName;
-  loginTitle.textContent = store.settings.siteName;
-  brandName.textContent = store.settings.siteName;
+  const siteName = !store.settings.siteName || store.settings.siteName === "개인 관리 프로그램"
+    ? "통합 관리프로그램" : store.settings.siteName;
+  document.title = siteName;
+  loginTitle.textContent = siteName;
+  brandName.textContent = siteName;
   brandMark.textContent = store.settings.logoText || "PM";
 }
 
@@ -5578,7 +5580,7 @@ function appendSystemReportBoxV12() {
 function makeEmptyLocalStoreV14() {
   return {
     settings: {
-      siteName: "개인 관리 프로그램",
+      siteName: "통합 관리프로그램",
       logoText: "PM",
       systemNotice: "",
       systemNoticeEnabled: true,
@@ -8808,7 +8810,7 @@ function logout() {
 function setupAuthUiV31() {
   const demo = document.querySelector(".demo-accounts");
   if (demo) {
-    demo.innerHTML = `<p class="muted invite-only-note">계정은 관리자 초대 또는 초대코드로 등록합니다.</p>`;
+    demo.remove();
   }
   const emailInput = document.getElementById("email");
   if (emailInput) emailInput.placeholder = "email@example.com";
@@ -9265,7 +9267,6 @@ function setupFirebaseReadyAuthUiV33() {
   googleBtn.addEventListener("click", loginWithGoogleV34);
   addInviteCodeAuthButtonV38(actions);
   loginForm.addEventListener("submit", onLoginV33, true);
-  loginForm.querySelector(".invite-only-note").textContent = "계정은 관리자 초대 또는 초대코드로 등록합니다.";
 }
 
 function addInviteCodeAuthButtonV38(actions) {

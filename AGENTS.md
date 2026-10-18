@@ -26,7 +26,12 @@ OWNER: Codex
 - 상대 프로젝트의 담당이 다른 AI여도 저장소는 읽기만 하고, 필요한 변경은 docs/integration.md에 요청으로 남긴다. 상대 저장소를 직접 수정하지 않는다.
 - 연동 때문에 현재 프로젝트의 구조를 크게 바꾸지 않는다.
 
-## 최신 인계 요약 (2026-10-16)
+## 로그인 문구 수정 인계 (2026-10-17)
+
+- `codex/fix-login-copy`, 기준 HEAD `cf55bed`에서 로그인 기본 이름을 `통합 관리프로그램`으로 변경하고 초대 안내 문구의 HTML 및 동적 생성 경로를 제거했다. 기존 기본 이름은 표시 시에만 새 이름으로 처리하고 사용자 지정 이름과 저장 데이터는 보존한다. 인증 기능/Rules/의존성은 변경하지 않았다.
+- `npm test` PASS. 추가 검증은 `node scripts/test-login-copy.mjs`로 실행한다. 변경은 미커밋 상태이며 stage/commit/push/merge는 수행하지 않았다. 이전 시간표 작업 worktree는 변경하지 않았다.
+
+## 이전 인계 요약 (2026-10-16)
 
 - 일정 CRUD 작업: `codex/feat-app-next-schedule-crud`, worktree `tmp/codex-branches/feat-app-next-schedule-crud`, 기준 HEAD `6e1e0b9`. 시작 시 작업 트리는 깨끗했고 로컬 main/origin/main 기준도 같은 커밋이었다. 이 브랜치는 upstream이 없어 ahead/behind는 미확인이다. main 작업 및 stage/commit/push/merge는 수행하지 않았다.
 - App Next 기존 `#/schedules-readonly` 경로를 유지하며 canonical 일정 CRUD를 구현했다. 활성 Rules와 legacy 기본 action 권한은 일치한다: system_owner/super_manager/manager는 생성·수정·삭제, teacher/normal은 생성·수정만 가능하며 작성자 제한은 없다. viewer/print_account는 조회만 가능하다. RequireAuth와 RequireWorkspaceRole, 서비스 preflight 및 서버 Rules로 workspace/권한 경계를 유지한다.
