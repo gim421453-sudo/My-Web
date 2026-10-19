@@ -223,6 +223,8 @@ export interface AppNextTimetableDiagnosticsSnapshot {
   timetableRenderCount: number;
   timetableReadCount: number;
   timetableWriteAttemptCount: number;
+  timetableConfirmedWriteCount: number;
+  lastTimetableWriteResult: string;
   timetableListenerStartCount: number;
   timetableActiveListenerCount: number;
   timetableLoadCount: number;
@@ -457,6 +459,8 @@ let timetableDiagnostics: AppNextTimetableDiagnosticsSnapshot = {
   timetableRenderCount: 0,
   timetableReadCount: 0,
   timetableWriteAttemptCount: 0,
+  timetableConfirmedWriteCount: 0,
+  lastTimetableWriteResult: "none",
   timetableListenerStartCount: 0,
   timetableActiveListenerCount: 0,
   timetableLoadCount: 0,
@@ -1201,17 +1205,26 @@ export function recordAppNextTimetableDiagnostics(
   timetableDiagnostics = {
     ...timetableDiagnostics,
     ...next,
-    timetableWriteAttemptCount: next.timetableWriteAttemptCount ?? 0,
+    timetableWriteAttemptCount: next.timetableWriteAttemptCount ?? timetableDiagnostics.timetableWriteAttemptCount,
     timetableListenerStartCount: next.timetableListenerStartCount ?? 0,
     timetableActiveListenerCount: next.timetableActiveListenerCount ?? 0,
     duplicateCellMutationAttemptCount: next.duplicateCellMutationAttemptCount ?? 0,
-    firestoreWriteAttemptCount: next.firestoreWriteAttemptCount ?? 0,
+    firestoreWriteAttemptCount: next.firestoreWriteAttemptCount ?? timetableDiagnostics.firestoreWriteAttemptCount,
     workspaceListenerCount: next.workspaceListenerCount ?? 0,
   };
 }
 
 export function getAppNextTimetableDiagnostics(): AppNextTimetableDiagnosticsSnapshot {
   return { ...timetableDiagnostics };
+}
+
+export function recordAppNextTimetableWrite(result: "pending" | "server-confirmed" | "failed"): void {
+  timetableDiagnostics.lastTimetableWriteResult = result;
+  if (result === "server-confirmed") timetableDiagnostics.timetableConfirmedWriteCount += 1;
+  if (result === "pending") {
+    timetableDiagnostics.timetableWriteAttemptCount += 1;
+    timetableDiagnostics.firestoreWriteAttemptCount += 1;
+  }
 }
 
 export function recordAppNextSchedulesDiagnostics(

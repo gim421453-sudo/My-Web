@@ -1,16 +1,42 @@
 # MY WEB 현재 작업 인계
 
-Last updated: 2026-10-17 (Asia/Seoul)
-Status: LOGIN_COPY_UPDATED
+Last updated: 2026-10-19 (Asia/Seoul)
+Status: FORMAT_RECOVERY_INTEGRATION_VALIDATED
 
-## 현재 로그인 문구 작업
+## 포맷 전 통합 상태
+
+- 원격 저장소: `https://github.com/gim421453-sudo/My-Web.git`, OWNER Codex. 현재 루트 `C:\dev\My-Web`, 통합 브랜치 `codex/docs-format-recovery`. 시작 시 main/origin/main은 `cf55bed`; 로그인 브랜치 HEAD `4856347f72f90849b0989bb4f91bc06d930d9cda`는 이미 원격과 일치했다. 시간표 worktree의 미커밋 19개 파일은 `6cb8546`으로 커밋하고 origin에 push해 복구 지점을 확보했다.
+- 이번 통합은 로그인 문구와 시간표 row CRUD만 포함한다. 코드 충돌은 없으며 AGENTS/이 문서의 인계 상태 충돌을 두 작업의 역사로 보존했다. dependency remediation/full-regression 조사 브랜치를 병합한 것이 아니다. 최종 검증 결과와 main 원격 동기화는 완료 후 아래에 기록한다.
+- 현재 제품: legacy `index.html + app.js` 유지, App Next 공지/일정/시간표 row CRUD 제공. 로그인 기본 이름은 `통합 관리프로그램`, 초대 안내 문구는 제거했으며 기존 사용자 지정 이름과 인증 버튼/동작은 유지한다. 시간표 계약은 `docs/app-next-timetable-read-only-pilot.md`, 일정/공지 계약은 각 integration/pilot 문서를 참조한다.
+- 재개 지침: **`docs/handoff/FORMAT_RECOVERY.md`를 먼저 읽는다.** 포맷은 `.env`, 비추적 데이터, 브라우저 localStorage/IndexedDB 및 설치 런타임을 지운다. Git push만으로 이 항목들이 백업되지는 않는다. 개인 파일 외부 백업은 사용자 수행 필요이며 완료 여부는 미확인이다.
+- 미해결: npm advisory, 운영 앱과 mixed/legacy 화면·정렬·출력 수동 비교, 장시간 offline UX, 임의 ID legacy 클라이언트와 App Next의 동시 생성 전체 유일성. 학교 manager/teacher assignment scope 미검증은 fail closed 유지. IAM HOLD; 운영 Firebase 접근/deploy/원격 권한 변경 금지.
+- 통합 검증(2026-10-19): 로그인 문구 회귀 PASS, 시간표 단위 9/9 PASS, npm test PASS(auth 모듈 668개), typecheck/build/build:admin PASS, release gate 33/33 PASS, 전체 browser 18/18 PASS(fail/cancel/skip/todo 0). Node 24.18.0 / npm 11.16.0 / Java 21. 세션 demo build와 demo/loopback Emulator만 사용했다. Vite 비모듈 script/use client 경고는 비차단이다. Functions 및 별도 전체 Rules suite는 이번에 재실행하지 않았다.
+- Rules/Functions/의존성 manifest·lockfile은 cf55bed 기준 diff 0이다. legacy app.js는 로그인 기본 문구/초대 안내 제거만 변경했다. 코드 로직 추가 수정 없이 두 작업을 통합했다. main 반영 및 원격 최종 확인은 다음 문서 마무리에서 기록한다.
+
+## 과거 로그인 문구 작업 (2026-10-17 당시 상태)
 
 - 저장소 `C:\dev\My-Web`, 브랜치 `codex/fix-login-copy`, 기준 HEAD `cf55bedbfb6657ead3e3286fe9e231768a77a29c`. 시작 시 main/origin/main 작업 트리는 clean이었다. 별도 브랜치에서만 수정했고 stage/commit/push/merge는 하지 않았다.
 - index.html/app.js의 기본 제목을 `통합 관리프로그램`으로 변경했다. 이전 기본 이름은 표시 단계에서만 치환하고 사용자 지정 이름 및 저장 데이터는 보존한다. 초대 안내 문구의 정적 HTML과 동적 재생성 및 직접 접근 코드를 함께 제거했다. 회원가입/초대코드 등록 버튼과 인증 로직은 유지한다.
 - `npm test` PASS. 문구·기본 이름 호환 및 사용자 이름 보존 회귀 검사는 `scripts/test-login-copy.mjs`에 추가했다. 실제 로그인/운영 Firebase 검사는 수행하지 않았다. Rules/Functions/의존성/다른 시간표 worktree는 변경하지 않았다.
 - 변경 파일: index.html, app.js, scripts/test-login-copy.mjs, AGENTS.md, 이 문서. 로컬 미커밋 상태이므로 다른 PC에서 자동 복구된다고 가정하지 않는다. 아래 일정 기록은 과거 상태다.
 
-## 현재 작업 브랜치 인계 (2026-10-16)
+## 과거 시간표 작업 브랜치 인계 (2026-10-17 당시 상태)
+
+- OWNER: Codex. worktree `C:\dev\My-Web\tmp\codex-branches\feat-app-next-timetable-row-crud`, 브랜치 `codex/feat-app-next-timetable-row-crud`, HEAD `cf55bedbfb6657ead3e3286fe9e231768a77a29c`. 기존 utils 변경을 보존하고 이어서 구현했다. upstream 없음; ahead/behind 미확인; fetch/main 수정/stage/commit/push/merge 없음. 아래 이전 일정 작업 기록은 과거 결과다.
+- 완료: 시간표 주간 격자에 row 단위 생성·수정·삭제, RequireWorkspaceRole, 서비스 정책, 오류·중복 제출 방지와 서버 확인을 연결했다. 기존 `#/timetable-readonly` 경로와 read normalization은 유지한다. 명시적으로 선택한 set만 편집하며 invalid set을 자동 저장/교체하지 않는다.
+- canonical 경로는 `workspaces/{workspaceId}/timetable`이다. set/periodTimes는 조회만 한다. create는 cell 기반 ID transaction, update는 원래 문서에 editable patch만 적용, delete는 정확한 row 한 개만 제거한다. 모든 작업은 `getDocFromServer`로 값/부재 확인 후 `getDocsFromServer` 목록 재조회까지 성공해야 완료 표시한다. unknown 필드, 기존 set alias, 기존 시간·프로그램 연결은 수정 시 보존한다.
+- 권한: system_owner/super_manager C/U/D; manager personal/academy C/U/D; teacher personal/academy C/U; normal 알려진 school/personal/academy C/U; viewer/print_account 쓰기 금지. 학교 manager/teacher 및 unknown 모드 일반 역할은 운영 assignment scope 미검증으로 fail closed. 실제 서버 권한은 기존 Rules가 판정하며 이 클라이언트 제한을 새 서버 강제 정책으로 오인하지 않는다.
+- 교시: 저장된 visiblePeriodCount/periodCount 및 실제 periodTimes만 사용하며 set 전용 시간이 공통 시간보다 우선한다. 비활성 교시는 제외한다. 조회의 기존 표시 fallback과 쓰기 활성 교시를 분리하며 임의 1~12 생성은 없다. 일반/학교 row에 program 필드를 추가하지 않고 프로그램 set의 기존 programId만 상속한다.
+- 실제 검사: 전용 단위 9/9 PASS; `npm test` PASS(auth 모듈 668개); typecheck/build/build:admin PASS; release gate 33/33 PASS. browser 전체 18 tests / 18 pass / 0 fail / 0 skipped / 0 todo. 기존 15개와 시간표 3개 모두 통과했다. 관리자 3종 CRUD/서버 상태/새로고침, teacher/normal 수정 및 삭제 차단, viewer/print 쓰기 숨김, 학교 manager/teacher 차단, 프로그램 binding, invalid set/workspace, 비활성 membership 오류 UI, 다른 row/set/period 보존을 확인했다.
+- 환경: Node 24.18.0, Temurin JRE 21. demo project + loopback Emulator만 사용했고 build도 세션 demo Firebase 값만 사용했다. production 접근/데이터 변경/deploy/IAM 변경 없음. Vite 비모듈 script와 React Router use client 경고는 비차단이다. 네트워크/confirmation 오류는 실제 서비스 fake SDK 단위 검사이며 WebChannel 차단이나 production hook은 없다.
+- 화면 검증: `tmp/timetable-row-desktop.png`, `tmp/timetable-row-mobile.png` 생성, 모바일 document 가로 넘침 검사 PASS. tmp 산출물은 커밋 대상이 아니다.
+- 변경 파일: AGENTS.md, CURRENT_HANDOFF.md, README.md, CHANGELOG.md, 시간표 문서; app-next.html, release manifest, AppNext.tsx, 시간표 격자/조회 서비스/진단/CSS; auth·release gate·browser 테스트. 신규 파일은 row editor/service/utils 및 전용 unit 스크립트다. 모두 unstaged/untracked 상태로 보존한다.
+- MANUAL_REQUIRED: 운영 화면과 mixed/legacy 데이터의 실제 표시·출력 대조, 장시간 오프라인 UX. App Next끼리의 중복은 deterministic cell ID transaction으로 차단하고 기존 legacy 점유는 preflight로 차단하지만, 임의 ID legacy 클라이언트와의 동시 생성 전체를 보장하려면 별도 서버 계약이 필요하다. 이번 작업에서 Rules/backend를 변경하지 않는다.
+- 다음 단계: 최종 diff 검토 및 위 수동 비교. 별도 지시 전 stage/commit/push/merge하지 않는다. 미커밋 변경은 원격에 없으므로 다른 PC에서 자동 복구되는 것으로 가정하지 않는다. npm advisory 후속 조사와 IAM HOLD는 그대로 유지한다.
+- 최종 Git: `git diff --check` PASS. 금지 Rules 및 root/functions/Rules 도구 manifest·lockfile diff 0, Functions 코드 및 legacy app.js/workspaceDataService 무변경, Firebase 생성 설정 diff 0. Emulator/Vite 지정 포트 종료 및 로그 exclusive lock 해제를 확인한 뒤 이번 firestore-debug.log만 제거했다. 미추적 debug log 잔존 없음. tracked 변경 15개 + 신규 4개이며 tmp 캡처는 ignored 산출물이다.
+- Cross-device readiness: `READY_WITH_WARNINGS` — 현재 경로/브랜치/HEAD와 실제 자동 검사, 로컬 미커밋 상태, upstream 없음, 수동 항목을 기록했다. 필수 자동 검사 및 Git 조건을 충족해 `COMMIT_READY`다. production 승인과 별개이며 stage/commit/push/merge는 수행하지 않았다.
+
+## 이전 일정 작업 브랜치 인계 (2026-10-16)
 
 - 저장소/worktree: `C:\dev\My-Web\tmp\codex-branches\feat-app-next-schedule-crud`; 브랜치 `codex/feat-app-next-schedule-crud`; HEAD `6e1e0b9ca8dd3c70a961904b050ef3806a5d7ec3`. 로컬 main/origin/main 기준도 동일하다(이번 작업에서 fetch하지 않음). upstream은 없으며 ahead/behind는 미확인이다. 시작 시 clean worktree였고 현재 변경은 모두 unstaged/untracked 상태다.
 - 목적/완료: App Next 일정 조회 화면에 기존 운영 schema 기반 생성·수정·삭제, 권한 Guard, 서버 확인, 입력/오류/중복 제출 처리를 추가했다. 경로 `#/schedules-readonly`는 호환성을 위해 유지했다. marker 및 migration 없이 `workspaces/{workspaceId}/schedules`만 사용한다.

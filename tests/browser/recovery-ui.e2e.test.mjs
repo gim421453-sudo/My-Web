@@ -795,6 +795,165 @@ test("App Next 일정 입력·권한 오류 UI와 비활성 membership을 검증
   }
 });
 
+const TT_SET = "e2e-tt-main";
+const TT_PROGRAM_SET = "e2e-tt-program";
+async function timetableFixture() {
+  const workspaceRef = adminDb.doc(`workspaces/${WORKSPACE_A}`);
+  const originalWorkspace = (await workspaceRef.get()).data();
+  await workspaceRef.set({ operationMode: "academy" }, { merge: true });
+  await adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${TT_SET}`).set({ name: "E2E 수업 시간표", kind: "general", visiblePeriodCount: 2 });
+  await adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${TT_PROGRAM_SET}`).set({ name: "E2E 방과후 시간표", kind: "afterschool", programId: "e2e-existing-program", visiblePeriodCount: 2 });
+  await adminDb.doc(`workspaces/${WORKSPACE_A}/periodTimes/e2e-tt-period`).set({ period: "1교시", start: "09:00", end: "09:50", setId: TT_SET });
+  await adminDb.doc(`workspaces/${WORKSPACE_A}/timetable/e2e-tt-preserved`).set({
+    timetableSetId: TT_SET, day: "화요일", period: "1교시", subject: "Other lesson", extraCanonicalField: { keep: true },
+  });
+  return async () => {
+    const rows = await adminDb.collection(`workspaces/${WORKSPACE_A}/timetable`).get();
+    await Promise.all(rows.docs.filter((item) => [TT_SET, TT_PROGRAM_SET].includes(item.get("setId") || item.get("timetableSetId"))).map((item) => item.ref.delete()));
+    await Promise.all([TT_SET, TT_PROGRAM_SET].map((id) => adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${id}`).delete()));
+    await adminDb.doc(`workspaces/${WORKSPACE_A}/periodTimes/e2e-tt-period`).delete();
+    await workspaceRef.set(originalWorkspace);
+  };
+}
+
+async function openTimetable(page, shortName, setId = TT_SET) {
+  await loginAppNext(page, shortName);
+  await page.goto(`${APP_URL}app-next.html#/timetable-readonly`, { waitUntil: "domcontentloaded" });
+  await page.getByLabel("시간표 선택", { exact: true }).selectOption(setId);
+  await page.getByRole("heading", { name: setId === TT_SET ? "E2E 수업 시간표" : "E2E 방과후 시간표", exact: true }).waitFor();
+}
+
+test("App Next 시간표 관리자 수업 CRUD는 단일 row와 서버 상태를 보존한다", { timeout: 300_000 }, async () => {
+  const cleanup = await timetableFixture();
+  try {
+    const setRef = adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${TT_SET}`);
+    const periodRef = adminDb.doc(`workspaces/${WORKSPACE_A}/periodTimes/e2e-tt-period`);
+    const setBefore = (await setRef.get()).data(); const periodBefore = (await periodRef.get()).data();
+    for (const [shortName, role] of [["owner", "system_owner"], ["super", "super_manager"], ["manager", "manager"]]) {
+      const { context, page } = await createPage();
+      try {
+        await openTimetable(page, shortName);
+        await page.getByRole("button", { name: "월요일 1교시 수업 추가", exact: true }).click();
+        const editor = page.getByRole("region", { name: "수업 편집" });
+        const title = `Timetable row ${role}`;
+        await editor.getByLabel("수업명", { exact: true }).fill(title);
+        await editor.getByLabel("선생님", { exact: true }).fill("E2E teacher");
+        await editor.getByRole("button", { name: "수업 저장", exact: true }).click();
+        await editor.getByRole("status").filter({ hasText: "수업 등록을 서버에서 확인했습니다." }).waitFor();
+        const created = await adminDb.collection(`workspaces/${WORKSPACE_A}/timetable`).where("subject", "==", title).get();
+        assert.equal(created.size, 1); const id = created.docs[0].id;
+        assert.equal(created.docs[0].get("setId"), TT_SET); assert.equal(created.docs[0].get("programId"), undefined);
+        assert.equal(await page.getByRole("button", { name: "월요일 1교시 수업 추가", exact: true }).count(), 0);
+        const duplicate = await page.evaluate(async ({ shortName, role, workspace, setId }) => {
+          const service = await import("/src/app-next/appNextTimetableRowCrudService.ts");
+          try { await service.createAppNextTimetableRow({ phase: "authenticated", workspaceId: workspace, setId, day: "월", period: "1교시",
+            subject: "Duplicate", teacher: "", room: "", memo: "", session: { uid: `recovery-e2e-${shortName}`, status: "active",
+              currentWorkspaceId: workspace, currentWorkspaceRole: role, globalRole: role === "system_owner" ? "system_owner" : "user", isSystemOwner: role === "system_owner" } });
+            return "allowed"; } catch (error) { return error.code; }
+        }, { shortName, role, workspace: WORKSPACE_A, setId: TT_SET });
+        assert.equal(duplicate, "duplicate-cell");
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.getByLabel("시간표 선택", { exact: true }).selectOption(TT_SET);
+        await page.locator(".app-next-timetable-class").filter({ hasText: title }).getByRole("button", { name: "수정", exact: true }).click();
+        await editor.getByLabel("수업명", { exact: true }).fill(`${title} edited`);
+        await editor.getByRole("button", { name: "수업 저장", exact: true }).click();
+        await editor.getByRole("status").filter({ hasText: "수업 수정을 서버에서 확인했습니다." }).waitFor();
+        assert.equal((await adminDb.doc(`workspaces/${WORKSPACE_A}/timetable/${id}`).get()).get("subject"), `${title} edited`);
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.getByLabel("시간표 선택", { exact: true }).selectOption(TT_SET);
+        await page.locator(".app-next-timetable-class").filter({ hasText: `${title} edited` }).getByRole("button", { name: "수정", exact: true }).click();
+        page.once("dialog", (dialog) => dialog.accept());
+        await editor.getByRole("button", { name: "이 수업 삭제", exact: true }).click();
+        await editor.getByRole("status").filter({ hasText: "수업 삭제를 서버에서 확인했습니다." }).waitFor();
+        assert.equal((await adminDb.doc(`workspaces/${WORKSPACE_A}/timetable/${id}`).get()).exists, false);
+        assert.equal((await adminDb.doc(`workspaces/${WORKSPACE_A}/timetable/e2e-tt-preserved`).get()).get("subject"), "Other lesson");
+        assert.deepEqual((await setRef.get()).data(), setBefore); assert.deepEqual((await periodRef.get()).data(), periodBefore);
+        if (role === "manager") {
+          await page.screenshot({ path: path.join(ROOT, "tmp/timetable-row-desktop.png"), fullPage: true });
+          await page.setViewportSize({ width: 390, height: 844 });
+          await page.screenshot({ path: path.join(ROOT, "tmp/timetable-row-mobile.png"), fullPage: true });
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        }
+      } finally { await context.close(); }
+    }
+  } finally { await cleanup(); }
+});
+
+test("App Next 시간표 역할·학교 scope·프로그램 binding을 검증한다", { timeout: 240_000 }, async () => {
+  const cleanup = await timetableFixture();
+  try {
+    for (const [shortName, writable] of [["teacher", true], ["normal", true], ["viewer", false], ["print", false]]) {
+      const { context, page } = await createPage();
+      try {
+        await openTimetable(page, shortName);
+        assert.equal(await page.getByRole("button", { name: "월요일 1교시 수업 추가", exact: true }).count(), writable ? 1 : 0);
+        if (!writable) { assert.equal(await page.locator(".app-next-timetable-table button").count(), 0); continue; }
+        await page.locator(".app-next-timetable-class").filter({ hasText: "Other lesson" }).getByRole("button", { name: "수정", exact: true }).click();
+        const editor = page.getByRole("region", { name: "수업 편집" });
+        assert.equal(await editor.getByRole("button", { name: "이 수업 삭제", exact: true }).count(), 0);
+        await editor.getByLabel("수업 메모").fill(`Updated by ${shortName}`);
+        await editor.getByRole("button", { name: "수업 저장", exact: true }).click();
+        await editor.getByRole("status").filter({ hasText: "수업 수정을 서버에서 확인했습니다." }).waitFor();
+        const legacy = (await adminDb.doc(`workspaces/${WORKSPACE_A}/timetable/e2e-tt-preserved`).get()).data();
+        assert.deepEqual(legacy.extraCanonicalField, { keep: true }); assert.equal(legacy.timetableSetId, TT_SET); assert.equal(legacy.setId, undefined);
+      } finally { await context.close(); }
+    }
+    await adminDb.doc(`workspaces/${WORKSPACE_A}`).set({ operationMode: "school" }, { merge: true });
+    for (const shortName of ["manager", "teacher"]) {
+      const { context, page } = await createPage();
+      try { await openTimetable(page, shortName); assert.equal(await page.locator(".app-next-timetable-table button").count(), 0); }
+      finally { await context.close(); }
+    }
+    const { context, page } = await createPage();
+    try {
+      await openTimetable(page, "super", TT_PROGRAM_SET);
+      await page.getByRole("button", { name: "월요일 1교시 수업 추가", exact: true }).click();
+      const editor = page.getByRole("region", { name: "수업 편집" });
+      await editor.getByLabel("수업명", { exact: true }).fill("Program row");
+      await editor.getByRole("button", { name: "수업 저장", exact: true }).click();
+      await editor.getByRole("status").filter({ hasText: "수업 등록을 서버에서 확인했습니다." }).waitFor();
+      const created = await adminDb.collection(`workspaces/${WORKSPACE_A}/timetable`).where("subject", "==", "Program row").get();
+      assert.equal(created.size, 1); assert.equal(created.docs[0].get("programId"), "e2e-existing-program");
+      assert.equal(created.docs[0].get("sourceType"), "afterschool");
+      assert.equal(await page.getByText("e2e-existing-program", { exact: true }).count(), 0);
+    } finally { await context.close(); }
+  } finally { await cleanup(); }
+});
+
+test("App Next 시간표 invalid set·workspace·비활성 membership은 fail closed 된다", { timeout: 120_000 }, async () => {
+  const cleanup = await timetableFixture(); const { context, page } = await createPage();
+  const setRef = adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${TT_SET}`); const set = (await setRef.get()).data();
+  try {
+    await openTimetable(page, "manager");
+    const mismatch = await page.evaluate(async ({ workspaceA, workspaceB, setId }) => {
+      const service = await import("/src/app-next/appNextTimetableRowCrudService.ts");
+      try { await service.createAppNextTimetableRow({ phase: "authenticated", workspaceId: workspaceB, setId, day: "월", period: "1교시",
+        subject: "Forbidden", teacher: "", room: "", memo: "", session: { uid: "recovery-e2e-manager", status: "active", currentWorkspaceId: workspaceA, currentWorkspaceRole: "manager", globalRole: "user", isSystemOwner: false } });
+        return "allowed"; } catch (error) { return error.code; }
+    }, { workspaceA: WORKSPACE_A, workspaceB: WORKSPACE_B, setId: TT_SET });
+    assert.equal(mismatch, "workspace-mismatch");
+    await page.getByRole("button", { name: "월요일 1교시 수업 추가", exact: true }).click();
+    const editor = page.getByRole("region", { name: "수업 편집" });
+    await editor.getByRole("button", { name: "수업 저장", exact: true }).click();
+    await editor.getByRole("alert").filter({ hasText: "수업명을 입력" }).waitFor();
+    await editor.getByLabel("수업명", { exact: true }).fill("Invalid set attempt");
+    await setRef.delete();
+    await editor.getByRole("button", { name: "수업 저장", exact: true }).click();
+    await editor.getByRole("alert").filter({ hasText: "선택한 시간표가 없거나" }).waitFor();
+    await setRef.set(set);
+    await adminDb.doc(`workspaces/${WORKSPACE_A}/members/recovery-e2e-manager`).update({ status: "disabled" });
+    await editor.getByRole("button", { name: "수업 저장", exact: true }).click();
+    await editor.getByRole("alert").filter({ hasText: "수업 작업 권한이 없습니다" }).waitFor();
+    assert.equal((await adminDb.collection(`workspaces/${WORKSPACE_A}/timetable`).where("subject", "==", "Invalid set attempt").get()).size, 0);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.PMAppNextAuthRouteMatrixDiagnostics?.snapshot()?.accountPhase === "error");
+    assert.equal(await page.locator(".app-next-timetable-editor").count(), 0);
+  } finally {
+    await adminDb.doc(`workspaces/${WORKSPACE_A}/members/recovery-e2e-manager`).update({ status: "active" });
+    await setRef.set(set); await context.close(); await cleanup();
+  }
+});
+
 test("인증 후 런타임 오류와 비-loopback 요청이 없다", () => {
   assert.deepEqual(runtimeErrors, []);
   assert.ok([...blockedExternalOrigins].every((origin) => origin.startsWith("https://")), "외부 요청은 모두 loopback 차단 경계에서 중단되어야 합니다.");

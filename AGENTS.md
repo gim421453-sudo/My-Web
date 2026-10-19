@@ -26,12 +26,28 @@ OWNER: Codex
 - 상대 프로젝트의 담당이 다른 AI여도 저장소는 읽기만 하고, 필요한 변경은 docs/integration.md에 요청으로 남긴다. 상대 저장소를 직접 수정하지 않는다.
 - 연동 때문에 현재 프로젝트의 구조를 크게 바꾸지 않는다.
 
-## 로그인 문구 수정 인계 (2026-10-17)
+## 포맷 전 통합 인계 (2026-10-19)
+
+- 로그인 문구 `4856347`과 시간표 row CRUD `6cb8546`은 각각 origin 작업 브랜치에 보존했다. 현재 `codex/docs-format-recovery`에서 통합 및 재검증한다. 코드 충돌은 없으며 문서의 과거 상태 충돌만 양쪽 기록을 보존해 해결했다. 최종 main 반영 상태와 검증 결과는 CURRENT_HANDOFF 상단을 기준으로 한다.
+- 포맷 후 재개는 `docs/handoff/FORMAT_RECOVERY.md` 순서를 따른다. `.env`와 브라우저 로컬 데이터/인증정보는 Git 백업 대상이 아니므로 별도 안전한 백업이 필요하다. 실제 개인 파일의 외부 백업은 이 작업에서 수행하지 않았다. production/deploy/IAM 작업은 재개하지 않는다.
+- 통합 상태에서 로그인 회귀·시간표 단위 9/9·npm test(auth 모듈 668개)·typecheck·두 빌드·release gate 33/33·전체 browser 18/18 PASS를 2026-10-19 재확인했다. Functions/별도 전체 Rules는 재실행하지 않았다. 최종 main 반영 여부는 CURRENT_HANDOFF 최신 항목을 따른다.
+
+## 과거 로그인 문구 수정 인계 (2026-10-17 당시 상태)
 
 - `codex/fix-login-copy`, 기준 HEAD `cf55bed`에서 로그인 기본 이름을 `통합 관리프로그램`으로 변경하고 초대 안내 문구의 HTML 및 동적 생성 경로를 제거했다. 기존 기본 이름은 표시 시에만 새 이름으로 처리하고 사용자 지정 이름과 저장 데이터는 보존한다. 인증 기능/Rules/의존성은 변경하지 않았다.
 - `npm test` PASS. 추가 검증은 `node scripts/test-login-copy.mjs`로 실행한다. 변경은 미커밋 상태이며 stage/commit/push/merge는 수행하지 않았다. 이전 시간표 작업 worktree는 변경하지 않았다.
 
-## 이전 인계 요약 (2026-10-16)
+## 과거 시간표 인계 요약 (2026-10-17 당시 상태)
+
+- 시간표 row/cell CRUD를 `codex/feat-app-next-timetable-row-crud`에서 이어서 구현했다. worktree는 `C:\dev\My-Web\tmp\codex-branches\feat-app-next-timetable-row-crud`, 기준 HEAD는 `cf55bedbfb6657ead3e3286fe9e231768a77a29c`다. main 작업과 stage/commit/push/merge는 하지 않았다. 변경은 로컬 unstaged/untracked 상태이며 upstream이 없어 ahead/behind는 미확인이다.
+- 기존 주간 격자와 조회 normalization을 보존하고, 명시적으로 선택한 기존 set의 활성 교시에만 수업 추가/수정/단일 삭제를 연결했다. 쓰기 경로는 `workspaces/{workspaceId}/timetable`뿐이다. set/period/program 자동 생성이나 수정은 없고 기존 row ID·binding·unknown 필드는 유지한다. 문서 서버 확인과 목록 서버 재조회 뒤에만 성공을 표시한다.
+- 권한은 Rules와 운영 정책의 교집합이다. system_owner/super_manager는 C/U/D, manager는 personal/academy에서만 C/U/D, teacher는 personal/academy에서만 C/U, normal은 알려진 모드에서 C/U, viewer/print_account는 조회만 가능하다. 학교 모드 manager/teacher 및 미확인 모드의 일반 역할은 fail closed 한다. 학교 제한은 클라이언트 운영 정책이며 새 서버 Rules를 추가한 것이 아니다.
+- 실제 검증: 시간표 단위 9/9, npm test(auth 모듈 668개), typecheck/build/build:admin, release gate 33/33, 전체 browser recovery 18/18 PASS(기존 15개 + 시간표 3개, fail/skip/todo 0). Node 24.18.0 / JRE 21, demo Firebase와 loopback만 사용했다. desktop/mobile 캡처 및 모바일 가로 넘침 검사를 수행했다.
+- 잔여 제한: 운영 화면과 mixed/legacy 표시·출력의 수동 비교, 장시간 오프라인 UX는 MANUAL_REQUIRED다. 동일 cell ID transaction은 App Next 동시 생성을 차단하지만 임의 ID를 쓰는 legacy 클라이언트와의 동시 생성 전체를 서버에서 보장하지는 않는다. 기존 npm advisory 및 IAM HOLD 유지. 상세 계약과 최종 Git 상태는 시간표 문서와 `docs/handoff/CURRENT_HANDOFF.md`를 참조한다.
+
+- 최종 Git 검증: `git diff --check` PASS; 금지 Rules·manifest/lockfile·Functions·legacy app.js·workspaceDataService 및 Firebase 생성 설정 diff 0. Emulator/Vite 종료와 파일 잠금 해제를 확인하고 이번 firestore-debug.log를 제거했다. tracked 변경 15개 + 신규 4개가 남았으며 로그 잔존 없음. 필수 자동 검사 조건을 충족해 `COMMIT_READY`; stage/commit/push/merge는 수행하지 않았다.
+
+## 이전 일정 CRUD 인계 기록 (2026-10-16)
 
 - 일정 CRUD 작업: `codex/feat-app-next-schedule-crud`, worktree `tmp/codex-branches/feat-app-next-schedule-crud`, 기준 HEAD `6e1e0b9`. 시작 시 작업 트리는 깨끗했고 로컬 main/origin/main 기준도 같은 커밋이었다. 이 브랜치는 upstream이 없어 ahead/behind는 미확인이다. main 작업 및 stage/commit/push/merge는 수행하지 않았다.
 - App Next 기존 `#/schedules-readonly` 경로를 유지하며 canonical 일정 CRUD를 구현했다. 활성 Rules와 legacy 기본 action 권한은 일치한다: system_owner/super_manager/manager는 생성·수정·삭제, teacher/normal은 생성·수정만 가능하며 작성자 제한은 없다. viewer/print_account는 조회만 가능하다. RequireAuth와 RequireWorkspaceRole, 서비스 preflight 및 서버 Rules로 workspace/권한 경계를 유지한다.

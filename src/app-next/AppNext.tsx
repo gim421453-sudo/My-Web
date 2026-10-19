@@ -976,6 +976,7 @@ export function AppNext({
             onSnapshot={handleRequireAuthSnapshot}
           >
             <AppNextTimetableReadOnly
+              key={`${session?.uid ?? ""}:${session?.currentWorkspaceId ?? ""}`}
               currentRoute={routeDecision.currentRoute}
               requestedRoute={routeDecision.requestedRoute}
               onNavigate={(route) => handleRoute(route)}
