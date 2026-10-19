@@ -1,17 +1,21 @@
 # MY WEB 현재 작업 인계
 
 Last updated: 2026-10-19 (Asia/Seoul)
-Status: FORMAT_RECOVERY_INTEGRATION_VALIDATED
+Status: REMOTE_CODE_BACKUP_COMPLETE_LOCAL_DATA_BACKUP_REQUIRED
 
 ## 포맷 전 통합 상태
 
-- 원격 저장소: `https://github.com/gim421453-sudo/My-Web.git`, OWNER Codex. 현재 루트 `C:\dev\My-Web`, 통합 브랜치 `codex/docs-format-recovery`. 시작 시 main/origin/main은 `cf55bed`; 로그인 브랜치 HEAD `4856347f72f90849b0989bb4f91bc06d930d9cda`는 이미 원격과 일치했다. 시간표 worktree의 미커밋 19개 파일은 `6cb8546`으로 커밋하고 origin에 push해 복구 지점을 확보했다.
-- 이번 통합은 로그인 문구와 시간표 row CRUD만 포함한다. 코드 충돌은 없으며 AGENTS/이 문서의 인계 상태 충돌을 두 작업의 역사로 보존했다. dependency remediation/full-regression 조사 브랜치를 병합한 것이 아니다. 최종 검증 결과와 main 원격 동기화는 완료 후 아래에 기록한다.
+- 원격 저장소: `https://github.com/gim421453-sudo/My-Web.git`, OWNER Codex. 현재 루트 `C:\dev\My-Web`, 현재 브랜치 **main**. 시작 시 main/origin/main은 `cf55bed`; 로그인 브랜치 HEAD `4856347f72f90849b0989bb4f91bc06d930d9cda`는 이미 원격과 일치했다. 시간표 worktree의 미커밋 19개 파일은 `6cb8546`으로 커밋하고 origin에 push해 복구 지점을 확보했다.
+- 이번 통합은 로그인 문구와 시간표 row CRUD만 포함한다. 코드 충돌은 없으며 AGENTS/이 문서의 인계 상태 충돌을 두 작업의 역사로 보존했다. dependency remediation/full-regression 조사 브랜치를 병합한 것이 아니다. 두 기능 브랜치는 서로 갈라져 있어 통합 브랜치에서 정상 merge commit을 만들었고 main은 해당 통합 결과로 fast-forward했다. 강제 처리와 히스토리 수정은 없다.
 - 현재 제품: legacy `index.html + app.js` 유지, App Next 공지/일정/시간표 row CRUD 제공. 로그인 기본 이름은 `통합 관리프로그램`, 초대 안내 문구는 제거했으며 기존 사용자 지정 이름과 인증 버튼/동작은 유지한다. 시간표 계약은 `docs/app-next-timetable-read-only-pilot.md`, 일정/공지 계약은 각 integration/pilot 문서를 참조한다.
 - 재개 지침: **`docs/handoff/FORMAT_RECOVERY.md`를 먼저 읽는다.** 포맷은 `.env`, 비추적 데이터, 브라우저 localStorage/IndexedDB 및 설치 런타임을 지운다. Git push만으로 이 항목들이 백업되지는 않는다. 개인 파일 외부 백업은 사용자 수행 필요이며 완료 여부는 미확인이다.
 - 미해결: npm advisory, 운영 앱과 mixed/legacy 화면·정렬·출력 수동 비교, 장시간 offline UX, 임의 ID legacy 클라이언트와 App Next의 동시 생성 전체 유일성. 학교 manager/teacher assignment scope 미검증은 fail closed 유지. IAM HOLD; 운영 Firebase 접근/deploy/원격 권한 변경 금지.
 - 통합 검증(2026-10-19): 로그인 문구 회귀 PASS, 시간표 단위 9/9 PASS, npm test PASS(auth 모듈 668개), typecheck/build/build:admin PASS, release gate 33/33 PASS, 전체 browser 18/18 PASS(fail/cancel/skip/todo 0). Node 24.18.0 / npm 11.16.0 / Java 21. 세션 demo build와 demo/loopback Emulator만 사용했다. Vite 비모듈 script/use client 경고는 비차단이다. Functions 및 별도 전체 Rules suite는 이번에 재실행하지 않았다.
-- Rules/Functions/의존성 manifest·lockfile은 cf55bed 기준 diff 0이다. legacy app.js는 로그인 기본 문구/초대 안내 제거만 변경했다. 코드 로직 추가 수정 없이 두 작업을 통합했다. main 반영 및 원격 최종 확인은 다음 문서 마무리에서 기록한다.
+- Rules/Functions/의존성 manifest·lockfile은 cf55bed 기준 diff 0이다. legacy app.js는 로그인 기본 문구/초대 안내 제거만 변경했다. 코드 로직 추가 수정 없이 두 작업을 통합했다.
+- **원격 코드 체크포인트:** 통합 merge commit `1f3e08dcc4da9c67c8c53e962195af3c26b1908d`가 main과 origin/main에 반영됐고 `git ls-remote origin refs/heads/main`으로 일치를 확인했다. `origin/codex/docs-format-recovery`에도 이 통합 커밋을 보존했다. 이 항목 이후 문서 마무리 커밋은 main에 별도로 올리며, 최신 문서 SHA는 `git log -1`과 원격 조회로 확인한다(자기 커밋 SHA를 문서 내부에 고정하지 않음).
+- main 병합 후 npm test, 로그인 문구 회귀, typecheck, release gate 33/33을 다시 실행해 PASS를 확인했다. 통합 브랜치에서 통과한 build/build:admin/browser 18/18과 main 제품 파일 내용은 동일하다. 문서 마무리 외 후속 기능 변경은 없다. `git diff --check` PASS, Emulator/Vite 종료 후 이번 firebase-debug.log/firestore-debug.log를 잠금 확인해 제거했다. `.env`와 개인 파일은 읽거나 커밋하지 않았다.
+- 작업 보존 상태: 루트와 시간표 worktree 모두 변경 없이 정리됐고 Git stash 및 로컬 tag는 없었다. 기능 브랜치와 통합 브랜치는 원격 복구 지점으로 유지한다. 시간표 기존 worktree의 HEAD는 `6cb8546`이며 origin 작업 브랜치와 동기화되어 있다. 포맷 후에는 해당 경로/`.git` 링크를 복사하지 말고 main을 새 clone한다.
+- 다음 PC 첫 단계: FORMAT_RECOVERY의 절차로 clone → main 최신화 → 정책/인계 읽기 → npm ci 및 Chromium/Java 설치 → demo 회귀 검증. 다음 개발은 새 codex/* branch/worktree에서 한다. **코드 원격 보존은 완료했지만 `.env`·브라우저 데이터·개인 설정 외부 백업은 사용자 확인 전까지 미완료로 취급한다.** 기존 IAM HOLD와 production 금지를 유지한다.
 
 ## 과거 로그인 문구 작업 (2026-10-17 당시 상태)
 

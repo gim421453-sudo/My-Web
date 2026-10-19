@@ -25,6 +25,7 @@
 | 시간표 row CRUD | `6cb8546`, `codex/feat-app-next-timetable-row-crud` |
 | 시간표 기존 worktree | `C:\dev\My-Web\tmp\codex-branches\feat-app-next-timetable-row-crud` |
 | 통합·복구 문서 브랜치 | `codex/docs-format-recovery` |
+| main 원격 반영 확인된 코드 통합 커밋 | `1f3e08dcc4da9c67c8c53e962195af3c26b1908d` (문서 마무리는 후속 커밋) |
 
 포맷 후 기존 worktree의 `.git` 파일을 복사해 재사용하지 않는다. 새 clone에서 필요할 때 worktree를 다시 만든다. 원격 작업 브랜치는 복구 지점으로 남기며 자동 삭제하지 않는다.
 
@@ -42,6 +43,7 @@ git switch main
 git pull --ff-only origin main
 git status --short --branch
 git log -5 --oneline
+git ls-remote origin refs/heads/main
 Get-Content AGENTS.md
 Get-Content docs/handoff/CURRENT_HANDOFF.md
 npm ci

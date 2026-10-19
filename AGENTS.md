@@ -28,9 +28,10 @@ OWNER: Codex
 
 ## 포맷 전 통합 인계 (2026-10-19)
 
-- 로그인 문구 `4856347`과 시간표 row CRUD `6cb8546`은 각각 origin 작업 브랜치에 보존했다. 현재 `codex/docs-format-recovery`에서 통합 및 재검증한다. 코드 충돌은 없으며 문서의 과거 상태 충돌만 양쪽 기록을 보존해 해결했다. 최종 main 반영 상태와 검증 결과는 CURRENT_HANDOFF 상단을 기준으로 한다.
+- 로그인 문구 `4856347`과 시간표 row CRUD `6cb8546`은 각각 origin 작업 브랜치에 보존했다. `codex/docs-format-recovery`에서 통합·재검증하고 main에 fast-forward했다. 코드 통합 커밋 `1f3e08dcc4da9c67c8c53e962195af3c26b1908d`의 origin/main push와 원격 SHA 일치를 확인했다. 코드 충돌은 없었고 문서 충돌만 두 작업 기록을 보존해 해결했다. 현재 작업 브랜치는 main이며 문서 마무리만 수행한다.
 - 포맷 후 재개는 `docs/handoff/FORMAT_RECOVERY.md` 순서를 따른다. `.env`와 브라우저 로컬 데이터/인증정보는 Git 백업 대상이 아니므로 별도 안전한 백업이 필요하다. 실제 개인 파일의 외부 백업은 이 작업에서 수행하지 않았다. production/deploy/IAM 작업은 재개하지 않는다.
 - 통합 상태에서 로그인 회귀·시간표 단위 9/9·npm test(auth 모듈 668개)·typecheck·두 빌드·release gate 33/33·전체 browser 18/18 PASS를 2026-10-19 재확인했다. Functions/별도 전체 Rules는 재실행하지 않았다. 최종 main 반영 여부는 CURRENT_HANDOFF 최신 항목을 따른다.
+- main에서도 npm test/로그인 회귀/typecheck/release gate 33/33을 재검증해 통과했다. 미커밋 기능 변경과 debug log 잔존은 없고 시간표 worktree도 원격과 동기화했다. Git으로 코드/문서는 복구 가능하나 `.env`·브라우저 로컬 데이터·Codex 개인 설정 외부 백업은 사용자 수행 필요이며 완료 여부 미확인이다. 아래 10/17 이전 미커밋 문구는 과거 기록이다.
 
 ## 과거 로그인 문구 수정 인계 (2026-10-17 당시 상태)
 
