@@ -5,6 +5,7 @@ import path from "node:path";
 import vm from "node:vm";
 import ts from "typescript";
 import { scheduleCrudTests } from "./app-next-schedules-crud-tests.mjs";
+import { timetableRowCrudTests } from "./test-app-next-timetable-row-crud.mjs";
 
 const requireNative = createRequire(import.meta.url);
 const projectRoot = process.cwd();
@@ -221,6 +222,7 @@ const ownerLegacyFixture = makeLegacySession({
 
 const tests = [
   ...scheduleCrudTests(loadTsModule, projectRoot),
+  ...timetableRowCrudTests(loadTsModule, projectRoot),
   ["status active creates active status", () => {
     const result = normalization.normalizeAccountStatus({ status: "active" });
     assert.equal(result.status, "active");
@@ -6425,7 +6427,7 @@ const tests = [
   ["app-next timetable service is one-time read-only and canonical workspace scoped", () => {
     const serviceSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextTimetableReadonlyService.ts"), "utf8");
     const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextTimetableReadOnly.tsx"), "utf8");
-    const forbidden = /\b(addDoc|setDoc|updateDoc|deleteDoc|writeBatch|runTransaction|onSnapshot|getDocsFromServer)\b/;
+    const forbidden = /\b(addDoc|setDoc|updateDoc|deleteDoc|writeBatch|runTransaction|onSnapshot)\b/;
     assert.match(serviceSource, /collection\(getFirebaseDb\(\), collections\.workspaces, workspaceId, key\)/);
     assert.match(serviceSource, /getDocs\(/);
     assert.match(serviceSource, /"timetable"/);
@@ -6437,13 +6439,13 @@ const tests = [
     assert.equal(forbidden.test(componentSource), false);
     assert.equal(/\bsignOut\s*\(/.test(componentSource), false);
   }],
-  ["app-next timetable diagnostics are privacy-safe zero-write counters", () => {
+  ["app-next timetable diagnostics count explicit row writes without listeners", () => {
     const diagnosticsSource = readFileSync(path.resolve(projectRoot, "src/app-next/appNextDiagnostics.ts"), "utf8");
     const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextTimetableReadOnly.tsx"), "utf8");
     assert.match(diagnosticsSource, /AppNextTimetableDiagnosticsSnapshot/);
     assert.match(diagnosticsSource, /PMAppNextTimetableDiagnostics/);
     assert.match(diagnosticsSource, /recordAppNextTimetableDiagnostics/);
-    assert.match(componentSource, /timetableWriteAttemptCount:\s*0/);
+    assert.match(componentSource, /timetableWriteAttemptCount: getAppNextTimetableDiagnostics\(\).timetableWriteAttemptCount/);
     assert.match(componentSource, /timetableListenerStartCount:\s*0/);
     assert.match(componentSource, /timetableActiveListenerCount:\s*0/);
     const interfaceBlock = diagnosticsSource.match(/AppNextTimetableDiagnosticsSnapshot[\s\S]*?}\n/)?.[0] || "";
@@ -6451,12 +6453,12 @@ const tests = [
   }],
   ["app-next timetable in-flight reuse is not reported as duplicate loader execution", () => {
     const componentSource = readFileSync(path.resolve(projectRoot, "src/app-next/AppNextTimetableReadOnly.tsx"), "utf8");
-    const inFlightReuseBlock = componentSource.match(/if \(\(existingRequest \|\| inFlightRef\.current\)[\s\S]*?return;\n    }/)?.[0] || "";
+    const inFlightReuseBlock = componentSource.match(/if \(\(existingRequest \|\| inFlightRef\.current\)[\s\S]*?return false;\n    }/)?.[0] || "";
     assert.match(inFlightReuseBlock, /existingRequest/);
     assert.equal(/setDuplicateLoadDetected\(true\)/.test(inFlightReuseBlock), false);
     assert.equal(/duplicateLoadDetected:\s*true/.test(inFlightReuseBlock), false);
     assert.match(componentSource, /timetableLoadCount \+= 1/);
-    assert.match(componentSource, /timetableReadCount \+= 3/);
+    assert.match(componentSource, /timetableReadCount \+= 5/);
   }],
   ["app-next timetable route matrix is workspace-null safe", () => {
     const result = appNextRouteUtils.resolveAppNextRoute({

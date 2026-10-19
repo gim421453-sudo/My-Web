@@ -202,11 +202,15 @@
       globalRoles: ownerOnly,
       firstOwnerPreviewIncluded: true,
     }),
-    appNextFeature("timetable-readonly", "app-next read-only timetable pilot.", {
+    appNextFeature("timetable-readonly", "app-next guarded timetable row CRUD.", {
+      ownerPreview: false,
+      notes: "Existing set selection and row-only CRUD; no set, period or program mutation.",
       hasRead: true,
+      hasWrite: true,
       workspaceRequired: true,
       serverConfirmed: true,
-      globalRoles: ownerOnly,
+      globalRoles: ["system_owner", "user"],
+      workspaceRoles: allWorkspaceRoles,
       firstOwnerPreviewIncluded: true,
     }),
     appNextFeature("schedules-readonly", "app-next workspace schedules with guarded CRUD.", {

@@ -6,6 +6,7 @@ All notable release-relevant changes to this project should be documented here.
 
 ### 기능
 
+- App Next 시간표에 기존 set·활성 교시 기반 수업 단일 row CRUD를 추가했습니다. 역할·학교 scope Guard, 기존 문서 필드 보존, transaction 중복 방지와 문서·목록 서버 확인을 적용했습니다. set/period/program과 운영 legacy 코드는 변경하지 않았습니다.
 - App Next 일정 화면에 기존 workspace 일정 schema 기반 등록·수정·삭제를 추가했습니다. 활성 역할 Guard, 입력 검증, 중복 제출 방지 및 문서·목록 서버 확인을 적용했습니다.
 - 일정 생성·수정은 기존 Rules의 관리자·교사·일반 역할, 삭제는 전역 system owner와 workspace 관리자 역할에 한정합니다. 기존 canonical 일정의 작성자·추가 필드는 보존하고 mixed schema 조회를 유지합니다.
 

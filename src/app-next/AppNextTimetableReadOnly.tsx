@@ -13,6 +13,7 @@ import {
 } from "../auth/useAuth";
 import {
   getAppNextAuthRouteMatrixDiagnostics,
+  getAppNextTimetableDiagnostics,
   recordAppNextTimetableDiagnostics,
 } from "./appNextDiagnostics";
 import {
@@ -25,7 +26,11 @@ import {
   normalizeAppNextTimetableStore,
   type AppNextTimetableCell,
   type AppNextTimetableNormalized,
+  type AppNextRawTimetableStore,
 } from "./appNextTimetableReadonlyUtils";
+import RequireWorkspaceRole from "../components/guards/RequireWorkspaceRole";
+import { AppNextTimetableRowEditor, type TimetableEditorSelection } from "./AppNextTimetableRowEditor";
+import { activeTimetablePeriods, timetableRowWritePolicy, timetableWorkspaceMatches, timetableSetWritable, timetableProgramBinding, TIMETABLE_ROW_WRITE_ROLES } from "./appNextTimetableRowCrudUtils";
 
 type TimetableErrorCode =
   | "none"
@@ -105,8 +110,10 @@ function cellDetails(cell: AppNextTimetableCell): string {
 
 function TimetableCellList({
   cells,
+  onEdit,
 }: {
   cells: AppNextTimetableCell[];
+  onEdit?: (cell: AppNextTimetableCell) => void;
 }) {
   if (!cells.length) return <span className="app-next-timetable-empty">-</span>;
   return (
@@ -118,6 +125,7 @@ function TimetableCellList({
         >
           <strong>{cell.subject}</strong>
           {cellDetails(cell) ? <span>{cellDetails(cell)}</span> : null}
+          {onEdit ? <button type="button" className="secondary" onClick={() => onEdit(cell)}>수정</button> : null}
         </article>
       ))}
     </div>
@@ -126,11 +134,19 @@ function TimetableCellList({
 
 function WeeklyGrid({
   normalized,
+  canWrite,
+  disabled,
+  activePeriods,
+  onSelect,
 }: {
   normalized: AppNextTimetableNormalized;
+  canWrite: boolean;
+  disabled: boolean;
+  activePeriods: Set<number>;
+  onSelect(day: string, period: string, cell: AppNextTimetableCell | null): void;
 }) {
   const byCell = new Map<string, AppNextTimetableCell[]>();
-  normalized.regularCells.forEach((cell) => {
+  normalized.visibleCells.filter((cell) => cell.setId === normalized.activeSetId).forEach((cell) => {
     const key = `${cell.day}|${cell.period}`;
     byCell.set(key, [...(byCell.get(key) || []), cell]);
   });
@@ -163,7 +179,12 @@ function WeeklyGrid({
                   className={day === normalized.todayWeekday ? "today" : ""}
                   key={`${day}-${period.period}`}
                 >
-                  <TimetableCellList cells={byCell.get(`${day}|${period.period}`) || []} />
+                  <TimetableCellList cells={byCell.get(`${day}|${period.period}`) || []}
+                    onEdit={canWrite && !disabled && activePeriods.has(period.periodNumber)
+                      ? (cell) => onSelect(day, period.period, cell) : undefined} />
+                  {canWrite && activePeriods.has(period.periodNumber) && !byCell.has(`${day}|${period.period}`)
+                    ? <button type="button" className="secondary" disabled={disabled}
+                        aria-label={`${day}요일 ${period.period} 수업 추가`} onClick={() => onSelect(day, period.period, null)}>수업 추가</button> : null}
                 </td>
               ))}
             </tr>
@@ -192,6 +213,19 @@ export function AppNextTimetableReadOnly({
   const [loading, setLoading] = useState(false);
   const [errorCode, setErrorCode] = useState<TimetableErrorCode>("none");
   const [normalized, setNormalized] = useState<AppNextTimetableNormalized>(emptyNormalized);
+  const [store, setStore] = useState<AppNextRawTimetableStore>({ timetable: [], timetableSets: [], periodTimes: [] });
+  const [operationMode, setOperationMode] = useState("unknown");
+  const [selectedSetId, setSelectedSetId] = useState(currentTimetableSelectionId);
+  const [selection, setSelection] = useState<TimetableEditorSelection | null>(null);
+  const [editorSerial, setEditorSerial] = useState(0);
+  const [mutationBusy, setMutationBusy] = useState(false);
+  const loadVersion = useRef(0);
+  const writePolicy = timetableRowWritePolicy({ phase, session, operationMode });
+  const activeSet = store.timetableSets.find((set) => set.id === selectedSetId);
+  const writablePeriods = activeSet ? activeTimetablePeriods(selectedSetId, activeSet, store.periodTimes) : [];
+  const canWrite = writePolicy.canCreate && Boolean(selectedSetId && selectedSetId === normalized.activeSetId
+    && activeSet && timetableSetWritable(activeSet) && timetableProgramBinding(activeSet) !== false
+    && session?.currentWorkspaceId && timetableWorkspaceMatches(activeSet, session.currentWorkspaceId));
   const [duplicateLoadDetected, setDuplicateLoadDetected] = useState(false);
 
   renderCountRef.current += 1;
@@ -229,7 +263,7 @@ export function AppNextTimetableReadOnly({
       errorCode,
       timetableRenderCount,
       timetableReadCount,
-      timetableWriteAttemptCount: 0,
+      timetableWriteAttemptCount: getAppNextTimetableDiagnostics().timetableWriteAttemptCount,
       timetableListenerStartCount: 0,
       timetableActiveListenerCount: 0,
       timetableLoadCount,
@@ -252,7 +286,7 @@ export function AppNextTimetableReadOnly({
       todayWeekday: normalized.todayWeekday,
       todayClassCount: normalized.todayCells.length,
       firestoreReadCount: timetableReadCount,
-      firestoreWriteAttemptCount: 0,
+      firestoreWriteAttemptCount: getAppNextTimetableDiagnostics().firestoreWriteAttemptCount,
       authListenerCount: authDiagnostics.authStateListenerCount,
       workspaceListenerCount: 0,
       currentRoute,
@@ -275,7 +309,8 @@ export function AppNextTimetableReadOnly({
     sensitiveValueDetected,
   ]);
 
-  const loadTimetable = useCallback(async (forceRefresh = false) => {
+  const loadTimetable = useCallback(async (forceRefresh = false): Promise<boolean> => {
+    const version = ++loadVersion.current;
     if (!policy.routeAllowed) {
       setLoading(false);
       setErrorCode(policy.reason === "loading" ? "none" : "unknown");
@@ -290,7 +325,7 @@ export function AppNextTimetableReadOnly({
         emptyCellCount: 0,
         invalidCellCount: 0,
       });
-      return;
+      return false;
     }
 
     if (!policy.canRead || !session?.currentWorkspaceId) {
@@ -305,10 +340,10 @@ export function AppNextTimetableReadOnly({
         afterschoolCellCount: 0,
         visibleCellCount: 0,
       });
-      return;
+      return false;
     }
 
-    const requestedSetId = currentTimetableSelectionId();
+    const requestedSetId = selectedSetId;
     const cacheKey = `${session.currentWorkspaceId}::${requestedSetId || "default"}`;
     const existingRequest = timetableInFlight.get(cacheKey);
     if ((existingRequest || inFlightRef.current) && !forceRefresh) {
@@ -320,13 +355,16 @@ export function AppNextTimetableReadOnly({
       if (existingRequest) {
         try {
           const result = await existingRequest;
+          if (version !== loadVersion.current) return false;
           setNormalized(result.normalized);
+          setStore(result.store); setOperationMode(result.operationMode);
           setErrorCode("none");
           updateDiagnostics({
             loading: false,
             errorCode: "none",
             duplicateLoadDetected: false,
           });
+          return true;
         } catch (loadError) {
           const nextError = classifyTimetableError(loadError);
           setErrorCode(nextError);
@@ -335,17 +373,19 @@ export function AppNextTimetableReadOnly({
             errorCode: nextError,
             duplicateLoadDetected: false,
           });
+          return false;
         } finally {
           setLoading(false);
         }
       }
-      return;
+      return false;
     }
 
     const cached = forceRefresh ? null : timetableCache.get(cacheKey);
     if (cached) {
       timetableCacheHitCount += 1;
       setNormalized(cached.normalized);
+      setStore(cached.store); setOperationMode(cached.operationMode);
       setErrorCode("none");
       setLoading(false);
       updateDiagnostics({
@@ -353,14 +393,14 @@ export function AppNextTimetableReadOnly({
         errorCode: "none",
         timetableCacheHitCount,
       });
-      return;
+      return true;
     }
 
     inFlightRef.current = true;
     setLoading(true);
     setErrorCode("none");
     timetableLoadCount += 1;
-    timetableReadCount += 3;
+    timetableReadCount += 5;
     updateDiagnostics({
       loading: true,
       errorCode: "none",
@@ -372,12 +412,15 @@ export function AppNextTimetableReadOnly({
     const request = loadAppNextTimetableReadonly({
       workspaceId: session.currentWorkspaceId,
       requestedSetId,
+      readMode: forceRefresh ? "server" : "default",
     });
     timetableInFlight.set(cacheKey, request);
     try {
       const result = await request;
+      if (version !== loadVersion.current) return false;
       timetableCache.set(cacheKey, result);
       setNormalized(result.normalized);
+      setStore(result.store); setOperationMode(result.operationMode);
       setErrorCode("none");
       updateDiagnostics({
         loading: false,
@@ -394,7 +437,9 @@ export function AppNextTimetableReadOnly({
         todayWeekday: result.normalized.todayWeekday,
         todayClassCount: result.normalized.todayCells.length,
       });
+      return true;
     } catch (loadError) {
+      if (version !== loadVersion.current) return false;
       const nextError = classifyTimetableError(loadError);
       setNormalized(emptyNormalized);
       setErrorCode(nextError);
@@ -406,16 +451,18 @@ export function AppNextTimetableReadOnly({
         afterschoolCellCount: 0,
         visibleCellCount: 0,
       });
+      return false;
     } finally {
       if (timetableInFlight.get(cacheKey) === request) timetableInFlight.delete(cacheKey);
       inFlightRef.current = false;
-      setLoading(false);
+      if (version === loadVersion.current) setLoading(false);
     }
   }, [
     policy.canRead,
     policy.reason,
     policy.routeAllowed,
     session?.currentWorkspaceId,
+    selectedSetId,
     updateDiagnostics,
   ]);
 
@@ -428,6 +475,7 @@ export function AppNextTimetableReadOnly({
     policy.canRead,
     policy.routeAllowed,
     session?.currentWorkspaceId,
+    selectedSetId,
   ]);
 
   useEffect(() => {
@@ -440,15 +488,14 @@ export function AppNextTimetableReadOnly({
     <>
       <section className="app-next-panel app-next-dashboard-hero">
         <div>
-          <p className="app-next-muted-label">App Next 시간표 조회 전용 Pilot</p>
-          <h2>시간표 조회</h2>
-          <p>운영 시간표 V111/V120은 유지하고, 같은 workspace 시간표 데이터를 읽기 전용으로 표시합니다.</p>
+          <p className="app-next-muted-label">App Next</p>
+          <h2>시간표</h2>
         </div>
         <button
           type="button"
           className="secondary"
           onClick={() => void loadTimetable(true)}
-          disabled={loading || !policy.canRead}
+          disabled={loading || mutationBusy || !policy.canRead}
         >
           {loading ? "조회 중" : "새로고침"}
         </button>
@@ -462,7 +509,7 @@ export function AppNextTimetableReadOnly({
           <ValueRow label="일반 시간표 셀" value={String(normalized.regularCells.length)} />
           <ValueRow label="방과후/특강/동아리 셀" value={String(normalized.afterschoolCells.length)} />
           <ValueRow label="중복 셀 경고" value={String(normalized.duplicateGroups.length)} />
-          <ValueRow label="읽기 전용" value="예" />
+          <ValueRow label="읽기 전용" value={canWrite ? "아니요" : "예"} />
         </dl>
         {errorCode !== "none" && !loading ? (
           <p className="app-next-message">{errorMessage(errorCode)}</p>
@@ -491,10 +538,35 @@ export function AppNextTimetableReadOnly({
         </section>
       ) : null}
 
+      {policy.hasWorkspace ? <section className="app-next-panel">
+        <label>시간표 선택<select aria-label="시간표 선택" value={selectedSetId} disabled={loading || mutationBusy}
+          onChange={(event) => { loadVersion.current += 1; setSelection(null); setLoading(true); setSelectedSetId(event.target.value); }}>
+          <option value="">시간표를 선택해 주세요</option>
+          {normalized.sets.map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}
+        </select></label>
+        {normalized.activeSetMissing ? <p role="alert">선택한 시간표를 확인할 수 없어 수업 작업을 차단했습니다.</p> : null}
+        {selectedSetId && !writablePeriods.length ? <p>활성 교시가 없습니다. 수업 추가는 교시 설정 후 사용할 수 있습니다.</p> : null}
+      </section> : null}
+
+      {selection && canWrite && session?.currentWorkspaceId ? (
+        <RequireWorkspaceRole allowedRoles={TIMETABLE_ROW_WRITE_ROLES} requireWorkspace allowSystemOwnerBypass
+          previewMode useExistingAuthProvider defaultNewAuth currentRoute={currentRoute} requestedRoute={requestedRoute} menuVisible>
+          <AppNextTimetableRowEditor key={`${session.uid}:${session.currentWorkspaceId}:${selectedSetId}:${editorSerial}`}
+            workspaceId={session.currentWorkspaceId} operationMode={operationMode} selection={selection}
+            onClose={() => setSelection(null)} onBusy={setMutationBusy} onConfirmed={() => loadTimetable(true)} />
+        </RequireWorkspaceRole>
+      ) : null}
+
       {policy.hasWorkspace && normalized.periods.length > 0 ? (
         <section className="app-next-panel app-next-timetable-panel">
           <h2>{normalized.activeSetName || "주간 시간표"}</h2>
-          <WeeklyGrid normalized={normalized} />
+          <WeeklyGrid normalized={normalized} canWrite={canWrite} disabled={loading || mutationBusy}
+            activePeriods={new Set(writablePeriods.map((period) => period.periodNumber))}
+            onSelect={(day, period, cell) => {
+              const row = cell ? store.timetable[cell.sourceIndex] : null;
+              setSelection({ target: { setId: selectedSetId, day, period, ...(row ? { rowId: String(row.id) } : {}) }, row });
+              setEditorSerial((value) => value + 1);
+            }} />
         </section>
       ) : null}
 

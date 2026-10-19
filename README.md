@@ -4,6 +4,8 @@
 
 App Next 공지와 일정 화면은 기존 workspace 데이터에 권한 Guard와 서버 확인을 적용한 CRUD를 제공합니다. 일정의 교사·일반 역할은 생성·수정만 가능하며 삭제는 관리자 역할로 제한됩니다. 일정 경로는 기존 `app-next.html#/schedules-readonly`를 유지합니다. 세부 계약과 검증 범위는 [일정 문서](docs/app-next-schedules-read-only-pilot.md)를 참고하세요.
 
+App Next 시간표는 기존 set을 선택해 수업 한 개를 추가·수정·삭제할 수 있습니다. 저장된 활성 교시와 운영 모드별 권한을 검증하고 문서·목록 서버 확인 후 완료를 표시합니다. set·교시·프로그램 자동 생성은 하지 않습니다. 역할 제한과 legacy 호환 범위는 [시간표 문서](docs/app-next-timetable-read-only-pilot.md)를 참고하세요.
+
 ## 기술 구성
 
 - 기존 브라우저 앱: HTML, CSS, JavaScript (`index.html`, `app.js`)

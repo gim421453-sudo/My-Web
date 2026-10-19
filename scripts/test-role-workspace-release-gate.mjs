@@ -241,13 +241,26 @@ test("app-next notices beta release is explicitly workspace-role scoped for CRUD
   const runtimeFeature = context.PM_OWNER_PREVIEW_RELEASE_MANIFEST_V1.features.find((item) => item.route === "#/notices");
   assert.equal(runtimeFeature.releaseStage, "beta");
   contains(files.appNextManifestAdapter, "feature.ownerPreview && globalRole !== \"system_owner\"");
-  contains(files.appNextHtml, "ownerPreviewReleaseManifest.js?v=3");
+  contains(files.appNextHtml, "ownerPreviewReleaseManifest.js?v=4");
 });
 
 test("app-next schedules beta release has workspace-scoped CRUD and no owner-only gate", "verified-complete", () => {
   const context = {};
   vm.runInNewContext(files.appNextManifest, context);
   const feature = context.PM_OWNER_PREVIEW_RELEASE_MANIFEST_V1.features.find((item) => item.route === "#/schedules-readonly");
+  assert.equal(feature.releaseStage, "beta");
+  assert.equal(feature.ownerPreview, false);
+  assert.equal(feature.hasWrite, true);
+  assert.equal(feature.workspaceRequired, true);
+  for (const role of ["super_manager", "manager", "teacher", "normal", "viewer", "print_account"]) {
+    assert.ok(feature.workspaceRoles.includes(role));
+  }
+});
+
+test("app-next timetable beta exposes guarded row CRUD without an owner-only gate", "verified-complete", () => {
+  const context = {};
+  vm.runInNewContext(files.appNextManifest, context);
+  const feature = context.PM_OWNER_PREVIEW_RELEASE_MANIFEST_V1.features.find((item) => item.route === "#/timetable-readonly");
   assert.equal(feature.releaseStage, "beta");
   assert.equal(feature.ownerPreview, false);
   assert.equal(feature.hasWrite, true);

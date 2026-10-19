@@ -762,3 +762,17 @@ button.secondary {
   min-width: 0;
   max-width: 100%;
 }
+.app-next-timetable-editor {
+  padding: 16px 0;
+  border-top: 1px solid #d1d5db;
+}
+
+.app-next-timetable-editor h2 {
+  font-size: 18px;
+}
+
+.app-next-timetable-table button {
+  margin-top: 6px;
+  padding: 6px;
+  white-space: normal;
+}
