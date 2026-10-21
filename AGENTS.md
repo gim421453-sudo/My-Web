@@ -26,9 +26,16 @@ OWNER: Codex
 - 상대 프로젝트의 담당이 다른 AI여도 저장소는 읽기만 하고, 필요한 변경은 docs/integration.md에 요청으로 남긴다. 상대 저장소를 직접 수정하지 않는다.
 - 연동 때문에 현재 프로젝트의 구조를 크게 바꾸지 않는다.
 
+## 최신 포맷 전 정밀진단 (2026-10-19)
+
+- 최신 `origin/main` 커밋 `350addc`에서 `feat/format-readiness-diagnostics`를 만들어 전체 진단했다. 현재 repository root는 `C:\dev\My Web`. 진단 시작 시 tracked 작업 트리는 깨끗했다. 현재 tracked 변경은 이 결과를 기록한 `AGENTS.md`와 `docs/handoff/CURRENT_HANDOFF.md`뿐이며, 미추적 `CLAUDE.md.mainpc-old`와 이번 Emulator 산출물 `firestore-debug.log`는 보존한다. 커밋/푸시/배포는 하지 않았다.
+- PASS: 전체 root 테스트, 로그인 문구 검사, 시간표 9/9, release gate 33/33, typecheck, root/admin 빌드, browser recovery 18/18, Firestore Rules 39/39, Functions 단위 557/557, Functions Emulator 통합 11개 흐름. 통합 각 시나리오의 production access는 0이었다. root/Functions/Rules 도구 `npm audit` 모두 취약점 0건, `git diff --check` PASS.
+- 운영 `.env`를 읽지 않았다. root/admin 빌드는 `--ignore-scripts`로 설정 생성 lifecycle을 생략했고, Functions compile은 clean 없이 기존 ignored `functions/lib`를 갱신했다. Vite classic script 안내, Emulator 포트 대체, Functions 버전 안내, ADC 감지 경고가 있었으나 테스트는 성공 종료했다. 운영 서비스는 검증하지 않았다.
+- 포맷 전 남은 확인은 브라우저 localStorage/IndexedDB와 Codex 개인 설정 보존 여부, 운영 화면/인쇄 수동 비교, 장시간 offline UX다. 진단 문서와 자세한 결과는 `docs/handoff/CURRENT_HANDOFF.md` 상단을 따른다. IAM HOLD 및 production 금지를 유지한다.
+
 ## 포맷 전 통합 인계 (2026-10-19)
 
-- 로그인 문구 `4856347`과 시간표 row CRUD `6cb8546`은 각각 origin 작업 브랜치에 보존했다. `codex/docs-format-recovery`에서 통합·재검증하고 main에 fast-forward했다. 코드 통합 커밋 `1f3e08dcc4da9c67c8c53e962195af3c26b1908d`의 origin/main push와 원격 SHA 일치를 확인했다. 코드 충돌은 없었고 문서 충돌만 두 작업 기록을 보존해 해결했다. 현재 작업 브랜치는 main이며 문서 마무리만 수행한다.
+- 당시 통합 시 로그인 문구 `4856347`과 시간표 row CRUD `6cb8546`은 각각 origin 작업 브랜치에 보존했다. `codex/docs-format-recovery`에서 통합·재검증하고 main에 fast-forward했다. 코드 통합 커밋 `1f3e08dcc4da9c67c8c53e962195af3c26b1908d`의 origin/main push와 원격 SHA 일치를 확인했다. 코드 충돌은 없었고 문서 충돌만 두 작업 기록을 보존해 해결했다. 현재 브랜치 및 HEAD는 위의 최신 정밀진단 항목을 따른다.
 - 포맷 후 재개는 `docs/handoff/FORMAT_RECOVERY.md` 순서를 따른다. 사용자가 2026-10-19 루트 `.env` 파일의 별도 백업 완료를 확인했다. 파일 내용/백업 위치는 조사하지 않았다. 브라우저 로컬 데이터와 Codex 개인 설정은 별도 보존 여부 미확인이다. production/deploy/IAM 작업은 재개하지 않는다.
 - 통합 상태에서 로그인 회귀·시간표 단위 9/9·npm test(auth 모듈 668개)·typecheck·두 빌드·release gate 33/33·전체 browser 18/18 PASS를 2026-10-19 재확인했다. Functions/별도 전체 Rules는 재실행하지 않았다. 최종 main 반영 여부는 CURRENT_HANDOFF 최신 항목을 따른다.
 - main에서도 npm test/로그인 회귀/typecheck/release gate 33/33을 재검증해 통과했다. 미커밋 기능 변경과 debug log 잔존은 없고 시간표 worktree도 원격과 동기화했다. `.env` 외부 백업 완료를 사용자가 확인했다. 브라우저 로컬 데이터·Codex 개인 설정 보존 여부는 미확인이다. 아래 10/17 이전 미커밋 문구는 과거 기록이다.

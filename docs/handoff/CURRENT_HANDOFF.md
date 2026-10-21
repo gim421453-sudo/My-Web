@@ -3,9 +3,19 @@
 Last updated: 2026-10-19 (Asia/Seoul)
 Status: REMOTE_CODE_BACKUP_COMPLETE_LOCAL_DATA_BACKUP_REQUIRED
 
+## 2026-10-19 최신 포맷 전 정밀진단
+
+- 실제 저장소 루트는 `C:\dev\My Web`이며 `origin/main` 최신화 후 기준 커밋 `350addc` (`350addceaff3d2a059b4cd02ea6b2b5727fc6f7e`)에서 진단 브랜치 `feat/format-readiness-diagnostics`를 만들었다. `main`과 `origin/main`은 진단 시작 시 동일 커밋이었다. 진단 시작 때 tracked 변경은 없었다. 현재 tracked 변경은 이 진단 내용을 기록한 `AGENTS.md`와 이 handoff뿐이다. 미추적 `CLAUDE.md.mainpc-old`와 이번 Emulator 실행으로 생성된 `firestore-debug.log`는 보존한다. 커밋/푸시/배포는 하지 않았다.
+- 회귀 PASS: `npm test`, 로그인 문구 검사, 시간표 row CRUD 9/9, release gate 33/33, `npm run typecheck`, root 및 admin 빌드, recovery Browser Emulator 18/18, Firestore Rules Emulator 39/39, Functions 단위 557/557, Functions Emulator 통합 11개 흐름. 각 Emulator 통합 결과는 production access 0으로 보고했다. 브라우저 테스트에는 fail/cancel/skip/todo가 없었다.
+- 빌드는 `--ignore-scripts`로 실행해 `.env` 기반 설정 생성 및 후처리 lifecycle script를 건너뛰었다. Functions 최신 소스는 기존 ignored `functions/lib`에 컴파일했으며 clean/delete 단계는 실행하지 않았다. 루트 `.env`는 읽거나 수정하지 않았다.
+- root, Functions, Firestore Rules 도구 세 lockfile에 대한 `npm audit`는 모두 `0 total`이다. 감사 결과는 현재 저장 lockfile 기준이다. 최종 `git diff --check` PASS다.
+- 진단 중 표시된 경고: Vite의 HTML classic script 번들 안내, Firebase Emulator의 기본 logging/hub 포트 점유로 대체 포트 선택, Functions 패키지 버전 안내, Emulator CLI의 ADC 감지 경고. 회귀/통합은 성공 종료했고 각 통합 시나리오가 production access 0을 보고했지만, 운영 Firebase 자체를 검사한 것은 아니다. 앱/관리자 빌드 모두 완료됐다.
+- 상태: `READY_WITH_WARNINGS`. 자동 검증은 통과했지만 운영 화면/인쇄 비교, 장시간 offline UX, 브라우저 로컬 데이터 및 Codex 개인 설정의 포맷 전 보존 여부는 별도 확인이 남아 있다. IAM HOLD 및 운영 데이터/deploy 금지를 유지한다.
+- 다음 단계: 브라우저 localStorage/IndexedDB와 Codex 개인 설정에 보존이 필요한 자료가 있는지 포맷 전에 확인한다. 포맷 후 `FORMAT_RECOVERY.md` 절차로 새 clone을 준비하고 demo 검증을 다시 실행한다. 진단 산출물/사용자 파일은 자동 삭제하지 않는다.
+
 ## 포맷 전 통합 상태
 
-- 원격 저장소: `https://github.com/gim421453-sudo/My-Web.git`, OWNER Codex. 현재 루트 `C:\dev\My-Web`, 현재 브랜치 **main**. 시작 시 main/origin/main은 `cf55bed`; 로그인 브랜치 HEAD `4856347f72f90849b0989bb4f91bc06d930d9cda`는 이미 원격과 일치했다. 시간표 worktree의 미커밋 19개 파일은 `6cb8546`으로 커밋하고 origin에 push해 복구 지점을 확보했다.
+- 원격 저장소: `https://github.com/gim421453-sudo/My-Web.git`, OWNER Codex. 통합 당시 루트는 `C:\dev\My-Web`, 기준은 `cf55bed`였다. 이후 최신화된 현재 경로/브랜치/커밋은 위의 최신 정밀진단 항목을 따른다. 로그인 브랜치 HEAD `4856347f72f90849b0989bb4f91bc06d930d9cda`는 원격과 일치했고 시간표 worktree의 19개 파일은 `6cb8546`으로 커밋해 origin에 보존했다.
 - 이번 통합은 로그인 문구와 시간표 row CRUD만 포함한다. 코드 충돌은 없으며 AGENTS/이 문서의 인계 상태 충돌을 두 작업의 역사로 보존했다. dependency remediation/full-regression 조사 브랜치를 병합한 것이 아니다. 두 기능 브랜치는 서로 갈라져 있어 통합 브랜치에서 정상 merge commit을 만들었고 main은 해당 통합 결과로 fast-forward했다. 강제 처리와 히스토리 수정은 없다.
 - 현재 제품: legacy `index.html + app.js` 유지, App Next 공지/일정/시간표 row CRUD 제공. 로그인 기본 이름은 `통합 관리프로그램`, 초대 안내 문구는 제거했으며 기존 사용자 지정 이름과 인증 버튼/동작은 유지한다. 시간표 계약은 `docs/app-next-timetable-read-only-pilot.md`, 일정/공지 계약은 각 integration/pilot 문서를 참조한다.
 - 재개 지침: **`docs/handoff/FORMAT_RECOVERY.md`를 먼저 읽는다.** 포맷은 `.env`, 비추적 데이터, 브라우저 localStorage/IndexedDB 및 설치 런타임을 지운다. Git push만으로 이 항목들이 백업되지는 않는다. 사용자가 2026-10-19 `.env` 별도 백업 완료를 확인했다. 파일 내용과 백업 위치는 확인하지 않았다. 브라우저 로컬 데이터와 Codex 개인 설정 보존 여부는 미확인이다.
