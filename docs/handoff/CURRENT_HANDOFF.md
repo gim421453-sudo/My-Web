@@ -1,5 +1,15 @@
 # MY WEB 현재 작업 인계
 
+## 2026-10-22 Codex 프로젝트 현황 Wiki 조사
+
+- 목표: Codex 담당 8개 프로젝트의 현재 Git/handoff 상태를 Obsidian 프로젝트 지식베이스로 정리했다. My Web 기능 코드나 설정은 수정하지 않았고, 이번 조사에서 테스트·빌드·배포·Git 동기화를 실행하지 않았다.
+- Obsidian Vault `C:/dev/Obsidian`의 flat Project 노트를 보강했다. 통합 대시보드와 근거 조사는 정본을 `Wiki/00-Projects-Dashboard.md`, `Wiki/Codex-Projects-Audit-2026-10-22.md`에 두고 Project 쪽에는 기존 구조를 따르는 바로가기 노트를 둔다. 2026-10-22 Daily와 Wiki log도 갱신했다. 전체 소스 전수 review는 하지 않았으며 이전 테스트 결과는 날짜를 붙여 기록했다.
+- 현재 실제 Git 대조: branch `feat/format-readiness-diagnostics`, HEAD `f3f2c6b`, `origin/feat/format-readiness-diagnostics`와 정렬. tracked working tree clean; 미추적 `CLAUDE.md.mainpc-old`, `firestore-debug.log`가 남아 있다. 이 조사자는 Git 조작을 하지 않았다.
+- 진단 충돌: 10-19 handoff의 npm audit 0 기록과 10-20 별도 Codex 진단의 root 16건(12 high, 4 moderate), production 4 high 결과를 분리 기록했다. 이번 조사에서 audit을 다시 실행하지 않았다.
+- 완료/제한: Obsidian 링크 및 민감정보 패턴 검사를 수행했다. 전체 source audit, 새 테스트, production service 확인은 NOT RUN. 다른 저장소의 후속 Git 문서 commit은 이번 조사와 별개로 실제 status/log에서 관측해 Wiki에 최신 snapshot으로 반영했다.
+- 다음 작업: `Wiki/00-Projects-Dashboard.md`의 P0부터 다음 프로젝트를 선택한다. My Web 쪽에서는 포맷 전에 브라우저 localStorage/IndexedDB와 Codex 개인 설정 보존 여부를 확인한 뒤 `docs/handoff/FORMAT_RECOVERY.md`를 따른다. IAM HOLD 및 production 금지는 유지한다.
+- 교차 기기 상태: Obsidian 변경은 로컬 미커밋이며 commit/push하지 않았다. Wiki 내용이 다른 기기에 동기화됐다고 가정하지 않는다.
+
 Last updated: 2026-10-19 (Asia/Seoul)
 Status: REMOTE_CODE_BACKUP_COMPLETE_LOCAL_DATA_BACKUP_REQUIRED
 
