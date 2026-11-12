@@ -1,3 +1,18 @@
+## 2026-11-12 Codex Cloud 이전 취소
+
+- 사용자가 클라우드 인계 계획을 전면 취소했다. CLOUD_HANDOFF.md의 판정을 CANCELLED로 갱신했다. 클라우드 연결·백업·인계 브랜치·커밋·푸시는 진행하지 않는다. 기존 로컬 프로젝트, 기존 개발 작업, 미커밋 변경 및 미추적 파일은 보존한다. 클라우드 이전과 무관한 기존 개발 작업은 취소하거나 되돌리지 않는다.
+
+## 2026-11-12 Codex Cloud 인계 준비 (취소 이전의 과거 기록)
+
+- 기능 개발 중단. 현재 main HEAD 1874119, 기존 진단 문서 변경과 미추적 CLAUDE.md.mainpc-old를 보존했다. CLOUD_HANDOFF.md에 환경·검사·비밀정보 점검과 백업·별도 브랜치 계획을 기록했다.
+- 상태 BLOCKED: 사용자 승인에 따른 외부 백업·복원 검증, 추적 자료 공개 적합성 검토, GitHub 및 클라우드 연결과 인계 브랜치 전달은 미실행. Rules 로그 삭제 금지와 운영/IAM HOLD 유지.
+
+- 2026-11-11 추가 확인: 로그를 삭제하지 않는 Rules --preflight PASS (demo 프로젝트, loopback 8083, Java 21 및 Firebase CLI 확인). 실제 Rules Emulator 테스트는 자동 승인 심사 거부로 NOT RUN. 기존 루트 firestore-debug.log 보존.
+
+## 2026-11-11 진단 요약
+
+- 사용자 승인으로 현재 main(HEAD 1874119)에서 진단했다. 상세 검사 결과와 기존 인계 브랜치 차이는 docs/handoff/CURRENT_HANDOFF.md 참조.
+- 기본 테스트·타입 검사·격리 Vite 빌드 통과. owner preview manifest 전용 검사는 v=1 기대와 실제 v=4의 불일치로 17/18. npm audit에서 루트 32건, Functions 9건, Rules 도구 32건이 보고됐다. Rules 실행은 기존 로그 삭제 위험으로 자동 승인 심사에서 거부되었고 Browser/Functions 실행 검사는 미실행이다.
 OWNER: Codex
 
 ## 프로젝트 담당표 (고정, 변경 계획 없음)
@@ -18,16 +33,27 @@ OWNER: Codex
 - 삭제, 강제 푸시, 히스토리 수정, 데이터 삭제는 먼저 묻는다. API 키/비밀번호/토큰은 코드에 넣지 않고 .env로 분리한다.
 - 작업이 끝나면 핸드오프와 AGENTS.md를 함께 갱신한다. 실행/테스트하지 않은 것은 "동작한다"고 쓰지 않는다.
 
-## 2026-11-12 App Next 시간표 관리 최종 안전성 검토 (현재 worktree)
+## 2026-11-12 App Next 시간표 관리 최종 안전성 검토 (당시 결과; 최신은 2026-11-13 기록)
 
-- 작업 브랜치 codex/feat-app-next-timetable-management-batch, 경로 C:\dev\My-Web\tmp\codex-branches\feat-app-next-timetable-management-batch, HEAD 1874119fa5c7a871840df6a18c071455935f1788. main 작업 트리와 사용자의 기존 변경은 별도 보존한다.
+- 당시 기준 main HEAD는 1874119fa5c7a871840df6a18c071455935f1788이며, 시간표 기능 브랜치 codex/feat-app-next-timetable-management-batch의 최종 커밋은 7f72dda9d35334f01cc63b65eebe4b20d938501f다. main 작업 트리와 사용자의 기존 변경은 별도 보존했다.
 - App Next 시간표 set create/update/archive/unarchive/reactivate, 교시 add/time edit 및 기존 row CRUD를 유지한다. app.js V135 legacy writer는 tt-<set>-<day>-<period>-<timestamp> 형태의 classRow.id를 쓰며 활성 교시 확인과 row 저장을 하나의 transaction으로 묶지 않는다. Firestore Rules는 period 참조를 검증하지 않아 period delete race를 차단할 수 없다. management service는 period delete를 period-delete-blocked로 fail-closed하고 UI에서도 버튼을 비활성화한다.
 - 최종 검증 PASS: npm test, npm run typecheck, management unit 6/6, row unit 9/9, release gate 33/33, Browser recovery 19/19, 기본 npm run build lifecycle, npm run build:admin, browser test 구문 검사, git diff --check. build는 demo 설정을 사용했다. root config와 dist 산출물은 실행 전 부재 확인, 생성 후 해시 검사해 tmp/final-safety-review-20261112-194028-2770b42f/build-artifacts에 보존했다.
 - Emulator는 demo Auth/Firestore 및 loopback Vite만 사용했다. Rules warning은 권한 거부 테스트의 generic L539/L541 평가 및 fallback L1014와 일치하지만 log가 request path/uid를 제공하지 않아 요청별 귀속은 미확인이다. Node MetadataLookupWarning(ETIMEDOUT/ENOTFOUND)도 있었고 테스트는 통과했다. 기존 로그와 스크린샷은 SHA-256 일치로 보존했다.
 - 변경은 tracked 8개 수정, 신규 source/test 4개, staged 0이며 commit/push/merge하지 않았다. Rules, Functions, manifest/lockfile, legacy app.js와 Firebase root config diff는 0이다. main 사용자 AGENTS.md, CURRENT_HANDOFF.md, CLOUD_HANDOFF.md, CLAUDE.md.mainpc-old의 사전·사후 해시는 동일하다. origin URL을 변경하지 않았다.
-- 남은 수동 확인: 운영 화면의 legacy/mixed 시간표와 인쇄 비교 및 장시간 offline UX. 교시 삭제를 다시 허용하려면 별도 승인 아래 server-side 참조/경쟁 방지 계약을 먼저 설계해야 한다. 상세 파일·Git·테스트 보고는 docs/handoff/CURRENT_HANDOFF.md의 최신 항목을 따른다. COMMIT_READY=YES(현재 fail-closed 범위); commit/push/merge는 미수행.
+- 남은 수동 확인: 운영 화면의 legacy/mixed 시간표와 인쇄 비교 및 장시간 offline UX. 교시 삭제를 다시 허용하려면 별도 승인 아래 server-side 참조/경쟁 방지 계약을 먼저 설계해야 한다. 상세 파일·Git·테스트 보고는 docs/handoff/CURRENT_HANDOFF.md의 최신 항목을 따른다. COMMIT_READY=YES(당시 fail-closed 범위); 당시 commit/push/merge는 미수행.
 
 ## 연동 규칙 (지금은 구현하지 않음)
+## 2026-11-13 시간표 관리 통합 검증 (현재 상태)
+
+- 통합 worktree C:\dev\\My-Web\\tmp\\codex-branches\\integration-review-timetable-management, 브랜치 codex/integration-review-timetable-management. 기능 커밋 5b4ec27, 7f72dda를 포함하며 이번 검증 뒤 문서 커밋 docs: reconcile timetable management handoff를 이 브랜치에 생성했다. main과 기능 브랜치는 변경하지 않았고 push/merge도 하지 않았다.
+- main 문서 diff의 모든 추가 행을 통합본과 대조했다. main 사용자 파일 4개의 원본·보호 백업 SHA-256은 기존 manifest와 모두 일치한다. 백업: C:\dev\\_git-safety\\My-Web-main-merge-prep-20261112-221220-90082648.
+- 교시 삭제는 임의 ID legacy writer와의 경쟁을 Rules/schema/Functions가 막지 못해 계속 fail-closed다. row CRUD, 교시 추가·시간 수정, set lifecycle 및 일반·학교·프로그램 호환성은 유지된다. IAM은 HOLD다.
+- 통합 worktree 검증: npm test, npm run typecheck, release gate 33/33, 관리 단위 6/6, row 단위 9/9, npm run build, npm run build:admin, Browser recovery 19/19 모두 PASS.
+- 두 빌드와 Browser는 demo demo-myweb-recovery-e2e 값 및 loopback Emulator만 사용했다. main firebase-config.local.js SHA-256은 실행 전후 동일하다. 운영 Firebase 접근·데이터 변경·배포·Rules/Functions/IAM 변경은 없다.
+- 빌드의 classic script 및 React Router use client 경고와 Browser의 MetadataLookupWarning(ETIMEDOUT/ENOTFOUND)은 남았으나 자동 검증은 통과했다. 새 firestore-debug.log는 삭제하지 않고 보존했다(2,980행, error-level 18, warning-level 9, SHA-256 BDD1B36010C3151B3389F451C270150EF68FBC9A2A594505777745453EB2D7E5). 요청 경로/사용자 식별 정보가 없어 개별 로그 귀속은 NOT_VERIFIED다.
+- origin/main은 fetch 후에도 main HEAD 1874119fa5c7a871840df6a18c071455935f1788과 같고, main에는 사용자 수정 AGENTS.md, docs/handoff/CURRENT_HANDOFF.md 및 미추적 CLOUD_HANDOFF.md, CLAUDE.md.mainpc-old가 남아 있다. 두 미추적 파일은 존재하며 통합 브랜치 .gitignore에서 ignored다.
+- READY_FOR_MAIN_FF=NO: 커밋 그래프는 fast-forward 가능하지만 main tracked 문서 두 개가 미커밋이므로 이번에는 main을 이동하지 않았다. 다음 단계에서는 위 두 tracked 파일만 백업과 통합 커밋 포함 여부를 재확인한 뒤 처리한다.
+
 
 - 모든 프로젝트는 다른 프로젝트 없이 단독으로 빌드, 실행, 테스트가 통과해야 한다. 연동 코드는 지금 만들지 않는다.
 - 나중 연동을 위한 입구만 남긴다: 외부와 주고받는 경계(API 엔드포인트, 이벤트, 설정값)는 한 모듈에 모으고, 연동 대상 주소와 키는 .env로 분리한다. 기능 플래그가 꺼져 있으면 연동 코드는 동작하지 않는다.

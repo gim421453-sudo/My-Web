@@ -1,8 +1,43 @@
+## 2026-11-12 Codex Cloud 이전 취소
+
+- 사용자가 클라우드 인계 계획을 전면 취소했다. CLOUD_HANDOFF.md의 판정을 CANCELLED로 갱신했다. 클라우드 연결·백업·인계 브랜치·커밋·푸시는 진행하지 않는다. 기존 로컬 프로젝트, 기존 개발 작업, 미커밋 변경 및 미추적 파일은 보존한다. 클라우드 이전과 무관한 기존 개발 작업은 취소하거나 되돌리지 않는다.
+
+## 2026-11-12 Codex Cloud 인계 준비 (취소 이전의 과거 기록)
+
+- 기능 개발 중단. 현재 main HEAD 1874119, 기존 진단 문서 변경과 미추적 CLAUDE.md.mainpc-old를 보존했다. CLOUD_HANDOFF.md에 환경·검사·비밀정보 점검과 백업·별도 브랜치 계획을 기록했다.
+- 상태 BLOCKED: 사용자 승인에 따른 외부 백업·복원 검증, 추적 자료 공개 적합성 검토, GitHub 및 클라우드 연결과 인계 브랜치 전달은 미실행. Rules 로그 삭제 금지와 운영/IAM HOLD 유지.
+
+- 2026-11-11 추가 확인: 로그를 삭제하지 않는 Rules --preflight PASS (demo 프로젝트, loopback 8083, Java 21 및 Firebase CLI 확인). 실제 Rules Emulator 테스트는 자동 승인 심사 거부로 NOT RUN. 기존 루트 firestore-debug.log 보존.
+
+## 2026-11-11 전체 진단 (main 승인 예외)
+
+- 목표: 현재 main에서 읽기 중심 정밀 진단. 시작 HEAD 1874119, origin/main의 로컬 추적 참조와 0/0, 미추적 CLAUDE.md.mainpc-old 보존. 실제 경로 C:\dev\My-Web. 이전 인계의 feat/format-readiness-diagnostics 표기는 현재 브랜치와 다르며 사용자가 main 진단을 승인했다.
+- PASS: npm test, npm run typecheck, Functions tsc --noEmit, 로그인 문구, 시간표 9/9, 역할/workspace release gate 33/33, Python 구문, 루트 npm ls --depth=0, envFile:false와 별도 출력 경로를 사용한 Vite 기본 및 admin 대상 빌드. 실제 npm build lifecycle 및 배포는 실행하지 않음.
+- FAIL: node scripts/test-owner-preview-release-manifest.mjs 17/18. app-next.html의 manifest 버전 v=4를 테스트가 v=1로 고정해 불일치한다. 테스트 기대값과 실제 캐시 정책의 정합성 및 동작 영향은 미검증.
+- npm audit --package-lock-only: 루트 32건(낮음 1, 보통 17, 높음 14), 루트 --omit=dev 10건(낮음 1, 보통 4, 높음 5), Functions 9건(낮음 1, 보통 7, 높음 1), Rules 도구 32건(보통 18, 높음 14). 취약점 수는 의존성 항목 기준이며 실제 악용 가능성은 미검증. 의존성 변경 없음.
+- BLOCKED: Rules 실행은 기존 로그를 삭제하는 코드가 자동 승인 심사에서 거부되어 미실행. Java 21은 설치됐으나 기본 PATH에는 없음. 기존 루트 firestore-debug.log 보존 때문에 browser Emulator 미실행. Functions 단위/통합, 운영 화면 및 production 검증은 NOT RUN. 빌드의 기존 classic script 및 use client 경고 유지.
+- 추가 확인: generate-blog-pdfs.py 구문 PASS. 기존 경로가 PDF 명령 예시 및 문서에 남음. PDF 생성은 이번 진단에서 미실행. 로컬 추적 원격만 확인했고 fetch 없음.
+- 다음 단계: manifest 버전 고정 테스트와 실제 캐시 정책을 비교해 원인을 확인하고 수정 범위를 결정한다. Rules/Browser Emulator는 기존 로그 보존 방식 마련 후 재검증한다. npm advisory는 실제 의존 경로와 운영 영향, 호환 범위별 수정을 별도 조사한다.
+- 교차 기기 상태: READY_WITH_WARNINGS. 이 인계와 AGENTS.md만 진단 기록으로 변경하며 커밋/푸시/배포 없음. 기존 사용자 파일과 운영 데이터는 유지한다.
 # MY WEB 현재 작업 인계
 
-## 2026-11-12 App Next 시간표 관리 최종 안전성 검토
+## 2026-11-13 시간표 관리 통합·검증 결과 (현재 상태)
 
-- 판정 PASS WITH WARNINGS, COMMIT_READY=YES(현재 fail-closed 범위). commit/push/merge는 하지 않았다. 작업 브랜치 codex/feat-app-next-timetable-management-batch, worktree C:\dev\My-Web\tmp\codex-branches\feat-app-next-timetable-management-batch, HEAD 1874119fa5c7a871840df6a18c071455935f1788. origin URL은 https://github.com/gim421453-sudo/My-Web.git 그대로다.
+- 통합 worktree C:\dev\My-Web\tmp\codex-branches\integration-review-timetable-management, 브랜치 codex/integration-review-timetable-management; 기능 HEAD 7f72dda9d35334f01cc63b65eebe4b20d938501f에서 이어졌다. 커밋 5b4ec27과 7f72dda 모두 조상으로 포함된다. 검증 완료 후 이 브랜치에서만 docs: reconcile timetable management handoff 커밋을 생성했다. push와 main merge는 하지 않았다.
+- git fetch origin은 성공했다. fetch 후 main과 origin/main은 모두 1874119fa5c7a871840df6a18c071455935f1788; 기능 로컬 브랜치와 로컬 origin 추적 참조는 모두 7f72dda9d35334f01cc63b65eebe4b20d938501f다. fetch 후 원격 main 이동은 확인되지 않았다.
+- main의 AGENTS.md 및 docs/handoff/CURRENT_HANDOFF.md 변경 diff를 통합본과 대조해 모든 추가 문장을 확인했다. 과거 Codex Cloud 취소·진단 기록, 시간표 fail-closed 정책, 테스트 증거, IAM HOLD를 보존했다. 2026-11-12 safety review의 COMMIT_READY와 미커밋 상태는 당시 기록으로 표시했다.
+- main 사용자 파일 네 개는 기존 보호 백업과 SHA-256이 일치했다: AGENTS.md, docs/handoff/CURRENT_HANDOFF.md, CLOUD_HANDOFF.md, CLAUDE.md.mainpc-old. 외부 백업 경로 C:\dev\_git-safety\My-Web-main-merge-prep-20261112-221220-90082648의 manifest와 diff도 보존된다.
+- 기능 안전성 유지: legacy writer는 임의 row ID로 작성하며 Rules가 교시 참조를 검증하지 않는다. 교시 삭제는 따라서 UI/service에서 period-delete-blocked로 fail-closed이며 기존 수업·세트·교시를 보존한다. row CRUD, 교시 추가·시간 수정, 세트 생성·수정·보관·보관 해제·재활성화와 일반·학교·프로그램 호환성을 유지했다. Rules/Functions/운영 데이터는 수정하지 않았다.
+- 검증 PASS: npm test, npm run typecheck, release gate 33/33, node scripts/test-app-next-timetable-management.mjs 6/6, node scripts/test-app-next-timetable-row-crud.mjs 9/9, npm run build, npm run build:admin, npm run test:recovery:browser 19/19, staged git diff --check.
+- 두 빌드는 통합 worktree에서 demo Firebase 값 demo-myweb-recovery-e2e를 사용했다. 생성된 main/admin 설정 모두 demo project를 가리키며, main의 firebase-config.local.js는 실행 전후 SHA-256 38597C7C62B4F2C5C2281BDE01FB3AC1C4384F3B5E73AD7438A07A25E1DEB09B로 동일하다. production Firebase 접근·운영 데이터 변경·배포는 없다.
+- 기존 Vite classic-script 및 React Router use client 경고가 양쪽 빌드에서 재현됐다. Browser Emulator 로그에는 error-level 18건과 warning-level 9건이 있다. Browser 테스트는 19/19 PASS이며 로그에는 요청 경로/사용자 식별 정보가 없어 해당 이벤트의 테스트별 귀속은 NOT_VERIFIED다. Node MetadataLookupWarning(ETIMEDOUT/ENOTFOUND)도 기록됐으나 실패 테스트는 없다.
+- Browser 실행으로 새 firestore-debug.log(2,980행, SHA-256 BDD1B36010C3151B3389F451C270150EF68FBC9A2A594505777745453EB2D7E5)을 생성했다. 사용자 지시에 따라 삭제하지 않고 통합 worktree에 보존했다. Emulator·Vite 포트는 종료 후 모두 닫혔다.
+- ignore 확인: /CLOUD_HANDOFF.md, /CLAUDE.md.mainpc-old가 git check-ignore -v --no-index에서 규칙 66/67로 확인됐다. 두 파일을 stage/commit하지 않았고 원본/백업 해시는 동일하다. 통합 후 파일은 남지만 Git 상태에서 ignored로 표시된다.
+- main 작업 트리는 변경하지 않았다. main은 통합 브랜치 HEAD의 조상이므로 커밋 그래프는 fast-forward 가능하지만, main의 tracked AGENTS.md와 docs/handoff/CURRENT_HANDOFF.md 수정이 현재 남아 있어 READY_FOR_MAIN_FF=NO다. 다음 단계에서는 이 두 파일만 통합 커밋 포함 여부와 백업을 확인하고, main의 중복 미커밋 diff를 안전하게 정리한 뒤 fast-forward해야 한다. 복원 자료는 위 백업 경로다. 미추적 CLOUD_HANDOFF.md, CLAUDE.md.mainpc-old는 삭제하지 않는다.
+
+## 2026-11-12 App Next 시간표 관리 최종 안전성 검토 (당시 결과)
+
+- 당시 판정 PASS WITH WARNINGS, COMMIT_READY=YES(현재 fail-closed 범위)였다. 당시에는 commit/push/merge하지 않았다. 기준 main HEAD는 1874119fa5c7a871840df6a18c071455935f1788이고, 기능 브랜치 codex/feat-app-next-timetable-management-batch의 최종 HEAD는 7f72dda9d35334f01cc63b65eebe4b20d938501f다. origin URL은 https://github.com/gim421453-sudo/My-Web.git 그대로였다.
 - 교시 삭제 경쟁 상태: app.js V132(L31912)와 V135(L33223)은 timetable/{classRow.id}에 row를 저장해 App Next deterministic cell ID와 다른 문서 ID를 쓴다. V135는 tt-<set>-<day>-<period>-<timestamp> 형태의 ID를 만들고 server read로 활성 교시를 확인한 뒤 별도 row write를 하므로 하나의 transaction이 아니다. 현재 firestore.rules generic workspace write L539는 period/set 참조를 검증하지 않고 L1014 fallback은 deny 처리만 한다. 현재 Rules/schema/Functions 계약만으로 임의 ID writer와 교시 삭제를 직렬화할 수 없으며 삭제 뒤 orphan row 가능성이 확인됐다.
 - 보완: deleteAppNextTimetablePeriod는 활성 권한 및 입력 확인 후 period-delete-blocked로 즉시 fail-closed하고 Firestore를 쓰지 않는다. UI 삭제 버튼도 비활성화하고 이유를 표시한다. 기존 period와 연결 row는 보존한다. Firestore Rules, Functions, 운영 데이터는 변경하지 않았다.
 - 유지: timetable row CRUD, 교시 추가, 시간 수정, set 생성·수정·보관·보관 해제·재활성화, 일반·학교·프로그램 조회·쓰기 호환 경로. 운영 app.js를 변경하지 않았다. 교시 삭제는 새 안전 계약 전까지 사용할 수 없다.
