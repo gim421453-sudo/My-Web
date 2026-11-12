@@ -18,6 +18,15 @@ OWNER: Codex
 - 삭제, 강제 푸시, 히스토리 수정, 데이터 삭제는 먼저 묻는다. API 키/비밀번호/토큰은 코드에 넣지 않고 .env로 분리한다.
 - 작업이 끝나면 핸드오프와 AGENTS.md를 함께 갱신한다. 실행/테스트하지 않은 것은 "동작한다"고 쓰지 않는다.
 
+## 2026-11-12 App Next 시간표 관리 최종 안전성 검토 (현재 worktree)
+
+- 작업 브랜치 codex/feat-app-next-timetable-management-batch, 경로 C:\dev\My-Web\tmp\codex-branches\feat-app-next-timetable-management-batch, HEAD 1874119fa5c7a871840df6a18c071455935f1788. main 작업 트리와 사용자의 기존 변경은 별도 보존한다.
+- App Next 시간표 set create/update/archive/unarchive/reactivate, 교시 add/time edit 및 기존 row CRUD를 유지한다. app.js V135 legacy writer는 tt-<set>-<day>-<period>-<timestamp> 형태의 classRow.id를 쓰며 활성 교시 확인과 row 저장을 하나의 transaction으로 묶지 않는다. Firestore Rules는 period 참조를 검증하지 않아 period delete race를 차단할 수 없다. management service는 period delete를 period-delete-blocked로 fail-closed하고 UI에서도 버튼을 비활성화한다.
+- 최종 검증 PASS: npm test, npm run typecheck, management unit 6/6, row unit 9/9, release gate 33/33, Browser recovery 19/19, 기본 npm run build lifecycle, npm run build:admin, browser test 구문 검사, git diff --check. build는 demo 설정을 사용했다. root config와 dist 산출물은 실행 전 부재 확인, 생성 후 해시 검사해 tmp/final-safety-review-20261112-194028-2770b42f/build-artifacts에 보존했다.
+- Emulator는 demo Auth/Firestore 및 loopback Vite만 사용했다. Rules warning은 권한 거부 테스트의 generic L539/L541 평가 및 fallback L1014와 일치하지만 log가 request path/uid를 제공하지 않아 요청별 귀속은 미확인이다. Node MetadataLookupWarning(ETIMEDOUT/ENOTFOUND)도 있었고 테스트는 통과했다. 기존 로그와 스크린샷은 SHA-256 일치로 보존했다.
+- 변경은 tracked 8개 수정, 신규 source/test 4개, staged 0이며 commit/push/merge하지 않았다. Rules, Functions, manifest/lockfile, legacy app.js와 Firebase root config diff는 0이다. main 사용자 AGENTS.md, CURRENT_HANDOFF.md, CLOUD_HANDOFF.md, CLAUDE.md.mainpc-old의 사전·사후 해시는 동일하다. origin URL을 변경하지 않았다.
+- 남은 수동 확인: 운영 화면의 legacy/mixed 시간표와 인쇄 비교 및 장시간 offline UX. 교시 삭제를 다시 허용하려면 별도 승인 아래 server-side 참조/경쟁 방지 계약을 먼저 설계해야 한다. 상세 파일·Git·테스트 보고는 docs/handoff/CURRENT_HANDOFF.md의 최신 항목을 따른다. COMMIT_READY=YES(현재 fail-closed 범위); commit/push/merge는 미수행.
+
 ## 연동 규칙 (지금은 구현하지 않음)
 
 - 모든 프로젝트는 다른 프로젝트 없이 단독으로 빌드, 실행, 테스트가 통과해야 한다. 연동 코드는 지금 만들지 않는다.

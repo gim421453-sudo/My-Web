@@ -31,6 +31,7 @@ import {
 import RequireWorkspaceRole from "../components/guards/RequireWorkspaceRole";
 import { AppNextTimetableRowEditor, type TimetableEditorSelection } from "./AppNextTimetableRowEditor";
 import { activeTimetablePeriods, timetableRowWritePolicy, timetableWorkspaceMatches, timetableSetWritable, timetableProgramBinding, TIMETABLE_ROW_WRITE_ROLES } from "./appNextTimetableRowCrudUtils";
+import { AppNextTimetableManagement } from "./AppNextTimetableManagement";
 
 type TimetableErrorCode =
   | "none"
@@ -547,6 +548,15 @@ export function AppNextTimetableReadOnly({
         {normalized.activeSetMissing ? <p role="alert">선택한 시간표를 확인할 수 없어 수업 작업을 차단했습니다.</p> : null}
         {selectedSetId && !writablePeriods.length ? <p>활성 교시가 없습니다. 수업 추가는 교시 설정 후 사용할 수 있습니다.</p> : null}
       </section> : null}
+
+      {policy.hasWorkspace && session?.currentWorkspaceId ? (
+        <RequireWorkspaceRole allowedRoles={["super_manager", "manager"]} requireWorkspace allowSystemOwnerBypass
+          previewMode useExistingAuthProvider defaultNewAuth currentRoute={currentRoute} requestedRoute={requestedRoute} menuVisible>
+          <AppNextTimetableManagement phase={phase} session={session} workspaceId={session.currentWorkspaceId}
+            operationMode={operationMode} store={store} selectedSetId={selectedSetId} disabled={loading || mutationBusy}
+            onBusy={setMutationBusy} onConfirmed={() => loadTimetable(true)} onSelectSet={(id) => { loadVersion.current += 1; setSelectedSetId(id); setSelection(null); }} />
+        </RequireWorkspaceRole>
+      ) : null}
 
       {selection && canWrite && session?.currentWorkspaceId ? (
         <RequireWorkspaceRole allowedRoles={TIMETABLE_ROW_WRITE_ROLES} requireWorkspace allowSystemOwnerBypass

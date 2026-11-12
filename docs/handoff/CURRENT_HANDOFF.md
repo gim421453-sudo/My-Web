@@ -1,5 +1,20 @@
 # MY WEB 현재 작업 인계
 
+## 2026-11-12 App Next 시간표 관리 최종 안전성 검토
+
+- 판정 PASS WITH WARNINGS, COMMIT_READY=YES(현재 fail-closed 범위). commit/push/merge는 하지 않았다. 작업 브랜치 codex/feat-app-next-timetable-management-batch, worktree C:\dev\My-Web\tmp\codex-branches\feat-app-next-timetable-management-batch, HEAD 1874119fa5c7a871840df6a18c071455935f1788. origin URL은 https://github.com/gim421453-sudo/My-Web.git 그대로다.
+- 교시 삭제 경쟁 상태: app.js V132(L31912)와 V135(L33223)은 timetable/{classRow.id}에 row를 저장해 App Next deterministic cell ID와 다른 문서 ID를 쓴다. V135는 tt-<set>-<day>-<period>-<timestamp> 형태의 ID를 만들고 server read로 활성 교시를 확인한 뒤 별도 row write를 하므로 하나의 transaction이 아니다. 현재 firestore.rules generic workspace write L539는 period/set 참조를 검증하지 않고 L1014 fallback은 deny 처리만 한다. 현재 Rules/schema/Functions 계약만으로 임의 ID writer와 교시 삭제를 직렬화할 수 없으며 삭제 뒤 orphan row 가능성이 확인됐다.
+- 보완: deleteAppNextTimetablePeriod는 활성 권한 및 입력 확인 후 period-delete-blocked로 즉시 fail-closed하고 Firestore를 쓰지 않는다. UI 삭제 버튼도 비활성화하고 이유를 표시한다. 기존 period와 연결 row는 보존한다. Firestore Rules, Functions, 운영 데이터는 변경하지 않았다.
+- 유지: timetable row CRUD, 교시 추가, 시간 수정, set 생성·수정·보관·보관 해제·재활성화, 일반·학교·프로그램 조회·쓰기 호환 경로. 운영 app.js를 변경하지 않았다. 교시 삭제는 새 안전 계약 전까지 사용할 수 없다.
+- 작업 worktree 변경 tracked 8개: AGENTS.md, CHANGELOG.md, README.md, docs/app-next-timetable-read-only-pilot.md, docs/handoff/CURRENT_HANDOFF.md, src/app-next/AppNextTimetableReadOnly.tsx, src/app-next/styles.css, tests/browser/recovery-ui.e2e.test.mjs. 신규 4개: scripts/test-app-next-timetable-management.mjs, src/app-next/AppNextTimetableManagement.tsx, src/app-next/appNextTimetableManagementService.ts, src/app-next/appNextTimetableManagementUtils.ts. stage 0. package/lockfiles, firestore.rules, Functions, app.js, Firebase root config 변경은 없다.
+- 검증: npm test PASS; npm run typecheck PASS; management unit 6/6; row unit 9/9; release gate 33/33; Browser recovery 19/19(실패·skip·todo 0); node --check tests/browser/recovery-ui.e2e.test.mjs PASS; 최종 git diff --check PASS. Rules/Functions는 수정하지 않았다.
+- 빌드: npm run build lifecycle(PREBUILD firebase:config 포함)와 npm run build:admin 모두 demo placeholder로 PASS. worktree의 .env는 없고 .env.example만 있었다. generator가 cwd에서 firebase-config.local.js, pm-firebase-config.js, pm-env.js를 출력하며 build는 dist/dist-admin을 출력한다. 모두 실행 전 부재였고, 생성된 81개 build 파일은 해시 검증 후 tmp/final-safety-review-20261112-194028-2770b42f/build-artifacts로 옮겨 root 부재 상태를 보존했다. main 설정과 사용자 파일의 사전·사후 해시는 일치한다.
+- Browser는 demo-myweb-recovery-e2e의 Auth/Firestore Emulator와 127.0.0.1 Vite만 사용했다. 운영 Firebase/외부 게시/배포는 없었다. Emulator log의 9 warning block은 권한 제한 role에서 create/update L539 또는 delete L541이 평가된 뒤 fallback L1014로 거부되는 형태다. 동일 suite의 권한 거부 assertion은 통과했다. 로그에 문서 경로/요청 uid가 없어 경고별 정확한 테스트 요청 연결은 NOT_VERIFIED이며 실제 Rules 결함 증거는 확인하지 못했다. Node MetadataLookupWarning(ETIMEDOUT/ENOTFOUND)는 남았으나 suite는 통과했다.
+- 사용자 기존 로그와 4개 browser screenshot은 사전 SHA-256 복사본과 비교 후 원본 hash로 복원했다. 새 Emulator 로그와 build 결과는 tmp/final-safety-review-20261112-194028-2770b42f 아래 보존한다. 이전 실패 시도의 결과 로그도 삭제하지 않았다.
+- main은 branch main, HEAD 1874119fa5c7a871840df6a18c071455935f1788, origin/main과 0 ahead/behind. 사용자의 수정 AGENTS.md/CURRENT_HANDOFF.md와 미추적 CLOUD_HANDOFF.md/CLAUDE.md.mainpc-old는 모두 사전·사후 SHA-256이 일치한다. 작업 브랜치와 main에서 stage/commit/push/pull/merge/rebase/reset/clean/stash/branch 변경은 하지 않았다.
+- 남은 점: 운영 화면 및 mixed/legacy 표시·인쇄 수동 비교, 장시간 offline UX. 교시 삭제가 필요한 제품 요구라면 server-side 참조 무결성 또는 공통 lock 설계를 별도 승인받아 Rules/schema를 포함한 후속 작업으로 처리해야 한다. 현재 fail-closed 경계를 유지하는 조건에서 COMMIT_READY이며 main 병합 전에는 수동 비교와 삭제 기능 비활성화의 제품 수용을 확인한다.
+- Cross-device readiness: READY_WITH_WARNINGS — 현재 로컬 브랜치의 unstaged/untracked 변경과 검증 결과가 있으며 원격에 동기화되지 않았다.
+
 ## 2026-10-22 Codex 프로젝트 현황 Wiki 조사
 
 - 목표: Codex 담당 8개 프로젝트의 현재 Git/handoff 상태를 Obsidian 프로젝트 지식베이스로 정리했다. My Web 기능 코드나 설정은 수정하지 않았고, 이번 조사에서 테스트·빌드·배포·Git 동기화를 실행하지 않았다.

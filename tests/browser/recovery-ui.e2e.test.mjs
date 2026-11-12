@@ -823,6 +823,18 @@ async function openTimetable(page, shortName, setId = TT_SET) {
   await page.getByRole("heading", { name: setId === TT_SET ? "E2E 수업 시간표" : "E2E 방과후 시간표", exact: true }).waitFor();
 }
 
+async function waitForTimetableManagementButton(page, label) {
+  await page.waitForFunction((buttonName) => Array.from(document.querySelectorAll(".app-next-timetable-management button"))
+    .some((button) => button.textContent?.trim() === buttonName && !button.disabled), label);
+}
+
+async function waitForTimetableRefresh(page) {
+  await page.waitForFunction(() => {
+    const button = document.querySelector(".app-next-dashboard-hero button");
+    return button instanceof HTMLButtonElement && !button.disabled;
+  });
+}
+
 test("App Next 시간표 관리자 수업 CRUD는 단일 row와 서버 상태를 보존한다", { timeout: 300_000 }, async () => {
   const cleanup = await timetableFixture();
   try {
@@ -877,6 +889,176 @@ test("App Next 시간표 관리자 수업 CRUD는 단일 row와 서버 상태를
       } finally { await context.close(); }
     }
   } finally { await cleanup(); }
+});
+
+test("App Next 시간표 관리자는 교시와 세트 lifecycle을 서버 확인 후 변경하고 수업을 보존한다", { timeout: 300_000 }, async () => {
+  const cleanup = await timetableFixture();
+  const createdName = "E2E 시간표 관리 신규 세트";
+  const editedName = "E2E 시간표 관리 수정 세트";
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  let managedSetId = "";
+  let preservedRowId = "";
+  const { context, page } = await createPage();
+  try {
+    await openTimetable(page, "manager");
+    const management = page.getByRole("region", { name: "시간표 관리" });
+    await management.getByRole("button", { name: "세트 관리", exact: true }).click();
+    await management.getByRole("button", { name: "시간표 추가", exact: true }).click();
+    const createForm = management.locator("form");
+    await createForm.getByLabel("이름", { exact: true }).fill(createdName);
+    await createForm.getByLabel("시작일", { exact: true }).fill(today);
+    await createForm.getByLabel("메모", { exact: true }).fill("management E2E fixture");
+    await createForm.getByRole("button", { name: "시간표 저장", exact: true }).click();
+    await management.getByRole("status").filter({ hasText: "새 시간표를 서버에서 확인했습니다." }).waitFor();
+    const createdSets = await adminDb.collection(`workspaces/${WORKSPACE_A}/timetableSets`).where("name", "==", createdName).get();
+    assert.equal(createdSets.size, 1);
+    managedSetId = createdSets.docs[0].id;
+    assert.equal(createdSets.docs[0].get("type"), "general");
+    assert.equal(createdSets.docs[0].get("kind"), "general");
+    assert.equal(createdSets.docs[0].get("status"), "active");
+    assert.equal(createdSets.docs[0].get("workspaceId"), WORKSPACE_A);
+    await management.getByRole("button", { name: "교시 관리", exact: true }).click();
+    await management.getByText(`선택 세트: ${createdName}`, { exact: false }).waitFor();
+
+    await waitForTimetableManagementButton(page, "교시 추가");
+    await management.getByRole("button", { name: "교시 추가", exact: true }).click();
+    let periodForm = management.locator("form");
+    await periodForm.getByLabel("교시 번호", { exact: true }).fill("1");
+    await periodForm.getByLabel("시작 시간", { exact: true }).fill("09:00");
+    await periodForm.getByLabel("종료 시간", { exact: true }).fill("09:50");
+    await periodForm.getByRole("button", { name: "저장", exact: true }).click();
+    await management.getByRole("status").filter({ hasText: "교시 정보를 서버에서 확인했습니다." }).waitFor();
+
+    await management.getByRole("button", { name: "교시 추가", exact: true }).click();
+    periodForm = management.locator("form");
+    await periodForm.getByLabel("교시 번호", { exact: true }).fill("2");
+    await periodForm.getByLabel("시작 시간", { exact: true }).fill("10:00");
+    await periodForm.getByLabel("종료 시간", { exact: true }).fill("10:50");
+    await periodForm.getByRole("button", { name: "저장", exact: true }).click();
+    await management.getByRole("status").filter({ hasText: "교시 정보를 서버에서 확인했습니다." }).waitFor();
+    const periods = await adminDb.collection(`workspaces/${WORKSPACE_A}/periodTimes`).where("timetableSetId", "==", managedSetId).get();
+    assert.equal(periods.size, 2);
+    const initialSet = await adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${managedSetId}`).get();
+    assert.equal(initialSet.get("visiblePeriodCount"), 2);
+
+    const firstPeriodRow = management.locator(".app-next-timetable-management-row").filter({ hasText: "1교시" });
+    await firstPeriodRow.getByRole("button", { name: "시간 수정", exact: true }).click();
+    periodForm = management.locator("form");
+    await periodForm.getByLabel("시작 시간", { exact: true }).fill("09:05");
+    await periodForm.getByLabel("종료 시간", { exact: true }).fill("09:55");
+    await periodForm.getByRole("button", { name: "저장", exact: true }).click();
+    await management.getByRole("status").filter({ hasText: "교시 정보를 서버에서 확인했습니다." }).waitFor();
+    const firstPeriod = (await adminDb.collection(`workspaces/${WORKSPACE_A}/periodTimes`).where("timetableSetId", "==", managedSetId).where("period", "==", "1교시").get()).docs[0];
+    assert.equal(firstPeriod.get("start"), "09:05");
+    assert.equal(firstPeriod.get("end"), "09:55");
+
+    const assignedRowRef = adminDb.doc(`workspaces/${WORKSPACE_A}/timetable/e2e-management-preserved-row`);
+    preservedRowId = assignedRowRef.id;
+    await assignedRowRef.set({ workspaceId: WORKSPACE_A, timetableSetId: managedSetId, day: "화요일", period: "2교시", subject: "보존할 관리 E2E 수업" });
+    await page.getByRole("button", { name: "새로고침", exact: true }).click();
+    await waitForTimetableRefresh(page);
+    const secondPeriodRow = management.locator(".app-next-timetable-management-row").filter({ hasText: "2교시" });
+    assert.equal(await secondPeriodRow.getByRole("button", { name: "마지막 교시 삭제", exact: true }).isDisabled(), true);
+    await management.getByRole("note").filter({ hasText: "교시 삭제는 잠겨 있으며" }).waitFor();
+    assert.equal((await assignedRowRef.get()).get("subject"), "보존할 관리 E2E 수업");
+    assert.equal((await adminDb.doc("workspaces/" + WORKSPACE_A + "/timetableSets/" + managedSetId).get()).get("visiblePeriodCount"), 2);
+
+    await management.getByRole("button", { name: "교시 추가", exact: true }).click();
+    periodForm = management.locator("form");
+    await periodForm.getByLabel("교시 번호", { exact: true }).fill("3");
+    await periodForm.getByLabel("시작 시간", { exact: true }).fill("11:00");
+    await periodForm.getByLabel("종료 시간", { exact: true }).fill("11:50");
+    await periodForm.getByRole("button", { name: "저장", exact: true }).click();
+    await management.getByRole("status").filter({ hasText: "교시 정보를 서버에서 확인했습니다." }).waitFor();
+    const thirdPeriodRow = management.locator(".app-next-timetable-management-row").filter({ hasText: "3교시" });
+    assert.equal(await thirdPeriodRow.getByRole("button", { name: "마지막 교시 삭제", exact: true }).isDisabled(), true);
+    const deleteResult = await page.evaluate(async ({ workspaceId, setId }) => {
+      const service = await import("/src/app-next/appNextTimetableManagementService.ts");
+      try {
+        await service.deleteAppNextTimetablePeriod({ phase: "authenticated", workspaceId, operationMode: "academy", setId, period: 3,
+          session: { uid: "recovery-e2e-manager", status: "active", currentWorkspaceId: workspaceId, currentWorkspaceRole: "manager", globalRole: "user", isSystemOwner: false } });
+        return "allowed";
+      } catch (error) { return error.code; }
+    }, { workspaceId: WORKSPACE_A, setId: managedSetId });
+    assert.equal(deleteResult, "period-delete-blocked");
+    assert.equal((await adminDb.doc("workspaces/" + WORKSPACE_A + "/timetableSets/" + managedSetId).get()).get("visiblePeriodCount"), 3);
+    assert.equal((await adminDb.collection("workspaces/" + WORKSPACE_A + "/periodTimes").where("timetableSetId", "==", managedSetId).get()).size, 3);
+    assert.equal((await assignedRowRef.get()).get("subject"), "보존할 관리 E2E 수업");
+    await management.getByRole("button", { name: "세트 관리", exact: true }).click();
+    const setCard = () => management.locator(".app-next-timetable-management-card").filter({ hasText: editedName });
+    const originalCard = management.locator(".app-next-timetable-management-card").filter({ hasText: createdName });
+    await originalCard.getByRole("button", { name: "수정", exact: true }).click();
+    const editForm = management.locator(".app-next-timetable-management-form");
+    await editForm.waitFor();
+    await editForm.getByLabel("이름", { exact: true }).fill(editedName);
+    await editForm.locator("textarea").fill("edited metadata");
+    await editForm.getByRole("button", { name: "변경 저장", exact: true }).click();
+    await management.getByRole("status").filter({ hasText: "시간표 정보를 서버에서 확인했습니다." }).waitFor();
+    const editedSet = await adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${managedSetId}`).get();
+    assert.equal(editedSet.get("name"), editedName);
+    assert.equal(editedSet.get("memo"), "edited metadata");
+    assert.equal(editedSet.get("kind"), "general");
+    assert.equal(editedSet.get("type"), "general");
+    assert.equal(editedSet.get("visiblePeriodCount"), 3);
+
+    await setCard().getByRole("button", { name: "보관", exact: true }).click();
+    await management.getByRole("status").filter({ hasText: "시간표 보관을 서버에서 확인했습니다." }).waitFor();
+    let lifecycleSet = await adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${managedSetId}`).get();
+    assert.equal(lifecycleSet.get("status"), "archived");
+    assert.equal(lifecycleSet.get("archived"), true);
+    assert.equal((await assignedRowRef.get()).exists, true);
+    assert.equal((await adminDb.collection(`workspaces/${WORKSPACE_A}/periodTimes`).where("timetableSetId", "==", managedSetId).get()).size, 3);
+    await management.getByRole("heading", { name: "보관된 세트", exact: true }).waitFor();
+    await setCard().getByRole("button", { name: "보관 해제", exact: true }).click();
+    await management.getByRole("status").filter({ hasText: "세트 상태를 서버에서 확인했습니다." }).waitFor();
+    lifecycleSet = await adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${managedSetId}`).get();
+    assert.equal(lifecycleSet.get("archived"), false);
+    assert.equal(lifecycleSet.get("status"), "active");
+
+    const endedSetRef = adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${TT_SET}`);
+    await endedSetRef.update({ status: "ended", endDate: "2026-11-11" });
+    await page.getByRole("button", { name: "새로고침", exact: true }).click();
+    await waitForTimetableRefresh(page);
+    const endedCard = management.locator(".app-next-timetable-management-card").filter({ hasText: "E2E 수업 시간표" });
+    await endedCard.getByRole("button", { name: "재활성화", exact: true }).waitFor();
+    await endedCard.getByRole("button", { name: "재활성화", exact: true }).click();
+    await management.getByRole("status").filter({ hasText: "세트 상태를 서버에서 확인했습니다." }).waitFor();
+    const reactivated = await endedSetRef.get();
+    assert.equal(reactivated.get("status"), "active");
+    assert.equal(reactivated.get("archived"), false);
+    assert.equal(reactivated.get("endDate"), "");
+    assert.equal((await adminDb.doc(`workspaces/${WORKSPACE_A}/timetable/e2e-tt-preserved`).get()).get("subject"), "Other lesson");
+
+    await adminDb.doc(`workspaces/${WORKSPACE_A}`).set({ operationMode: "school" }, { merge: true });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const schoolManagement = page.getByRole("region", { name: "시간표 관리" });
+    await schoolManagement.getByRole("heading", { name: "시간표 관리", exact: true }).waitFor();
+    await waitForTimetableRefresh(page);
+    await schoolManagement.getByRole("button", { name: "교시 관리", exact: true }).click();
+    assert.equal(await schoolManagement.getByRole("button", { name: "교시 추가", exact: true }).count(), 0);
+    await schoolManagement.getByRole("button", { name: "세트 관리", exact: true }).click();
+    assert.equal(await schoolManagement.getByRole("button", { name: "시간표 추가", exact: true }).count(), 0);
+
+    const viewer = await createPage();
+    try {
+      await openTimetable(viewer.page, "viewer");
+      assert.equal(await viewer.page.locator(".app-next-timetable-management").count(), 0);
+    } finally { await viewer.context.close(); }
+  } finally {
+    await context.close();
+    if (managedSetId) {
+      const rows = await adminDb.collection(`workspaces/${WORKSPACE_A}/timetable`).get();
+      await Promise.all(rows.docs.filter((row) => row.get("setId") === managedSetId || row.get("timetableSetId") === managedSetId).map((row) => row.ref.delete()));
+      const periods = await adminDb.collection(`workspaces/${WORKSPACE_A}/periodTimes`).where("timetableSetId", "==", managedSetId).get();
+      await Promise.all(periods.docs.map((period) => period.ref.delete()));
+      await adminDb.doc(`workspaces/${WORKSPACE_A}/timetableSets/${managedSetId}`).delete();
+    }
+    if (preservedRowId) await adminDb.doc(`workspaces/${WORKSPACE_A}/timetable/${preservedRowId}`).delete();
+    const leftovers = await adminDb.collection(`workspaces/${WORKSPACE_A}/timetableSets`).where("name", "==", createdName).get();
+    await Promise.all(leftovers.docs.map((set) => set.ref.delete()));
+    await cleanup();
+  }
 });
 
 test("App Next 시간표 역할·학교 scope·프로그램 binding을 검증한다", { timeout: 240_000 }, async () => {
