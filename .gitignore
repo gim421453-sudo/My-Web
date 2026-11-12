@@ -63,3 +63,5 @@ backups/
 # Python cache
 __pycache__/
 *.py[cod]
+/CLOUD_HANDOFF.md
+/CLAUDE.md.mainpc-old
