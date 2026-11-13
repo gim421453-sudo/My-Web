@@ -1,5 +1,10 @@
 # MY WEB 현재 작업 인계
 
+## 2026-11-13 school write scope design and branch index
+
+Branch `codex/school-scope-design-20261113`, base `1874119`. Added `docs/school-write-scope-followup-design.md` and 2 negative authority-boundary tests: manager cannot use teacher resolver; student assignment does not authorize a timetable cell. Node 22 Functions build PASS; policy tests 63/63 PASS, no fail/skip/cancel/todo. No endpoint, Rules, UI permission or production exports changed. Proposed narrow student-scoped attendance transaction first; manager delegation and timetable-specific authorization need separate explicit contracts. Added `docs/followup-branches-20261113.md` indexing all 5 independent local branches and remaining work. No push/merge/deploy/publication. READY_WITH_WARNINGS. Next: review branch results, select implementation follow-up; existing school timetable denial and IAM HOLD remain.
+
+
 ## 2026-10-22 Codex 프로젝트 현황 Wiki 조사
 
 - 목표: Codex 담당 8개 프로젝트의 현재 Git/handoff 상태를 Obsidian 프로젝트 지식베이스로 정리했다. My Web 기능 코드나 설정은 수정하지 않았고, 이번 조사에서 테스트·빌드·배포·Git 동기화를 실행하지 않았다.

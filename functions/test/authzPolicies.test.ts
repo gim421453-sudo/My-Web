@@ -778,6 +778,30 @@ test("P1.5-C requires active canonical teacher membership before assignments mat
   )).reasonCode, "ASSIGNED_SCOPE_ROLE_REQUIRED");
 });
 
+test("school follow-up: manager membership cannot be treated as a teacher assignment", async () => {
+  const decision = await resolveTeacherAssignedScope(
+    teacherContext({ state: "ACTIVE", role: "manager", source: "system_bootstrap" }),
+    FIXTURE_WORKSPACE,
+    { type: "student", studentId: "student-a" },
+    assignmentDependencies([assignmentDocument()]),
+  );
+  assert.deepEqual(decision, {
+    decision: "SCOPE_DENIED", reasonCode: "ASSIGNED_SCOPE_ROLE_REQUIRED",
+  });
+});
+
+test("school follow-up: a valid student assignment is not a timetable cell permission", async () => {
+  const decision = await resolveTeacherAssignedScope(
+    teacherContext(),
+    FIXTURE_WORKSPACE,
+    { type: "timetable_cell", setId: "school", day: "월", periodNumber: 1 },
+    assignmentDependencies([assignmentDocument()]),
+  );
+  assert.deepEqual(decision, {
+    decision: "SCOPE_DENIED", reasonCode: "ASSIGNED_SCOPE_TARGET_INVALID",
+  });
+});
+
 test("P1.5-C keeps relationship-dependent target transitions unverifiable", async () => {
   const target = { type: "student", studentId: "student-a" };
   const classAssignment = assignmentDocument({ target: { type: "class", classId: "class-a" } });

@@ -260,3 +260,7 @@ Rules:
 7. Preserve existing project-specific documentation; never replace it with generic content unnecessarily.
 8. Never write secret values into managed documents.
 <!-- PROJECT_DOCUMENTATION_POLICY_END -->
+
+## 2026-11-13 school write scope design and branch index
+
+Branch `codex/school-scope-design-20261113`, base `1874119`. Added `docs/school-write-scope-followup-design.md` and 2 negative authority-boundary tests: manager cannot use teacher resolver; student assignment does not authorize a timetable cell. Node 22 Functions build PASS; policy tests 63/63 PASS, no fail/skip/cancel/todo. No endpoint, Rules, UI permission or production exports changed. Proposed narrow student-scoped attendance transaction first; manager delegation and timetable-specific authorization need separate explicit contracts. Added `docs/followup-branches-20261113.md` indexing all 5 independent local branches and remaining work. No push/merge/deploy/publication. READY_WITH_WARNINGS. Next: review branch results, select implementation follow-up; existing school timetable denial and IAM HOLD remain.
