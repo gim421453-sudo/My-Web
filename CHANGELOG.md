@@ -28,6 +28,7 @@ All notable release-relevant changes to this project should be documented here.
 
 ### 버그 수정
 
+- 기본 앱과 App Next의 release manifest 캐시 버전을 일치시켜 서로 다른 정책 파일이 캐시에 남을 가능성을 줄였습니다. 회귀 검사는 두 진입점이 동일한 manifest 경로와 버전을 사용하는지 확인합니다.
 - 사용자 실시간 갱신 callback에서 선언되지 않은 이전 역할 참조를 보정해 로그인 직후 발생하던 `ReferenceError`를 막았습니다.
 - 인증 상태와 권한 판정을 공용 정책으로 통합하고, 역할 처리와 Firestore 보안 규칙을 강화했습니다.
 - 에뮬레이터 전용 신뢰 백엔드 기반, 서버에서 검증하는 행위자 인증 미들웨어, 엄격한 권한 판정기를 추가했습니다.

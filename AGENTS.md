@@ -1,3 +1,14 @@
+## 2026-11-13 PC·Cloud 최종 통합 검증 기록
+
+- 최신 승인 범위는 Windows PC 로컬 통합과 GitHub main 반영 및 조건부 로컬 동기화다. 이전 클라우드 이전 취소 기록과 PC 단독 검증의 READY_FOR_MAIN_FF=NO는 당시 상태로 보존한다.
+- 최종 브랜치 codex/integrate-myweb-pc-cloud-final-20261113에서 PC 문서 커밋 0e5861b와 Cloud 2cb0d88을 통합했다. handoff의 한 충돌은 양쪽 기록을 모두 보존해 해결했다. PC 시간표 관리 소스와 Cloud의 독립 변경은 원본과 대조했다.
+- 새 통합 트리 검증 PASS: 루트 테스트·typecheck·main/admin 전체 build lifecycle, release gate 33/33, manifest 18/18, 관리 단위 6/6, row 단위 10/10, Functions 단위 559/559 및 통합 11개, active Rules 171/171, configured/candidate Rules 39/39, Browser 전체 21/21(실패/취소/skip/todo 0). demo Firebase 및 loopback Emulator만 사용했다.
+- PC lockfile 감사 결과는 루트 32(높음14), 운영 의존성10(높음5), Functions9(높음1), Rules 도구33(높음14)이다. Cloud의 과거 수치와 구분하며 의존성 변경·취약점 해결을 주장하지 않는다. 감사 종료 코드1은 finding 결과다.
+- 교시 삭제 period-delete-blocked는 계속 fail-closed다. 임의 ID legacy 동시성 검사는 한계 재현이며 서버 보장이 아니다. 학교 scope는 설계·음성 테스트만 추가됐고 새 운영 권한/endpoint는 없다. IAM HOLD, Rules·Functions runtime·legacy app.js·의존성 무변경을 유지했다.
+- 원본 사용자 파일과 patch는 기존 백업 및 C:\dev\_git-safety\My-Web-pc-cloud-final-20261113-6af94dbb에 보존했다. 사용자 문서의 추가 문장은 모두 통합본에 존재한다. CLOUD_HANDOFF.md와 CLAUDE.md.mainpc-old는 추적하지 않는다.
+- 잔여 수동 QA: legacy mixed 일정 표시/내보내기 parity, 모바일 sidebar, App Next 전용 인쇄 layout, 실물 인쇄·실제 운영 데이터·장시간 offline. 새 PDF 텍스트 검사에서 canonical 제목은 양쪽에 있고 mixed 제목은 App Next에만 있다.
+- 상세 검증은 docs/pc-cloud-final-integration-20261113.md, 로그·최종 동기화 증거는 최종 worktree tmp/pc-final-validation-20261113에 보존한다. 이 커밋은 검증 시점의 기록이며 최종 원격·로컬 SHA는 Git refs와 final-state.json으로 확인한다. 운영 Firebase 접근·배포·IAM 변경은 없다.
+
 ## 2026-11-12 Codex Cloud 이전 취소
 
 - 사용자가 클라우드 인계 계획을 전면 취소했다. CLOUD_HANDOFF.md의 판정을 CANCELLED로 갱신했다. 클라우드 연결·백업·인계 브랜치·커밋·푸시는 진행하지 않는다. 기존 로컬 프로젝트, 기존 개발 작업, 미커밋 변경 및 미추적 파일은 보존한다. 클라우드 이전과 무관한 기존 개발 작업은 취소하거나 되돌리지 않는다.
@@ -43,7 +54,7 @@ OWNER: Codex
 - 남은 수동 확인: 운영 화면의 legacy/mixed 시간표와 인쇄 비교 및 장시간 offline UX. 교시 삭제를 다시 허용하려면 별도 승인 아래 server-side 참조/경쟁 방지 계약을 먼저 설계해야 한다. 상세 파일·Git·테스트 보고는 docs/handoff/CURRENT_HANDOFF.md의 최신 항목을 따른다. COMMIT_READY=YES(당시 fail-closed 범위); 당시 commit/push/merge는 미수행.
 
 ## 연동 규칙 (지금은 구현하지 않음)
-## 2026-11-13 시간표 관리 통합 검증 (현재 상태)
+## 2026-11-13 시간표 관리 통합 검증 (PC 단독 검증 당시 상태)
 
 - 통합 worktree C:\dev\\My-Web\\tmp\\codex-branches\\integration-review-timetable-management, 브랜치 codex/integration-review-timetable-management. 기능 커밋 5b4ec27, 7f72dda를 포함하며 이번 검증 뒤 문서 커밋 docs: reconcile timetable management handoff를 이 브랜치에 생성했다. main과 기능 브랜치는 변경하지 않았고 push/merge도 하지 않았다.
 - main 문서 diff의 모든 추가 행을 통합본과 대조했다. main 사용자 파일 4개의 원본·보호 백업 SHA-256은 기존 manifest와 모두 일치한다. 백업: C:\dev\\_git-safety\\My-Web-main-merge-prep-20261112-221220-90082648.
@@ -295,3 +306,31 @@ Rules:
 7. Preserve existing project-specific documentation; never replace it with generic content unnecessarily.
 8. Never write secret values into managed documents.
 <!-- PROJECT_DOCUMENTATION_POLICY_END -->
+
+## 2026-11-13 audit handoff
+
+Current audit results and decisions: `docs/dependency-audit-20261113.md`; historical zero-vulnerability counts are not current. No dependency changes in this branch.
+## 2026-11-13 backend validation
+
+Branch `codex/backend-rules-validation-20261113`, base `1874119`. PASS: Node 22 Functions 557/557, active Rules 171/171, configured teacher scope 9/9, Functions integration all 11 scripts. Added `scripts/validate-backend-local.sh` and `docs/backend-validation-20261113.md`. Component commands executed; whole wrapper not rerun. Setup failures (ADC guard, concurrent logging-port race) diagnosed and successful isolated/sequential runs completed. No product/Rules/dependency changes. IAM/production HOLD. READY_WITH_WARNINGS; next: local UI/print/offline validation in its own branch.
+## 2026-11-13 UI print and offline validation
+
+Branch `codex/ui-print-offline-20261113`, base `1874119`. Added 2 meaningful Browser cases: local legacy/App Next display/print capture and 60-second offline/reconnect. Display+runtime successful rerun 2/2; offline case passed in earlier targeted run. Whole 20-case suite NOT RUN; original 18-case baseline previously PASS. Findings: mixed-schema title missing from legacy table/report, open mobile sidebar overlay, App Next generic print includes controls/diagnostics. See `docs/testing/ui-print-offline-20261113.md`; demo artifacts in ignored tmp. Actual production comparison, hours offline and physical printing remain MANUAL_REQUIRED. No UI policy/production/IAM changes. READY_WITH_WARNINGS; next: review/fix documented parity and print issues separately.
+## 2026-11-13 timetable concurrency contract review
+
+Branch `codex/timetable-concurrency-review-20261113`, base `1874119`. Added `docs/timetable-cell-uniqueness-contract.md` and deterministic late legacy-writer characterization. Existing service can leave 2 occupants after preflight; this is evidence of the limitation, not a fix. Timetable tests 10/10 PASS and root npm test PASS (Asia/Seoul). Proposed trusted operation + server occupancy + fencing/backfill + all-writer cutover; no browser-only uniqueness claim. No product code, Rules, schema migration or deployment changed. Next: implement/review the server protocol and rollout as a separate authorized change; IAM/production HOLD. READY_WITH_WARNINGS.
+## 2026-11-13 school write scope design and branch index
+
+Branch `codex/school-scope-design-20261113`, base `1874119`. Added `docs/school-write-scope-followup-design.md` and 2 negative authority-boundary tests: manager cannot use teacher resolver; student assignment does not authorize a timetable cell. Node 22 Functions build PASS; policy tests 63/63 PASS, no fail/skip/cancel/todo. No endpoint, Rules, UI permission or production exports changed. Proposed narrow student-scoped attendance transaction first; manager delegation and timetable-specific authorization need separate explicit contracts. Added `docs/followup-branches-20261113.md` indexing all 5 independent local branches and remaining work. No push/merge/deploy/publication. READY_WITH_WARNINGS. Next: review branch results, select implementation follow-up; existing school timetable denial and IAM HOLD remain.
+
+## 2026-11-13 integrated full validation
+
+Branch `codex/full-validation-20261113` merges all 5 independent follow-up branches from base `1874119`. Found and fixed pre-existing manifest cache mismatch: source fix `0476483`. Final PASS: root npm test (669 auth modules), login-copy, release gate 33/33, manifest 18/18, typecheck + main/admin compile builds, Node 22 Functions unit 559/559, active Rules 171/171, configured teacher scope 9/9, candidate Rules 30/30, Functions integration 11 flows, full Browser 20/20 in one run (fail/cancel/skip/todo 0). Complete backend wrapper executed successfully. See `docs/full-validation-20261113.md`. Fresh audit findings unchanged: root 55, production-only 14, Functions 16, Rules tooling 49. Existing functional limitations/manual checks remain. All test services shut down. Conditional push authorized by user after tests; main merge/deploy/IAM/environment publication not performed. READY_WITH_WARNINGS.
+
+## 2026-11-13 privacy-safe branch publication
+
+All full validation checks passed. Initial atomic push rejected by GitHub GH007 (private author email); no refs accepted. Original local branches preserved without rewriting. Created 6 new codex/*-publish-20261113 branches with Codex noreply metadata and verified their initial trees match the corresponding original tested-content trees. Current branch is codex/full-validation-publish-20261113; mapping in docs/followup-branches-20261113.md. Only documentation changed afterward. Global/repository user identity was not overwritten. Retry push of publication branches follows this commit; exact remote result must be checked. Main/deploy/IAM/environment publication remain unchanged.
+
+## 2026-11-13 remote push confirmed
+
+GitHub accepted the atomic push of all 6 codex/*-publish-20261113 branches. Read-only git ls-remote verified each remote branch exactly matched its local commit, including integrated publication commit 0b8abe1. This final documentation commit records that confirmed result and is then pushed to the same integration branch. All original local branches/commits preserved; no force push/history rewrite/main merge/deployment/environment publication. Full validation remains PASS with documented existing vulnerabilities and manual limitations (READY_WITH_WARNINGS). Next: review codex/full-validation-publish-20261113 or choose a separately scoped remediation; GitHub remote now retains all work.
