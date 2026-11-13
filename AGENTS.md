@@ -260,3 +260,7 @@ Rules:
 7. Preserve existing project-specific documentation; never replace it with generic content unnecessarily.
 8. Never write secret values into managed documents.
 <!-- PROJECT_DOCUMENTATION_POLICY_END -->
+
+## 2026-11-13 audit handoff
+
+Current audit results and decisions: `docs/dependency-audit-20261113.md`; historical zero-vulnerability counts are not current. No dependency changes in this branch.
