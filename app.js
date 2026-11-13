@@ -39613,3 +39613,47 @@ document.addEventListener("click", (event) => {
 }, true);
 
 store.settings.appVersion = APP_PATCH_VERSION_V159;
+
+// Parity hardening: read-only schedule projection. Source rows remain unchanged.
+function scheduleDisplayRowV165(row) {
+  const result = { ...row };
+  const text = (value) => typeof value === "string" ? value.trim() : "";
+  const stamp = text(row.startAt || row.startsAt || row.startDateTime || row.start_datetime);
+  const parsed = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(stamp) ? new Date(stamp) : null;
+  const valid = parsed && Number.isFinite(parsed.getTime());
+  const pad = (value) => String(value).padStart(2, "0");
+  if (!text(result.title)) result.title = text(row.name);
+  if (!text(result.date)) result.date = text(row.scheduleDate || row.startDate || row.start_date) || (valid ? `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}` : "");
+  if (!text(result.start_time)) result.start_time = valid ? `${pad(parsed.getHours())}:${pad(parsed.getMinutes())}` : "";
+  if (!text(result.memo)) result.memo = text(row.description);
+  return result;
+}
+const tableBeforeParityV165 = tableV7;
+tableV7 = function tableParityV165(key, rows) {
+  return tableBeforeParityV165(key, key === "schedules" ? rows.map(scheduleDisplayRowV165) : rows);
+};
+const reportBeforeParityV165 = downloadReportV5;
+downloadReportV5 = function reportParityV165(key, rows = store[key] || []) {
+  return reportBeforeParityV165(key, key === "schedules" ? rows.map(scheduleDisplayRowV165) : rows);
+};
+
+(() => {
+  const sidebar = document.querySelector(".sidebar");
+  const toggle = document.getElementById("menuToggle");
+  if (!sidebar || !toggle) return;
+  const mobile = matchMedia("(max-width: 760px)");
+  const sync = () => {
+    const open = !mobile.matches || sidebar.classList.contains("open");
+    sidebar.inert = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.setAttribute("aria-label", open ? "메뉴 닫기" : "메뉴 열기");
+  };
+  new MutationObserver(sync).observe(sidebar, { attributes: true, attributeFilter: ["class"] });
+  mobile.addEventListener("change", sync);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && mobile.matches && sidebar.classList.contains("open")) {
+      sidebar.classList.remove("open"); toggle.focus();
+    }
+  });
+  sync();
+})();

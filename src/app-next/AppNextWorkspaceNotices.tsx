@@ -1,3 +1,4 @@
+import { AppNextPrintReport } from "./AppNextPrintReport";
 import {
   useCallback,
   useEffect,
@@ -567,6 +568,7 @@ export function AppNextWorkspaceNotices() {
 
   return (
     <section className="app-next-panel">
+      {readPolicy.canRead && !loading && notices.length > 0 ? <AppNextPrintReport title="공지" columns={["제목", "게시일", "내용"]} rows={notices.map((row) => [row.title, row.publishedAt, row.detailText])} /> : null}
       <div className="app-next-section-head">
         <div>
           <h2>워크스페이스 공지</h2>

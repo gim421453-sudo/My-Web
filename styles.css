@@ -3390,3 +3390,9 @@ dialog {
     min-width: 680px;
   }
 }
+
+/* Closed mobile navigation must not cover content or receive keyboard input. */
+@media screen and (max-width: 760px) {
+  .sidebar:not(.open) { visibility: hidden; pointer-events: none; }
+  .sidebar.open { visibility: visible; pointer-events: auto; transform: translateX(0); }
+}

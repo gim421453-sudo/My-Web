@@ -820,3 +820,15 @@ button.secondary {
   padding: 6px;
   white-space: normal;
 }
+
+/* Authorized route snapshots are portaled outside the interactive application. */
+.app-next-print-report { display: none; }
+@media print {
+  @page { margin: 14mm; }
+  body:has(> .app-next-print-report) > :not(.app-next-print-report) { display: none !important; }
+  body > .app-next-print-report { display: block; color: #000; background: #fff; font-size: 10pt; }
+  .app-next-print-report table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .app-next-print-report th, .app-next-print-report td { border: 1px solid #666; padding: 6pt; overflow-wrap: anywhere; white-space: pre-wrap; vertical-align: top; }
+  .app-next-print-report thead { display: table-header-group; }
+  .app-next-print-report tr { break-inside: avoid; }
+}

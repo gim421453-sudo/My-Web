@@ -1153,11 +1153,22 @@ test("follow-up: legacy와 App Next 일정 표시 및 화면·인쇄 증거", { 
     await page.locator('#nav button[data-page="schedules"]').click();
     await page.getByText("Followup legacy schedule", { exact: true }).waitFor();
     evidence.observations.legacyMixedTitleCount = await page.getByText("Followup mixed schedule", { exact: true }).count();
+    assert.equal(evidence.observations.legacyMixedTitleCount, 1, "Mixed title is visible without rewriting the source document");
+    assert.equal((await mixedRef.get()).get("title"), undefined);
     await page.getByRole("row").filter({ hasText: "Followup legacy schedule" }).getByRole("button", { name: "보기" }).click();
     assert.match(await page.locator("#messageBody").innerText(), /Legacy detail retained/);
     await page.locator('#messageDialog button[value="ok"]').click();
     for (const [label, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]]) {
       await page.setViewportSize({ width, height });
+      if (label === "mobile") {
+        await page.waitForFunction(() => document.querySelector(".sidebar").inert === true);
+        assert.equal(await page.locator(".sidebar").isVisible(), false);
+        await page.locator("#menuToggle").click();
+        await page.waitForFunction(() => document.querySelector("#menuToggle").getAttribute("aria-expanded") === "true");
+        await page.keyboard.press("Escape");
+        await page.waitForFunction(() => document.querySelector(".sidebar").inert === true);
+        assert.equal(await page.locator("#menuToggle").evaluate((el) => el === document.activeElement), true);
+      }
       await page.screenshot({ path: path.join(ROOT, `tmp/followup-legacy-${label}.png`), fullPage: true });
       evidence.observations[`legacy-${label}-overflow`] = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
     }
@@ -1168,6 +1179,7 @@ test("follow-up: legacy와 App Next 일정 표시 및 화면·인쇄 증거", { 
     await download.saveAs(reportPath);
     const reportHtml = readFileSync(reportPath, "utf8");
     assert.match(reportHtml, /Followup legacy schedule/);
+    assert.match(reportHtml, /Followup mixed schedule/);
     const reportPage = await context.newPage();
     await reportPage.setContent(reportHtml);
     await reportPage.emulateMedia({ media: "print" });
@@ -1187,6 +1199,10 @@ test("follow-up: legacy와 App Next 일정 표시 및 화면·인쇄 증거", { 
       assert.equal(overflow, false, `App Next ${label} horizontal overflow`);
     }
     await page.emulateMedia({ media: "print" });
+    await page.locator(".app-next-print-report").waitFor({ state: "visible" });
+    assert.equal(await page.locator(".app-next-print-report").isVisible(), true);
+    assert.equal(await page.locator(".app-next-schedule-crud").isVisible(), false);
+    assert.equal(await page.locator(".app-next-print-report").getByText("Followup mixed schedule", { exact: true }).count(), 1);
     await page.pdf({ path: path.join(ROOT, "tmp/followup-next.pdf"), format: "A4", printBackground: true });
   } finally {
     evidence.observations.finalPage = await page.locator("body").innerText().catch(() => "page closed");
@@ -1214,6 +1230,44 @@ test("follow-up: 60초 네트워크 단절 뒤 서버 변경 재조회", { timeo
   } finally {
     await context.setOffline(false); await context.close(); await ref.delete();
   }
+});
+
+test("parity: 일정은 재연결 시 수동 조작 없이 서버 목록을 다시 읽는다", { timeout: 90_000 }, async () => {
+  const ref = adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/parity-auto-reconnect`);
+  const { context, page } = await createPage();
+  try {
+    await loginAppNext(page, "manager");
+    await page.goto(`${APP_URL}app-next.html#/schedules-readonly`);
+    await page.getByText("Recovery E2E seeded schedule", { exact: true }).first().waitFor();
+    await context.setOffline(true);
+    await ref.set({ title: "Automatic reconnect fixture", date: "2026-11-13", status: "예정" });
+    assert.equal(await page.getByText("Automatic reconnect fixture", { exact: true }).count(), 0);
+    await context.setOffline(false);
+    await page.getByText("Automatic reconnect fixture", { exact: true }).first().waitFor({ timeout: 30_000 });
+    assert.equal((await ref.get()).get("title"), "Automatic reconnect fixture");
+  } finally { await context.setOffline(false); await context.close(); await ref.delete(); }
+});
+
+test("parity: 공지와 시간표 인쇄본은 편집 UI 없이 승인된 목록만 표시한다", { timeout: 120_000 }, async () => {
+  const noticePage = await createPage();
+  try {
+    await loginAppNext(noticePage.page, "manager");
+    await noticePage.page.emulateMedia({ media: "print" });
+    await noticePage.page.locator(".app-next-print-report").waitFor({ state: "visible" });
+    assert.equal(await noticePage.page.locator(".app-next-print-report").getByText("Recovery E2E seeded notice", { exact: true }).count(), 1);
+    assert.equal(await noticePage.page.getByRole("button").count(), 0);
+    assert.equal(await noticePage.page.locator(".app-next-shell").isVisible(), false);
+  } finally { await noticePage.context.close(); }
+  const cleanup = await timetableFixture();
+  const timetablePage = await createPage();
+  try {
+    await openTimetable(timetablePage.page, "manager");
+    await timetablePage.page.emulateMedia({ media: "print" });
+    await timetablePage.page.locator(".app-next-print-report").getByText("Other lesson", { exact: true }).waitFor();
+    assert.equal(await timetablePage.page.locator(".app-next-print-report").isVisible(), true);
+    assert.equal(await timetablePage.page.locator(".app-next-shell").isVisible(), false);
+    assert.equal(await timetablePage.page.getByRole("button").count(), 0);
+  } finally { await timetablePage.context.close(); await cleanup(); }
 });
 
 test("인증 후 런타임 오류와 비-loopback 요청이 없다", () => {

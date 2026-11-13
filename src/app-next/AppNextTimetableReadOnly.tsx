@@ -1,3 +1,4 @@
+import { AppNextPrintReport } from "./AppNextPrintReport";
 import {
   useCallback,
   useEffect,
@@ -487,6 +488,7 @@ export function AppNextTimetableReadOnly({
 
   return (
     <>
+      {policy.canRead && !loading && errorCode === "none" ? <AppNextPrintReport title="시간표" columns={["세트", "요일", "교시", "시간", "수업", "교사", "교실"]} rows={normalized.visibleCells.map((row) => [row.setName, row.day, row.period, row.time, row.subject, row.teacher, row.room])} /> : null}
       <section className="app-next-panel app-next-dashboard-hero">
         <div>
           <p className="app-next-muted-label">App Next</p>

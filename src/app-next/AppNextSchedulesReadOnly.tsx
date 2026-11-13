@@ -1,3 +1,4 @@
+import { AppNextPrintReport } from "./AppNextPrintReport";
 import {
   useCallback,
   useEffect,
@@ -586,6 +587,12 @@ export function AppNextSchedulesReadOnly({
   ]);
 
   useEffect(() => {
+    const reconnect = () => { if (policy.canRead && policy.routeAllowed) void loadSchedules(true); };
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [loadSchedules, policy.canRead, policy.routeAllowed]);
+
+  useEffect(() => {
     updateDiagnostics();
   }, [
     updateDiagnostics,
@@ -616,6 +623,7 @@ export function AppNextSchedulesReadOnly({
 
   return (
     <>
+      {policy.canRead && !loading && errorCode === "none" ? <AppNextPrintReport title="일정" columns={["제목", "날짜", "시간", "상태"]} rows={filteredSchedules.map((row) => [row.title, row.dateLabel, row.timeLabel, row.statusLabel])} /> : null}
       <section className="app-next-panel app-next-dashboard-hero">
         <div>
           <p className="app-next-muted-label">App Next</p>
