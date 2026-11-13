@@ -260,3 +260,7 @@ Rules:
 7. Preserve existing project-specific documentation; never replace it with generic content unnecessarily.
 8. Never write secret values into managed documents.
 <!-- PROJECT_DOCUMENTATION_POLICY_END -->
+
+## 2026-11-13 timetable concurrency contract review
+
+Branch `codex/timetable-concurrency-review-20261113`, base `1874119`. Added `docs/timetable-cell-uniqueness-contract.md` and deterministic late legacy-writer characterization. Existing service can leave 2 occupants after preflight; this is evidence of the limitation, not a fix. Timetable tests 10/10 PASS and root npm test PASS (Asia/Seoul). Proposed trusted operation + server occupancy + fencing/backfill + all-writer cutover; no browser-only uniqueness claim. No product code, Rules, schema migration or deployment changed. Next: implement/review the server protocol and rollout as a separate authorized change; IAM/production HOLD. READY_WITH_WARNINGS.

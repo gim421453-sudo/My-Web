@@ -1,5 +1,10 @@
 # MY WEB 현재 작업 인계
 
+## 2026-11-13 timetable concurrency contract review
+
+Branch `codex/timetable-concurrency-review-20261113`, base `1874119`. Added `docs/timetable-cell-uniqueness-contract.md` and deterministic late legacy-writer characterization. Existing service can leave 2 occupants after preflight; this is evidence of the limitation, not a fix. Timetable tests 10/10 PASS and root npm test PASS (Asia/Seoul). Proposed trusted operation + server occupancy + fencing/backfill + all-writer cutover; no browser-only uniqueness claim. No product code, Rules, schema migration or deployment changed. Next: implement/review the server protocol and rollout as a separate authorized change; IAM/production HOLD. READY_WITH_WARNINGS.
+
+
 ## 2026-10-22 Codex 프로젝트 현황 Wiki 조사
 
 - 목표: Codex 담당 8개 프로젝트의 현재 Git/handoff 상태를 Obsidian 프로젝트 지식베이스로 정리했다. My Web 기능 코드나 설정은 수정하지 않았고, 이번 조사에서 테스트·빌드·배포·Git 동기화를 실행하지 않았다.
