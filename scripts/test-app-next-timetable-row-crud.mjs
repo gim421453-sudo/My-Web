@@ -48,6 +48,9 @@ export function timetableRowCrudTests(load = pureLoader, projectRoot = root) {
         && key.split("/").length === reference.path.split("/").length + 1).map((key) => snapshot(ref(key))) }),
       runTransaction: (_db, operation) => {
         const task = queue.then(async () => {
+          if (control.beforeTransaction) {
+            const inject = control.beforeTransaction; control.beforeTransaction = null; inject();
+          }
           const staged = [];
           const result = await operation({ get: async (reference) => snapshot(reference),
             set: (reference, value) => staged.push(["create", reference.path, value]),
@@ -173,6 +176,20 @@ export function timetableRowCrudTests(load = pureLoader, projectRoot = root) {
       assert.match(utils.timetableRowErrorMessage({ code: "resource-exhausted" }), /한도/);
       assert.match(utils.timetableRowErrorMessage({ code: "app-next-write-unconfirmed", message: "private" }), /서버에서 확인하지 못했습니다/);
       assert.doesNotMatch(utils.timetableRowErrorMessage(new Error("private")), /private/);
+    }],
+    ["timetable legacy race evidence: a late arbitrary-id writer bypasses the canonical row transaction", async () => {
+      const h = harness();
+      // Insert after collection preflight, before the transaction reads its canonical row.
+      h.control.beforeTransaction = () => h.data.set(rowPath + "legacy-arbitrary-id", {
+        ...draft, workspaceId: "ws", setId: "set-a", day: "월", period: "1교시",
+      });
+      const created = await h.service.createAppNextTimetableRow(input());
+      assert.equal(created.id, utils.timetableCellDocumentId(input()));
+      const rows = [...h.data.entries()].filter(([key]) => key.startsWith(rowPath))
+        .map(([key, data]) => ({ ...data, id: key.split("/").at(-1) }));
+      // This passing characterization proves the limitation; it is not a uniqueness guarantee.
+      assert.equal(utils.timetableCellRows(rows, input()).length, 2);
+      assert.equal(h.writes.length, 1);
     }],
     ["timetable rendering and row service cannot mutate sets, periods or programs", () => {
       const component = readFileSync(path.join(projectRoot, "src/app-next/AppNextTimetableReadOnly.tsx"), "utf8");

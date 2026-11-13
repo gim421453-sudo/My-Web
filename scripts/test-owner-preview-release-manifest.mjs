@@ -151,8 +151,16 @@ test("internal hidden planned and blocked are not exposed", () => {
 });
 
 test("operational and app-next entries load the same manifest", () => {
-  assert.match(files.index, /shared\/ownerPreviewReleaseManifest\.js\?v=1/);
-  assert.match(files.appNextHtml, /shared\/ownerPreviewReleaseManifest\.js\?v=1/);
+  const manifestSource = (html) => {
+    const sources = [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/g)]
+      .map((match) => new URL(match[1], "https://myweb.example/"))
+      .filter((url) => url.pathname === "/shared/ownerPreviewReleaseManifest.js");
+    assert.equal(sources.length, 1, "Each entry must load exactly one release manifest");
+    assert.equal(sources[0].origin, "https://myweb.example");
+    assert.match(sources[0].searchParams.get("v") || "", /^[1-9][0-9]*$/);
+    return sources[0].href;
+  };
+  assert.equal(manifestSource(files.index), manifestSource(files.appNextHtml));
 });
 
 test("operational menu and page keys are gated by manifest", () => {

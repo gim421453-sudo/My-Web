@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { setTimeout as delay } from "node:timers/promises";
@@ -951,6 +952,85 @@ test("App Next 시간표 invalid set·workspace·비활성 membership은 fail cl
   } finally {
     await adminDb.doc(`workspaces/${WORKSPACE_A}/members/recovery-e2e-manager`).update({ status: "active" });
     await setRef.set(set); await context.close(); await cleanup();
+  }
+});
+
+
+test("follow-up: legacy와 App Next 일정 표시 및 화면·인쇄 증거", { timeout: 90_000 }, async () => {
+  const legacyRef = adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/followup-legacy`);
+  const mixedRef = adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/followup-mixed`);
+  await legacyRef.set({ title: "Followup legacy schedule", date: "2026-11-13", start_time: "09:00", end_time: "10:00", status: "예정", memo: "Legacy detail retained" });
+  await mixedRef.set({ name: "Followup mixed schedule", startAt: "2026-11-14T11:00:00+09:00", description: "Mixed detail retained" });
+  let { context, page } = await createPage();
+  const evidence = { source: "demo emulator only", observations: {} };
+  try {
+    await login(page, "manager");
+    await page.waitForFunction(() => typeof store !== "undefined"
+      && store.schedules?.some((row) => row.title === "Followup legacy schedule"));
+    await page.waitForFunction(() => window.PMNavigationPersistenceDiagnostics?.snapshot()?.restoreCompleted === true);
+    await page.locator('#nav button[data-page="schedules"]').click();
+    await page.getByText("Followup legacy schedule", { exact: true }).waitFor();
+    evidence.observations.legacyMixedTitleCount = await page.getByText("Followup mixed schedule", { exact: true }).count();
+    await page.getByRole("row").filter({ hasText: "Followup legacy schedule" }).getByRole("button", { name: "보기" }).click();
+    assert.match(await page.locator("#messageBody").innerText(), /Legacy detail retained/);
+    await page.locator('#messageDialog button[value="ok"]').click();
+    for (const [label, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]]) {
+      await page.setViewportSize({ width, height });
+      await page.screenshot({ path: path.join(ROOT, `tmp/followup-legacy-${label}.png`), fullPage: true });
+      evidence.observations[`legacy-${label}-overflow`] = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+    }
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "보고서 다운로드", exact: true }).click();
+    const download = await downloadPromise;
+    const reportPath = path.join(ROOT, "tmp/followup-legacy-report.html");
+    await download.saveAs(reportPath);
+    const reportHtml = readFileSync(reportPath, "utf8");
+    assert.match(reportHtml, /Followup legacy schedule/);
+    const reportPage = await context.newPage();
+    await reportPage.setContent(reportHtml);
+    await reportPage.emulateMedia({ media: "print" });
+    await reportPage.pdf({ path: path.join(ROOT, "tmp/followup-legacy.pdf"), format: "A4", printBackground: true });
+    await reportPage.close();
+    await context.close();
+    ({ context, page } = await createPage());
+    await loginAppNext(page, "manager");
+    await page.goto(`${APP_URL}app-next.html#/schedules-readonly`);
+    await page.getByText("Followup legacy schedule", { exact: true }).first().waitFor();
+    await page.getByText("Followup mixed schedule", { exact: true }).first().waitFor();
+    for (const [label, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]]) {
+      await page.setViewportSize({ width, height });
+      await page.screenshot({ path: path.join(ROOT, `tmp/followup-next-${label}.png`), fullPage: true });
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+      evidence.observations[`next-${label}-overflow`] = overflow;
+      assert.equal(overflow, false, `App Next ${label} horizontal overflow`);
+    }
+    await page.emulateMedia({ media: "print" });
+    await page.pdf({ path: path.join(ROOT, "tmp/followup-next.pdf"), format: "A4", printBackground: true });
+  } finally {
+    evidence.observations.finalPage = await page.locator("body").innerText().catch(() => "page closed");
+    await page.screenshot({ path: path.join(ROOT, "tmp/followup-final.png"), fullPage: true }).catch(() => {});
+    writeFileSync(path.join(ROOT, "tmp/followup-ui-observations.json"), JSON.stringify(evidence, null, 2));
+    await context.close(); await legacyRef.delete(); await mixedRef.delete();
+  }
+});
+
+test("follow-up: 60초 네트워크 단절 뒤 서버 변경 재조회", { timeout: 150_000 }, async () => {
+  const ref = adminDb.doc(`workspaces/${WORKSPACE_A}/schedules/followup-reconnect`);
+  const { context, page } = await createPage();
+  try {
+    await loginAppNext(page, "manager");
+    await page.goto(`${APP_URL}app-next.html#/schedules-readonly`);
+    await page.getByText("Recovery E2E seeded schedule", { exact: true }).first().waitFor();
+    await context.setOffline(true);
+    await ref.set({ title: "Followup reconnect server change", date: "2026-11-13", status: "예정" });
+    await delay(60_000);
+    assert.equal(await page.getByText("Followup reconnect server change", { exact: true }).count(), 0);
+    await context.setOffline(false);
+    await page.getByRole("button", { name: "새로고침", exact: true }).click();
+    await page.getByText("Followup reconnect server change", { exact: true }).first().waitFor({ timeout: 30_000 });
+    assert.equal((await ref.get()).get("title"), "Followup reconnect server change");
+  } finally {
+    await context.setOffline(false); await context.close(); await ref.delete();
   }
 });
 
