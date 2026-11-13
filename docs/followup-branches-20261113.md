@@ -17,3 +17,18 @@ Next implementation candidates: vendor-supported dependency remediation; mixed l
 ## Integrated verification
 
 `codex/full-validation-20261113` merges all five branches and includes the manifest cache correction `0476483`. See `docs/full-validation-20261113.md` for the complete rerun: Browser 20/20, Functions unit 559/559, active Rules 171/171, configured teacher scope 9/9, candidate Rules 30/30 and all 11 Functions integration flows PASS, plus root regressions, release gates, typecheck and both builds. The earlier per-branch partial-run statements remain historical evidence. Main and production remain unchanged.
+
+## Privacy-safe publication branches
+
+GitHub rejected the first atomic push with GH007 because newly created commits used a private author email. No branch from that push was accepted. Original local refs and commits were preserved. New publication commits use `Codex <codex@users.noreply.github.com>`; their complete trees were verified equal to the corresponding original branch trees. The integrated publication commit has the five safe publication commits as parents and contains the cache fix. This creates new history on new branches; it does not rewrite the original local branches.
+
+| Original local branch | Publication branch | Tree-identical publication commit |
+| --- | --- | --- |
+| codex/dependency-audit-20261113 | codex/dependency-audit-publish-20261113 | a39c9988136c |
+| codex/backend-rules-validation-20261113 | codex/backend-rules-validation-publish-20261113 | 48a49ee1d73c |
+| codex/ui-print-offline-20261113 | codex/ui-print-offline-publish-20261113 | 6485555b388a |
+| codex/timetable-concurrency-review-20261113 | codex/timetable-concurrency-review-publish-20261113 | 31f1d5677322 |
+| codex/school-scope-design-20261113 | codex/school-scope-design-publish-20261113 | d940ea74d136 |
+| codex/full-validation-20261113 | codex/full-validation-publish-20261113 | a98e4e621e40 |
+
+Only publication branches are queued for the retry. Later changes on the integrated publication branch are documentation-only. Future commits should use a repository-appropriate GitHub noreply author address; the global/repository user identity configuration was not overwritten.

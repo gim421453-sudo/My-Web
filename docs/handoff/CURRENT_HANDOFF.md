@@ -1,5 +1,10 @@
 # MY WEB 현재 작업 인계
 
+## 2026-11-13 privacy-safe branch publication
+
+All full validation checks passed. Initial atomic push rejected by GitHub GH007 (private author email); no refs accepted. Original local branches preserved without rewriting. Created 6 new codex/*-publish-20261113 branches with Codex noreply metadata and verified their initial trees match the corresponding original tested-content trees. Current branch is codex/full-validation-publish-20261113; mapping in docs/followup-branches-20261113.md. Only documentation changed afterward. Global/repository user identity was not overwritten. Retry push of publication branches follows this commit; exact remote result must be checked. Main/deploy/IAM/environment publication remain unchanged.
+
+
 ## 2026-11-13 integrated full validation
 
 Branch `codex/full-validation-20261113` merges all 5 independent follow-up branches from base `1874119`. Found and fixed pre-existing manifest cache mismatch: source fix `0476483`. Final PASS: root npm test (669 auth modules), login-copy, release gate 33/33, manifest 18/18, typecheck + main/admin compile builds, Node 22 Functions unit 559/559, active Rules 171/171, configured teacher scope 9/9, candidate Rules 30/30, Functions integration 11 flows, full Browser 20/20 in one run (fail/cancel/skip/todo 0). Complete backend wrapper executed successfully. See `docs/full-validation-20261113.md`. Fresh audit findings unchanged: root 55, production-only 14, Functions 16, Rules tooling 49. Existing functional limitations/manual checks remain. All test services shut down. Conditional push authorized by user after tests; main merge/deploy/IAM/environment publication not performed. READY_WITH_WARNINGS.

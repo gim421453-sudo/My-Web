@@ -33,3 +33,7 @@ All required automatic checks for this integration passed after the cache correc
 Fresh lockfile audits still report root 55 findings (20 high), production-only 14 (5 high), Functions 16 (3 high), Rules tooling 49 (20 high). Audit completion is not a vulnerability-free result; no dependencies changed.
 
 The legacy arbitrary-ID timetable race remains deliberately reproduced by its characterization test. Mixed legacy schedule display/export parity, mobile sidebar interaction and App Next print layout remain documented follow-ups. School write scope changes are design/negative tests only. No new school write endpoint or global timetable uniqueness guarantee was activated. Physical printing, actual production data and hours offline remain unverified. These limits are distinct from regressions introduced by this change.
+
+## Publication preparation
+
+The original atomic push was rejected by GitHub GH007 (private author email), not by tests or an automatic approval reviewer. Originals were retained. Privacy-safe publication branches use new commits with verified identical content trees; source tests do not need to be rerun for author/parent metadata or documentation-only updates. See the branch index for exact mapping. No force push or rewriting of existing branch history was used. Main, environment publication and production remain untouched.
