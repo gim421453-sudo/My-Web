@@ -1,5 +1,10 @@
 # MY WEB 현재 작업 인계
 
+## 2026-11-13 main integration preservation gate blocked
+
+MAIN_PUSH_BLOCKED. Fresh explicit fetch of all GitHub branches/PR heads: origin/main remains 1874119fa5c7a871840df6a18c071455935f1788. Six publication branches inventoried; 5 independent task tree comparisons PASS. Full-validation publication 2cb0d88 excludes required management branch 7f72dda (period/set management, period-delete-blocked and local-file ignores). No visible evidence of the claimed PC user-document/cancellation-history merge; actual PC uncommitted files unavailable. Per user preservation gate, no speculative merge/main push; final combined suites NOT RUN. PR/protection API Forbidden; CI NOT VERIFIED. Full metadata/file/ancestry inventory and next evidence requirements: docs/main-integration-investigation-20261113.md. Original branches/worktree/user files retained; no reset/clean/force/deploy/data changes. Next: inspect a committed PC review snapshot/diff before establishing and testing the final candidate.
+
+
 ## 2026-11-13 remote push confirmed
 
 GitHub accepted the atomic push of all 6 codex/*-publish-20261113 branches. Read-only git ls-remote verified each remote branch exactly matched its local commit, including integrated publication commit 0b8abe1. This final documentation commit records that confirmed result and is then pushed to the same integration branch. All original local branches/commits preserved; no force push/history rewrite/main merge/deployment/environment publication. Full validation remains PASS with documented existing vulnerabilities and manual limitations (READY_WITH_WARNINGS). Next: review codex/full-validation-publish-20261113 or choose a separately scoped remediation; GitHub remote now retains all work.
