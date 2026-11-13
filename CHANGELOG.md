@@ -6,6 +6,9 @@ All notable release-relevant changes to this project should be documented here.
 
 ### 기능
 
+- App Next 공지·일정·시간표에 현재 승인된 조회 목록만 출력하는 전용 인쇄 레이아웃을 추가했습니다. 일반 화면의 편집기와 개발 진단은 인쇄에서 제외합니다.
+- App Next 일정은 네트워크 재연결 시 현재 workspace/session 기준으로 서버 목록을 자동 재조회합니다.
+
 - App Next 시간표에 기존 set·활성 교시 기반 수업 단일 row CRUD를 추가했습니다. 역할·학교 scope Guard, 기존 문서 필드 보존, transaction 중복 방지와 문서·목록 서버 확인을 적용했습니다. set/period/program과 운영 legacy 코드는 변경하지 않았습니다.
 - App Next 시간표 관리자는 set 생성·메타데이터 수정·보관·보관 해제·재활성화와 set 전용 교시 추가·시간 수정을 지원합니다. 교시 삭제는 legacy 저장 경로의 경쟁 상태를 Rules가 차단하지 못해 안전성 검토 후 fail-closed 처리했습니다. 배정 수업과 기존 period를 보존하며 Firestore Rules, Functions, 패키지 설정, 운영 legacy 코드는 변경하지 않았습니다.
 - App Next 일정 화면에 기존 workspace 일정 schema 기반 등록·수정·삭제를 추가했습니다. 활성 역할 Guard, 입력 검증, 중복 제출 방지 및 문서·목록 서버 확인을 적용했습니다.
@@ -27,6 +30,9 @@ All notable release-relevant changes to this project should be documented here.
 - canonical `systemOwners/{uid}` 문서가 없는 사용자의 `users.globalRole` 승격을 거부하고, 접근이 거부된 선택적 레거시 membership 진단이 canonical 인증 세션을 중단시키지 않도록 보정했습니다.
 
 ### 버그 수정
+
+- 닫힌 모바일 사이드바의 화면 가림·키보드 접근을 차단하고 Escape 닫기와 메뉴 버튼 포커스 복귀를 추가했습니다.
+- legacy 일정 표·보고서 내보내기의 name/startAt/description 별칭을 원본 저장 변경 없이 표시하도록 보완했습니다. app.js 캐시는 165로 갱신했습니다.
 
 - 기본 앱과 App Next의 release manifest 캐시 버전을 일치시켜 서로 다른 정책 파일이 캐시에 남을 가능성을 줄였습니다. 회귀 검사는 두 진입점이 동일한 manifest 경로와 버전을 사용하는지 확인합니다.
 - 사용자 실시간 갱신 callback에서 선언되지 않은 이전 역할 참조를 보정해 로그인 직후 발생하던 `ReferenceError`를 막았습니다.

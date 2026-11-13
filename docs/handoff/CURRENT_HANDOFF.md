@@ -1,3 +1,11 @@
+## 2026-11-13 최신 승인: Cloud parity hardening (현재 상태)
+
+- Latest user authorization supersedes the older Cloud cancellation only for this branch: Linux Cloud development and commit/push to `codex/feat-app-next-parity-hardening` are authorized; main merge/push and Firebase/IAM operations are not. Historical cancellation/PC integration records below are preserved.
+- Base origin/main verified `cda1f1de2d18b835a4aa8dd92afba9271f28e3b2`; implementation commit `148ea67f62e3cc8c4133fdc212acbd3294d46047`. A mobile sidebar inert/visibility/Escape, B authorized current-list print snapshots for 3 routes, C read-only mixed schedule table/export projection, D schedule automatic reconnect refresh implemented. E audit and upgrade plan documented, no dependency changes.
+- PASS: root test (669 auth module cases), typecheck, actual demo main/admin build lifecycles, release 33/33 + manifest18/18, Functions559/559 +11 flows, active Rules171/171 + configured9/9 +candidate30/30, full Browser23/23 (fail/cancel/skip/todo0), mixed pure test, row10/10, management6/6, login-copy, syntax/diff/added-content secret scan. First print attempt failed on duplicate hidden text; mounting only in print mode fixed it without relaxing existing locators.
+- Status READY_WITH_WARNINGS. Remaining: full mixed filter/sort/edit/alias parity; notices/timetable auto reconnect; long offline/auth expiry/workspace-switch races; real mobile/assistive QA and physical/cross-browser printing. Audit findings still root55/prod14/Functions16/Rules49; no vulnerability fix claimed. period-delete-blocked and IAM HOLD unchanged; no Rules/Functions/dependency changes, no PC configuration access and no production operation.
+- Detailed files, commands, results and next implementation: `docs/app-next-parity-hardening-handoff.md`. Final delivery HEAD is the latest commit on the same remote branch (resolve refs; no self-referential SHA). Generated logs/config/build/screenshots remain local, ignored or archived outside checkout. Next: PC fetch/switch/ff-only pull this branch after preserving local changes and run documented demo checks. No original branches/worktrees removed.
+
 ## 2026-11-12 Codex Cloud 이전 취소
 
 - 사용자가 클라우드 인계 계획을 전면 취소했다. CLOUD_HANDOFF.md의 판정을 CANCELLED로 갱신했다. 클라우드 연결·백업·인계 브랜치·커밋·푸시는 진행하지 않는다. 기존 로컬 프로젝트, 기존 개발 작업, 미커밋 변경 및 미추적 파일은 보존한다. 클라우드 이전과 무관한 기존 개발 작업은 취소하거나 되돌리지 않는다.

@@ -56,3 +56,7 @@ PC 포맷 후 재설치와 작업 재개 절차는 [포맷 복구 안내](docs/h
 React 기반 인증·워크스페이스 화면은 점진적으로 통합 중이며 일부 화면은 조회 전용 또는 개발 미리보기입니다. 현재 작업 및 검증 상태는 [크로스 디바이스 인계 문서](docs/handoff/CURRENT_HANDOFF.md), Firebase 설정과 배포 확인 상태는 [배포 문서](docs/deployment/DEPLOYMENT.md)에 기록합니다. 최근 릴리스 변경은 [CHANGELOG.md](CHANGELOG.md)를 참고하세요.
 
 현재 권한 복구 점검에서는 민감 행 UI 필터가 canonical 역할을 사용하도록 하고, 교사의 민감 학사 데이터 직접 쓰기를 assignment 범위 검증 서버 경로가 연결될 때까지 제한했습니다. 활성 Firestore Rules는 읽기 전용 `viewer`와 `print_account`의 직접 workspace 쓰기 및 경로와 다른 workspace 식별자 payload를 거부합니다. 역할별 수동·Emulator 검증 현황은 [서브계정 권한 점검 체크리스트](docs/testing/SUBACCOUNT_PERMISSION_TEST_CHECKLIST.md)를 참고하세요.
+
+## App Next 조회·인쇄 및 재연결
+
+공지·일정·시간표의 `현재 목록 인쇄`는 이미 조회 권한이 확인된 현재 목록을 표 형식으로 출력합니다. 일정은 현재 필터를 적용하며 편집기·진단 패널은 인쇄하지 않습니다. 일정 화면은 네트워크 재연결 시 서버 목록을 다시 조회합니다. 실제 프린터·장시간 오프라인 검증과 전체 mixed schema 편집 parity는 후속 작업입니다. Cloud→PC 작업 상태는 `docs/app-next-parity-hardening-handoff.md`를 확인하세요.

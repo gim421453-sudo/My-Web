@@ -334,3 +334,7 @@ All full validation checks passed. Initial atomic push rejected by GitHub GH007 
 ## 2026-11-13 remote push confirmed
 
 GitHub accepted the atomic push of all 6 codex/*-publish-20261113 branches. Read-only git ls-remote verified each remote branch exactly matched its local commit, including integrated publication commit 0b8abe1. This final documentation commit records that confirmed result and is then pushed to the same integration branch. All original local branches/commits preserved; no force push/history rewrite/main merge/deployment/environment publication. Full validation remains PASS with documented existing vulnerabilities and manual limitations (READY_WITH_WARNINGS). Next: review codex/full-validation-publish-20261113 or choose a separately scoped remediation; GitHub remote now retains all work.
+
+## 2026-11-13 Cloud parity hardening continuation
+
+Latest user authorizes only codex/feat-app-next-parity-hardening commit/push from base cda1f1d; prior Cloud cancellation stays historical. Implementation148ea67: mobile sidebar, 3-route print, read-only mixed schedule display/export, schedule auto reconnect. Browser23/23 and required root/build/release/backend/Rules checks PASS; detailed limits/PC rechecks in docs/app-next-parity-hardening-handoff.md. Never relax period-delete-blocked, school scope or IAM HOLD. No main push/deploy/PC-file access.
