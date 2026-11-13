@@ -260,3 +260,7 @@ Rules:
 7. Preserve existing project-specific documentation; never replace it with generic content unnecessarily.
 8. Never write secret values into managed documents.
 <!-- PROJECT_DOCUMENTATION_POLICY_END -->
+
+## 2026-11-13 UI print and offline validation
+
+Branch `codex/ui-print-offline-20261113`, base `1874119`. Added 2 meaningful Browser cases: local legacy/App Next display/print capture and 60-second offline/reconnect. Display+runtime successful rerun 2/2; offline case passed in earlier targeted run. Whole 20-case suite NOT RUN; original 18-case baseline previously PASS. Findings: mixed-schema title missing from legacy table/report, open mobile sidebar overlay, App Next generic print includes controls/diagnostics. See `docs/testing/ui-print-offline-20261113.md`; demo artifacts in ignored tmp. Actual production comparison, hours offline and physical printing remain MANUAL_REQUIRED. No UI policy/production/IAM changes. READY_WITH_WARNINGS; next: review/fix documented parity and print issues separately.

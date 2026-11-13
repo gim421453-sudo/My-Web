@@ -1,5 +1,10 @@
 # MY WEB 현재 작업 인계
 
+## 2026-11-13 UI print and offline validation
+
+Branch `codex/ui-print-offline-20261113`, base `1874119`. Added 2 meaningful Browser cases: local legacy/App Next display/print capture and 60-second offline/reconnect. Display+runtime successful rerun 2/2; offline case passed in earlier targeted run. Whole 20-case suite NOT RUN; original 18-case baseline previously PASS. Findings: mixed-schema title missing from legacy table/report, open mobile sidebar overlay, App Next generic print includes controls/diagnostics. See `docs/testing/ui-print-offline-20261113.md`; demo artifacts in ignored tmp. Actual production comparison, hours offline and physical printing remain MANUAL_REQUIRED. No UI policy/production/IAM changes. READY_WITH_WARNINGS; next: review/fix documented parity and print issues separately.
+
+
 ## 2026-10-22 Codex 프로젝트 현황 Wiki 조사
 
 - 목표: Codex 담당 8개 프로젝트의 현재 Git/handoff 상태를 Obsidian 프로젝트 지식베이스로 정리했다. My Web 기능 코드나 설정은 수정하지 않았고, 이번 조사에서 테스트·빌드·배포·Git 동기화를 실행하지 않았다.
