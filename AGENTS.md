@@ -260,3 +260,7 @@ Rules:
 7. Preserve existing project-specific documentation; never replace it with generic content unnecessarily.
 8. Never write secret values into managed documents.
 <!-- PROJECT_DOCUMENTATION_POLICY_END -->
+
+## 2026-11-13 backend validation
+
+Branch `codex/backend-rules-validation-20261113`, base `1874119`. PASS: Node 22 Functions 557/557, active Rules 171/171, configured teacher scope 9/9, Functions integration all 11 scripts. Added `scripts/validate-backend-local.sh` and `docs/backend-validation-20261113.md`. Component commands executed; whole wrapper not rerun. Setup failures (ADC guard, concurrent logging-port race) diagnosed and successful isolated/sequential runs completed. No product/Rules/dependency changes. IAM/production HOLD. READY_WITH_WARNINGS; next: local UI/print/offline validation in its own branch.

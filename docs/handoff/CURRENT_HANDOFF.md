@@ -1,5 +1,10 @@
 # MY WEB 현재 작업 인계
 
+## 2026-11-13 backend validation
+
+Branch `codex/backend-rules-validation-20261113`, base `1874119`. PASS: Node 22 Functions 557/557, active Rules 171/171, configured teacher scope 9/9, Functions integration all 11 scripts. Added `scripts/validate-backend-local.sh` and `docs/backend-validation-20261113.md`. Component commands executed; whole wrapper not rerun. Setup failures (ADC guard, concurrent logging-port race) diagnosed and successful isolated/sequential runs completed. No product/Rules/dependency changes. IAM/production HOLD. READY_WITH_WARNINGS; next: local UI/print/offline validation in its own branch.
+
+
 ## 2026-10-22 Codex 프로젝트 현황 Wiki 조사
 
 - 목표: Codex 담당 8개 프로젝트의 현재 Git/handoff 상태를 Obsidian 프로젝트 지식베이스로 정리했다. My Web 기능 코드나 설정은 수정하지 않았고, 이번 조사에서 테스트·빌드·배포·Git 동기화를 실행하지 않았다.
