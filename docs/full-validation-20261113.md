@@ -37,3 +37,5 @@ The legacy arbitrary-ID timetable race remains deliberately reproduced by its ch
 ## Publication preparation
 
 The original atomic push was rejected by GitHub GH007 (private author email), not by tests or an automatic approval reviewer. Originals were retained. Privacy-safe publication branches use new commits with verified identical content trees; source tests do not need to be rerun for author/parent metadata or documentation-only updates. See the branch index for exact mapping. No force push or rewriting of existing branch history was used. Main, environment publication and production remain untouched.
+
+Publication result: all six privacy-safe branches were pushed atomically and verified against `git ls-remote`; integration commit `0b8abe1` and all five task heads matched. The final documentation-only follow-up records this successful push and is pushed to the same integrated branch. No main update, force push, production deploy, IAM change or environment publication occurred.

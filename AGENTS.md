@@ -284,3 +284,7 @@ Branch `codex/full-validation-20261113` merges all 5 independent follow-up branc
 ## 2026-11-13 privacy-safe branch publication
 
 All full validation checks passed. Initial atomic push rejected by GitHub GH007 (private author email); no refs accepted. Original local branches preserved without rewriting. Created 6 new codex/*-publish-20261113 branches with Codex noreply metadata and verified their initial trees match the corresponding original tested-content trees. Current branch is codex/full-validation-publish-20261113; mapping in docs/followup-branches-20261113.md. Only documentation changed afterward. Global/repository user identity was not overwritten. Retry push of publication branches follows this commit; exact remote result must be checked. Main/deploy/IAM/environment publication remain unchanged.
+
+## 2026-11-13 remote push confirmed
+
+GitHub accepted the atomic push of all 6 codex/*-publish-20261113 branches. Read-only git ls-remote verified each remote branch exactly matched its local commit, including integrated publication commit 0b8abe1. This final documentation commit records that confirmed result and is then pushed to the same integration branch. All original local branches/commits preserved; no force push/history rewrite/main merge/deployment/environment publication. Full validation remains PASS with documented existing vulnerabilities and manual limitations (READY_WITH_WARNINGS). Next: review codex/full-validation-publish-20261113 or choose a separately scoped remediation; GitHub remote now retains all work.
