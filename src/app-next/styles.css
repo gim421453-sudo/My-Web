@@ -709,7 +709,13 @@ button.secondary {
   }
 
   .app-next-panel dl {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-next-panel dt,
+  .app-next-panel dd {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .app-next-section-head,
@@ -831,4 +837,8 @@ button.secondary {
   .app-next-print-report th, .app-next-print-report td { border: 1px solid #666; padding: 6pt; overflow-wrap: anywhere; white-space: pre-wrap; vertical-align: top; }
   .app-next-print-report thead { display: table-header-group; }
   .app-next-print-report tr { break-inside: avoid; }
+  .app-next-print-notices tbody tr { break-inside: auto; }
+  .app-next-print-notices th:nth-child(1), .app-next-print-notices td:nth-child(1),
+  .app-next-print-notices th:nth-child(2), .app-next-print-notices td:nth-child(2) { width: 20%; }
+  .app-next-print-notices th:nth-child(3), .app-next-print-notices td:nth-child(3) { width: 60%; }
 }

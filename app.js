@@ -39642,6 +39642,23 @@ downloadReportV5 = function reportParityV165(key, rows = store[key] || []) {
   const toggle = document.getElementById("menuToggle");
   if (!sidebar || !toggle) return;
   const mobile = matchMedia("(max-width: 760px)");
+  let sidebarNavigation = false;
+  sidebar.addEventListener("click", (event) => {
+    sidebarNavigation = event.target instanceof Element && Boolean(event.target.closest("button[data-page]"));
+    setTimeout(() => { sidebarNavigation = false; }, 0);
+  }, true);
+  sidebar.addEventListener("click", () => { sidebarNavigation = false; });
+  const renderBeforeSidebarParity = renderPage;
+  renderPage = function renderPageSidebarParity(key, ...args) {
+    const keepOpen = mobile.matches && sidebar.classList.contains("open") && key === currentPage && !sidebarNavigation;
+    const result = renderBeforeSidebarParity.call(this, key, ...args);
+    if (keepOpen) sidebar.classList.add("open");
+    return result;
+  };
+  document.addEventListener("click", (event) => {
+    if (mobile.matches && sidebar.classList.contains("open") && event.target instanceof Node
+      && !sidebar.contains(event.target) && !toggle.contains(event.target)) sidebar.classList.remove("open");
+  });
   const sync = () => {
     const open = !mobile.matches || sidebar.classList.contains("open");
     sidebar.inert = !open;

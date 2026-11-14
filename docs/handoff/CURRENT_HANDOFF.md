@@ -1,3 +1,10 @@
+## 2026-11-14 PC 인수: App Next parity 안정화
+
+- 작업 브랜치 `codex/feat-app-next-parity-hardening`, Cloud 인수 HEAD `21d2e9867ddbf1f35e99ce821e7422f484bd3056`, 기준 main `cda1f1de2d18b835a4aa8dd92afba9271f28e3b2`. 최종 커밋 및 원격 상태는 Git refs로 확인한다. main 병합·운영 배포는 승인 범위 밖이다.
+- Cloud 구현의 모바일 sidebar, 공지·일정·시간표 인쇄, mixed 일정 표시 및 재연결을 유지했다. PC에서 sidebar 닫힘·작은 화면 넘침, 긴 공지·빈 목록 인쇄, 공지·시간표 재연결, 공지 workspace 전환과 일정·시간표 세션별 캐시 격리를 보완했다. 교시 삭제 fail-closed와 IAM HOLD를 유지한다.
+- PC demo/loopback 검증: npm test, typecheck, main/admin 기본 build lifecycle, release gate 33/33, manifest 및 사전 배포 검사 각 18/18, Functions 단위 559/559 및 통합 11개, active Rules 171/171, configured/candidate 39/39, Browser 33/33 통과. Functions/Rules 검사는 최종 UI 전용 수정 전에 실행했으며 해당 코드에는 변경이 없다. 증거는 작업 worktree `tmp/pc-parity-validation-1d27abe9`에 보존한다.
+- PC audit: 루트 32(높음 14), 운영 의존성 10(높음 5), Functions 9(높음 1), Rules 도구 33(높음 14). 중복 집계일 수 있으며 취약점 해결이나 실제 악용 가능성을 단정하지 않는다. 의존성 변경 없이 별도 업데이트 계획만 기록했다.
+- 잔여: 실기기·접근성·실물 프린터 및 다른 브라우저 수동 QA, mixed 데이터 전체 조합, 저장 중 단절·토큰 만료·지연 응답 경쟁의 결정적 검증. A~D는 부분 완료, E는 감사 완료다. 상세 결과와 한계는 `docs/app-next-parity-hardening-handoff.md`를 따른다.
 ## 2026-11-13 최신 승인: Cloud parity hardening (현재 상태)
 
 - Latest user authorization supersedes the older Cloud cancellation only for this branch: Linux Cloud development and commit/push to `codex/feat-app-next-parity-hardening` are authorized; main merge/push and Firebase/IAM operations are not. Historical cancellation/PC integration records below are preserved.

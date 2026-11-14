@@ -211,7 +211,6 @@ export function AppNextTimetableReadOnly({
     session,
   } = useAuth();
   const renderCountRef = useRef(0);
-  const inFlightRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [errorCode, setErrorCode] = useState<TimetableErrorCode>("none");
   const [normalized, setNormalized] = useState<AppNextTimetableNormalized>(emptyNormalized);
@@ -222,6 +221,10 @@ export function AppNextTimetableReadOnly({
   const [editorSerial, setEditorSerial] = useState(0);
   const [mutationBusy, setMutationBusy] = useState(false);
   const loadVersion = useRef(0);
+  const timetableContext = JSON.stringify([phase, session?.uid, session?.status, session?.currentWorkspaceId, session?.currentWorkspaceRole, session?.globalRole, session?.isSystemOwner]);
+  const currentTimetableContext = useRef(timetableContext);
+  currentTimetableContext.current = timetableContext;
+  const [loadedTimetableContext, setLoadedTimetableContext] = useState("");
   const writePolicy = timetableRowWritePolicy({ phase, session, operationMode });
   const activeSet = store.timetableSets.find((set) => set.id === selectedSetId);
   const writablePeriods = activeSet ? activeTimetablePeriods(selectedSetId, activeSet, store.periodTimes) : [];
@@ -312,11 +315,15 @@ export function AppNextTimetableReadOnly({
   ]);
 
   const loadTimetable = useCallback(async (forceRefresh = false): Promise<boolean> => {
+    if (currentTimetableContext.current !== timetableContext) return false;
     const version = ++loadVersion.current;
     if (!policy.routeAllowed) {
       setLoading(false);
       setErrorCode(policy.reason === "loading" ? "none" : "unknown");
+      setLoadedTimetableContext(timetableContext);
       setNormalized(emptyNormalized);
+      setStore({ timetable: [], timetableSets: [], periodTimes: [] });
+      setOperationMode("unknown");
       updateDiagnostics({
         loading: false,
         errorCode: policy.reason === "loading" ? "none" : "unknown",
@@ -333,7 +340,10 @@ export function AppNextTimetableReadOnly({
     if (!policy.canRead || !session?.currentWorkspaceId) {
       setLoading(false);
       setErrorCode("workspace-missing");
+      setLoadedTimetableContext(timetableContext);
       setNormalized(emptyNormalized);
+      setStore({ timetable: [], timetableSets: [], periodTimes: [] });
+      setOperationMode("unknown");
       updateDiagnostics({
         loading: false,
         errorCode: "workspace-missing",
@@ -346,9 +356,9 @@ export function AppNextTimetableReadOnly({
     }
 
     const requestedSetId = selectedSetId;
-    const cacheKey = `${session.currentWorkspaceId}::${requestedSetId || "default"}`;
+    const cacheKey = JSON.stringify([timetableContext, requestedSetId || "default"]);
     const existingRequest = timetableInFlight.get(cacheKey);
-    if ((existingRequest || inFlightRef.current) && !forceRefresh) {
+    if (existingRequest && !forceRefresh) {
       setLoading(true);
       updateDiagnostics({
         loading: true,
@@ -357,7 +367,8 @@ export function AppNextTimetableReadOnly({
       if (existingRequest) {
         try {
           const result = await existingRequest;
-          if (version !== loadVersion.current) return false;
+          if (version !== loadVersion.current || currentTimetableContext.current !== timetableContext) return false;
+          setLoadedTimetableContext(timetableContext);
           setNormalized(result.normalized);
           setStore(result.store); setOperationMode(result.operationMode);
           setErrorCode("none");
@@ -368,7 +379,12 @@ export function AppNextTimetableReadOnly({
           });
           return true;
         } catch (loadError) {
+          if (version !== loadVersion.current || currentTimetableContext.current !== timetableContext) return false;
           const nextError = classifyTimetableError(loadError);
+          setLoadedTimetableContext(timetableContext);
+          setNormalized(emptyNormalized);
+          setStore({ timetable: [], timetableSets: [], periodTimes: [] });
+          setOperationMode("unknown");
           setErrorCode(nextError);
           updateDiagnostics({
             loading: false,
@@ -377,7 +393,7 @@ export function AppNextTimetableReadOnly({
           });
           return false;
         } finally {
-          setLoading(false);
+          if (version === loadVersion.current && currentTimetableContext.current === timetableContext) setLoading(false);
         }
       }
       return false;
@@ -386,6 +402,7 @@ export function AppNextTimetableReadOnly({
     const cached = forceRefresh ? null : timetableCache.get(cacheKey);
     if (cached) {
       timetableCacheHitCount += 1;
+      setLoadedTimetableContext(timetableContext);
       setNormalized(cached.normalized);
       setStore(cached.store); setOperationMode(cached.operationMode);
       setErrorCode("none");
@@ -398,7 +415,6 @@ export function AppNextTimetableReadOnly({
       return true;
     }
 
-    inFlightRef.current = true;
     setLoading(true);
     setErrorCode("none");
     timetableLoadCount += 1;
@@ -419,8 +435,9 @@ export function AppNextTimetableReadOnly({
     timetableInFlight.set(cacheKey, request);
     try {
       const result = await request;
-      if (version !== loadVersion.current) return false;
+      if (version !== loadVersion.current || currentTimetableContext.current !== timetableContext) return false;
       timetableCache.set(cacheKey, result);
+      setLoadedTimetableContext(timetableContext);
       setNormalized(result.normalized);
       setStore(result.store); setOperationMode(result.operationMode);
       setErrorCode("none");
@@ -441,9 +458,12 @@ export function AppNextTimetableReadOnly({
       });
       return true;
     } catch (loadError) {
-      if (version !== loadVersion.current) return false;
+      if (version !== loadVersion.current || currentTimetableContext.current !== timetableContext) return false;
       const nextError = classifyTimetableError(loadError);
+      setLoadedTimetableContext(timetableContext);
       setNormalized(emptyNormalized);
+      setStore({ timetable: [], timetableSets: [], periodTimes: [] });
+      setOperationMode("unknown");
       setErrorCode(nextError);
       updateDiagnostics({
         loading: false,
@@ -456,10 +476,10 @@ export function AppNextTimetableReadOnly({
       return false;
     } finally {
       if (timetableInFlight.get(cacheKey) === request) timetableInFlight.delete(cacheKey);
-      inFlightRef.current = false;
-      if (version === loadVersion.current) setLoading(false);
+      if (version === loadVersion.current && currentTimetableContext.current === timetableContext) setLoading(false);
     }
   }, [
+    timetableContext,
     policy.canRead,
     policy.reason,
     policy.routeAllowed,
@@ -470,21 +490,31 @@ export function AppNextTimetableReadOnly({
 
   useEffect(() => {
     void loadTimetable(false);
+    return () => { loadVersion.current += 1; };
     // Keep Firestore reads keyed to auth/workspace state only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    phase,
+    timetableContext,
     policy.canRead,
     policy.routeAllowed,
-    session?.currentWorkspaceId,
     selectedSetId,
   ]);
+
+  useEffect(() => {
+    const reconnect = () => { if (policy.canRead && policy.routeAllowed) void loadTimetable(true); };
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [loadTimetable, policy.canRead, policy.routeAllowed]);
 
   useEffect(() => {
     updateDiagnostics();
   }, [
     updateDiagnostics,
   ]);
+
+  if (loadedTimetableContext !== timetableContext) {
+    return <section className="app-next-panel"><p>현재 계정과 워크스페이스의 시간표를 확인하고 있습니다.</p></section>;
+  }
 
   return (
     <>
@@ -543,7 +573,7 @@ export function AppNextTimetableReadOnly({
 
       {policy.hasWorkspace ? <section className="app-next-panel">
         <label>시간표 선택<select aria-label="시간표 선택" value={selectedSetId} disabled={loading || mutationBusy}
-          onChange={(event) => { loadVersion.current += 1; setSelection(null); setLoading(true); setSelectedSetId(event.target.value); }}>
+          onChange={(event) => { if (event.target.value === selectedSetId) return; loadVersion.current += 1; setSelection(null); setLoading(true); setSelectedSetId(event.target.value); }}>
           <option value="">시간표를 선택해 주세요</option>
           {normalized.sets.map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}
         </select></label>

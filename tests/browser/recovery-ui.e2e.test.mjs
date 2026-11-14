@@ -1270,6 +1270,244 @@ test("parity: 공지와 시간표 인쇄본은 편집 UI 없이 승인된 목록
   } finally { await timetablePage.context.close(); await cleanup(); }
 });
 
+test("parity: 공지는 재연결 시 서버 목록을 자동으로 다시 읽는다", { timeout: 90_000 }, async () => {
+  const ref = adminDb.doc("workspaces/" + WORKSPACE_A + "/notices/pc-notice-reconnect");
+  const { context, page } = await createPage();
+  try {
+    await loginAppNext(page, "manager");
+    await context.setOffline(true);
+    await ref.set({ workspaceId: WORKSPACE_A, title: "PC notice reconnect fixture", content: "demo", status: "active", visibility: "public", authorUid: "recovery-e2e-owner" });
+    assert.equal(await page.getByText("PC notice reconnect fixture", { exact: true }).count(), 0);
+    await context.setOffline(false);
+    await page.getByText("PC notice reconnect fixture", { exact: true }).first().waitFor({ timeout: 30_000 });
+  } finally { await context.setOffline(false); await context.close(); await ref.delete(); }
+});
+
+test("parity: 공지 workspace 전환은 이전 목록을 숨기고 새 목록을 조회한다", { timeout: 90_000 }, async () => {
+  const uid = "recovery-e2e-manager";
+  const userRef = adminDb.doc("users/" + uid);
+  const memberA = adminDb.doc("workspaces/" + WORKSPACE_A + "/members/" + uid);
+  const memberB = adminDb.doc("workspaces/" + WORKSPACE_B + "/members/" + uid);
+  const noticeB = adminDb.doc("workspaces/" + WORKSPACE_B + "/notices/pc-switch-notice");
+  const oldUser = await userRef.get(); const oldMember = await memberB.get();
+  const { context, page } = await createPage();
+  try {
+    await loginAppNext(page, "manager");
+    await memberB.set({ ...(await memberA.get()).data(), workspaceId: WORKSPACE_B });
+    await noticeB.set({ workspaceId: WORKSPACE_B, title: "PC workspace B fixture", content: "demo", status: "active", visibility: "public", authorUid: "recovery-e2e-owner" });
+    await userRef.update({ currentWorkspaceId: WORKSPACE_B });
+    await page.getByRole("button", { name: "서버 사용자 기준 세션 다시 확인", exact: true }).click();
+    await page.getByText("PC workspace B fixture", { exact: true }).first().waitFor({ timeout: 30_000 });
+    assert.equal(await page.getByText("Recovery E2E seeded notice", { exact: true }).count(), 0);
+  } finally {
+    await context.close();
+    await userRef.set(oldUser.data());
+    if (oldMember.exists) await memberB.set(oldMember.data()); else await memberB.delete();
+    await noticeB.delete();
+  }
+});
+
+test("parity: 시간표는 재연결 시 서버 목록을 자동으로 다시 읽는다", { timeout: 90_000 }, async () => {
+  const cleanup = await timetableFixture();
+  const ref = adminDb.doc("workspaces/" + WORKSPACE_A + "/timetable/e2e-tt-preserved");
+  const { context, page } = await createPage();
+  try {
+    await openTimetable(page, "manager");
+    await page.getByText("Other lesson", { exact: true }).first().waitFor();
+    await context.setOffline(true);
+    await ref.update({ subject: "PC timetable reconnect fixture" });
+    assert.equal(await page.getByText("PC timetable reconnect fixture", { exact: true }).count(), 0);
+    await context.setOffline(false);
+    await page.getByText("PC timetable reconnect fixture", { exact: true }).first().waitFor({ timeout: 30_000 });
+  } finally { await context.setOffline(false); await context.close(); await cleanup(); }
+});
+
+test("parity: 같은 workspace의 다른 계정은 이전 시간표 캐시를 재사용하지 않는다", { timeout: 90_000 }, async () => {
+  const cleanup = await timetableFixture();
+  const ref = adminDb.doc("workspaces/" + WORKSPACE_A + "/timetable/e2e-tt-preserved");
+  const { context, page } = await createPage();
+  try {
+    await openTimetable(page, "manager");
+    await page.getByText("Other lesson", { exact: true }).first().waitFor();
+    await ref.update({ subject: "PC second account server row" });
+    await page.evaluate(async () => {
+      const provider = await import("/src/services/firebaseProvider.ts");
+      await provider.getFirebaseAuth().signOut();
+      window.location.hash = "#/login";
+    });
+    await page.getByRole("button", { name: "이메일/비밀번호 고급 옵션" }).click();
+    await page.locator("input[type=email]").fill("recovery-e2e-viewer@example.test");
+    await page.locator("input[type=password]").fill(PASSWORD);
+    await page.locator("form button[type=submit]").click();
+    await page.waitForFunction(() => document.body.innerText.includes("활성 계정"), null, { timeout: 40_000 });
+    await page.evaluate(() => { window.location.hash = "#/timetable-readonly"; });
+    await page.getByLabel("시간표 선택", { exact: true }).selectOption(TT_SET);
+    await page.getByText("PC second account server row", { exact: true }).first().waitFor({ timeout: 30_000 });
+    assert.equal(await page.getByText("Other lesson", { exact: true }).count(), 0);
+  } finally { await context.close(); await cleanup(); }
+});
+
+test("parity: 같은 workspace의 다른 계정은 이전 일정 캐시를 재사용하지 않는다", { timeout: 90_000 }, async () => {
+  const ref = adminDb.doc("workspaces/" + WORKSPACE_A + "/schedules/e2e-seed-schedule");
+  const original = await ref.get();
+  const { context, page } = await createPage();
+  try {
+    await loginAppNext(page, "manager");
+    await page.goto(APP_URL + "app-next.html#/schedules-readonly", { waitUntil: "domcontentloaded" });
+    await page.getByText("Recovery E2E seeded schedule", { exact: true }).first().waitFor();
+    await ref.update({ title: "PC second account schedule" });
+    await page.evaluate(async () => {
+      const provider = await import("/src/services/firebaseProvider.ts");
+      await provider.getFirebaseAuth().signOut();
+      window.location.hash = "#/login";
+    });
+    await page.getByRole("button", { name: "이메일/비밀번호 고급 옵션" }).click();
+    await page.locator("input[type=email]").fill("recovery-e2e-viewer@example.test");
+    await page.locator("input[type=password]").fill(PASSWORD);
+    await page.locator("form button[type=submit]").click();
+    await page.waitForFunction(() => document.body.innerText.includes("활성 계정"), null, { timeout: 40_000 });
+    await page.evaluate(() => { window.location.hash = "#/schedules-readonly"; });
+    await page.getByText("PC second account schedule", { exact: true }).first().waitFor({ timeout: 30_000 });
+    assert.equal(await page.getByText("Recovery E2E seeded schedule", { exact: true }).count(), 0);
+  } finally { await context.close(); await ref.set(original.data()); }
+});
+
+test("parity: 빈 공지 목록도 조회 성공 후 빈 인쇄본을 제공한다", { timeout: 60_000 }, async () => {
+  const { context, page } = await createPage();
+  const collection = adminDb.collection("workspaces/" + WORKSPACE_A + "/notices");
+  let original;
+  try {
+    await loginAppNext(page, "manager");
+    original = await collection.get();
+    const remove = adminDb.batch();
+    original.docs.forEach((doc) => remove.delete(doc.ref));
+    await remove.commit();
+    await page.getByRole("button", { name: "서버 강제 조회", exact: true }).click();
+    await page.getByText("등록된 워크스페이스 공지사항이 없습니다.").waitFor();
+    await page.getByRole("button", { name: "현재 목록 인쇄", exact: true }).waitFor();
+    await page.emulateMedia({ media: "print" });
+    const report = page.locator(".app-next-print-report");
+    await report.getByText("표시할 항목이 없습니다.", { exact: true }).waitFor();
+    assert.equal(await report.getByRole("heading", { name: "공지" }).count(), 1);
+    assert.equal(await page.locator(".app-next-shell").isVisible(), false);
+  } finally {
+    if (original) { const restore = adminDb.batch(); original.docs.forEach((doc) => restore.set(doc.ref, doc.data())); await restore.commit(); }
+    await context.close();
+  }
+});
+
+test("parity: 모바일과 태블릿에서 공지·시간표 화면이 넘치지 않는다", { timeout: 90_000 }, async () => {
+  const cleanup = await timetableFixture();
+  const { context, page } = await createPage();
+  try {
+    await loginAppNext(page, "manager");
+    for (const [width, height] of [[320, 568], [375, 812], [768, 1024], [1280, 800]]) {
+      await page.setViewportSize({ width, height });
+      const noticeWidth = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth, offenders: [...document.querySelectorAll("body *")].map((el) => ({ tag: el.tagName, cls: String(el.className), right: Math.round(el.getBoundingClientRect().right), width: Math.round(el.getBoundingClientRect().width) })).filter((el) => el.right > innerWidth + 1).slice(0, 12) }));
+      assert.equal(noticeWidth.scroll <= noticeWidth.width, true, "notice overflow " + JSON.stringify(noticeWidth));
+    }
+    await page.goto(APP_URL + "app-next.html#/timetable-readonly", { waitUntil: "domcontentloaded" });
+    await page.getByLabel("시간표 선택", { exact: true }).selectOption(TT_SET);
+    await page.getByRole("heading", { name: "E2E 수업 시간표", exact: true }).waitFor();
+    for (const [width, height] of [[320, 568], [375, 812], [768, 1024], [1280, 800]]) {
+      await page.setViewportSize({ width, height });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "timetable width " + width);
+    }
+  } finally { await context.close(); await cleanup(); }
+});
+
+test("parity: 일반·학교·프로그램 시간표 인쇄는 화면의 표시 범위와 일치한다", { timeout: 90_000 }, async () => {
+  const cleanup = await timetableFixture();
+  const root = "workspaces/" + WORKSPACE_A;
+  const schoolId = "pc-e2e-school-set";
+  const schoolSet = adminDb.doc(root + "/timetableSets/" + schoolId);
+  const schoolRow = adminDb.doc(root + "/timetable/pc-school-row");
+  const programRow = adminDb.doc(root + "/timetable/pc-program-row");
+  const schoolPeriod = adminDb.doc(root + "/periodTimes/pc-school-period");
+  const programPeriod = adminDb.doc(root + "/periodTimes/pc-program-period");
+  const { context, page } = await createPage();
+  try {
+    await schoolSet.set({ name: "PC 학교 시간표", kind: "school", visiblePeriodCount: 2 });
+    await schoolPeriod.set({ setId: schoolId, period: "1교시", start: "10:00", end: "10:50" });
+    await programPeriod.set({ setId: TT_PROGRAM_SET, period: "1교시", start: "15:00", end: "15:50" });
+    await schoolRow.set({ setId: schoolId, day: "월요일", period: "1교시", subject: "PC school lesson" });
+    await programRow.set({ setId: TT_PROGRAM_SET, day: "수요일", period: "1교시", subject: "PC program lesson", programId: "e2e-existing-program" });
+    await openTimetable(page, "manager");
+    for (const [setId, heading, subject] of [[TT_SET, "E2E 수업 시간표", "Other lesson"], [schoolId, "PC 학교 시간표", "PC school lesson"], [TT_PROGRAM_SET, "E2E 방과후 시간표", "PC program lesson"]]) {
+      await page.emulateMedia({ media: "screen" });
+      await page.getByLabel("시간표 선택", { exact: true }).selectOption(setId);
+      await page.getByRole("heading", { name: heading, exact: true }).waitFor();
+      await page.emulateMedia({ media: "print" });
+      const report = page.locator(".app-next-print-report");
+      await report.getByText(subject, { exact: true }).first().waitFor();
+      const printedText = await report.innerText();
+      for (const internalId of [setId, "pc-school-row", "pc-program-row", "e2e-existing-program"]) assert.equal(printedText.includes(internalId), false);
+      assert.equal(await report.getByText("PC program lesson", { exact: true }).count(), 1);
+      if (setId !== TT_SET) assert.equal(await report.getByText("Other lesson", { exact: true }).count(), 0);
+      if (setId !== schoolId) assert.equal(await report.getByText("PC school lesson", { exact: true }).count(), 0);
+      assert.equal(await page.locator(".app-next-shell").isVisible(), false);
+      await page.pdf({ path: path.join(ROOT, "tmp", "pc-print-" + setId + "-" + process.pid + ".pdf"), format: "A4", printBackground: true });
+    }
+  } finally { await context.close(); await schoolRow.delete(); await schoolSet.delete(); await schoolPeriod.delete(); await programPeriod.delete(); await programRow.delete(); await cleanup(); }
+});
+
+test("parity: 긴 공지의 인쇄본은 본문 끝과 줄바꿈을 보존한다", { timeout: 90_000 }, async () => {
+  const ref = adminDb.doc("workspaces/" + WORKSPACE_A + "/notices/pc-long-notice");
+  const content = "PC_LONG_START\n" + "긴 공지 문장과 중요 정보를 유지합니다.\n".repeat(140) + "PC_LONG_END";
+  await ref.set({ workspaceId: WORKSPACE_A, title: "PC long notice", content, status: "active", visibility: "public", authorUid: "recovery-e2e-owner" });
+  const { context, page } = await createPage();
+  try {
+    await loginAppNext(page, "manager");
+    await page.getByText("PC long notice", { exact: true }).first().waitFor();
+    await page.emulateMedia({ media: "print" });
+    const report = page.locator(".app-next-print-report");
+    await report.getByText("PC long notice", { exact: true }).first().waitFor();
+    const text = await report.innerText();
+    assert.ok(text.includes("PC_LONG_START")); assert.ok(text.includes("PC_LONG_END"));
+    assert.equal(text.includes("pc-long-notice"), false);
+    const row = report.locator("tbody tr").filter({ hasText: "PC long notice" });
+    assert.equal(await row.evaluate((el) => getComputedStyle(el).breakInside), "auto");
+    const widths = await row.locator("td").evaluateAll((cells) => cells.map((cell) => cell.getBoundingClientRect().width));
+    assert.ok(widths[2] > widths[0] * 2, "긴 공지 본문 열이 충분히 넓어야 합니다.");
+    await page.pdf({ path: path.join(ROOT, "tmp", "pc-print-long-notice-" + process.pid + ".pdf"), format: "A4", printBackground: true });
+  } finally { await context.close(); await ref.delete(); }
+});
+
+test("parity: 모바일 메뉴는 이동과 바깥 클릭 후 닫힌다", { timeout: 90_000 }, async () => {
+  const { context, page } = await createPage();
+  try {
+    await login(page, "manager");
+    await page.waitForFunction(() => typeof store !== "undefined" && store.schedules?.some((row) => row.title === "Recovery E2E seeded schedule"));
+    await page.waitForFunction(() => window.PMNavigationPersistenceDiagnostics?.snapshot()?.restoreCompleted === true);
+    for (const width of [320, 375]) {
+      await page.setViewportSize({ width, height: 812 });
+      await page.waitForFunction(() => document.querySelector(".sidebar").inert === true);
+      await page.locator("#menuToggle").click();
+      await page.waitForFunction(() => document.querySelector("#menuToggle").getAttribute("aria-expanded") === "true");
+      await page.evaluate(() => renderPage(currentPage));
+      await page.waitForFunction(() => document.querySelector("#menuToggle").getAttribute("aria-expanded") === "true");
+      await page.evaluate(async () => {
+        const navText = document.querySelector("#nav button[data-page=schedules] .nav-text");
+        if (!navText) throw new Error("schedule menu missing");
+        navText.addEventListener("click", (event) => event.stopPropagation(), { once: true });
+        navText.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        renderPage(currentPage);
+      });
+      await page.waitForFunction(() => document.querySelector("#menuToggle").getAttribute("aria-expanded") === "true");
+      try { await page.locator("#nav button[data-page=schedules]").click({ timeout: 7000 }); } catch (error) {
+        console.log("sidebar diagnostic", JSON.stringify(await page.evaluate(() => { const sidebar = document.querySelector(".sidebar"), button = document.querySelector("#nav button[data-page=schedules]"); return { sidebarClass: sidebar?.className, inert: sidebar?.inert, toggle: document.querySelector("#menuToggle")?.getAttribute("aria-expanded"), buttonDisplay: button && getComputedStyle(button).display, buttonVisibility: button && getComputedStyle(button).visibility, parent: button?.parentElement?.outerHTML.slice(0, 400), sidebarRect: sidebar?.getBoundingClientRect().toJSON(), buttonRect: button?.getBoundingClientRect().toJSON() }; })));
+        throw error;
+      }
+      await page.waitForFunction(() => document.querySelector(".sidebar").inert === true);
+      await page.locator("#menuToggle").click();
+      await page.waitForFunction(() => document.querySelector("#menuToggle").getAttribute("aria-expanded") === "true");
+      await page.mouse.click(width - 5, 800);
+      await page.waitForFunction(() => document.querySelector(".sidebar").inert === true);
+    }
+  } finally { await context.close(); }
+});
+
 test("인증 후 런타임 오류와 비-loopback 요청이 없다", () => {
   assert.deepEqual(runtimeErrors, []);
   assert.ok([...blockedExternalOrigins].every((origin) => origin.startsWith("https://")), "외부 요청은 모두 loopback 차단 경계에서 중단되어야 합니다.");

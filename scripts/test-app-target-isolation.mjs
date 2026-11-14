@@ -145,7 +145,7 @@ test("html and docker contracts avoid stale or mixed targets", () => {
 
 test("current authentication and school-mode patches remain active", () => {
   assert.match(indexHtml, /services\/authService\.js\?v=20/);
-  assert.match(indexHtml, /app\.js\?v=165/);
+  assert.match(indexHtml, /app\.js\?v=166/);
   assert.match(appSource, /const APP_PATCH_VERSION_V159 = "v159\.0 - 2026-08-04"/);
   assert.match(appSource, /const APP_PATCH_VERSION_V158 = "v158\.0 - 2026-08-04"/);
 });

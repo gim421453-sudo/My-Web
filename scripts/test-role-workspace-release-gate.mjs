@@ -96,7 +96,7 @@ const appNextRoutes = [
 ];
 
 test("operational entry remains static index.html + app.js", "verified-complete", () => {
-  contains(files.index, "app.js?v=165", "app.js cache version");
+  contains(files.index, "app.js?v=166", "app.js cache version");
   contains(files.index, "firebase-app-compat.js", "Firebase compat SDK");
   doesNotContain(files.index, "/src/app-next/main.tsx", "app-next module entry");
 });
@@ -345,7 +345,7 @@ test("app-next read-only services do not import Firestore write APIs", "verified
 });
 
 test("release gate script does not modify timetable V111/V120 or workspace data service", "verified-complete", () => {
-  contains(files.index, "app.js?v=165");
+  contains(files.index, "app.js?v=166");
   contains(files.app, "V111");
   contains(files.app, "V120");
 });

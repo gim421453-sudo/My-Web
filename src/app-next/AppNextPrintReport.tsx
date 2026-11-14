@@ -23,11 +23,11 @@ export function AppNextPrintReport({ title, columns, rows }: {
   }, []);
   return <>
     <button type="button" className="secondary app-next-print-action" onClick={() => window.print()}>현재 목록 인쇄</button>
-    {printing ? createPortal(<section className="app-next-print-report" aria-label={`${title} 인쇄본`}>
+    {printing ? createPortal(<section className={title === "공지" ? "app-next-print-report app-next-print-notices" : "app-next-print-report"} aria-label={`${title} 인쇄본`}>
       <h1>{title}</h1>
       <p>현재 조회 목록 · {rows.length}건</p>
       <table><thead><tr>{columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr></thead>
-        <tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, column) => <td key={column}>{cell}</td>)}</tr>)}</tbody></table>
+        <tbody>{rows.length ? rows.map((row, index) => <tr key={index}>{row.map((cell, column) => <td key={column}>{cell}</td>)}</tr>) : <tr><td colSpan={columns.length}>표시할 항목이 없습니다.</td></tr>}</tbody></table>
     </section>, document.body) : null}
   </>;
 }

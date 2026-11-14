@@ -2,6 +2,12 @@
 
 All notable release-relevant changes to this project should be documented here.
 
+## 2026-11-14 PC parity 안정화
+
+- 모바일 메뉴 닫힘과 작은 화면 넘침을 수정하고 긴 공지 및 빈 목록 인쇄를 보완했습니다.
+- 공지·시간표의 재연결 재조회와 공지 workspace 및 일정·시간표 계정 전환 시 기존 목록 격리를 강화했습니다.
+- demo Emulator 회귀 검증과 의존성 감사 결과를 인계 문서에 기록했습니다. 실물 인쇄와 실기기 검증은 남아 있습니다.
+
 ## Unreleased
 
 ### 기능

@@ -114,6 +114,7 @@ export interface AppNextWorkspaceNoticeRecord {
   title: string;
   summary: string;
   detailText: string;
+  printText: string;
   categoryLabel: string;
   scopeLabel: string;
   priorityLabel: string;
@@ -365,6 +366,11 @@ function safeNoticeText(value: unknown, maxLength: number): string {
   if (!normalized) return "내용 없음";
   if (normalized.length <= maxLength) return normalized;
   return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function safeNoticePrintText(value: unknown): string {
+  const normalized = String(value ?? "").replace(/<[^>]*>/g, " ").replace(/\r\n?/g, "\n").replace(/[^\S\n]+/g, " ").trim();
+  return normalized || "내용 없음";
 }
 
 function legacyMetaLabel(raw: RawAppNextWorkspaceNoticeRecord): string | null {
@@ -639,6 +645,7 @@ export function normalizeAppNextWorkspaceNoticeRecord(
       noticeContentValue(raw),
       2000,
     ),
+    printText: safeNoticePrintText(noticeContentValue(raw)),
     categoryLabel: categoryLabel(raw, schemaKind),
     scopeLabel: scopeLabel(raw, schemaKind),
     priorityLabel: priorityLabel(firstPresent(raw.importance, raw.priority)),

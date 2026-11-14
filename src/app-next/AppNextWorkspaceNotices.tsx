@@ -240,7 +240,9 @@ export function AppNextWorkspaceNotices() {
   const [sessionRefreshBusy, setSessionRefreshBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [expandedNoticeKey, setExpandedNoticeKey] = useState<string | null>(null);
-  const inFlightRef = useRef(false);
+  const inFlightRef = useRef<{ context: string; version: number } | null>(null);
+  const requestVersionRef = useRef(0);
+  const [loadedNoticeContext, setLoadedNoticeContext] = useState("");
 
   const readPolicy = useMemo(
     () => appNextWorkspaceNoticeReadPolicy({
@@ -252,6 +254,10 @@ export function AppNextWorkspaceNotices() {
       session,
     ],
   );
+  const noticeContext = JSON.stringify([phase, session?.uid, session?.status, session?.currentWorkspaceId, session?.currentWorkspaceRole, session?.isSystemOwner, readPolicy.canRead]);
+  const latestNoticeContext = useRef(noticeContext);
+  latestNoticeContext.current = noticeContext;
+
   const writePolicy = useMemo(
     () => appNextWorkspaceNoticeWritePolicy({ phase, session }),
     [phase, session],
@@ -278,6 +284,7 @@ export function AppNextWorkspaceNotices() {
   const writeDiagnostics = getAppNextNoticeRouteDiagnostics();
 
   const resetNoticeState = useCallback(() => {
+    setLoadedNoticeContext("");
     setNotices([]);
     setManagedNotices([]);
     setSource("none");
@@ -305,7 +312,9 @@ export function AppNextWorkspaceNotices() {
   const loadWorkspaceNotices = useCallback(async (
     requestMode: NoticeRequestMode = "default",
   ): Promise<boolean> => {
-    if (inFlightRef.current) return false;
+    const requestContext = noticeContext;
+    if (requestMode === "default" && inFlightRef.current?.context === requestContext) return false;
+    const version = ++requestVersionRef.current;
 
     const startedAt = new Date().toISOString();
     setLastRequestedReadMode(requestMode);
@@ -356,7 +365,7 @@ export function AppNextWorkspaceNotices() {
       return false;
     }
 
-    inFlightRef.current = true;
+    inFlightRef.current = { context: requestContext, version };
     setLoading(true);
     setMessage(`${requestMode} 조회를 실행하고 있습니다.`);
 
@@ -366,6 +375,8 @@ export function AppNextWorkspaceNotices() {
         requestMode,
       });
 
+      if (version !== requestVersionRef.current || latestNoticeContext.current !== requestContext) return false;
+      setLoadedNoticeContext(requestContext);
       setNotices(result.notices);
       setManagedNotices(result.managedNotices);
       setSource(result.source);
@@ -411,6 +422,7 @@ export function AppNextWorkspaceNotices() {
       setMessage(result.notices.length ? "" : "등록된 워크스페이스 공지사항이 없습니다.");
       return true;
     } catch (error) {
+      if (version !== requestVersionRef.current || latestNoticeContext.current !== requestContext) return false;
       const kind = classifyNoticeError(error);
       resetNoticeState();
       setSource(errorSource(kind, requestMode));
@@ -444,15 +456,18 @@ export function AppNextWorkspaceNotices() {
       setMessage(errorMessage(kind, requestMode));
       return false;
     } finally {
-      const completedAt = new Date().toISOString();
-      setLastReadCompletedAt(completedAt);
-      recordAppNextNoticeDiagnostics({
-        lastReadCompletedAt: completedAt,
-      });
-      inFlightRef.current = false;
-      setLoading(false);
+      if (version === requestVersionRef.current && latestNoticeContext.current === requestContext) {
+        const completedAt = new Date().toISOString();
+        setLastReadCompletedAt(completedAt);
+        recordAppNextNoticeDiagnostics({
+          lastReadCompletedAt: completedAt,
+        });
+        inFlightRef.current = null;
+        setLoading(false);
+      }
     }
   }, [
+    noticeContext,
     currentWorkspaceFingerprint,
     readPolicy.canRead,
     readPolicy.reason,
@@ -563,12 +578,32 @@ export function AppNextWorkspaceNotices() {
   ]);
 
   useEffect(() => {
+    latestNoticeContext.current = noticeContext;
+    return () => {
+      if (latestNoticeContext.current === noticeContext) {
+        latestNoticeContext.current = "";
+        requestVersionRef.current += 1;
+        inFlightRef.current = null;
+      }
+    };
+  }, [noticeContext]);
+
+  useEffect(() => {
     void loadWorkspaceNotices("default");
   }, [loadWorkspaceNotices]);
 
+  useEffect(() => {
+    const reconnect = () => { if (readPolicy.canRead) void loadWorkspaceNotices("server"); };
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [loadWorkspaceNotices, readPolicy.canRead]);
+
+  const currentNotices = readPolicy.canRead && loadedNoticeContext === noticeContext ? notices : [];
+  const currentManagedNotices = readPolicy.canRead && loadedNoticeContext === noticeContext ? managedNotices : [];
+
   return (
     <section className="app-next-panel">
-      {readPolicy.canRead && !loading && notices.length > 0 ? <AppNextPrintReport title="공지" columns={["제목", "게시일", "내용"]} rows={notices.map((row) => [row.title, row.publishedAt, row.detailText])} /> : null}
+      {readPolicy.canRead && loadedNoticeContext === noticeContext && !loading && lastErrorKind === "none" && (lastCompletedReadMode === "default" || lastCompletedReadMode === "server") ? <AppNextPrintReport title="공지" columns={["제목", "게시일", "내용"]} rows={currentNotices.map((row) => [row.title, row.publishedAt, row.printText])} /> : null}
       <div className="app-next-section-head">
         <div>
           <h2>워크스페이스 공지</h2>
@@ -623,7 +658,7 @@ export function AppNextWorkspaceNotices() {
         <dt>rawReadCount</dt>
         <dd>{String(readCount)}</dd>
         <dt>displayedCount</dt>
-        <dd>{String(notices.length)}</dd>
+        <dd>{String(currentNotices.length)}</dd>
         <dt>fromCache</dt>
         <dd>{fromCache === null ? "-" : String(fromCache)}</dd>
         <dt>pendingWrites</dt>
@@ -647,8 +682,9 @@ export function AppNextWorkspaceNotices() {
           menuVisible
         >
           <AppNextWorkspaceNoticeCrud
+            key={noticeContext}
             workspaceId={session.currentWorkspaceId}
-            managedNotices={managedNotices}
+            managedNotices={currentManagedNotices}
             onServerConfirmed={() => loadWorkspaceNotices("server")}
           />
         </RequireWorkspaceRole>
@@ -657,9 +693,9 @@ export function AppNextWorkspaceNotices() {
       {loading ? <p className="app-next-message">이전 결과와 구분하기 위해 새 요청을 처리 중입니다.</p> : null}
       {message && !loading ? <p className="app-next-message">{message}</p> : null}
 
-      {notices.length > 0 ? (
+      {currentNotices.length > 0 ? (
         <div className="app-next-notice-list">
-          {notices.map((notice) => (
+          {currentNotices.map((notice) => (
             <NoticeCard
               key={notice.noticeKey}
               notice={notice}
@@ -745,7 +781,7 @@ export function AppNextWorkspaceNotices() {
             <dt>filtered count</dt>
             <dd>{String(filteredCount)}</dd>
             <dt>displayed count</dt>
-            <dd>{String(notices.length)}</dd>
+            <dd>{String(currentNotices.length)}</dd>
             <dt>excluded count</dt>
             <dd>{String(excludedCount)}</dd>
             <dt>excluded reasons</dt>
